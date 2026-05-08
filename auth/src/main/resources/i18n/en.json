@@ -44,7 +44,7 @@
     "auth.reset.invalid.argument": "The form contains errors. Please check that the new password has not already been used and that the two entries are identical.",
     "auth.reset.title": "Password reset",
     "auth.resetCodeSent": "An email has been sent to you with instructions for changing your password.",
-    "auth.title": "ENT16 Charente Login, access to your school space",
+    "auth.title": "Open ENT Login, access to your school space",
     "auth.welcome": "Welcome!",
     "auth.welcome.p1": "Welcome to Core VLE, the versatile, JVM-based VLE engine.",
     "auth.welcome.p2": "",

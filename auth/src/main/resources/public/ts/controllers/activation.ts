@@ -9,15 +9,15 @@ export let activationController = ng.controller('ActivationController', ['$scope
 	$scope.welcome = {};
 	template.open('main', 'activation-form');
 
-	let currentTheme;
-	let conf = { overriding: [] };
+	let currentTheme: { child: string; group?: string; [key: string]: any } | undefined;
+	let conf: { overriding: Array<{ child: string; [key: string]: any }> } = { overriding: [] };
 	const xhr = new XMLHttpRequest();
 	xhr.open('get', '/assets/theme-conf.js');
 	xhr.onload = () => {
 		eval(xhr.responseText.split('exports.')[1]);
 		currentTheme = conf.overriding.find(t => t.child === skin.skin);
-		$scope.childTheme = currentTheme.child;
-		if(currentTheme.group){
+		$scope.childTheme = currentTheme ? currentTheme.child : skin.skin;
+		if(currentTheme && currentTheme.group){
 			$scope.themes = conf.overriding.filter(t => t.group === currentTheme.group);
 		}
 		else{
@@ -114,7 +114,7 @@ export let activationController = ng.controller('ActivationController', ['$scope
 			$scope.user.theme = $scope.themes[0].child;
 		}
 
-		if(forceCurrentTheme){
+		if(forceCurrentTheme && currentTheme){
 			$scope.user.theme = currentTheme.child;
 		}
 		else{
