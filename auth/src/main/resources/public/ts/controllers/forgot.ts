@@ -85,13 +85,13 @@ export let forgotController = ng.controller('ForgotController', ['$scope', 'rout
 			$scope.activationCode = window.location.href.split('activationCode=')[1].split('&')[0];
 		}
 	}
-	let conf = { overriding: [] };
+	let conf: { overriding: Array<{ child: string; [key: string]: any }> } = { overriding: [] };
 	const xhr = new XMLHttpRequest();
 	xhr.open('get', '/assets/theme-conf.js');
 	xhr.onload = async () => {
 		eval(xhr.responseText.split('exports.')[1]);
 		const currentTheme = conf.overriding.find(t => t.child === skin.skin);
-		$scope.childTheme = currentTheme.child;
+		$scope.childTheme = currentTheme ? currentTheme.child : skin.skin;
 	};
 	xhr.send();
 	//===Routes

@@ -268,7 +268,7 @@ public class PortalController extends BaseController {
 			return defaultSkin;
 		}
 		final String overrideTheme = CookieHelper.get("theme", request);
-		if (isNotEmpty(overrideTheme)) {
+		if (isNotEmpty(overrideTheme) && themes.containsKey(overrideTheme)) {
 			return overrideTheme;
 		}
 		final String theme = I18n.getTheme(request);
