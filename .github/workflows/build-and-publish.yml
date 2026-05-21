@@ -87,14 +87,23 @@ jobs:
           for pkg in packages:
               pkg_name = pkg['name']
               pkg_name_enc = urllib.parse.quote(pkg_name, safe='')
-              versions_url = f'https://api.github.com/orgs/{org}/packages/maven/{pkg_name_enc}/versions'
+              pkg_url = f'https://api.github.com/orgs/{org}/packages/maven/{pkg_name_enc}'
+              versions_url = f'{pkg_url}/versions'
               versions = api_call(versions_url)
               if not isinstance(versions, list):
                   continue
-              for v in versions:
-                  if v.get('name') == version:
+              matching = [v for v in versions if v.get('name') == version]
+              if not matching:
+                  continue
+              if len(versions) == 1:
+                  # Only one version: delete the entire package
+                  print(f'Deleting entire package {pkg_name} (only version: {version})')
+                  api_call(pkg_url, method='DELETE')
+              else:
+                  # Multiple versions: delete just the matching version
+                  for v in matching:
                       vid = v['id']
-                      print(f'Deleting {pkg_name}:{version} (id={vid})')
+                      print(f'Deleting version {pkg_name}:{version} (id={vid})')
                       api_call(f'{versions_url}/{vid}', method='DELETE')
           PYEOF
         env:
