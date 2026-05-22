@@ -73,6 +73,7 @@ public class PortalController extends BaseController {
 	private Map<String, JsonArray> themesDetails;
 	private Map<String, String> hostSkin;
 	private String assetsPath;
+
 	private EventStore eventStore;
 	private enum PortalEvent { ACCESS_ADAPTER, ACCESS }
 	private String defaultSkin;
@@ -433,6 +434,20 @@ public class PortalController extends BaseController {
 		renderJson(request, themes);
 	}
 
+	// Edifice client calls GET /${appCode}/conf/public (appCode="portal").
+	// ConfController registers at /conf/public (empty prefix), not /portal/conf/public.
+	@Get("/portal/conf/public")
+	@SecuredAction(value = "portal.auth", type = ActionType.AUTHENTICATED)
+	public void portalConfPublic(final HttpServerRequest request) {
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user != null) {
+				renderJson(request, config.getJsonObject("publicConf", new JsonObject()));
+			} else {
+				unauthorized(request);
+			}
+		});
+	}
+
 	@Get("/conf/smartBanner")
 	@SecuredAction(value = "config", type = ActionType.AUTHENTICATED)
 	public void getSmartBannerConf(final HttpServerRequest request){
@@ -512,28 +527,14 @@ public class PortalController extends BaseController {
 	 * @workflow optionalFeatureCantoo
 	 */
 	@Get("optionalFeature/cantoo")
-	@SecuredAction("optionalFeature.cantoo")
+	@SecuredAction(value = "portal.auth", type = ActionType.AUTHENTICATED)
 	public void optionalFeatureCantoo(HttpServerRequest request) {
-
-		// get scriptPath from config
 		String scriptPath = config.getString("optionalFeature-cantoo-scriptPath", "");
-
-		if(!scriptPath.isEmpty()) {
-			
-			JsonObject result = new JsonObject();
-			result.put("scriptPath", scriptPath);
-
-			request.response().putHeader("content-type", "application/json");
-			request.response().putHeader("Cache-Control", "no-cache, must-revalidate");
-			request.response().putHeader("Expires", "-1");
-			
-			//return scriptPath of script
-			request.response().end(result.encode());
-			
-		} else {
-			unauthorized(request);
-		}
-		
+		JsonObject result = new JsonObject().put("scriptPath", scriptPath);
+		request.response().putHeader("content-type", "application/json");
+		request.response().putHeader("Cache-Control", "no-cache, must-revalidate");
+		request.response().putHeader("Expires", "-1");
+		request.response().end(result.encode());
 	}
 
 	//TODO IMPLIMENTATION OF THE ZIMBRA METHODE FOR REDIRECT TO THERE EMAIL SYSTEM USING THE writeTOEmailProvider AND Adding writeTOEmailProviderZimbra WORFLOW
