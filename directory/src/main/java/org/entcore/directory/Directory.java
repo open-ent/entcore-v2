@@ -168,8 +168,11 @@ public class Directory extends BaseServer {
 		userBookController.setConversationNotification(conversationNotification);
 		addController(userBookController);
 
+		final String assetPath = config.getString("assetPath") != null
+				? config.getString("assetPath")
+				: (String) serverMap.get("assetPath");
 		StructureController structureController = new StructureController(
-				(JsonObject) serverMap.get("skins"), this.config.getString("assetPath"));
+				(JsonObject) serverMap.get("skins"), assetPath);
 		structureController.setStructureService(schoolService);
 		structureController.setNotifHelper(emailSender);
 		structureController.setMassMailService(new DefaultMassMailService(
