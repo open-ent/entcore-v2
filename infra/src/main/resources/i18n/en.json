@@ -1,3 +1,25 @@
 {
-    
+  "admin.embed": "Multimedia resources",
+  "confirm": "Confirm",
+  "create.embed": "Create a new resource",
+  "embed.confirm.deletion": "Please confirm the permanent deletion of the resource ",
+  "embed.creation": "Creating a new resource",
+  "embed.creation.notify": "The resource has been created",
+  "embed.displayName": "Display name",
+  "embed.displayName.tooltip": "Name displayed on the platform",
+  "embed.embed": "Embed",
+  "embed.embed.tooltip": "Parameterised embed link for the video",
+  "embed.example": "Example",
+  "embed.example.tooltip": "Example URL shown in the information message",
+  "embed.fields": "Resource properties",
+  "embed.logo": "Logo",
+  "embed.logo.tooltip": "You can either use an image from a website or from your document space, or upload a square image",
+  "embed.modification.notify": "The resource has been updated",
+  "embed.name": "Name",
+  "embed.name.tooltip": "Technical name of the provider",
+  "embed.url": "Parameterised URL",
+  "embed.url.tooltip": "Parameterised URL of the video",
+  "embed.video.incompatible": "Your browser is not compatible",
+  "embed.video.incompatible.details": "To be able to use the video, you need to download a compatible browser: ",
+  "load.image": "Upload an image"
 }
