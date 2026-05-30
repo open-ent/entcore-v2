@@ -187,30 +187,7 @@ public class TimelineController extends BaseController {
 	@Get("/timeline")
 	@SecuredAction(value = "timeline.view", type = ActionType.AUTHENTICATED)
 	public void view(HttpServerRequest request) {
-		// =================
-		// /!\ TEMPORARY /!\
-		// =================
-		// handle both new and old timeline app depending on user theme
-		// if 2D then new timeline else default timeline
-		if (this.skinLevels == null) {
-			renderView(request, new JsonObject().put("lightMode", isLightmode()).put("cache", config.getBoolean("cache", false)));
-			return;
-		}
-
-		UserUtils.getTheme(eb, request, this.hostSkin, userTheme -> {
-			if (isEmpty(userTheme)) {
-				renderView(request, new JsonObject().put("lightMode", isLightmode()).put("cache", config.getBoolean("cache", false)));
-				return;
-			}
-
-			JsonArray userSkinLevels = this.skinLevels.getJsonArray(userTheme);
-			if (userSkinLevels != null && userSkinLevels.contains("2d")) {
-				renderView(request, new JsonObject().put("lightMode", isLightmode()).put("cache", config.getBoolean("cache", false)), "timeline2.html", null);
-			} else {
-				renderView(request, new JsonObject().put("lightMode", isLightmode()).put("cache", config.getBoolean("cache", false)));
-			}
-		});
-		eventHelper.onAccess(request);
+		redirectPermanent(request, config.getString("timeline-redirect", "/dashboard/home"));
 	}
 
 	@Get("/timeline2")
