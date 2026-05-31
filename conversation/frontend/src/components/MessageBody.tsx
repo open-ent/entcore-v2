@@ -1,9 +1,4 @@
-import {
-  Alert,
-  Button,
-  EmptyScreen,
-  useEdificeClient,
-} from '@open-ent/react';
+import { Alert, Button, EmptyScreen, useEdificeClient } from '@open-ent/react';
 import {
   ConversationHistoryNodeView,
   ConversationHistoryRenderer,

@@ -1,9 +1,5 @@
 import { useDate } from '@open-ent/react';
-import {
-  IconMailRecall,
-  IconPaperclip,
-  IconUndo,
-} from '@open-ent/react/icons';
+import { IconMailRecall, IconPaperclip, IconUndo } from '@open-ent/react/icons';
 import { useTranslation } from 'react-i18next';
 import { useMessageFolderId } from '~/hooks/useMessageFolderId';
 import { MessageMetadata } from '~/models';

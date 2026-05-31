@@ -39,9 +39,7 @@ vi.mock('~/hooks/useSelectedFolder', () => ({
 
 vi.mock('@open-ent/react', async () => {
   const actual =
-    await vi.importActual<typeof import('@open-ent/react')>(
-      '@open-ent/react',
-    );
+    await vi.importActual<typeof import('@open-ent/react')>('@open-ent/react');
   return {
     ...actual,
     useToast: () => {
