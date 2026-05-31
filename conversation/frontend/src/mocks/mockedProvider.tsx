@@ -1,4 +1,4 @@
-import { EdificeClientProvider } from '@edifice.io/react';
+import { EdificeClientProvider } from '@open-ent/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';

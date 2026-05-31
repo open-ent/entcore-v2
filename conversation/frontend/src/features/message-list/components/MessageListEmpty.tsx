@@ -1,4 +1,4 @@
-import { EmptyScreen, useEdificeClient } from '@edifice.io/react';
+import { EmptyScreen, useEdificeClient } from '@open-ent/react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router-dom';
 

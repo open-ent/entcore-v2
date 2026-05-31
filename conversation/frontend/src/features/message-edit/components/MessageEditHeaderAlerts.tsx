@@ -1,4 +1,4 @@
-import { Alert, Flex } from '@edifice.io/react';
+import { Alert, Flex } from '@open-ent/react';
 import { useI18n } from '~/hooks/useI18n';
 
 export interface MessageEditHeaderAlertsProps {

@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
-import { IAction, odeServices } from '@edifice.io/client';
+import { IAction, odeServices } from '@open-ent/client';
 
 /**
  * actionsQueryOptions: check action availability depending on workflow right

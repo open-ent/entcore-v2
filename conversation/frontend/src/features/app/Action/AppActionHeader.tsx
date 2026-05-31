@@ -1,5 +1,5 @@
-import { Dropdown, IconButton, IconButtonProps } from '@edifice.io/react';
-import { IconSettings, IconSignature } from '@edifice.io/react/icons';
+import { Dropdown, IconButton, IconButtonProps } from '@open-ent/react';
+import { IconSettings, IconSignature } from '@open-ent/react/icons';
 import { Fragment, RefAttributes } from 'react';
 import { useLocation } from 'react-router-dom';
 import { NewMessageButton } from '~/components/NewMessageButton';

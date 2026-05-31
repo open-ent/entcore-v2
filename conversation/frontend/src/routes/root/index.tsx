@@ -5,7 +5,7 @@ import {
   LoadingScreen,
   useBreakpoint,
   useEdificeClient,
-} from '@edifice.io/react';
+} from '@open-ent/react';
 import { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { useLoaderData, useLocation, useParams } from 'react-router-dom';

@@ -1,4 +1,4 @@
-import { useEdificeTheme } from '@edifice.io/react';
+import { useEdificeTheme } from '@open-ent/react';
 import { QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { LoaderFunctionArgs, useLoaderData } from 'react-router-dom';

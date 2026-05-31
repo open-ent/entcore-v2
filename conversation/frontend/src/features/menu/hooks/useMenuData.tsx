@@ -1,4 +1,4 @@
-import { Badge } from '@edifice.io/react';
+import { Badge } from '@open-ent/react';
 import { useSelectedFolder } from '~/hooks/useSelectedFolder';
 import { SystemFolder } from '~/models';
 import { useMessagesCount } from '~/services';

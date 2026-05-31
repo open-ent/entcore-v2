@@ -1,4 +1,4 @@
-import { useDate, useEdificeClient } from '@edifice.io/react';
+import { useDate, useEdificeClient } from '@open-ent/react';
 import { useLayoutEffect } from 'react';
 import { SIGNATURE_EMPTY_CONTENT } from '~/components/SignatureEditor';
 import { Group, Message, Recipients, User } from '~/models';

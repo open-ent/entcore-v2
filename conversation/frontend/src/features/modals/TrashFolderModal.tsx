@@ -1,4 +1,4 @@
-import { ConfirmModal } from '@edifice.io/react';
+import { ConfirmModal } from '@open-ent/react';
 import { useEffect } from 'react';
 import { useI18n } from '~/hooks/useI18n';
 import { useActionsStore } from '~/store/actions';

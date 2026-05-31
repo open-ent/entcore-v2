@@ -1,4 +1,4 @@
-import { useDirectory } from '@edifice.io/react';
+import { useDirectory } from '@open-ent/react';
 import { useMessageUserDisplayName } from '~/hooks/useUserDisplayName';
 import { Group, User } from '~/models';
 import './MessageRecipientListItem.css';

@@ -1,5 +1,5 @@
-import { Button, Modal } from '@edifice.io/react';
-import { WorkspaceFolders } from '@edifice.io/react/multimedia';
+import { Button, Modal } from '@open-ent/react';
+import { WorkspaceFolders } from '@open-ent/react/multimedia';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '~/hooks/useI18n';

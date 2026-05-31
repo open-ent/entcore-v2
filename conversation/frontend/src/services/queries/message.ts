@@ -1,5 +1,5 @@
-import { odeServices } from '@edifice.io/client';
-import { useEdificeClient, useToast } from '@edifice.io/react';
+import { odeServices } from '@open-ent/client';
+import { useEdificeClient, useToast } from '@open-ent/react';
 import {
   queryOptions,
   useMutation,

@@ -1,5 +1,5 @@
-import { odeServices } from '@edifice.io/client';
-import { useIsAdml } from '@edifice.io/react';
+import { odeServices } from '@open-ent/client';
+import { useIsAdml } from '@open-ent/react';
 import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Config } from '~/config';
 import { Visible } from '~/models/visible';

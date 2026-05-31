@@ -1,4 +1,4 @@
-import { useEdificeClient, useToast } from '@edifice.io/react';
+import { useEdificeClient, useToast } from '@open-ent/react';
 import {
   IconDelete,
   IconFolderDelete,
@@ -13,7 +13,7 @@ import {
   IconUndoAll,
   IconUndoSlashed,
   IconUnreadMail,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFolderHandlers } from '~/features/menu/hooks/useFolderHandlers';

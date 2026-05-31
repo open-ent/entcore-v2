@@ -2,7 +2,7 @@ import {
   IconDepositeInbox,
   IconSend,
   IconWrite,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import { useTranslation } from 'react-i18next';
 
 type UserFolderIconProps = {

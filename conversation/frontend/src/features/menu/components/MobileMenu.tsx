@@ -1,4 +1,4 @@
-import { ButtonSkeleton, Dropdown } from '@edifice.io/react';
+import { ButtonSkeleton, Dropdown } from '@open-ent/react';
 import {
   IconDelete,
   IconDepositeInbox,
@@ -6,7 +6,7 @@ import {
   IconPlus,
   IconSend,
   IconWrite,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import { ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderActionDropdown } from '~/components';

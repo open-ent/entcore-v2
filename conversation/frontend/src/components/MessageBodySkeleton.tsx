@@ -1,4 +1,4 @@
-import { EditorSkeleton } from '@edifice.io/react/editor';
+import { EditorSkeleton } from '@open-ent/react/editor';
 import { Message } from '~/models';
 import './MessageBody.css';
 

@@ -1,5 +1,5 @@
-import { Dropdown, IconButton, IconButtonProps } from '@edifice.io/react';
-import { IconDelete, IconEdit, IconOptions } from '@edifice.io/react/icons';
+import { Dropdown, IconButton, IconButtonProps } from '@open-ent/react';
+import { IconDelete, IconEdit, IconOptions } from '@open-ent/react/icons';
 import { RefAttributes } from 'react';
 import { useFolderHandlers } from '~/features/menu/hooks/useFolderHandlers';
 import { useI18n } from '~/hooks/useI18n';

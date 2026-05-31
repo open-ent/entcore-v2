@@ -1,4 +1,4 @@
-import { Button, FormControl, Input, Label, Modal } from '@edifice.io/react';
+import { Button, FormControl, Input, Label, Modal } from '@open-ent/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '~/hooks/useI18n';
 import { searchFolder } from '~/services';

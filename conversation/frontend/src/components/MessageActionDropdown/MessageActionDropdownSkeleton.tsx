@@ -1,4 +1,4 @@
-import { ButtonSkeleton } from '@edifice.io/react';
+import { ButtonSkeleton } from '@open-ent/react';
 
 export function MessageActionDropdownSkeleton({
   className = '',

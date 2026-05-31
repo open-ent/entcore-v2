@@ -1,4 +1,4 @@
-import { Button, Modal } from '@edifice.io/react';
+import { Button, Modal } from '@open-ent/react';
 import { useI18n } from '~/hooks/useI18n';
 
 export interface SentToInactiveUsersModalProps {

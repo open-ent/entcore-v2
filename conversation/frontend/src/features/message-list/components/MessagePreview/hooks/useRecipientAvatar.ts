@@ -1,4 +1,4 @@
-import { useDirectory } from '@edifice.io/react';
+import { useDirectory } from '@open-ent/react';
 import { Recipients } from '~/models';
 
 export function useRecipientAvatar(recipients: Recipients) {

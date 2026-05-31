@@ -1,6 +1,6 @@
 import { ChangeEvent, KeyboardEvent, useEffect, useReducer } from 'react';
 
-import { OptionListItemType, useDebounce, useIsAdml } from '@edifice.io/react';
+import { OptionListItemType, useDebounce, useIsAdml } from '@open-ent/react';
 import { Visible } from '~/models/visible';
 import { useDefaultBookmark, useSearchVisible } from '~/services/queries/user';
 

@@ -1,10 +1,10 @@
-import { Button, IconButton } from '@edifice.io/react';
+import { Button, IconButton } from '@open-ent/react';
 import {
   IconDelete,
   IconDownload,
   IconFolderAdd,
   IconPlus,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import clsx from 'clsx';
 import { ChangeEvent, useRef, useState } from 'react';
 import { useI18n } from '~/hooks/useI18n';

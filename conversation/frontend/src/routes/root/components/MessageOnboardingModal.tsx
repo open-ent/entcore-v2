@@ -1,4 +1,4 @@
-import { OnboardingModal } from '@edifice.io/react/modals';
+import { OnboardingModal } from '@open-ent/react/modals';
 import illuOnboardingIncoming from '~/assets/illu-onboarding-incoming.svg';
 import illuOnboardingNew from '~/assets/illu-onboarding-new.svg';
 import illuOnboardingRecall from '~/assets/illu-onboarding-recall.svg';

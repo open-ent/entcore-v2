@@ -1,5 +1,5 @@
-import { IQuotaAndUsage } from '@edifice.io/client';
-import { useEdificeClient } from '@edifice.io/react';
+import { IQuotaAndUsage } from '@open-ent/client';
+import { useEdificeClient } from '@open-ent/react';
 
 /**
  * Custom hook to retrieve the used space and quota information.

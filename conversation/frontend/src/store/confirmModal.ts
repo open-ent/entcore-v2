@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ReactNode } from 'react';
-import { ModalSize } from '@edifice.io/react';
+import { ModalSize } from '@open-ent/react';
 
 type ConfirmModalVariant = 'yes/no' | 'ok/cancel';
 

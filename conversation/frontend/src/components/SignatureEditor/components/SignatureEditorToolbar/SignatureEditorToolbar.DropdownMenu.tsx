@@ -4,7 +4,7 @@ import {
   IconButton,
   IconButtonProps,
   Tooltip,
-} from '@edifice.io/react';
+} from '@open-ent/react';
 import { Fragment, ReactNode, RefAttributes } from 'react';
 
 interface SignatureEditorToolbarDropdownMenuProps {

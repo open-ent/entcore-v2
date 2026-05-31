@@ -1,4 +1,4 @@
-import { FormControl, Input } from '@edifice.io/react';
+import { FormControl, Input } from '@open-ent/react';
 
 export function MessageEditHeaderSkeleton() {
   return (

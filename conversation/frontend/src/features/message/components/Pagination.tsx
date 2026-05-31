@@ -1,5 +1,5 @@
-import { IconButton } from '@edifice.io/react';
-import { IconRafterLeft, IconRafterRight } from '@edifice.io/react/icons';
+import { IconButton } from '@open-ent/react';
+import { IconRafterLeft, IconRafterRight } from '@open-ent/react/icons';
 import { useI18n } from '~/hooks/useI18n';
 
 interface PaginationProps {

@@ -1,5 +1,5 @@
-import { Button, useBreakpoint } from '@edifice.io/react';
-import { IconArrowLeft } from '@edifice.io/react/icons';
+import { Button, useBreakpoint } from '@open-ent/react';
+import { IconArrowLeft } from '@open-ent/react/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   MessageActionDropdown,

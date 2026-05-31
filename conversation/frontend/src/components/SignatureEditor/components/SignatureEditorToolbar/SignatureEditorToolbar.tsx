@@ -4,10 +4,10 @@ import {
   IconTextBold,
   IconTextItalic,
   IconTextVanilla,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import { useI18n } from '~/hooks/useI18n';
-import { Toolbar, ToolbarItem } from '@edifice.io/react';
-import { EditorInstance as Editor } from '@edifice.io/react/editor';
+import { Toolbar, ToolbarItem } from '@open-ent/react';
+import { EditorInstance as Editor } from '@open-ent/react/editor';
 import { hasMark } from '../../utilities/has-mark';
 
 interface Props {

@@ -4,7 +4,7 @@ import {
   Dropdown,
   OptionListItemType,
   useIsAdml,
-} from '@edifice.io/react';
+} from '@open-ent/react';
 import { Fragment, ReactNode, useEffect, useRef, useState } from 'react';
 import { useSearchRecipients } from '~/features/message-edit/hooks/useSearchRecipients';
 import { useI18n } from '~/hooks/useI18n';

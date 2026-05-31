@@ -1,4 +1,4 @@
-import { Button } from '@edifice.io/react';
+import { Button } from '@open-ent/react';
 import { useState } from 'react';
 import { useI18n } from '~/hooks/useI18n';
 import { Message } from '~/models';

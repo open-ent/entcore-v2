@@ -1,5 +1,5 @@
 import { useMessageStore } from '~/store/messageStore';
-import { useDebounce } from '@edifice.io/react';
+import { useDebounce } from '@open-ent/react';
 import { useEffect, useRef } from 'react';
 import { useConversationConfig, useCreateOrUpdateDraft } from '~/services';
 

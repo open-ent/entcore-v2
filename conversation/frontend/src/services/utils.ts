@@ -1,4 +1,4 @@
-import { TreeItem } from '@edifice.io/react';
+import { TreeItem } from '@open-ent/react';
 import {
   Attachment,
   Folder,

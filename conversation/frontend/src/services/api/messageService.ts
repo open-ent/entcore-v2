@@ -1,5 +1,5 @@
-import { odeServices } from '@edifice.io/client';
-import { NOOP } from '@edifice.io/utilities';
+import { odeServices } from '@open-ent/client';
+import { NOOP } from '@open-ent/utilities';
 
 import { Message, MessageSentResponse } from '~/models';
 import { createDefaultMessage } from '../utils';

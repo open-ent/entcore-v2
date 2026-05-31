@@ -1,4 +1,4 @@
-import { FormControl, Input } from '@edifice.io/react';
+import { FormControl, Input } from '@open-ent/react';
 import { MessageActionDropdownSkeleton } from '~/components/MessageActionDropdown/MessageActionDropdownSkeleton';
 import { MessageBodySkeleton } from '~/components/MessageBodySkeleton';
 import { MessageEditHeaderSkeleton } from './components/MessageEditHeaderSkeleton';

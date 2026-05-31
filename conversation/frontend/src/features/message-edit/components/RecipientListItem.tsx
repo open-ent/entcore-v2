@@ -1,5 +1,5 @@
-import { Dropdown, Loading } from '@edifice.io/react';
-import { IconSuccessOutline } from '@edifice.io/react/icons';
+import { Dropdown, Loading } from '@open-ent/react';
+import { IconSuccessOutline } from '@open-ent/react/icons';
 import clsx from 'clsx';
 import { useDelayedLoader } from '~/hooks/useDelayedLoader';
 import { useI18n } from '~/hooks/useI18n';

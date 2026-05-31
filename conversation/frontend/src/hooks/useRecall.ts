@@ -1,4 +1,4 @@
-import { useEdificeClient, useToast } from '@edifice.io/react';
+import { useEdificeClient, useToast } from '@open-ent/react';
 import { createElement } from 'react';
 import { MessageBase } from '~/models';
 import { useRecallMessage } from '~/services';

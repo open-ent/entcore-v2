@@ -1,4 +1,4 @@
-import { useEdificeClient } from '@edifice.io/react';
+import { useEdificeClient } from '@open-ent/react';
 import { MessageBase, Recipients } from '~/models';
 
 export default function useMessageCciToDisplay(

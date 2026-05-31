@@ -8,8 +8,8 @@ import {
   Modal,
   Switch,
   useToast,
-} from '@edifice.io/react';
-import { IconFolder } from '@edifice.io/react/icons';
+} from '@open-ent/react';
+import { IconFolder } from '@open-ent/react/icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '~/hooks/useI18n';
 import { Folder } from '~/models';

@@ -1,4 +1,4 @@
-import { Button, Loading, Modal, Switch, useToast } from '@edifice.io/react';
+import { Button, Loading, Modal, Switch, useToast } from '@open-ent/react';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   SignatureEditor,

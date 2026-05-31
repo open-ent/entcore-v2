@@ -6,10 +6,10 @@ const mocks = vi.hoisted(() => ({
   useEdificeTheme: vi.fn(),
 }));
 
-vi.mock('@edifice.io/react', async () => {
+vi.mock('@open-ent/react', async () => {
   const actual =
-    await vi.importActual<typeof import('@edifice.io/react')>(
-      '@edifice.io/react',
+    await vi.importActual<typeof import('@open-ent/react')>(
+      '@open-ent/react',
     );
   return {
     ...actual,

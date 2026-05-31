@@ -1,11 +1,11 @@
-import { ConfirmModal, EdificeClientProvider } from '@edifice.io/react';
+import { ConfirmModal, EdificeClientProvider } from '@open-ent/react';
 import {
   QueryCache,
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { ERROR_CODE } from '@edifice.io/client';
+import { ERROR_CODE } from '@open-ent/client';
 import { ReactNode } from 'react';
 import { useConfirmModalStore } from '~/store';
 

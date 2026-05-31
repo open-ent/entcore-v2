@@ -1,9 +1,9 @@
-import { Avatar, AvatarSizes, useDirectory } from '@edifice.io/react';
+import { Avatar, AvatarSizes, useDirectory } from '@open-ent/react';
 import {
   IconBookmark,
   IconGlobe2,
   IconGroupAvatar,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import clsx from 'clsx';
 import { useI18n } from '~/hooks/useI18n';
 import { VisibleType } from '~/models/visible';

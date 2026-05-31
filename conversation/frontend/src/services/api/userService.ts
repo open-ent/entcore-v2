@@ -1,4 +1,4 @@
-import { BookmarkWithDetails, odeServices } from '@edifice.io/client';
+import { BookmarkWithDetails, odeServices } from '@open-ent/client';
 import { Visible, VisibleType } from '~/models/visible';
 
 type VisibleData = { id: string; displayName: string };

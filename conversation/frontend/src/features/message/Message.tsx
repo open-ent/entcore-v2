@@ -4,7 +4,7 @@ import { MessageBody } from '~/components/MessageBody';
 import { MessageHeader } from '~/features/message/components/MessageHeader';
 import { Message as MessageData } from '~/models';
 import { MessageNavigation } from './components/MessageNavigation';
-import { Alert, useEdificeClient } from '@edifice.io/react';
+import { Alert, useEdificeClient } from '@open-ent/react';
 import { useI18n } from '~/hooks/useI18n';
 
 export interface MessageProps {

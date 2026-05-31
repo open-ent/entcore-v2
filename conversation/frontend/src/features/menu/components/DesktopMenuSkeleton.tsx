@@ -1,4 +1,4 @@
-import { ButtonSkeleton } from '@edifice.io/react';
+import { ButtonSkeleton } from '@open-ent/react';
 import './DesktopMenu.css';
 
 /** The navigation menu among folders, intended for desktop resolutions */

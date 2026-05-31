@@ -1,4 +1,4 @@
-import { odeServices } from '@edifice.io/client';
+import { odeServices } from '@open-ent/client';
 import { describe, expect, test } from 'vitest';
 import { mockFullMessage } from '~/mocks';
 import { baseUrl, messageService } from '.';

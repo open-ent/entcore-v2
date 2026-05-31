@@ -5,7 +5,7 @@ import {
   Tree,
   TreeItem,
   useToast,
-} from '@edifice.io/react';
+} from '@open-ent/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import illuFolder from '~/assets/illu-folder.svg';

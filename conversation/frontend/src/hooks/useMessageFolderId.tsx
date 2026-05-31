@@ -1,4 +1,4 @@
-import { useEdificeClient } from '@edifice.io/react';
+import { useEdificeClient } from '@open-ent/react';
 import { MessageMetadata } from '~/models';
 import { isInRecipient } from '~/services';
 import { useSelectedFolder } from './useSelectedFolder';

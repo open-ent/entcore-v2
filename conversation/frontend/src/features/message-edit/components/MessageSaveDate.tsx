@@ -1,4 +1,4 @@
-import { useDate } from '@edifice.io/react';
+import { useDate } from '@open-ent/react';
 import { useEffect, useState } from 'react';
 import { useI18n } from '~/hooks/useI18n';
 import { useMessageStore } from '~/store/messageStore';

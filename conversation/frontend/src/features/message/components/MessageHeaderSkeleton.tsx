@@ -1,4 +1,4 @@
-import { Avatar, TextSkeleton } from '@edifice.io/react';
+import { Avatar, TextSkeleton } from '@open-ent/react';
 
 export function MessageHeaderSkeleton() {
   return (

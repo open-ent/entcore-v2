@@ -1,4 +1,4 @@
-import { Avatar, useDirectory } from '@edifice.io/react';
+import { Avatar, useDirectory } from '@open-ent/react';
 import { useTranslation } from 'react-i18next';
 
 interface SenderAvatarProps {

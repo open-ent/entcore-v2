@@ -3,7 +3,7 @@ import {
   ButtonSkeleton,
   Checkbox,
   TextSkeleton,
-} from '@edifice.io/react';
+} from '@open-ent/react';
 
 export function MessageListSkeleton({ withHeader = true }) {
   return (

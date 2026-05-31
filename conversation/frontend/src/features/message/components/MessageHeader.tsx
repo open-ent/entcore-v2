@@ -1,4 +1,4 @@
-import { useDate, useDirectory } from '@edifice.io/react';
+import { useDate, useDirectory } from '@open-ent/react';
 import { MessageRecipientList } from '~/components/MessageRecipientList/MessageRecipientList';
 import { SenderAvatar } from '~/features/message-list/components/MessagePreview/components/SenderAvatar';
 import { useI18n } from '~/hooks/useI18n';

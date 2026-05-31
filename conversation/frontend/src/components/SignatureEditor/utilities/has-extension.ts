@@ -1,4 +1,4 @@
-import { EditorInstance } from '@edifice.io/react/editor';
+import { EditorInstance } from '@open-ent/react/editor';
 
 export const hasExtension = (
   extensionName: string,

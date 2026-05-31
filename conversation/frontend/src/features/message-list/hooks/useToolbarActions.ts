@@ -1,4 +1,4 @@
-import { useToast } from '@edifice.io/react';
+import { useToast } from '@open-ent/react';
 import { useTranslation } from 'react-i18next';
 import { MessageMetadata } from '~/models';
 import {

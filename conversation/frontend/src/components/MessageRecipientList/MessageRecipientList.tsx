@@ -1,4 +1,4 @@
-import { useEdificeTheme } from '@edifice.io/react';
+import { useEdificeTheme } from '@open-ent/react';
 import { useTranslation } from 'react-i18next';
 import { MessageRecipientSubList } from '~/components/MessageRecipientList/components/MessageRecipientSubList';
 import useMessageCciToDisplay from '~/components/MessageRecipientList/hooks/useMessageCciToDisplay';

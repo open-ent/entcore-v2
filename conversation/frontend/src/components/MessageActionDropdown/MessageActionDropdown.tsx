@@ -7,8 +7,8 @@ import {
   IconButtonProps,
   Tooltip,
   useBreakpoint,
-} from '@edifice.io/react';
-import { IconOptions } from '@edifice.io/react/icons';
+} from '@open-ent/react';
+import { IconOptions } from '@open-ent/react/icons';
 import { RefAttributes } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SentToInactiveUsersModal } from '~/components/MessageActionDropdown/modals/SentToInactiveUsersModal';

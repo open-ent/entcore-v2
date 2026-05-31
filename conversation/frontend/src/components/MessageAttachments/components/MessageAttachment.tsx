@@ -1,9 +1,9 @@
-import { Attachment, IconButton } from '@edifice.io/react';
+import { Attachment, IconButton } from '@open-ent/react';
 import {
   IconDelete,
   IconDownload,
   IconFolderAdd,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import { useI18n } from '~/hooks/useI18n';
 import { useMessageAttachments } from '~/hooks/useMessageAttachments';
 import { Attachment as AttachmentMetaData } from '~/models';

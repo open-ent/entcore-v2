@@ -67,10 +67,28 @@ export default ({ mode }: { mode: string }) => {
     cacheDir: './node_modules/.vite/conversation',
 
     resolve: {
+      // Le fork @open-ent/* résout ses peers depuis son propre node_modules → sans
+      // dedupe on embarque deux copies (react-query, i18next...) ⇒ "No QueryClient set".
+      // On force une instance unique.
+      dedupe: [
+        'react',
+        'react-dom',
+        '@tanstack/react-query',
+        'react-i18next',
+        'i18next',
+        '@react-spring/web',
+        'react-hook-form',
+        'react-router-dom',
+        '@open-ent/client',
+        '@open-ent/react',
+        '@open-ent/bootstrap',
+        '@open-ent/utilities',
+        '@open-ent/tiptap-extensions',
+      ],
       alias: {
         '@images': resolve(
           __dirname,
-          'node_modules/@edifice.io/bootstrap/dist/images',
+          'node_modules/@open-ent/bootstrap/dist/images',
         ),
       },
     },
@@ -132,7 +150,7 @@ export default ({ mode }: { mode: string }) => {
       },
       server: {
         deps: {
-          inline: ['@edifice.io/react'],
+          inline: ['@open-ent/react'],
         },
       },
     },

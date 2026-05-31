@@ -1,5 +1,5 @@
-import { IconButton, useDirectory } from '@edifice.io/react';
-import { IconClose } from '@edifice.io/react/icons';
+import { IconButton, useDirectory } from '@open-ent/react';
+import { IconClose } from '@open-ent/react/icons';
 import clsx from 'clsx';
 import { useI18n } from '~/hooks/useI18n';
 import { useMessageUserDisplayName } from '~/hooks/useUserDisplayName';

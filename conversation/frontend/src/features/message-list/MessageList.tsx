@@ -3,7 +3,7 @@ import {
   Loading,
   ToolbarButtonItem,
   useEdificeClient,
-} from '@edifice.io/react';
+} from '@open-ent/react';
 import {
   IconDelete,
   IconFolderDelete,
@@ -11,7 +11,7 @@ import {
   IconReadMail,
   IconRestore,
   IconUnreadMail,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';

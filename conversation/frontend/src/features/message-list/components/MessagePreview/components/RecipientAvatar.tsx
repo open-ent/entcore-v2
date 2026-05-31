@@ -1,5 +1,5 @@
-import { Avatar } from '@edifice.io/react';
-import { IconGroupAvatar, IconQuestionMark } from '@edifice.io/react/icons';
+import { Avatar } from '@open-ent/react';
+import { IconGroupAvatar, IconQuestionMark } from '@open-ent/react/icons';
 import { useTranslation } from 'react-i18next';
 import { Recipients } from '~/models';
 import { useRecipientAvatar } from '../hooks/useRecipientAvatar';

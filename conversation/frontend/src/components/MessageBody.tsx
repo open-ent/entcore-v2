@@ -3,13 +3,13 @@ import {
   Button,
   EmptyScreen,
   useEdificeClient,
-} from '@edifice.io/react';
+} from '@open-ent/react';
 import {
   ConversationHistoryNodeView,
   ConversationHistoryRenderer,
   Editor,
   EditorRef,
-} from '@edifice.io/react/editor';
+} from '@open-ent/react/editor';
 import { Suspense, useRef, useState } from 'react';
 import illuRecall from '~/assets/illu-messageRecalled.svg';
 import { MessageAttachments } from '~/components/MessageAttachments/MessageAttachments';

@@ -3,8 +3,8 @@ import {
   SearchBar,
   useBreakpoint,
   useEdificeClient,
-} from '@edifice.io/react';
-import { IconFilter } from '@edifice.io/react/icons';
+} from '@open-ent/react';
+import { IconFilter } from '@open-ent/react/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';

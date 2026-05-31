@@ -4,14 +4,14 @@ import {
   Tree,
   TreeItem,
   useEdificeClient,
-} from '@edifice.io/react';
+} from '@open-ent/react';
 import {
   IconDelete,
   IconDepositeInbox,
   IconPlus,
   IconSend,
   IconWrite,
-} from '@edifice.io/react/icons';
+} from '@open-ent/react/icons';
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

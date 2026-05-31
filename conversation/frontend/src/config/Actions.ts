@@ -1,4 +1,4 @@
-import { ACTION, ActionType, IAction } from '@edifice.io/client';
+import { ACTION, ActionType, IAction } from '@open-ent/client';
 
 export const existingActions: IAction[] = [
   {

@@ -1,4 +1,4 @@
-import { useEdificeClient } from '@edifice.io/react';
+import { useEdificeClient } from '@open-ent/react';
 import { useI18n } from '~/hooks/useI18n';
 import { Group, User } from '~/models';
 import { Visible } from '~/models/visible';

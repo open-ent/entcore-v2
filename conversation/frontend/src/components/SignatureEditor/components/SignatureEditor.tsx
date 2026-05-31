@@ -13,8 +13,8 @@ import {
   EditorInstance,
   StarterKit,
   useEditor,
-} from '@edifice.io/react/editor';
-import { FontSize } from '@edifice.io/tiptap-extensions/font-size';
+} from '@open-ent/react/editor';
+import { FontSize } from '@open-ent/tiptap-extensions/font-size';
 import clsx from 'clsx';
 import { SignatureEditorToolbar } from './SignatureEditorToolbar';
 
