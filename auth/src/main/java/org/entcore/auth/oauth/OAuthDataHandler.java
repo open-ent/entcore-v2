@@ -549,7 +549,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 				.put("code", code)
 				.put("createdAt", new JsonObject()
 					.put("$gte", new JsonObject()
-						.put("$date", formatUtcDateTime(new Date(System.currentTimeMillis() - CODE_EXPIRES)))));
+						.put("$date", System.currentTimeMillis() - CODE_EXPIRES)));
 			mongo.findOne(AUTH_INFO_COLLECTION, query, res -> {
         JsonObject r = res.body().getJsonObject("result");
         if ("ok".equals(res.body().getString("status")) && r != null && r.size() > 0) {
