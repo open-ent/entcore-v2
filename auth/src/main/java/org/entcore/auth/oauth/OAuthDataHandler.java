@@ -545,14 +545,19 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	@Override
 	public void getAuthInfoByCode(String code, final Handler<AuthInfo> handler) {
 		if (code != null && !code.trim().isEmpty()) {
-			final JsonObject query = new JsonObject()
-				.put("code", code)
-				.put("createdAt", new JsonObject()
-					.put("$gte", new JsonObject()
-						.put("$date", System.currentTimeMillis() - CODE_EXPIRES)));
+			// Filtre uniquement par 'code'. Le filtre createdAt $gte {"$date": ...} ne fonctionne
+			// plus via le persistor (depuis la migration vertx4) et faisait échouer TOUTE recherche
+			// de code -> échange OAuth2/OIDC cassé pour tous les connecteurs. L'expiration du code
+			// est désormais vérifiée côté Java.
+			final JsonObject query = new JsonObject().put("code", code);
 			mongo.findOne(AUTH_INFO_COLLECTION, query, res -> {
         JsonObject r = res.body().getJsonObject("result");
         if ("ok".equals(res.body().getString("status")) && r != null && r.size() > 0) {
+          final long createdAtMs = extractEpochMillis(r.getValue("createdAt"));
+          if (createdAtMs > 0L && (System.currentTimeMillis() - createdAtMs) > CODE_EXPIRES) {
+            handler.handle(null); // code expiré
+            return;
+          }
           r.put("id", r.getString("_id"));
           r.remove("_id");
           r.remove("sessionId");
@@ -570,6 +575,26 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 		} else {
 			handler.handle(null);
 		}
+	}
+
+	// Extrait l'epoch millis d'un champ date renvoyé par le persistor, quelle que soit sa forme
+	// ({"$date": <long>} ou {"$date": "ISO"} ou Number/String). Renvoie 0 si non interprétable
+	// (dans ce cas on n'expire pas : l'échange de code est immédiat).
+	private static long extractEpochMillis(Object value) {
+		try {
+			if (value instanceof JsonObject) {
+				Object d = ((JsonObject) value).getValue("$date");
+				if (d instanceof Number) return ((Number) d).longValue();
+				if (d instanceof String) return java.time.Instant.parse((String) d).toEpochMilli();
+			} else if (value instanceof Number) {
+				return ((Number) value).longValue();
+			} else if (value instanceof String) {
+				return java.time.Instant.parse((String) value).toEpochMilli();
+			}
+		} catch (Exception e) {
+			// format inattendu : on laisse passer
+		}
+		return 0L;
 	}
 
 	@Override
