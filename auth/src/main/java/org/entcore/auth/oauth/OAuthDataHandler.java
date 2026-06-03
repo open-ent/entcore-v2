@@ -566,6 +566,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
           try {
             handler.handle(mapper.readValue(r.encode(), AuthInfo.class));
           } catch (IOException e) {
+            log.error("getAuthInfoByCode: cannot deserialize AuthInfo", e);
             handler.handle(null);
           }
         } else {
