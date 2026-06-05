@@ -284,6 +284,7 @@ public class MapSessionStore extends AbstractSessionStore {
         if (infos == null || infos.isEmpty()) {
             throw new SessionException("LoginInfo not found");
         }
+        final List<LoginInfo> staleInfos = new ArrayList<>();
         for (LoginInfo info : infos) {
             try {
                 JsonObject session = unmarshal(sessions.get(info.sessionId));
@@ -291,12 +292,16 @@ public class MapSessionStore extends AbstractSessionStore {
                     session.getJsonObject("cache").put(key, value);
                     sessions.put(info.sessionId, session.encode());
                 } else {
-                    logger.error("Error getting session in hazelcast map : " + info.sessionId);
+                    // Entrée logins orpheline (session expirée/évincée de la map sessions) :
+                    // on la nettoie (self-heal) au lieu de logger une erreur récurrente.
+                    staleInfos.add(info);
+                    logger.debug("Stale session entry removed from logins map : " + info.sessionId);
                 }
             } catch (Exception e) {
                 logger.error("Error putting session in hazelcast map : " + info.sessionId, e);
             }
         }
+        cleanStaleLogins(userId, infos, staleInfos);
     }
 
     private void removeCacheAttributeByUserId(String userId, String key) throws SessionException {
@@ -304,6 +309,7 @@ public class MapSessionStore extends AbstractSessionStore {
         if (infos == null || infos.isEmpty()) {
             throw new SessionException("LoginInfo not found");
         }
+        final List<LoginInfo> staleInfos = new ArrayList<>();
         for (LoginInfo info : infos) {
             try {
                 JsonObject session = unmarshal(sessions.get(info.sessionId));
@@ -311,11 +317,32 @@ public class MapSessionStore extends AbstractSessionStore {
                     session.getJsonObject("cache").remove(key);
                     sessions.put(info.sessionId, session.encode());
                 } else {
-                    logger.error("Error getting session in hazelcast map : " + info.sessionId);
+                    // Entrée logins orpheline (session expirée/évincée de la map sessions) :
+                    // on la nettoie (self-heal) au lieu de logger une erreur récurrente.
+                    staleInfos.add(info);
+                    logger.debug("Stale session entry removed from logins map : " + info.sessionId);
                 }
             } catch (Exception e) {
                 logger.error("Error putting session in hazelcast map : " + info.sessionId, e);
             }
+        }
+        cleanStaleLogins(userId, infos, staleInfos);
+    }
+
+    /**
+     * Retire de la map {@code logins} les entrées dont la session a disparu de la map
+     * {@code sessions} (désync des deux maps Hazelcast), pour éviter le flot d'erreurs
+     * « Error getting session in hazelcast map » et resynchroniser progressivement.
+     */
+    private void cleanStaleLogins(String userId, List<LoginInfo> infos, List<LoginInfo> staleInfos) {
+        if (staleInfos.isEmpty()) {
+            return;
+        }
+        infos.removeAll(staleInfos);
+        if (infos.isEmpty()) {
+            logins.remove(userId);
+        } else {
+            logins.put(userId, infos);
         }
     }
 
