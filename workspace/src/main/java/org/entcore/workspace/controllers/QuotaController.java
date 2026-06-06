@@ -106,6 +106,11 @@ public class QuotaController extends BaseController {
 		quotaService.getDefaultMaxQuota(arrayResponseHandler(request));
 	}
 
+	/**
+	 * POST /quota/user/:userId/init
+	 * Crée le UserBook (quota) si absent (idempotent via MERGE).
+	 * Utile pour les comptes non encore activés via activation.ack.
+	 */
 	@Post("/quota/user/:userId/init")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	public void initUserQuota(final HttpServerRequest request) {
@@ -113,7 +118,6 @@ public class QuotaController extends BaseController {
 		quotaService.init(userId);
 		request.response().setStatusCode(204).end();
 	}
-
 
 	@BusAddress("activation.ack")
 	public void initQuota(final Message<JsonObject> message){
