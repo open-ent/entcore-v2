@@ -75,6 +75,7 @@ public class SqlConversationService implements ConversationService{
 	private final String userMessageTable;
 	private final String userMessageAttachmentTable;
 	private final String originalMessageTable;
+	private final String messageReportTable;
 	private final boolean optimizedThreadList;
 	private int sendTimeout = DEFAULT_SENDTIMEOUT;
 
@@ -95,6 +96,7 @@ public class SqlConversationService implements ConversationService{
 		userMessageTable = schema + ".usermessages";
 		userMessageAttachmentTable = schema + ".usermessagesattachments";
 		originalMessageTable = schema + ".originalmessages";
+		messageReportTable = schema + ".message_reports";
 		optimizedThreadList = vertx.getOrCreateContext().config().getBoolean("optimized-thread-list", false);
 		this.contentTransformerClient = contentTransformerClient;
 		this.contentTransformerEventRecorder = contentTransformerEventRecorder;
@@ -2096,6 +2098,88 @@ public class SqlConversationService implements ConversationService{
 			return true;
 		}
 		return validationParamsError(user, result, params);
+	}
+
+	/* ===================== Signalement d'abus / modération ADML ===================== */
+
+	@Override
+	public void report(String messageId, String reason, UserInfos user, Handler<Either<String, JsonObject>> result) {
+		if (validationParamsError(user, result))
+			return;
+		final JsonArray structures = new fr.wseduc.webutils.collections.JsonArray();
+		if (user.getStructures() != null) {
+			for (String s : user.getStructures()) {
+				structures.add(s);
+			}
+		}
+		final String query =
+				"INSERT INTO " + messageReportTable +
+				" (message_id, reporter_id, reporter_name, structures, reason, created) " +
+				"VALUES (?, ?, ?, ?::jsonb, ?, ?) " +
+				"ON CONFLICT (message_id, reporter_id) DO UPDATE SET " +
+				"reason = EXCLUDED.reason, created = EXCLUDED.created, structures = EXCLUDED.structures";
+		final JsonArray values = new fr.wseduc.webutils.collections.JsonArray()
+				.add(messageId)
+				.add(user.getUserId())
+				.add(user.getUsername())
+				.add(structures.encode())
+				.add(reason == null ? "" : reason)
+				.add(System.currentTimeMillis());
+		sql.prepared(query, values, SqlResult.validUniqueResultHandler(result));
+	}
+
+	@Override
+	public void listReported(String structure, boolean pending, int offset, int limit, Handler<Either<String, JsonArray>> result) {
+		final String query =
+				"SELECT m.id, m.subject, m.\"from\", m.\"fromName\", m.\"displayNames\", m.date, m.\"reportAction\", " +
+				"COUNT(r.reporter_id) AS report_count, " +
+				"json_agg(json_build_object('userId', r.reporter_id, 'displayName', r.reporter_name, 'reason', r.reason, 'date', r.created)) AS reporters " +
+				"FROM " + messageTable + " m " +
+				"JOIN " + messageReportTable + " r ON r.message_id = m.id " +
+				"WHERE jsonb_exists(r.structures, ?) " +
+				(pending ? "AND m.\"reportAction\" IS NULL " : "AND m.\"reportAction\" IS NOT NULL ") +
+				"GROUP BY m.id " +
+				"ORDER BY MAX(r.created) DESC " +
+				"LIMIT ? OFFSET ?";
+		final JsonArray values = new fr.wseduc.webutils.collections.JsonArray()
+				.add(structure)
+				.add(limit)
+				.add(offset);
+		sql.prepared(query, values, SqlResult.validResultHandler(result, "displayNames", "reportAction", "reporters"));
+	}
+
+	@Override
+	public void keepReported(String messageId, String structure, UserInfos user, Handler<Either<String, JsonObject>> result) {
+		performReportAction(messageId, structure, user, "KEEP", false, result);
+	}
+
+	@Override
+	public void deleteReported(String messageId, String structure, UserInfos user, Handler<Either<String, JsonObject>> result) {
+		performReportAction(messageId, structure, user, "DELETE", true, result);
+	}
+
+	private void performReportAction(String messageId, String structure, UserInfos user, String action,
+			boolean removeFromRecipients, Handler<Either<String, JsonObject>> result) {
+		final JsonObject reportAction = new JsonObject()
+				.put("action", action)
+				.put("userId", user.getUserId())
+				.put("displayName", user.getUsername())
+				.put("date", System.currentTimeMillis());
+		final SqlStatementsBuilder builder = new SqlStatementsBuilder();
+		// Le message doit avoir été signalé dans cet établissement (double sécurité avec le filtre ADML)
+		builder.prepared(
+				"UPDATE " + messageTable + " SET \"reportAction\" = ?::jsonb " +
+				"WHERE id = ? AND id IN (SELECT message_id FROM " + messageReportTable +
+				" WHERE jsonb_exists(structures, ?))",
+				new fr.wseduc.webutils.collections.JsonArray()
+						.add(reportAction.encode()).add(messageId).add(structure));
+		if (removeFromRecipients) {
+			// Modération « Supprimer » : retire le message des boîtes de tous les destinataires
+			builder.prepared(
+					"DELETE FROM " + userMessageTable + " WHERE message_id = ?",
+					new fr.wseduc.webutils.collections.JsonArray().add(messageId));
+		}
+		sql.transaction(builder.build(), SqlResult.validUniqueResultHandler(0, result));
 	}
 
 }

@@ -176,4 +176,13 @@ export const createMessageService = (baseURL: string) => ({
       `${baseURL}/message/${messageId}/forward/${originalMessageId}`,
     );
   },
+
+  /** Signale un message comme abusif (motif facultatif). */
+  report(messageId: string, reason?: string) {
+    const qs = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+    return odeServices
+      .http()
+      .post<void>(`${baseURL}/message/${messageId}/report${qs}`)
+      .then(NOOP);
+  },
 });

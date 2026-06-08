@@ -1,6 +1,7 @@
 import { useEdificeClient, useToast } from '@open-ent/react';
 import {
   IconDelete,
+  IconFlag,
   IconFolderDelete,
   IconFolderMove,
   IconMailRecall,
@@ -29,6 +30,7 @@ import {
   useDeleteMessage,
   useMarkUnread,
   useMoveMessage,
+  useReportMessage,
   useRestoreMessage,
   useSendDraft,
   useTrashMessage,
@@ -58,6 +60,7 @@ export function useMessageActionDropdown({
   const restoreQuery = useRestoreMessage();
   const { canRecall, handleRecall } = useRecall();
   const moveToTrashQuery = useTrashMessage();
+  const reportMessage = useReportMessage();
   const createOrUpdateDraft = useCreateOrUpdateDraft();
   const moveMessage = useMoveMessage();
   const { handleMoveMessage } = useFolderHandlers();
@@ -197,6 +200,21 @@ export function useMessageActionDropdown({
             },
           },
         );
+      },
+    });
+  };
+
+  const handleReportClick = () => {
+    openModal({
+      id: 'report-modal',
+      header: <>{t('report.confirm.header')}</>,
+      body: <p>{t('report.confirm.body')}</p>,
+      okText: t('report'),
+      koText: t('cancel'),
+      variant: 'yes/no',
+      size: 'sm',
+      onSuccess: () => {
+        reportMessage.mutate({ id: message.id });
       },
     });
   };
@@ -403,6 +421,17 @@ export function useMessageActionDropdown({
         print();
       },
       hidden: !hasActionsList('print') || message.state === 'DRAFT',
+    },
+    {
+      label: t('report'),
+      id: 'report',
+      icon: <IconFlag />,
+      action: handleReportClick,
+      hidden:
+        !hasActionsList('report') ||
+        isFromMe ||
+        message.state === 'DRAFT' ||
+        message.trashed,
     },
     {
       label: t('trash.action'),

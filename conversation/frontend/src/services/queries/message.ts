@@ -619,3 +619,17 @@ export const useRecallMessage = () => {
     },
   });
 };
+
+/** Signale un message comme abusif (modération ADML). */
+export const useReportMessage = () => {
+  const toast = useToast();
+  const { t } = useTranslation(appCodeName);
+
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      messageService.report(id, reason),
+    onSuccess: () => {
+      toast.success(t('report.success'));
+    },
+  });
+};

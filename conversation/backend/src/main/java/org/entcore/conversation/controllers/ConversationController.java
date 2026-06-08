@@ -39,6 +39,8 @@ import org.entcore.common.events.EventStore;
 import org.entcore.common.events.EventStoreFactory;
 import org.entcore.common.http.filter.AdminFilter;
 import org.entcore.common.http.filter.ResourceFilter;
+import org.entcore.common.http.filter.AdmlOfStructures;
+import fr.wseduc.security.MfaProtected;
 import org.entcore.common.http.request.JsonHttpServerRequest;
 import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.storage.Storage;
@@ -2037,5 +2039,92 @@ public class ConversationController extends BaseController {
 	public void noReply(final HttpServerRequest request) {
 		// This route is used to create conversation.allowNoReply workflow right
 		request.response().end();
+	}
+
+	/* ===================== Signalement d'abus / modération ADML ===================== */
+
+	private static final int REPORT_PAGE_SIZE = 50;
+
+	/** Un destinataire signale un message comme abusif (motif facultatif via ?reason=). */
+	@Post("message/:id/report")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(MessageUserFilter.class)
+	public void reportMessage(final HttpServerRequest request) {
+		final String id = request.params().get("id");
+		if (id == null || id.trim().isEmpty()) {
+			badRequest(request);
+			return;
+		}
+		final String reason = request.params().get("reason");
+		getUserInfos(eb, request, new Handler<UserInfos>() {
+			@Override
+			public void handle(UserInfos user) {
+				if (user == null) {
+					unauthorized(request);
+					return;
+				}
+				conversationService.report(id, reason, user, defaultResponseHandler(request));
+			}
+		});
+	}
+
+	/** Liste les messages signalés d'un établissement (modération ADML). */
+	@Get("reported")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(AdmlOfStructures.class)
+	@MfaProtected()
+	public void listReported(final HttpServerRequest request) {
+		final String structure = request.params().get("structure");
+		final boolean pending = Boolean.parseBoolean(request.params().get("pending"));
+		int page = 0;
+		if (request.params().contains("page")) {
+			try {
+				page = Integer.parseInt(request.params().get("page"));
+			} catch (NumberFormatException e) {
+				// silent
+			}
+		}
+		conversationService.listReported(structure, pending, REPORT_PAGE_SIZE * page, REPORT_PAGE_SIZE,
+				arrayResponseHandler(request));
+	}
+
+	/** Conserve un message signalé (rejette le signalement). */
+	@Put("message/:id/report/keep")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(AdmlOfStructures.class)
+	@MfaProtected()
+	public void keepReported(final HttpServerRequest request) {
+		final String id = request.params().get("id");
+		final String structure = request.params().get("structure");
+		getUserInfos(eb, request, new Handler<UserInfos>() {
+			@Override
+			public void handle(UserInfos user) {
+				if (user == null) {
+					unauthorized(request);
+					return;
+				}
+				conversationService.keepReported(id, structure, user, defaultResponseHandler(request));
+			}
+		});
+	}
+
+	/** Supprime un message signalé (le retire des boîtes des destinataires). */
+	@Put("message/:id/report/delete")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(AdmlOfStructures.class)
+	@MfaProtected()
+	public void deleteReported(final HttpServerRequest request) {
+		final String id = request.params().get("id");
+		final String structure = request.params().get("structure");
+		getUserInfos(eb, request, new Handler<UserInfos>() {
+			@Override
+			public void handle(UserInfos user) {
+				if (user == null) {
+					unauthorized(request);
+					return;
+				}
+				conversationService.deleteReported(id, structure, user, defaultResponseHandler(request));
+			}
+		});
 	}
 }

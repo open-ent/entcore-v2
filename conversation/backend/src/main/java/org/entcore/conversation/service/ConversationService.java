@@ -202,4 +202,14 @@ public interface ConversationService {
 	// Purge
 	Future<JsonArray> getMessagesToPurge();
 	Future<JsonArray> purgeMessages(final List<String> messagesId);
+
+	// Signalement d'abus / modération ADML
+	/** Signale un message comme abusif (le signaleur doit être destinataire du message). */
+	void report(String messageId, String reason, UserInfos user, Handler<Either<String, JsonObject>> result);
+	/** Liste les messages signalés d'un établissement (pending = en attente de modération). */
+	void listReported(String structure, boolean pending, int offset, int limit, Handler<Either<String, JsonArray>> result);
+	/** Conserve un message signalé (rejette le signalement) pour un établissement. */
+	void keepReported(String messageId, String structure, UserInfos user, Handler<Either<String, JsonObject>> result);
+	/** Supprime un message signalé (le retire des boîtes des destinataires) pour un établissement. */
+	void deleteReported(String messageId, String structure, UserInfos user, Handler<Either<String, JsonObject>> result);
 }
