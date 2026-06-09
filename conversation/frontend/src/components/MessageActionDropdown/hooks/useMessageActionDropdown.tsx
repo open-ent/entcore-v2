@@ -1,5 +1,6 @@
 import { useEdificeClient, useToast } from '@open-ent/react';
 import {
+  IconClock,
   IconDelete,
   IconFlag,
   IconFolderDelete,
@@ -15,7 +16,7 @@ import {
   IconUndoSlashed,
   IconUnreadMail,
 } from '@open-ent/react/icons';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFolderHandlers } from '~/features/menu/hooks/useFolderHandlers';
 import { useGoBackToList } from '~/features/message/hooks/useGoBackToList';
@@ -44,6 +45,15 @@ export interface MessageActionDropdownProps {
   message: Message;
   actions?: string[];
   onMessageSent: (inactiveUsers: string[], inactiveCount: number) => void;
+}
+
+/** Formate une Date en valeur d'<input type="datetime-local"> (heure locale, "YYYY-MM-DDTHH:mm"). */
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
 }
 
 export function useMessageActionDropdown({
@@ -273,6 +283,67 @@ export function useMessageActionDropdown({
     );
   };
 
+  // Envoi différé : ouvre une modale de choix date/heure, puis envoie avec scheduledAt.
+  const scheduleInputRef = useRef<HTMLInputElement>(null);
+
+  const handleScheduleClick = () => {
+    const defaultAt = new Date(Date.now() + 60 * 60 * 1000); // +1h par défaut
+    openModal({
+      id: 'schedule-send-modal',
+      header: <>{t('conversation.scheduled.modal.header')}</>,
+      body: (
+        <div className="d-flex flex-column gap-8">
+          <p className="m-0">{t('conversation.scheduled.modal.body')}</p>
+          <input
+            ref={scheduleInputRef}
+            type="datetime-local"
+            className="form-control"
+            defaultValue={toDatetimeLocalValue(defaultAt)}
+            min={toDatetimeLocalValue(new Date(Date.now() + 60 * 1000))}
+          />
+        </div>
+      ),
+      okText: t('conversation.scheduled.modal.confirm'),
+      koText: t('cancel'),
+      onSuccess: async () => {
+        const value = scheduleInputRef.current?.value;
+        const at = value ? new Date(value).getTime() : NaN;
+        if (!at || Number.isNaN(at) || at <= Date.now()) {
+          toastError(t('conversation.error.schedule.invalid.date'));
+          return;
+        }
+        sendDraftQuery.mutate(
+          {
+            draftId: message.id,
+            payload: {
+              subject: message.subject,
+              body: message.body,
+              to: recipientToIds(message.to),
+              cc: recipientToIds(message.cc),
+              cci: message.cci ? recipientToIds(message.cci) : undefined,
+              noReply: message.noReply,
+              scheduledAt: at,
+            },
+            inReplyToId:
+              message.id !== message.parent_id ? message.parent_id : undefined,
+          },
+          {
+            onSuccess: () => {
+              goBackToList();
+            },
+            onError: (err) => {
+              toastError(
+                typeof err === 'string'
+                  ? t(err)
+                  : t('conversation.error.send.visible'),
+              );
+            },
+          },
+        );
+      },
+    });
+  };
+
   const handleRemoveFromFolder = () => {
     openModal({
       id: 'remove-from-folder-modal',
@@ -317,6 +388,16 @@ export function useMessageActionDropdown({
       action: handleSendClick,
       hidden: message.state !== 'DRAFT' || message.trashed,
       disabled: !isMessageValid || sendDraftQuery.isPending || hoursClosed,
+      isLoading: sendDraftQuery.isPending,
+    },
+    {
+      label: t('conversation.scheduled.action'),
+      id: 'schedule',
+      icon: <IconClock />,
+      action: handleScheduleClick,
+      // Programmer reste possible même hors plage horaire (le worker enverra à l'échéance).
+      hidden: message.state !== 'DRAFT' || message.trashed,
+      disabled: !isMessageValid || sendDraftQuery.isPending,
       isLoading: sendDraftQuery.isPending,
     },
     {

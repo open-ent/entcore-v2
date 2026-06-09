@@ -51,7 +51,7 @@ public interface ConversationService {
 	 */
 	public static final int MAX_FOLDERS_LEVEL = 3;
 
-	enum State { DRAFT, SENT, RECALL }
+	enum State { DRAFT, SENT, RECALL, SCHEDULED }
 
 	static final String[] SYSTEM_FOLDER_NAMES = {"INBOX", "OUTBOX", "DRAFT", "TRASH"};
 	static public boolean isSystemFolder(final String folder) {
@@ -116,6 +116,31 @@ public interface ConversationService {
 	 * and it is not older than `recallDelayInMinutes`
 	 */
 	Future<Void> recallMessage(String id, UserInfos user);
+
+	// ─── Envoi différé ──────────────────────────────────────────────────────────
+
+	/**
+	 * Marque un brouillon déjà persisté comme programmé (state=SCHEDULED) pour un envoi futur.
+	 * @param scheduledAt date d'envoi prévue (epoch millis, dans le futur)
+	 * @param senderContext contexte expéditeur figé ({type, structures, username}) que le worker
+	 *                      utilise hors requête HTTP (revérif horaires + notification à l'échéance)
+	 */
+	void scheduleMessage(String messageId, long scheduledAt, JsonObject senderContext, UserInfos user,
+		Handler<Either<String, JsonObject>> result);
+
+	/** Reprogramme un message déjà programmé (change la date d'envoi). */
+	void rescheduleMessage(String messageId, long scheduledAt, UserInfos user,
+		Handler<Either<String, JsonObject>> result);
+
+	/** Annule la programmation : le message redevient un brouillon (state=DRAFT). */
+	void cancelScheduledMessage(String messageId, UserInfos user,
+		Handler<Either<String, JsonObject>> result);
+
+	/** Liste les messages programmés (non encore envoyés) de l'utilisateur. */
+	void listScheduled(UserInfos user, int page, Handler<Either<String, JsonArray>> result);
+
+	/** Worker : messages programmés arrivés à échéance (scheduled_at &lt;= now), tous utilisateurs. */
+	Future<JsonArray> listDueScheduledMessages(long now);
 
 	/**
 	 * List messages from any folder 

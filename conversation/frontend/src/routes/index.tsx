@@ -23,6 +23,16 @@ const routes = (_queryClient: QueryClient): RouteObject[] => [
         /* Pages */
         children: [
           {
+            // Envoi différé : dossier « Programmés » (route statique, prioritaire sur :folderId)
+            path: 'scheduled',
+            async lazy() {
+              const { Component } = await import(
+                '~/routes/pages/ScheduledMessages'
+              );
+              return { Component };
+            },
+          },
+          {
             // Display messages from /inbox, /outbox, /trash, /draft
             path: ':folderId',
             children: [

@@ -1913,6 +1913,76 @@ public class SqlConversationService implements ConversationService{
 		sql.prepared(query, values, SqlResult.validUniqueResultHandler(result));
 	}
 
+	///////////////////
+	/* Envoi différé */
+
+	@Override
+	public void scheduleMessage(String messageId, long scheduledAt, JsonObject senderContext, UserInfos user,
+			Handler<Either<String, JsonObject>> result) {
+		// Le brouillon est déjà persisté ; on bascule en SCHEDULED + fige la date et le contexte expéditeur.
+		String query = "UPDATE " + messageTable + " SET state = ?, scheduled_at = ?, sender_context = ?::jsonb " +
+				"WHERE id = ? AND \"from\" = ? AND state IN ('DRAFT','SCHEDULED')";
+		JsonArray values = new io.vertx.core.json.JsonArray()
+				.add(State.SCHEDULED.name())
+				.add(scheduledAt)
+				.add(senderContext == null ? null : senderContext.encode())
+				.add(messageId)
+				.add(user.getUserId());
+		sql.prepared(query, values, SqlResult.validRowsResultHandler(result));
+	}
+
+	@Override
+	public void rescheduleMessage(String messageId, long scheduledAt, UserInfos user,
+			Handler<Either<String, JsonObject>> result) {
+		String query = "UPDATE " + messageTable + " SET scheduled_at = ? " +
+				"WHERE id = ? AND \"from\" = ? AND state = 'SCHEDULED'";
+		JsonArray values = new io.vertx.core.json.JsonArray()
+				.add(scheduledAt).add(messageId).add(user.getUserId());
+		sql.prepared(query, values, SqlResult.validRowsResultHandler(result));
+	}
+
+	@Override
+	public void cancelScheduledMessage(String messageId, UserInfos user,
+			Handler<Either<String, JsonObject>> result) {
+		// Annuler = repasser en brouillon (le message quitte « Programmés »).
+		String query = "UPDATE " + messageTable + " SET state = 'DRAFT', scheduled_at = NULL, sender_context = NULL " +
+				"WHERE id = ? AND \"from\" = ? AND state = 'SCHEDULED'";
+		JsonArray values = new io.vertx.core.json.JsonArray()
+				.add(messageId).add(user.getUserId());
+		sql.prepared(query, values, SqlResult.validRowsResultHandler(result));
+	}
+
+	@Override
+	public void listScheduled(UserInfos user, int page, Handler<Either<String, JsonArray>> result) {
+		final int pageSize = 50;
+		final int offset = Math.max(0, page) * pageSize;
+		String query = "SELECT m.id, m.subject, m.\"to\", m.\"toName\", m.cc, m.\"ccName\", m.\"displayNames\", " +
+				"m.scheduled_at, m.date " +
+				"FROM " + messageTable + " m " +
+				"WHERE m.\"from\" = ? AND m.state = 'SCHEDULED' " +
+				"ORDER BY m.scheduled_at ASC LIMIT " + pageSize + " OFFSET " + offset;
+		JsonArray values = new io.vertx.core.json.JsonArray().add(user.getUserId());
+		sql.prepared(query, values, SqlResult.validResultHandler(result));
+	}
+
+	@Override
+	public Future<JsonArray> listDueScheduledMessages(long now) {
+		String query = "SELECT id, parent_id, \"from\", sender_context, scheduled_at FROM " + messageTable +
+				" WHERE state = 'SCHEDULED' AND scheduled_at IS NOT NULL AND scheduled_at <= ? " +
+				"ORDER BY scheduled_at ASC LIMIT 200";
+		JsonArray values = new io.vertx.core.json.JsonArray().add(now);
+		Promise<JsonArray> promise = Promise.promise();
+		sql.prepared(query, values, SqlResult.validResultHandler(res -> {
+			if (res.isRight() && res.right().getValue() != null) {
+				promise.complete(res.right().getValue());
+			} else {
+				log.error("Error listing due scheduled messages: " + (res.isLeft() ? res.left().getValue() : "null"));
+				promise.fail("conversation.scheduled.list.error");
+			}
+		}));
+		return promise.future();
+	}
+
 	///////////
 	/* Purge */
 

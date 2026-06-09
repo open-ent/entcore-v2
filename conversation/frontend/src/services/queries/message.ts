@@ -35,6 +35,11 @@ export const messageQueryKeys = {
     [...messageQueryKeys.all(), 'originalFormat', messageId] as const,
 };
 
+/** Clé de requête des messages programmés (envoi différé). */
+export const scheduledQueryKeys = {
+  all: ['message', 'scheduled'] as const,
+};
+
 /**
  * Message Query Options Factory.
  */
@@ -556,6 +561,8 @@ export const useSendDraft = () => {
         cc?: string[];
         cci?: string[];
         noReply?: boolean;
+        /** Envoi différé : date d'envoi programmée (epoch millis, futur). */
+        scheduledAt?: number;
       };
       inReplyToId?: string;
     }) => {
@@ -563,6 +570,17 @@ export const useSendDraft = () => {
       return messageService.send(draftId, payload, inReplyToId);
     },
     onSuccess: (_response, { payload, draftId }) => {
+      // Envoi différé : le brouillon est programmé (non envoyé) -> il quitte « Brouillons »
+      // pour « Programmés ». On n'invalide pas inbox/outbox.
+      if (payload?.scheduledAt) {
+        toast.success(t('conversation.scheduled.toast'));
+        deleteMessagesFromQueryCache('draft', [draftId]);
+        queryClient.invalidateQueries({ queryKey: scheduledQueryKeys.all });
+        queryClient.resetQueries({
+          queryKey: messageQueryKeys.byId(draftId),
+        });
+        return;
+      }
       toast.success(t('message.sent'));
 
       if (
@@ -590,6 +608,52 @@ export const useSendDraft = () => {
       // Reset message details (event if there is data in cache force remove it)
       queryClient.resetQueries({
         queryKey: messageQueryKeys.byId(draftId),
+      });
+    },
+  });
+};
+
+/** Hook : liste les messages programmés (envoi différé) de l'utilisateur. */
+export const useScheduledMessages = () => {
+  return useQuery({
+    queryKey: scheduledQueryKeys.all,
+    queryFn: () => messageService.listScheduled(),
+  });
+};
+
+/** Hook : reprogramme un message différé (nouvelle date d'envoi). */
+export const useRescheduleMessage = () => {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { t } = useI18n();
+  return useMutation({
+    mutationFn: ({
+      messageId,
+      scheduledAt,
+    }: {
+      messageId: string;
+      scheduledAt: number;
+    }) => messageService.reschedule(messageId, scheduledAt),
+    onSuccess: () => {
+      toast.success(t('conversation.scheduled.rescheduled'));
+      queryClient.invalidateQueries({ queryKey: scheduledQueryKeys.all });
+    },
+  });
+};
+
+/** Hook : annule la programmation (le message redevient un brouillon). */
+export const useCancelScheduledMessage = () => {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { t } = useI18n();
+  return useMutation({
+    mutationFn: ({ messageId }: { messageId: string }) =>
+      messageService.cancelScheduled(messageId),
+    onSuccess: () => {
+      toast.success(t('conversation.scheduled.canceled'));
+      queryClient.invalidateQueries({ queryKey: scheduledQueryKeys.all });
+      queryClient.invalidateQueries({
+        queryKey: folderQueryKeys.messages('draft'),
       });
     },
   });

@@ -38,6 +38,7 @@ import org.entcore.conversation.service.impl.ConversationRepositoryEvents;
 import org.entcore.conversation.service.impl.ConversationStorage;
 import org.entcore.conversation.service.impl.DeleteOrphan;
 import org.entcore.conversation.service.impl.Neo4jConversationService;
+import org.entcore.conversation.service.impl.ScheduledMessageSender;
 import org.entcore.conversation.service.impl.SqlConversationService;
 
 import fr.wseduc.cron.CronTrigger;
@@ -105,6 +106,15 @@ public class Conversation extends BaseServer {
 			} catch (ParseException e) {
 				log.error("Invalid cron expression.", e);
 			}
+		}
+
+		// Envoi différé : worker périodique qui dépile les messages programmés arrivés à échéance.
+		final String scheduledSenderCron = config.getString("scheduledSenderCron", "0 * * * * ?");
+		try {
+			new CronTrigger(vertx, scheduledSenderCron).schedule(
+					new ScheduledMessageSender(conversationService, userService));
+		} catch (ParseException e) {
+			log.error("Invalid scheduledSenderCron expression.", e);
 		}
 		return Future.succeededFuture();
 	}

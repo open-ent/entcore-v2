@@ -501,17 +501,23 @@ public class ConversationController extends BaseController {
 			@Override
 			public void handle(final UserInfos user) {
 				if (user != null) {
-					// Horaires d'utilisation de la messagerie : hors plage, un élève ne peut
-					// pas envoyer (lecture seule). Les autres profils ne sont jamais restreints.
-					if (!MessagingHours.getInstance().isSendAllowed(user.getType(), user.getStructures())) {
-						forbidden(request, "conversation.error.messaging.hours.closed");
-						return;
-					}
 					final String parentMessageId = request.params().get("In-Reply-To");
 					bodyToJson(request, new Handler<JsonObject>() {
 						@Override
 						public void handle(final JsonObject message) {
 							message.put("from", user.getUserId());
+
+							// Envoi différé : scheduledAt (epoch millis / ISO) dans le futur => on programme.
+							final Long scheduledAt = parseScheduledAt(message);
+							final boolean scheduled = scheduledAt != null;
+
+							// Horaires d'utilisation : seul l'envoi IMMÉDIAT est bloqué hors plage (un élève
+							// ne peut pas envoyer en lecture seule). Le différé est revérifié à l'échéance par
+							// le worker (règle « on retient hors plage »).
+							if (!scheduled && !MessagingHours.getInstance().isSendAllowed(user.getType(), user.getStructures())) {
+								forbidden(request, "conversation.error.messaging.hours.closed");
+								return;
+							}
 
 							final Handler<JsonObject> parentHandler = new Handler<JsonObject>() {
 								public void handle(JsonObject parentMsg) {
@@ -526,6 +532,21 @@ public class ConversationController extends BaseController {
 											: parentMsg != null ? parentMsg.getString("thread_id") : null;
 									userService.addDisplayNames(message, parentMsg, new Handler<JsonObject>() {
 										public void handle(final JsonObject message) {
+											if (scheduled) {
+												// Envoi différé : on persiste + on programme, sans délivrer.
+												saveAndSchedule(messageId, message, user, parentMessageId, threadId, scheduledAt,
+														new Handler<Either<String, JsonObject>>() {
+													@Override
+													public void handle(Either<String, JsonObject> ev) {
+														if (ev.isRight()) {
+															renderJson(request, ev.right().getValue());
+														} else {
+															renderJson(request, new JsonObject().put("error", ev.left().getValue()), 400);
+														}
+													}
+												}, request);
+												return;
+											}
 											saveAndSend(messageId, message, user, parentMessageId, threadId,
 													new Handler<Either<String, JsonObject>>() {
 												@Override
@@ -581,6 +602,122 @@ public class ConversationController extends BaseController {
 				} else {
 					unauthorized(request);
 				}
+			}
+		});
+	}
+
+	// ─── Envoi différé ──────────────────────────────────────────────────────────
+
+	/** Plafond de programmation : ~1 an. */
+	private static final long MAX_SCHEDULE_AHEAD_MS = 366L * 24 * 3600 * 1000;
+
+	/**
+	 * Lit {@code scheduledAt} du corps (epoch millis ou ISO-8601) et retire la clé du message.
+	 * @return la date d'envoi (millis) si futur (&gt; now + 30s), plafonnée à 1 an ; null sinon (envoi immédiat).
+	 */
+	private Long parseScheduledAt(JsonObject message) {
+		final Object v = message.remove("scheduledAt");
+		if (v == null) return null;
+		long at;
+		if (v instanceof Number) {
+			at = ((Number) v).longValue();
+		} else if (v instanceof String && !((String) v).isEmpty()) {
+			try {
+				at = Long.parseLong((String) v);
+			} catch (NumberFormatException e) {
+				try { at = java.time.Instant.parse((String) v).toEpochMilli(); }
+				catch (Exception ex) { return null; }
+			}
+		} else {
+			return null;
+		}
+		final long now = System.currentTimeMillis();
+		if (at <= now + 30000L) return null; // passé / trop proche => envoi immédiat
+		return Math.min(at, now + MAX_SCHEDULE_AHEAD_MS);
+	}
+
+	/** Persiste le brouillon puis le bascule en programmé (sans le délivrer). */
+	private void saveAndSchedule(final String messageId, final JsonObject message, final UserInfos user,
+			final String parentMessageId, final String threadId, final long scheduledAt,
+			final Handler<Either<String, JsonObject>> result, final HttpServerRequest request) {
+		final Handler<Either<String, JsonObject>> afterSave = new Handler<Either<String, JsonObject>>() {
+			public void handle(Either<String, JsonObject> event) {
+				if (event.isLeft()) { result.handle(event); return; }
+				final String id = (messageId != null && !messageId.trim().isEmpty())
+						? messageId : event.right().getValue().getString("id");
+				final JsonObject senderContext = new JsonObject()
+						.put("type", user.getType())
+						.put("structures", new JsonArray(user.getStructures()))
+						.put("username", user.getUsername());
+				conversationService.scheduleMessage(id, scheduledAt, senderContext, user,
+						new Handler<Either<String, JsonObject>>() {
+					public void handle(Either<String, JsonObject> ev) {
+						if (ev.isRight()) {
+							result.handle(new Either.Right<String, JsonObject>(new JsonObject()
+									.put("id", id).put("state", "SCHEDULED").put("scheduledAt", scheduledAt)));
+						} else {
+							result.handle(ev);
+						}
+					}
+				});
+			}
+		};
+		if (messageId != null && !messageId.trim().isEmpty()) {
+			conversationService.updateDraftAsMessage(messageId, message, user, afterSave, request);
+		} else {
+			conversationService.saveDraftAsMessage(parentMessageId, threadId, message, user, afterSave, request);
+		}
+	}
+
+	/** Liste les messages programmés de l'utilisateur. */
+	@Get("scheduled")
+	@SecuredAction(value = "conversation.list", type = ActionType.AUTHENTICATED)
+	public void listScheduled(final HttpServerRequest request) {
+		getUserInfos(eb, request, new Handler<UserInfos>() {
+			@Override
+			public void handle(final UserInfos user) {
+				if (user == null) { unauthorized(request); return; }
+				int page;
+				try { page = Integer.parseInt(request.params().get("page")); }
+				catch (Exception e) { page = 0; }
+				conversationService.listScheduled(user, page, arrayResponseHandler(request));
+			}
+		});
+	}
+
+	/** Reprogramme un message programmé (nouvelle date d'envoi dans le corps : scheduledAt). */
+	@Put("message/:id/schedule")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(MessageOwnerFilter.class)
+	public void reschedule(final HttpServerRequest request) {
+		final String id = request.params().get("id");
+		getUserInfos(eb, request, new Handler<UserInfos>() {
+			@Override
+			public void handle(final UserInfos user) {
+				if (user == null) { unauthorized(request); return; }
+				bodyToJson(request, new Handler<JsonObject>() {
+					@Override
+					public void handle(JsonObject body) {
+						final Long at = parseScheduledAt(body);
+						if (at == null) { badRequest(request, "conversation.error.schedule.invalid.date"); return; }
+						conversationService.rescheduleMessage(id, at, user, defaultResponseHandler(request));
+					}
+				});
+			}
+		});
+	}
+
+	/** Annule la programmation : le message redevient un brouillon. */
+	@Put("message/:id/schedule/cancel")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(MessageOwnerFilter.class)
+	public void cancelSchedule(final HttpServerRequest request) {
+		final String id = request.params().get("id");
+		getUserInfos(eb, request, new Handler<UserInfos>() {
+			@Override
+			public void handle(final UserInfos user) {
+				if (user == null) { unauthorized(request); return; }
+				conversationService.cancelScheduledMessage(id, user, defaultResponseHandler(request));
 			}
 		});
 	}

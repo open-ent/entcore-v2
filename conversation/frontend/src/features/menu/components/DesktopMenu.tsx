@@ -6,6 +6,7 @@ import {
   useEdificeClient,
 } from '@open-ent/react';
 import {
+  IconClock,
   IconDelete,
   IconDepositeInbox,
   IconPlus,
@@ -15,7 +16,7 @@ import {
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FolderActionDropdown,
   ProgressBar,
@@ -34,6 +35,7 @@ const bytesToMegabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
 /** The navigation menu among folders, intended for desktop resolutions */
 export function DesktopMenu() {
   const navigate = useNavigate();
+  const location = useLocation();
   const foldersTreeQuery = useFoldersTree();
   const { appCode } = useEdificeClient();
   const { t } = useTranslation(appCode);
@@ -107,6 +109,13 @@ export function DesktopMenu() {
           rightIcon={renderBadge(counters.draft)}
         >
           {t('draft.folder')}
+        </Menu.Button>
+        <Menu.Button
+          selected={location.pathname === '/scheduled'}
+          leftIcon={<IconClock />}
+          onClick={() => navigateTo('scheduled')}
+        >
+          {t('conversation.scheduled.folder')}
         </Menu.Button>
         <Menu.Button
           selected={selectedSystemFolderId === 'trash'}

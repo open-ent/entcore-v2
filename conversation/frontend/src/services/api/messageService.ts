@@ -123,6 +123,8 @@ export const createMessageService = (baseURL: string) => ({
       cci?: string[];
       /** If true, the message cannot be replied to. */
       noReply?: boolean;
+      /** Envoi différé : date d'envoi programmée (epoch millis, dans le futur). */
+      scheduledAt?: number;
     },
     inReplyToId?: string,
   ) {
@@ -131,6 +133,23 @@ export const createMessageService = (baseURL: string) => ({
       postUrl += '&In-Reply-To=' + inReplyToId;
     }
     return odeServices.http().post<MessageSentResponse>(postUrl, payload);
+  },
+
+  /** Liste les messages programmés (envoi différé) de l'utilisateur. */
+  listScheduled() {
+    return odeServices.http().get<Message[]>(`${baseURL}/scheduled`);
+  },
+
+  /** Reprogramme un message différé (nouvelle date d'envoi, epoch millis). */
+  reschedule(messageId: string, scheduledAt: number) {
+    return putThenVoid(`${baseURL}/message/${messageId}/schedule`, {
+      scheduledAt,
+    });
+  },
+
+  /** Annule la programmation : le message redevient un brouillon. */
+  cancelScheduled(messageId: string) {
+    return putThenVoid(`${baseURL}/message/${messageId}/schedule/cancel`);
   },
 
   recall(messageId: string) {
