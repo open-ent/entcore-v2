@@ -1,6 +1,7 @@
 import { Button } from '@open-ent/react';
 import { useState } from 'react';
 import { useI18n } from '~/hooks/useI18n';
+import { useMessagingHours } from '~/hooks/useMessagingHours';
 import { Message } from '~/models';
 import { MessageEditHeaderAlerts } from './MessageEditHeaderAlerts';
 import { useRecipientGroupAlert } from './useRecipientGroupAlert';
@@ -14,6 +15,7 @@ export function MessageEditHeader({ message }: MessageHeaderProps) {
   const { to, cc, cci } = message;
   const { t } = useI18n();
   const { hasAlertOnGroups } = useRecipientGroupAlert({ to, cc });
+  const { closed: hoursClosed } = useMessagingHours();
   const [showRecipientsNotVisibleAlert, setShowRecipientsNotVisibleAlert] =
     useState(false);
   const [showCC, setShowCC] = useState(
@@ -32,6 +34,7 @@ export function MessageEditHeader({ message }: MessageHeaderProps) {
       <MessageEditHeaderAlerts
         hasAlertOnGroups={hasAlertOnGroups}
         hasRecipientsNotVisibleAlert={showRecipientsNotVisibleAlert}
+        hoursClosed={hoursClosed}
       />
       <div className="d-flex flex-fill flex-column overflow-hidden">
         <div className="d-flex align-items-center justify-content-between gap-12 border-bottom pe-16">

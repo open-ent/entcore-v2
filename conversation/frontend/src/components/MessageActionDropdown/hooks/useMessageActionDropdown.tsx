@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { useFolderHandlers } from '~/features/menu/hooks/useFolderHandlers';
 import { useGoBackToList } from '~/features/message/hooks/useGoBackToList';
 import { useI18n } from '~/hooks/useI18n';
+import { useMessagingHours } from '~/hooks/useMessagingHours';
 import { useRecall } from '~/hooks/useRecall';
 import { useRights } from '~/hooks/useRights';
 import { useSelectedFolder } from '~/hooks/useSelectedFolder';
@@ -69,7 +70,8 @@ export function useMessageActionDropdown({
   const { goBackToList } = useGoBackToList();
   const { folderId } = useSelectedFolder();
   const { user } = useEdificeClient();
-  const { success } = useToast();
+  const { success, error: toastError } = useToast();
+  const { closed: hoursClosed } = useMessagingHours();
   const { canSetNoReply } = useRights();
 
   const isFromMe = message.from?.id === user?.userId;
@@ -258,6 +260,15 @@ export function useMessageActionDropdown({
         onSuccess: (response) => {
           onMessageSent(response.inactive, response.inactiveCount);
         },
+        onError: (err) => {
+          // Le client HTTP rejette avec le code d'erreur backend (string), ex. hors plage :
+          // "conversation.error.messaging.hours.closed". On l'affiche, sinon message générique.
+          toastError(
+            typeof err === 'string'
+              ? t(err)
+              : t('conversation.error.send.visible'),
+          );
+        },
       },
     );
   };
@@ -305,7 +316,7 @@ export function useMessageActionDropdown({
       icon: <IconSend />,
       action: handleSendClick,
       hidden: message.state !== 'DRAFT' || message.trashed,
-      disabled: !isMessageValid || sendDraftQuery.isPending,
+      disabled: !isMessageValid || sendDraftQuery.isPending || hoursClosed,
       isLoading: sendDraftQuery.isPending,
     },
     {
