@@ -45,6 +45,7 @@
   "conversation.error.duplicate.folder": "Un dossier portant le même nom existe déjà",
   "conversation.error.new.folder": "Le dossier n'a pas pu être créé",
   "conversation.error.recall.mail": "Le message n'a pas pu être rappelé.",
+  "conversation.error.messaging.hours.closed": "La messagerie est fermée aux élèves en dehors des horaires d'utilisation définis par l'établissement. Vous pouvez relire vos messages, mais l'envoi est momentanément indisponible.",
   "conversation.error.rename.folder": "Le dossier n'a pas pu être renommé",
   "conversation.error.reply.not.allowed": "Vous ne pouvez pas répondre à ce message",
   "conversation.error.send.visible": "Votre message n'a pas été envoyé car il ne respecte pas vos droits de communication",

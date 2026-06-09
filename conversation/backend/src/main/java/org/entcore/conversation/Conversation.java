@@ -31,6 +31,8 @@ import org.entcore.common.storage.Storage;
 import org.entcore.common.storage.StorageFactory;
 import org.entcore.conversation.controllers.ApiController;
 import org.entcore.conversation.controllers.ConversationController;
+import org.entcore.conversation.controllers.MessagingHoursController;
+import org.entcore.conversation.util.MessagingHours;
 import org.entcore.conversation.service.ConversationService;
 import org.entcore.conversation.service.impl.ConversationRepositoryEvents;
 import org.entcore.conversation.service.impl.ConversationStorage;
@@ -89,6 +91,10 @@ public class Conversation extends BaseServer {
 			new ApiController()
 			.setConversationService(conversationService)
 		);
+
+		// Horaires d'utilisation de la messagerie : cache partagé (Mongo) + API d'admin.
+		MessagingHours.getInstance().init(vertx, config);
+		addController(new MessagingHoursController());
 
 		setRepositoryEvents(new ConversationRepositoryEvents(storage, getOrElse(config.getLong("repositoryEventsTimeout"), 300000l),vertx));
 

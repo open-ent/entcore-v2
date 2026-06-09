@@ -45,6 +45,7 @@
   "conversation.error.duplicate.folder": "A folder with the same name already exists",
   "conversation.error.new.folder": "The folder could not be created",
   "conversation.error.recall.mail": "The message could not be recalled.",
+  "conversation.error.messaging.hours.closed": "Messaging is closed to students outside the usage hours set by the school. You can still read your messages, but sending is temporarily unavailable.",
   "conversation.error.rename.folder": "The folder could not be renamed",
   "conversation.error.reply.not.allowed": "You cannot reply to this message",
   "conversation.error.send.visible": "Your message was not sent because it does not comply with your communication rights",

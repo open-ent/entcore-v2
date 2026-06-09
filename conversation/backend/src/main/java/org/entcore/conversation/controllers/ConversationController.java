@@ -90,6 +90,7 @@ import static fr.wseduc.webutils.request.RequestUtils.bodyToJson;
 import static org.entcore.common.http.response.DefaultResponseHandler.*;
 import static org.entcore.common.user.UserUtils.getUserInfos;
 import org.entcore.conversation.util.DecodedDisplayName;
+import org.entcore.conversation.util.MessagingHours;
 
 import fr.wseduc.security.ActionType;
 
@@ -500,6 +501,12 @@ public class ConversationController extends BaseController {
 			@Override
 			public void handle(final UserInfos user) {
 				if (user != null) {
+					// Horaires d'utilisation de la messagerie : hors plage, un élève ne peut
+					// pas envoyer (lecture seule). Les autres profils ne sont jamais restreints.
+					if (!MessagingHours.getInstance().isSendAllowed(user.getType(), user.getStructures())) {
+						forbidden(request, "conversation.error.messaging.hours.closed");
+						return;
+					}
 					final String parentMessageId = request.params().get("In-Reply-To");
 					bodyToJson(request, new Handler<JsonObject>() {
 						@Override
