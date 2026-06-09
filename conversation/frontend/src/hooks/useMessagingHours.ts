@@ -22,7 +22,9 @@ export function useMessagingHours() {
   const { data } = useQuery({
     queryKey: ['messaging-hours'],
     queryFn: () =>
-      odeServices.http().get<MessagingHoursStatus>(`${baseUrl}/messaging-hours`),
+      odeServices
+        .http()
+        .get<MessagingHoursStatus>(`${baseUrl}/messaging-hours`),
     staleTime: 1000 * 60,
   });
 
