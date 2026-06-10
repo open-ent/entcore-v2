@@ -62,7 +62,11 @@ public class ScheduledMessageSender implements Handler<Long> {
 		final String id = row.getString("id");
 		final String from = row.getString("from");
 		final String parentId = row.getString("parent_id");
-		final JsonObject ctx = row.getJsonObject("sender_context", new JsonObject());
+		// mod-postgresql renvoie les colonnes jsonb sous forme de String (texte JSON).
+		final String ctxStr = row.getString("sender_context");
+		final JsonObject ctx = (ctxStr != null && !ctxStr.isEmpty())
+				? new JsonObject(ctxStr)
+				: new JsonObject();
 		final String type = ctx.getString("type");
 		final List<String> structures = toStringList(ctx.getJsonArray("structures"));
 
