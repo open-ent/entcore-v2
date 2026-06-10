@@ -135,9 +135,11 @@ export const createMessageService = (baseURL: string) => ({
     return odeServices.http().post<MessageSentResponse>(postUrl, payload);
   },
 
-  /** Liste les messages programmés (envoi différé) de l'utilisateur. */
+  /** Liste les messages programmés (envoi différé) de l'utilisateur.
+   *  Chemin `scheduled/list` (et non `scheduled`) pour ne pas entrer en conflit avec la
+   *  route SPA `/conversation/scheduled` qui sert le dossier « Programmés ». */
   listScheduled() {
-    return odeServices.http().get<Message[]>(`${baseURL}/scheduled`);
+    return odeServices.http().get<Message[]>(`${baseURL}/scheduled/list`);
   },
 
   /** Reprogramme un message différé (nouvelle date d'envoi, epoch millis). */

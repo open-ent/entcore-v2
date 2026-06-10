@@ -669,8 +669,8 @@ public class ConversationController extends BaseController {
 		}
 	}
 
-	/** Liste les messages programmés de l'utilisateur. */
-	@Get("scheduled")
+	/** Liste les messages programmés de l'utilisateur. (chemin distinct de la route SPA /scheduled) */
+	@Get("scheduled/list")
 	@SecuredAction(value = "conversation.list", type = ActionType.AUTHENTICATED)
 	public void listScheduled(final HttpServerRequest request) {
 		getUserInfos(eb, request, new Handler<UserInfos>() {
