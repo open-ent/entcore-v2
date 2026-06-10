@@ -156,7 +156,7 @@ public class ConversationController extends BaseController {
 	 *  /conversation/draft/create
 	 * @param request
 	 */
-	@Get(value = "(?:/?(?:conversation|(?:inbox|outbox|draft|trash){1}(?:/message/[^/\\\\s]+$)?)|draft/create$)?", regex = true)
+	@Get(value = "(?:/?(?:conversation|(?:inbox|outbox|draft|trash|scheduled){1}(?:/message/[^/\\\\s]+$)?)|draft/create$)?", regex = true)
 	@SecuredAction("conversation.view")
 	public void view(HttpServerRequest request) {
 		renderViewWeb(request);
