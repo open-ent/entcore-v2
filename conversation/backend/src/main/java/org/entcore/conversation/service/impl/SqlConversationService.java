@@ -189,7 +189,11 @@ public class SqlConversationService implements ConversationService{
 			JsonArray values = new fr.wseduc.webutils.collections.JsonArray();
 
 			for (String attr : message.fieldNames()) {
-				if("to".equals(attr) || "cc".equals(attr) || "displayNames".equals(attr)){
+				// All recipient / name columns are JSONB and must be cast explicitly, otherwise
+				// the value is bound as character varying (e.g. "column cci is of type jsonb
+				// but expression is of type character varying").
+				if("to".equals(attr) || "toName".equals(attr) || "cc".equals(attr) || "ccName".equals(attr)
+						|| "cci".equals(attr) || "cciName".equals(attr) || "displayNames".equals(attr)){
 					sb.append("\"" + attr+ "\"").append(" = CAST(? AS JSONB),");
 				} else {
 					sb.append("\"" + attr+ "\"").append(" = ?,");
