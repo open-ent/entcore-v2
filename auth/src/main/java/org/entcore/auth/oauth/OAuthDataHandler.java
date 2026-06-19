@@ -70,6 +70,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	private static final String AUTH_ERROR_GLOBAL = "auth.error.global";
 	private static final String AUTH_ERROR_BAN = "auth.error.ban";
 	private static final String LOGIN_BAN_KEY = "logban:";
+	private static final String LOGIN_BAN_IP_KEY = "logbanip:";
 	private static final Long OTP_DELAY = 600000L;
 	private final Neo4j neo;
 	private final MongoDb mongo;
@@ -229,7 +230,37 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 					log.error("Error when increment try authentication : " + username, ar.cause());
 				}
 			});
+			// Capture additionnelle de l'IP source dans une liste parallèle (logbanip:),
+			// pour alimenter le tableau de bord des blocages temporaires sans toucher
+			// au chemin de lecture critique du ban. Même politique de rétention (trim + expire).
+			final String sourceIp = getSourceIp();
+			redisClient.getClient().lpush(newArrayList(LOGIN_BAN_IP_KEY + username,
+					System.currentTimeMillis() + "|" + (sourceIp == null ? "" : sourceIp))).onComplete(ar -> {
+				if (ar.succeeded()) {
+					redisClient.getClient().ltrim(LOGIN_BAN_IP_KEY + username, "0", String.valueOf(pwMaxRetry)).onComplete(ar2 -> {});
+					redisClient.getClient().pexpire(newArrayList(LOGIN_BAN_IP_KEY + username, String.valueOf(pwBanDelay))).onComplete(ar3 -> {});
+				} else {
+					log.error("Error when storing ban source ip : " + username, ar.cause());
+				}
+			});
 		}
+	}
+
+	/** Résout l'IP source de la requête courante depuis les en-têtes du reverse-proxy. */
+	private String getSourceIp() {
+		try {
+			String xff = getRequest().getHeader("X-Forwarded-For");
+			if (xff != null && !xff.trim().isEmpty()) {
+				return xff.split(",")[0].trim();
+			}
+			String real = getRequest().getHeader("X-Real-IP");
+			if (real != null && !real.trim().isEmpty()) {
+				return real.trim();
+			}
+		} catch (Exception e) {
+			log.debug("Unable to resolve source ip for ban capture", e);
+		}
+		return null;
 	}
 
 	private void checkPassword(JsonArray result, String password, String username,

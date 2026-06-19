@@ -34,6 +34,7 @@ import fr.wseduc.webutils.logging.TracerFactory;
 import fr.wseduc.webutils.request.CookieHelper;
 import fr.wseduc.webutils.request.RequestUtils;
 import fr.wseduc.webutils.security.SecureHttpServerRequest;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
@@ -75,6 +76,9 @@ import org.entcore.auth.users.UserAuthAccount;
 import org.entcore.common.datavalidation.UserValidation;
 import org.entcore.common.events.EventStore;
 import org.entcore.common.http.filter.*;
+import org.entcore.common.neo4j.Neo4j;
+import org.entcore.common.redis.Redis;
+import org.entcore.common.redis.RedisClient;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.common.utils.MapFactory;
@@ -91,6 +95,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -136,6 +141,11 @@ public class AuthController extends BaseController {
 	private List<String> internalAddress;
 	private boolean checkFederatedLogin = false;
 	private long jwtTtlSeconds;
+	private RedisClient loginBanRedisClient;
+	private int pwMaxRetry;
+	private long pwBanDelay;
+	private static final String LOGIN_BAN_KEY = "logban:";
+	private static final String LOGIN_BAN_IP_KEY = "logbanip:";
 	private final Map<String, Object> server;
 
 	public AuthController(Map<String, Object> server) {
@@ -212,6 +222,15 @@ public class AuthController extends BaseController {
 		internalAddress = config.getJsonArray("internalAddress",
 				new JsonArray().add("localhost").add("127.0.0.1")).getList();
 		sloServiceImpl = new OpenIdSloServiceImpl(vertx, oauthDataFactory);
+		// Politique de blocage temporaire (mêmes clés que la fabrique OAuthDataHandler).
+		pwMaxRetry = config.getInteger("maxRetry", 5);
+		pwBanDelay = config.getLong("banDelay", 900000L);
+		try {
+			loginBanRedisClient = Redis.getClient();
+		} catch (Exception e) {
+			log.warn("Redis client unavailable, temporary login bans dashboard will be disabled", e);
+			loginBanRedisClient = null;
+		}
 	}
 
 	/**
@@ -1741,6 +1760,233 @@ public class AuthController extends BaseController {
 					}
 				});
 			}
+		});
+	}
+
+	/**
+	 * Tableau de bord des blocages temporaires : liste les comptes verrouillés après
+	 * trop de tentatives échouées (mécanisme « logban » stocké dans Redis avec TTL).
+	 * Réservé aux administrateurs (ADML / super-admin).
+	 */
+	@Get("/admin/login-bans")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void listLoginBans(final HttpServerRequest request) {
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null || (!user.isADMC() && !user.isADML())) {
+				unauthorized(request);
+				return;
+			}
+			final JsonObject policy = new JsonObject()
+					.put("maxRetry", pwMaxRetry)
+					.put("banDelayMs", pwBanDelay);
+			if (loginBanRedisClient == null) {
+				renderJson(request, new JsonObject()
+						.put("policy", policy)
+						.put("accounts", new JsonArray())
+						.put("redisAvailable", false));
+				return;
+			}
+			loginBanRedisClient.getClient().keys(LOGIN_BAN_KEY + "*").onComplete(keysAr -> {
+				if (keysAr.failed()) {
+					log.error("Error scanning login ban keys", keysAr.cause());
+					renderError(request);
+					return;
+				}
+				final List<String> logins = new ArrayList<>();
+				final io.vertx.redis.client.Response keysResp = keysAr.result();
+				if (keysResp != null) {
+					for (io.vertx.redis.client.Response r : keysResp) {
+						final String k = r != null ? r.toString() : null;
+						if (k != null && k.startsWith(LOGIN_BAN_KEY)) {
+							logins.add(k.substring(LOGIN_BAN_KEY.length()));
+						}
+					}
+				}
+				if (logins.isEmpty()) {
+					renderJson(request, new JsonObject()
+							.put("policy", policy)
+							.put("accounts", new JsonArray())
+							.put("redisAvailable", true));
+					return;
+				}
+				buildLoginBanAccounts(logins, policy, request);
+			});
+		});
+	}
+
+	private void buildLoginBanAccounts(final List<String> logins, final JsonObject policy, final HttpServerRequest request) {
+		final long now = System.currentTimeMillis();
+		final List<Future> futures = new ArrayList<>();
+		for (final String login : logins) {
+			final Promise<JsonObject> p = Promise.promise();
+			futures.add(p.future());
+			final Future<io.vertx.redis.client.Response> tsF =
+					loginBanRedisClient.getClient().lrange(LOGIN_BAN_KEY + login, "0", "-1");
+			final Future<io.vertx.redis.client.Response> ipF =
+					loginBanRedisClient.getClient().lrange(LOGIN_BAN_IP_KEY + login, "0", "-1");
+			CompositeFuture.all(tsF, ipF).onComplete(ar -> {
+				try {
+					p.complete(toBanAccount(login, tsF.result(), ipF.result(), now));
+				} catch (Exception e) {
+					log.error("Error building ban account for " + login, e);
+					p.complete(null);
+				}
+			});
+		}
+		CompositeFuture.all(futures).onComplete(allAr -> {
+			if (allAr.failed()) {
+				log.error("Error reading login ban lists", allAr.cause());
+				renderError(request);
+				return;
+			}
+			final JsonArray accounts = new JsonArray();
+			final List<String> resolvedLogins = new ArrayList<>();
+			for (int i = 0; i < futures.size(); i++) {
+				final JsonObject acc = allAr.result().resultAt(i);
+				if (acc != null) {
+					accounts.add(acc);
+					resolvedLogins.add(acc.getString("login"));
+				}
+			}
+			enrichLoginBanWithNeo4j(accounts, resolvedLogins, policy, request);
+		});
+	}
+
+	private JsonObject toBanAccount(final String login, final io.vertx.redis.client.Response tsResp,
+			final io.vertx.redis.client.Response ipResp, final long now) {
+		final List<Long> ts = new ArrayList<>();
+		if (tsResp != null) {
+			for (io.vertx.redis.client.Response r : tsResp) {
+				if (r == null) continue;
+				try {
+					ts.add(Long.parseLong(r.toString().trim()));
+				} catch (NumberFormatException ignored) {
+				}
+			}
+		}
+		if (ts.isEmpty()) {
+			return null;
+		}
+		// La liste est ordonnée du plus récent au plus ancien (lpush).
+		long first = ts.get(0), last = ts.get(0);
+		for (final Long t : ts) {
+			if (t < first) first = t;
+			if (t > last) last = t;
+		}
+		final int attempts = ts.size();
+		boolean banned = false;
+		long unblockAt = 0L;
+		if (attempts >= pwMaxRetry) {
+			// même logique que getUserId : on regarde la (pwMaxRetry)-ième tentative la plus récente
+			final long refTs = ts.get(pwMaxRetry - 1);
+			unblockAt = refTs + pwBanDelay;
+			banned = now < unblockAt;
+		}
+		final JsonArray ips = new JsonArray();
+		String lastIp = null;
+		if (ipResp != null) {
+			for (io.vertx.redis.client.Response r : ipResp) {
+				if (r == null) continue;
+				final String v = r.toString();
+				if (v == null) continue;
+				final int sep = v.indexOf('|');
+				final String ip = (sep >= 0 ? v.substring(sep + 1) : v).trim();
+				if (ip.isEmpty()) continue;
+				if (lastIp == null) lastIp = ip;
+				if (!ips.contains(ip)) ips.add(ip);
+			}
+		}
+		return new JsonObject()
+				.put("login", login)
+				.put("attempts", attempts)
+				.put("firstAttempt", first)
+				.put("lastAttempt", last)
+				.put("banned", banned)
+				.put("unblockAt", unblockAt)
+				.put("remainingMs", banned ? Math.max(0L, unblockAt - now) : 0L)
+				.put("banDurationMs", pwBanDelay)
+				.put("ips", ips)
+				.put("lastIp", lastIp);
+	}
+
+	private void enrichLoginBanWithNeo4j(final JsonArray accounts, final List<String> logins,
+			final JsonObject policy, final HttpServerRequest request) {
+		if (accounts.isEmpty()) {
+			renderJson(request, new JsonObject()
+					.put("policy", policy)
+					.put("accounts", accounts)
+					.put("redisAvailable", true));
+			return;
+		}
+		final String query =
+				"MATCH (u:User) WHERE u.login IN {logins} " +
+				"RETURN u.login as login, u.displayName as displayName, u.id as id, " +
+				"head(u.profiles) as profile, coalesce(u.blocked, false) as blocked";
+		final JsonObject params = new JsonObject().put("logins", new JsonArray(logins));
+		Neo4j.getInstance().execute(query, params, (Message<JsonObject> res) -> {
+			final Map<String, JsonObject> byLogin = new HashMap<>();
+			if ("ok".equals(res.body().getString("status"))) {
+				final JsonArray rows = res.body().getJsonArray("result", new JsonArray());
+				for (int i = 0; i < rows.size(); i++) {
+					final JsonObject row = rows.getJsonObject(i);
+					if (row != null && row.getString("login") != null) {
+						byLogin.put(row.getString("login"), row);
+					}
+				}
+			}
+			for (int i = 0; i < accounts.size(); i++) {
+				final JsonObject acc = accounts.getJsonObject(i);
+				final JsonObject u = byLogin.get(acc.getString("login"));
+				if (u != null) {
+					acc.put("exists", true)
+							.put("displayName", u.getString("displayName"))
+							.put("userId", u.getString("id"))
+							.put("profile", u.getString("profile"))
+							.put("blocked", u.getBoolean("blocked", false));
+				} else {
+					acc.put("exists", false);
+				}
+			}
+			renderJson(request, new JsonObject()
+					.put("policy", policy)
+					.put("accounts", accounts)
+					.put("redisAvailable", true));
+		});
+	}
+
+	/**
+	 * Lève un blocage temporaire en supprimant les compteurs Redis associés au login.
+	 * Réservé aux administrateurs (ADML / super-admin).
+	 */
+	@Delete("/admin/login-bans/:login")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void deleteLoginBan(final HttpServerRequest request) {
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null || (!user.isADMC() && !user.isADML())) {
+				unauthorized(request);
+				return;
+			}
+			final String login = request.params().get("login");
+			if (login == null || login.trim().isEmpty()) {
+				badRequest(request);
+				return;
+			}
+			if (loginBanRedisClient == null) {
+				renderError(request);
+				return;
+			}
+			final List<String> keys = new ArrayList<>();
+			keys.add(LOGIN_BAN_KEY + login);
+			keys.add(LOGIN_BAN_IP_KEY + login);
+			loginBanRedisClient.getClient().del(keys).onComplete(ar -> {
+				if (ar.succeeded()) {
+					trace.info(getIp(request) + " - Déblocage manuel du login " + login + " par " + user.getUserId());
+					renderJson(request, new JsonObject().put("status", "ok").put("login", login));
+				} else {
+					log.error("Error deleting login ban for " + login, ar.cause());
+					renderError(request);
+				}
+			});
 		});
 	}
 
