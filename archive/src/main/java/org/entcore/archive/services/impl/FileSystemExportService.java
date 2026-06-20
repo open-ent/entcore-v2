@@ -77,6 +77,7 @@ public class FileSystemExportService implements ExportService {
 	private final TimelineHelper timeline;
 	private final PrivateKey signKey;
 	private final boolean forceEncryption;
+	private final JsonObject moduleVersions;
 
 	private static final long DOWNLOAD_READY = -1l;
 	private static final long DOWNLOAD_IN_PROGRESS = -2l;
@@ -87,7 +88,7 @@ public class FileSystemExportService implements ExportService {
 
 	public FileSystemExportService(Vertx vertx, FileSystem fs, EventBus eb, String exportPath, String customHandlerActionName,
 								   EmailSender notification, Storage storage, TimelineHelper timeline,
-								   PrivateKey signKey, boolean forceEncryption) {
+								   PrivateKey signKey, boolean forceEncryption, JsonObject moduleVersions) {
 		this.vertx = vertx;
 		this.fs = fs;
 		this.eb = eb;
@@ -100,6 +101,7 @@ public class FileSystemExportService implements ExportService {
 		this.timeline = timeline;
 		this.signKey = signKey;
 		this.forceEncryption = forceEncryption;
+		this.moduleVersions = moduleVersions != null ? moduleVersions : new JsonObject();
 	}
 
 	@Override
@@ -495,29 +497,23 @@ public class FileSystemExportService implements ExportService {
       .map(UserExport::fromJson)
       .onSuccess(e -> {
         final Set<String> expectedExport = e.getStateByModule().keySet();
+        // Manifeste = applications réellement exportées (expectedExport). La version provient
+        // de la config "module-versions" (injectée par le launcher) — pas de map distribuée
+        // Hazelcast ici. Version omise si inconnue : l'import reste tolérant (anciens exports).
         this.vertx.eventBus().request("portal", new JsonObject().put("action", "getI18n").put("acceptLanguage", locale), json -> {
-          vertx.sharedData().<String, String>getAsyncMap("versions")
-            .compose(AsyncMap::entries).onSuccess(versionMap -> {
-              JsonObject i18n = (JsonObject) (json.result().body());
-              versionMap.forEach((k, v) ->
-              {
-                String[] s = k.split("\\.");
-                // Removing of "-" for scrapbook
-                String app = (s[s.length - 1]).replaceAll("-", "");
-
-                if (expectedExport.contains(app)) {
-                  String i = i18n.getString(app);
-                  manifest.put(k, new JsonObject().put("version", v)
-                    .put("folder", StringUtils.stripAccents(i == null ? app : i)));
-                }
-              });
-
-              String path = exportDirectory + File.separator + "Manifest.json";
-              fs.writeFile(path, Buffer.buffer(manifest.encodePrettily()), handler);
-            }).onFailure(ex -> {
-              log.error("Error getting versions map to add export manifest", ex);
-              handler.handle(failedFuture(ex));
-            });
+          JsonObject i18n = (JsonObject) (json.result().body());
+          expectedExport.forEach(app -> {
+            String i = i18n.getString(app);
+            JsonObject entry = new JsonObject()
+              .put("folder", StringUtils.stripAccents(i == null ? app : i));
+            String version = moduleVersions.getString(app);
+            if (version != null && !version.isEmpty()) {
+              entry.put("version", version);
+            }
+            manifest.put(app, entry);
+          });
+          String path = exportDirectory + File.separator + "Manifest.json";
+          fs.writeFile(path, Buffer.buffer(manifest.encodePrettily()), handler);
         });
       });
 	}

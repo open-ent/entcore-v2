@@ -342,7 +342,10 @@ public class DefaultImportService implements ImportService {
                                // case where Manifest contains folder name
 
                                for (Map.Entry<String, Object> app: minimumImportVersions.getMap().entrySet()) {
+                                   // Version absente du manifeste (ancien export sans version) ->
+                                   // on n'applique pas minimum-import-version (import rétro-compatible).
                                    if (app.getKey().equals(appName) &&
+                                           ((JsonObject)o).getString("version") != null &&
                                            StringUtils.versionComparator.compare(((JsonObject)o).getString("version"), app.getValue().toString()) < 0) {
                                        return;
                                    }
@@ -357,7 +360,7 @@ public class DefaultImportService implements ImportService {
                                // case where Manifest doesn't contain folder name
 
                                for (Map.Entry<String, Object> app: minimumImportVersions.getMap().entrySet()) {
-                                   if (app.getKey().equals(appName) &&
+                                   if (app.getKey().equals(appName) && o != null &&
                                            StringUtils.versionComparator.compare((String)o, app.getValue().toString()) < 0) {
                                        return;
                                    }

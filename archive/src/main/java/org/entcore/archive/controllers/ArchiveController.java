@@ -93,7 +93,7 @@ public class ArchiveController extends BaseController {
 
 		exportService = new FileSystemExportService(vertx, vertx.fileSystem(),
 				eb, exportPath, null, notification, storage, new TimelineHelper(vertx, eb, config),
-				signKey, forceEncryption);
+				signKey, forceEncryption, config.getJsonObject("module-versions", new JsonObject()));
 		eventStore = EventStoreFactory.getFactory().getEventStore(Archive.class.getSimpleName());
 
 		Long periodicUserClear = config.getLong("periodicUserClear");
