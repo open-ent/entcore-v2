@@ -117,6 +117,7 @@ jobs:
           fi
           mvn deploy -DskipTests -DskipITs -B \
             ${REVISION_OPT} \
+            -DbuildNumber="${GITHUB_SHA::8}" -DscmBranch="${GITHUB_REF_NAME}" \
             -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
