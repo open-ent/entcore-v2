@@ -54,7 +54,7 @@ public class DefaultDuplicationService implements DuplicationService
 
       String tmpDir = System.getProperty("java.io.tmpdir");
       this.exportService = new FileSystemExportService(vertx, vertx.fileSystem(), vertx.eventBus(), tmpDir, "duplicate:export", null,
-              storage, null, signKey, forceEncryption, new JsonObject());
+              storage, null, signKey, forceEncryption, new JsonObject(), false);
       this.importService = new DefaultImportService(vertx, config, storage, importPath, "duplicate:import", verifyKey, forceEncryption);
       try {
         ExplorerPluginFactory.getCommunication()

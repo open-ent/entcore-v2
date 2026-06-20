@@ -88,7 +88,7 @@ public class FileSystemExportService implements ExportService {
 
 	public FileSystemExportService(Vertx vertx, FileSystem fs, EventBus eb, String exportPath, String customHandlerActionName,
 								   EmailSender notification, Storage storage, TimelineHelper timeline,
-								   PrivateKey signKey, boolean forceEncryption, JsonObject moduleVersions) {
+								   PrivateKey signKey, boolean forceEncryption, JsonObject moduleVersions, boolean localState) {
 		this.vertx = vertx;
 		this.fs = fs;
 		this.eb = eb;
@@ -96,8 +96,16 @@ public class FileSystemExportService implements ExportService {
 		this.handlerActionName = customHandlerActionName == null ? "export" : customHandlerActionName;
 		this.notification = notification;
 		this.storage = storage;
-		vertx.sharedData().<String, Long>getAsyncMap("userExportInProgress").onSuccess(map -> this.userExportInProgress = map);
-    vertx.sharedData().<String, JsonObject>getAsyncMap("userExport").onSuccess(map -> this.userExport = map);
+		// local-state : maps LOCALES (mono-JVM, ex. launcher local) au lieu de distribuées —
+		// évite la fragilité Hazelcast (classloaders isolés, CP). En multi-pod (k8s) laisser false
+		// (maps distribuées) + session affinity ou CP subsystem.
+		if (localState) {
+			vertx.sharedData().<String, Long>getLocalAsyncMap("userExportInProgress").onSuccess(map -> this.userExportInProgress = map);
+			vertx.sharedData().<String, JsonObject>getLocalAsyncMap("userExport").onSuccess(map -> this.userExport = map);
+		} else {
+			vertx.sharedData().<String, Long>getAsyncMap("userExportInProgress").onSuccess(map -> this.userExportInProgress = map);
+			vertx.sharedData().<String, JsonObject>getAsyncMap("userExport").onSuccess(map -> this.userExport = map);
+		}
 		this.timeline = timeline;
 		this.signKey = signKey;
 		this.forceEncryption = forceEncryption;

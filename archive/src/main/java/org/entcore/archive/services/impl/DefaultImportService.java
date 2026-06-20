@@ -108,7 +108,11 @@ public class DefaultImportService implements ImportService {
         this.importPath = importPath;
         this.fs = vertx.fileSystem();
         this.eb = vertx.eventBus();
-        vertx.sharedData().<String, JsonObject>getAsyncMap("userImports")
+        // local-state : map locale en mono-JVM (cf. FileSystemExportService).
+        boolean localState = config != null && config.getBoolean("local-state", false);
+        (localState
+                ? vertx.sharedData().<String, JsonObject>getLocalAsyncMap("userImports")
+                : vertx.sharedData().<String, JsonObject>getAsyncMap("userImports"))
                 .onSuccess(m -> this.userImports = m);
         this.handlerActionName = customHandlerActionName == null ? "import" : customHandlerActionName;
         this.verifyKey = verifyKey;
