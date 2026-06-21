@@ -157,3 +157,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
+
+      - name: Publish fat JARs to rct-nexus
+        continue-on-error: true
+        env:
+          NEXUS_USER: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+        run: |
+          cat > /tmp/nx-settings.xml <<EOF
+          <settings><servers><server><id>pt-releases</id><username>${NEXUS_USER}</username><password>${NEXUS_PASSWORD}</password></server></servers></settings>
+          EOF
+          for FAT in $(find . -name "org.entcore~*~*-fat.jar" | grep -v SNAPSHOT); do
+            FAT_ABS=$(realpath "${FAT}")
+            BASE=$(basename "${FAT}" -fat.jar)
+            GROUP_ID=${BASE%%~*}; REST=${BASE#*~}; ARTIFACT_ID=${REST%%~*}; VERSION=${REST#*~}
+            echo "Deploying ${GROUP_ID}:${ARTIFACT_ID}:${VERSION}:fat -> rct-nexus"
+            ( cd /tmp && mvn deploy:deploy-file -s /tmp/nx-settings.xml -Dfile="${FAT_ABS}" -DgroupId="${GROUP_ID}" -DartifactId="${ARTIFACT_ID}" -Dversion="${VERSION}" -Dclassifier=fat -Dpackaging=jar -DrepositoryId=pt-releases -Durl="https://rct-nexus.tech.fr/repository/maven-releases/" -B )
+          done
