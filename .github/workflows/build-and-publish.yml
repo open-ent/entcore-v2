@@ -154,7 +154,9 @@ jobs:
         # minimal : seul @open-ent (GitHub Packages) nécessite un token = GITHUB_TOKEN.
         # tiptap-pro/NPM_TOKEN ne sont pas des dépendances réelles (absentes du lock).
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # @open-ent/* est publié sur GitHub Packages depuis d'autres repos de l'org :
+          # le GITHUB_TOKEN par défaut (scope repo) renvoie 403, il faut un PAT org (read:packages).
+          NODE_AUTH_TOKEN: ${{ secrets.OPENENT_PACKAGES_TOKEN }}
         run: |
           corepack enable || true
           corepack prepare pnpm@8.6.6 --activate
