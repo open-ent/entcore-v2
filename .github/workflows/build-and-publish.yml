@@ -144,6 +144,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Build conversation React frontend
+        # Sans cette étape le fat-jar conversation n'embarque pas view/index.html
+        # (gitignoré) → ConversationController.renderView("index.html") → 500 sur
+        # GET /conversation/conversation. On build le frontend en CI avec un .npmrc
+        # minimal : seul @open-ent (GitHub Packages) nécessite un token = GITHUB_TOKEN.
+        # tiptap-pro/NPM_TOKEN ne sont pas des dépendances réelles (absentes du lock).
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd conversation/frontend
+          cat > .npmrc <<'EOF'
+          @open-ent:registry=https://npm.pkg.github.com
+          //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+          auto-install-peers=true
+          EOF
+          pnpm install --no-frozen-lockfile
+          pnpm exec vite build
+          cd ../..
+          DST=conversation/backend/src/main/resources
+          mkdir -p "$DST/view"
+          cp -R conversation/frontend/dist/* "$DST/"
+          [ -f "$DST/index.html" ] && mv -f "$DST/index.html" "$DST/view/index.html" || true
+          test -f "$DST/view/index.html" || { echo "::error::conversation view/index.html manquant après build"; exit 1; }
+          test -n "$(ls "$DST"/public/index-*.js 2>/dev/null)" || { echo "::error::bundle public/index-*.js manquant"; exit 1; }
+
       - name: Build and publish to GitHub Packages
         run: |
           REVISION_OPT=""
