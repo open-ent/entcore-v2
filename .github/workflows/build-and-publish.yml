@@ -159,13 +159,18 @@ jobs:
           corepack enable || true
           corepack prepare pnpm@8.6.6 --activate
           cd conversation/frontend
+          # package.json est généré depuis package.json.template (cf. build.sh init).
+          # Sans manifeste, pnpm remonte à la racine entcore-v2 et n'installe pas vite.
+          cp package.json.template package.json
+          sed -i "s/%branch%/${GITHUB_REF_NAME}/; s/%generateVersion%/$(date +%Y%m%d%H%M)/; s/%packageVersion%/${GITHUB_REF_NAME}/" package.json
+          # .npmrc minimal : seul @open-ent (GitHub Packages) requiert un token (GITHUB_TOKEN).
           cat > .npmrc <<'EOF'
           @open-ent:registry=https://npm.pkg.github.com
           //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
           auto-install-peers=true
           EOF
           pnpm install --no-frozen-lockfile
-          pnpm exec vite build
+          pnpm exec vite build   # vite build direct (sans typecheck, qui n'est pas requis au packaging)
           cd ../..
           DST=conversation/backend/src/main/resources
           mkdir -p "$DST/view"
