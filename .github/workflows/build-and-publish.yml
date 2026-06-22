@@ -148,8 +148,6 @@ jobs:
         with:
           node-version: '20'
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - name: Build conversation React frontend
         # Sans cette étape le fat-jar conversation n'embarque pas view/index.html
         # (gitignoré) → ConversationController.renderView("index.html") → 500 sur
