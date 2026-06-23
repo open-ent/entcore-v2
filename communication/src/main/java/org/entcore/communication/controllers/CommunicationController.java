@@ -1025,8 +1025,9 @@ public class CommunicationController extends BaseController {
 		if (adml != null && adml.getScope() != null && adml.getScope().contains(structureId)) return true;
 		if (user.getStructures() == null || !user.getStructures().contains(structureId)) return false;
 		if (user.getAuthorizedActions() == null) return false;
+		// Action WORKFLOW : le nom métier est porté par displayName (getName() = FQN « Controller|methode »).
 		for (UserInfos.Action a : user.getAuthorizedActions()) {
-			if (RESTRICTION_DELEGATION_ACTION.equals(a.getName())) return true;
+			if (RESTRICTION_DELEGATION_ACTION.equals(a.getDisplayName())) return true;
 		}
 		return false;
 	}

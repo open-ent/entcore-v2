@@ -154,8 +154,10 @@ public class StudentMessagingExclusionsController extends BaseController {
     private boolean hasDelegation(final UserInfos user, final String structureId) {
         if (user.getAuthorizedActions() == null) return false;
         if (user.getStructures() == null || !user.getStructures().contains(structureId)) return false;
+        // Pour une action WORKFLOW, le nom métier (« communication.restriction.manage ») est porté
+        // par displayName ; getName() renvoie le FQN « Controller|methode ».
         for (UserInfos.Action a : user.getAuthorizedActions()) {
-            if (DELEGATION_ACTION.equals(a.getName())) return true;
+            if (DELEGATION_ACTION.equals(a.getDisplayName())) return true;
         }
         return false;
     }
