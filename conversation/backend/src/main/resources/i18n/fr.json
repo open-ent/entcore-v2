@@ -46,6 +46,8 @@
   "conversation.error.new.folder": "Le dossier n'a pas pu être créé",
   "conversation.error.recall.mail": "Le message n'a pas pu être rappelé.",
   "conversation.error.messaging.hours.closed": "La messagerie est fermée aux élèves en dehors des horaires d'utilisation définis par l'établissement. Vous pouvez relire vos messages, mais l'envoi est momentanément indisponible.",
+  "conversation.error.messaging.excluded": "Votre accès à la messagerie a été temporairement suspendu par l'établissement. Vous pouvez relire vos messages, mais l'envoi est momentanément indisponible.",
+  "conversation.error.exclusion.invalid": "Données d'exclusion invalides : l'élève et la date de fin sont obligatoires.",
   "conversation.error.rename.folder": "Le dossier n'a pas pu être renommé",
   "conversation.error.reply.not.allowed": "Vous ne pouvez pas répondre à ce message",
   "conversation.error.schedule.invalid.date": "La date d'envoi programmée est invalide (elle doit être dans le futur).",

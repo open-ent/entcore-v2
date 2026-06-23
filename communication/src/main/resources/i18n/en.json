@@ -1,4 +1,5 @@
 {
+  "communication.error.block.invalid": "Invalid data: two distinct people are required to cut off communication.",
   "communication.accordion.customRules": "Personalized communication rules",
   "communication.accordion.groupPolicy": "Setting Group",
   "communication.accordion.groupUsers": "Users in the group",

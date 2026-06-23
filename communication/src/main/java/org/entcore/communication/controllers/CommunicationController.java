@@ -40,6 +40,8 @@ import io.vertx.core.json.JsonObject;
 import org.entcore.common.communication.CommunicationUtils;
 import org.entcore.common.http.filter.AdminFilter;
 import org.entcore.common.http.filter.ResourceFilter;
+import org.entcore.common.user.DefaultFunctions;
+import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.common.validation.StringValidation;
 import org.entcore.communication.filters.CommunicationDiscoverVisibleFilter;
@@ -957,5 +959,75 @@ public class CommunicationController extends BaseController {
 				.onSuccess(visibles -> renderJson(request, visibles))
 				.onFailure(th -> renderError(request, new JsonObject().put("error", th.getMessage())));
 		});
+	}
+
+	// ── Coupure de communication ciblée entre deux individus (décision de justice) ───────────
+	// Accessible au SUPER_ADMIN, à l'ADML de la structure, ou au personnel à qui le chef a délégué
+	// l'action « communication.restriction.manage » (vie-scolaire). Routes AUTHENTICATED + check manuel.
+
+	/** Action workflow que le chef peut déléguer au personnel vie-scolaire. */
+	private static final String RESTRICTION_DELEGATION_ACTION = "communication.restriction.manage";
+
+	/** Liste les coupures de communication d'un établissement. */
+	@Get("/block/:structureId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void listBlockedCommunication(final HttpServerRequest request) {
+		final String structureId = request.params().get("structureId");
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (!canManageRestriction(user, structureId)) { unauthorized(request); return; }
+			communicationService.listBlockedCommunication(structureId, arrayResponseHandler(request));
+		});
+	}
+
+	/** Coupe la communication entre deux individus. */
+	@Post("/block/:structureId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void blockCommunication(final HttpServerRequest request) {
+		final String structureId = request.params().get("structureId");
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (!canManageRestriction(user, structureId)) { unauthorized(request); return; }
+			RequestUtils.bodyToJson(request, body -> {
+				final String userA = body.getString("userA");
+				final String userB = body.getString("userB");
+				if (userA == null || userB == null || userA.equals(userB)) {
+					badRequest(request, "communication.error.block.invalid");
+					return;
+				}
+				communicationService.blockCommunication(userA, userB, body.getString("reason"),
+						user.getUserId(), user.getUsername(), structureId, defaultResponseHandler(request));
+			});
+		});
+	}
+
+	/** Rétablit la communication entre deux individus. */
+	@Delete("/block/:structureId/:userA/:userB")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void unblockCommunication(final HttpServerRequest request) {
+		final String structureId = request.params().get("structureId");
+		final String userA = request.params().get("userA");
+		final String userB = request.params().get("userB");
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (!canManageRestriction(user, structureId)) { unauthorized(request); return; }
+			communicationService.unblockCommunication(userA, userB, defaultResponseHandler(request));
+		});
+	}
+
+	private boolean isSuperAdminUser(final UserInfos user) {
+		return user != null && user.getFunctions() != null
+				&& user.getFunctions().containsKey(DefaultFunctions.SUPER_ADMIN);
+	}
+
+	/** Autorise SUPER_ADMIN, l'ADML de la structure, ou le délégué (action workflow + structure). */
+	private boolean canManageRestriction(final UserInfos user, final String structureId) {
+		if (user == null || structureId == null || user.getFunctions() == null) return false;
+		if (isSuperAdminUser(user)) return true;
+		final UserInfos.Function adml = user.getFunctions().get(DefaultFunctions.ADMIN_LOCAL);
+		if (adml != null && adml.getScope() != null && adml.getScope().contains(structureId)) return true;
+		if (user.getStructures() == null || !user.getStructures().contains(structureId)) return false;
+		if (user.getAuthorizedActions() == null) return false;
+		for (UserInfos.Action a : user.getAuthorizedActions()) {
+			if (RESTRICTION_DELEGATION_ACTION.equals(a.getName())) return true;
+		}
+		return false;
 	}
 }

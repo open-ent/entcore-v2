@@ -1,4 +1,5 @@
 {
+  "communication.error.block.invalid": "Données invalides : deux personnes distinctes sont requises pour couper la communication.",
   "communication.accordion.customRules": "Règles de communication personnalisées",
   "communication.accordion.groupPolicy": "Paramétrage du groupe",
   "communication.accordion.groupUsers": "Utilisateurs dans le groupe",

@@ -91,6 +91,7 @@ import static org.entcore.common.http.response.DefaultResponseHandler.*;
 import static org.entcore.common.user.UserUtils.getUserInfos;
 import org.entcore.conversation.util.DecodedDisplayName;
 import org.entcore.conversation.util.MessagingHours;
+import org.entcore.conversation.util.StudentMessagingExclusions;
 
 import fr.wseduc.security.ActionType;
 
@@ -510,6 +511,13 @@ public class ConversationController extends BaseController {
 							// Envoi différé : scheduledAt (epoch millis / ISO) dans le futur => on programme.
 							final Long scheduledAt = parseScheduledAt(message);
 							final boolean scheduled = scheduledAt != null;
+
+							// Exclusion temporaire d'un élève : blocage total de l'envoi (immédiat ET différé)
+							// pendant la durée d'exclusion ; la lecture reste possible.
+							if (StudentMessagingExclusions.getInstance().isExcluded(user.getUserId(), System.currentTimeMillis())) {
+								forbidden(request, "conversation.error.messaging.excluded");
+								return;
+							}
 
 							// Horaires d'utilisation : seul l'envoi IMMÉDIAT est bloqué hors plage (un élève
 							// ne peut pas envoyer en lecture seule). Le différé est revérifié à l'échéance par

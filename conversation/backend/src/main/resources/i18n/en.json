@@ -46,6 +46,8 @@
   "conversation.error.new.folder": "The folder could not be created",
   "conversation.error.recall.mail": "The message could not be recalled.",
   "conversation.error.messaging.hours.closed": "Messaging is closed to students outside the usage hours set by the school. You can still read your messages, but sending is temporarily unavailable.",
+  "conversation.error.messaging.excluded": "Your access to messaging has been temporarily suspended by the school. You can still read your messages, but sending is temporarily unavailable.",
+  "conversation.error.exclusion.invalid": "Invalid exclusion data: the student and the end date are required.",
   "conversation.error.rename.folder": "The folder could not be renamed",
   "conversation.error.reply.not.allowed": "You cannot reply to this message",
   "conversation.error.schedule.invalid.date": "The scheduled send date is invalid (it must be in the future).",

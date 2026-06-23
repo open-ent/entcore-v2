@@ -87,6 +87,7 @@ public class DefaultCommunicationService implements CommunicationService {
 				"        NOT(HAS(m.blocked))\n" +
 				"        OR m.blocked = false\n" +
 				"    )\n" +
+				"    AND NOT (m)-[:BLOCKED_COMMUNICATION]-(:User {id:{userId}})\n" +
 				"    AND NOT m:Hidden\n" +
 				searchFilter +
 				"  WITH DISTINCT m as visibles \n" +
@@ -118,6 +119,7 @@ public class DefaultCommunicationService implements CommunicationService {
 				"        NOT(HAS(m.blocked))\n" +
 				"        OR m.blocked = false\n" +
 				"    )\n" +
+				"    AND NOT (n)-[:BLOCKED_COMMUNICATION]-(m)\n" +
 				"    AND NOT m:Hidden \n" +
 				searchFilter +
 				" WITH DISTINCT m as visibles\n" +
@@ -678,12 +680,14 @@ public class DefaultCommunicationService implements CommunicationService {
 			query.append("MATCH p=(g:Group)<-[:DEPENDS*0..1]-cg-[:COMMUNIQUE*0..1]->m ");
 			if (userProfile == null || "Student".equals(userProfile) || "Relative".equals(userProfile) || discoverVisibleExpectedProfile.contains(userProfile) ) {
 				union = new StringBuilder("MATCH p=(n:User)-[:COMMUNIQUE_DIRECT]->m " +
-						"WHERE n.id = {userId} AND (NOT(HAS(m.blocked)) OR m.blocked = false) ");
+						"WHERE n.id = {userId} AND (NOT(HAS(m.blocked)) OR m.blocked = false) " +
+						"AND NOT (n)-[:BLOCKED_COMMUNICATION]-(m) ");
 			}
 		}
 		query.append("WHERE  g.id IN comGroups " +
 				"AND (length(p) < 1 OR (length(p) < 2 AND g.id <> cg.id) OR (length(p) < 2 AND m:User)) " +
 				"AND (NOT(HAS(m.blocked)) OR m.blocked = false) " +
+				"AND NOT (m)-[:BLOCKED_COMMUNICATION]-(:User {id:{userId}}) " +
 				"AND (NOT(HAS(m.nbUsers)) OR m.nbUsers > 0) ");
 
 		String combinedPreFilter = (preFilter != null ? preFilter : "");
@@ -1214,10 +1218,13 @@ public class DefaultCommunicationService implements CommunicationService {
 	@Override
 	public void verify(String senderId, String recipientId, Handler<Either<String, JsonObject>> handler) {
 
+		// Une relation BLOCKED_COMMUNICATION (décision de justice) entre les deux personnes coupe
+		// le droit de communication quelle que soit la visibilité héritée des groupes.
 		String query = "MATCH (s:User), (r:User) "
 				+ "where s.id = {senderId} and r.id = {recipientId} "
-				+ "return exists((r)<-[:COMMUNIQUE*1..2]-()<-[:COMMUNIQUE]-(s)) OR "
-				+ "exists((r)<-[:COMMUNIQUE_DIRECT]-(s)) as " + CAN_COMMUNICATE_VERIFY;
+				+ "return (exists((r)<-[:COMMUNIQUE*1..2]-()<-[:COMMUNIQUE]-(s)) OR "
+				+ "exists((r)<-[:COMMUNIQUE_DIRECT]-(s))) "
+				+ "AND NOT exists((s)-[:BLOCKED_COMMUNICATION]-(r)) as " + CAN_COMMUNICATE_VERIFY;
 
 		JsonObject params = new JsonObject()
 				.put("senderId", senderId)
@@ -1254,6 +1261,52 @@ public class DefaultCommunicationService implements CommunicationService {
 
 		}));
 
+	}
+
+	@Override
+	public void blockCommunication(String userA, String userB, String reason, String createdBy,
+			String createdByName, String structureId, Handler<Either<String, JsonObject>> handler) {
+		// CREATE UNIQUE : une seule relation BLOCKED_COMMUNICATION entre les deux users, quel que
+		// soit l'ordre (matchée non orientée à la lecture). Idempotent.
+		String query =
+				"MATCH (a:User {id:{userA}}), (b:User {id:{userB}}) " +
+				"CREATE UNIQUE (a)-[r:BLOCKED_COMMUNICATION]-(b) " +
+				"SET r.reason = {reason}, r.createdBy = {createdBy}, r.createdByName = {createdByName}, " +
+				"    r.structureId = {structureId}, r.createdAt = coalesce(r.createdAt, timestamp()) " +
+				"RETURN a.id as userA, a.displayName as userAName, b.id as userB, b.displayName as userBName, " +
+				"       r.reason as reason, r.createdAt as createdAt ";
+		JsonObject params = new JsonObject()
+				.put("userA", userA)
+				.put("userB", userB)
+				.put("reason", reason != null ? reason : "")
+				.put("createdBy", createdBy)
+				.put("createdByName", createdByName != null ? createdByName : "")
+				.put("structureId", structureId);
+		neo4j.execute(query, params, validUniqueResultHandler(handler));
+	}
+
+	@Override
+	public void unblockCommunication(String userA, String userB, Handler<Either<String, JsonObject>> handler) {
+		String query =
+				"MATCH (a:User {id:{userA}})-[r:BLOCKED_COMMUNICATION]-(b:User {id:{userB}}) " +
+				"DELETE r RETURN count(*) as number ";
+		JsonObject params = new JsonObject().put("userA", userA).put("userB", userB);
+		neo4j.execute(query, params, validUniqueResultHandler(handler));
+	}
+
+	@Override
+	public void listBlockedCommunication(String structureId, Handler<Either<String, JsonArray>> handler) {
+		// On dédoublonne la relation non orientée en imposant un ordre stable sur les id.
+		String query =
+				"MATCH (a:User)-[r:BLOCKED_COMMUNICATION]-(b:User) " +
+				"WHERE r.structureId = {structureId} AND a.id < b.id " +
+				"RETURN a.id as userA, a.displayName as userAName, a.profiles[0] as userAProfile, " +
+				"       b.id as userB, b.displayName as userBName, b.profiles[0] as userBProfile, " +
+				"       r.reason as reason, r.createdBy as createdBy, r.createdByName as createdByName, " +
+				"       r.createdAt as createdAt " +
+				"ORDER BY r.createdAt DESC ";
+		JsonObject params = new JsonObject().put("structureId", structureId);
+		neo4j.execute(query, params, validResultHandler(handler));
 	}
 
 	/**

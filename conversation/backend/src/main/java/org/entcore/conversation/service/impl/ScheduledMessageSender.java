@@ -14,6 +14,7 @@ import io.vertx.core.logging.LoggerFactory;
 import org.entcore.common.user.UserInfos;
 import org.entcore.conversation.service.ConversationService;
 import org.entcore.conversation.util.MessagingHours;
+import org.entcore.conversation.util.StudentMessagingExclusions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -69,6 +70,13 @@ public class ScheduledMessageSender implements Handler<Long> {
 				: new JsonObject();
 		final String type = ctx.getString("type");
 		final List<String> structures = toStringList(ctx.getJsonArray("structures"));
+
+		// Élève exclu de la messagerie : on retient le message tant que l'exclusion court ; il sera
+		// repris au prochain scan une fois l'exclusion expirée (ou levée).
+		if (StudentMessagingExclusions.getInstance().isExcluded(from, System.currentTimeMillis())) {
+			log.debug("[Scheduled] message " + id + " retenu (expéditeur " + from + " exclu de la messagerie)");
+			return;
+		}
 
 		// Règle « on retient hors plage » : si l'expéditeur n'est pas autorisé à envoyer maintenant
 		// (élève hors créneau), on ne fait rien — le message sera repris au prochain scan.

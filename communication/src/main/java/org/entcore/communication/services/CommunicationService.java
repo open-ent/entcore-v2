@@ -160,6 +160,20 @@ public interface CommunicationService {
 	 */
 	void verify(String senderId, String recipientId, Handler<Either<String, JsonObject>> handler);
 
+	/**
+	 * Coupe durablement le droit de communication entre deux individus (décision de justice).
+	 * Crée une relation BLOCKED_COMMUNICATION bidirectionnelle (une seule relation, matchée non
+	 * orientée). Les deux personnes disparaissent mutuellement des destinataires visibles.
+	 */
+	void blockCommunication(String userA, String userB, String reason, String createdBy,
+			String createdByName, String structureId, Handler<Either<String, JsonObject>> handler);
+
+	/** Rétablit le droit de communication entre deux individus (lève le blocage). */
+	void unblockCommunication(String userA, String userB, Handler<Either<String, JsonObject>> handler);
+
+	/** Liste les coupures de communication rattachées à un établissement. */
+	void listBlockedCommunication(String structureId, Handler<Either<String, JsonArray>> handler);
+
 	void getDiscoverVisibleUsers(String userId, JsonObject filter, final Handler<Either<String, JsonArray>> handler);
 
 	void getDiscoverVisibleStructures(final Handler<Either<String, JsonArray>> handler);
