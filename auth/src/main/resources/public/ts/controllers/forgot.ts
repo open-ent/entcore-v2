@@ -7,8 +7,9 @@ interface ForgotControllerScope {
 	activationCode: string
 	error: string;
 	structures: Array<any>
+	is1D: boolean
 	user: {
-		mode?: "id" | "password" | "idExtras" | "notFound"
+		mode?: "id" | "password" | "idExtras" | "notFound" | "teacherRequest" | "teacherRequestSent"
 		login?: string
 		firstName?: string
 		structureId?: string
@@ -31,6 +32,7 @@ interface ForgotControllerScope {
 	shouldAskForNameAndStructure(): boolean
 	forgot(service): void;
 	forgotPassword(login: string, service: "mail")
+	teacherRequest(login: string): void
 	canSubmitForgotForm: (isInputValid: boolean) => boolean
 	passwordChannels(): void
 	forgotId(args: { mail: string, firstName: string, structureId: string }, service: "mail")
@@ -92,6 +94,8 @@ export let forgotController = ng.controller('ForgotController', ['$scope', 'rout
 		eval(xhr.responseText.split('exports.')[1]);
 		const currentTheme = conf.overriding.find(t => t.child === skin.skin);
 		$scope.childTheme = currentTheme ? currentTheme.child : skin.skin;
+		$scope.is1D = !!currentTheme && ((currentTheme as any).parent === 'panda' || currentTheme.child === 'openent1d');
+		$scope.$apply();
 	};
 	xhr.send();
 	//===Routes
@@ -103,6 +107,11 @@ export let forgotController = ng.controller('ForgotController', ['$scope', 'rout
 		actionPassword: function(params){
 			$scope.user.mode = "password";
 			$scope.showWhat = "forgotPassword";
+		},
+		actionTeacherRequest: function(params){
+			$scope.user.mode = "teacherRequest";
+			$scope.showWhat = "teacherRequest";
+			$scope.template.open('main', 'forgot-teacher-request-form');
 		}
 	})
 	//===Public methods
@@ -164,6 +173,21 @@ export let forgotController = ng.controller('ForgotController', ['$scope', 'rout
 				$scope.sendingMailAndWaitingFeedback = false;
 				setError('auth.notify.' + JSON.parse(data.responseText).error + '.login');
 			})
+	}
+
+	$scope.teacherRequest = function(login){
+		$scope.showWhat = null;
+		$scope.sendingMailAndWaitingFeedback = true;
+		http().postJson('/auth/forgot/teacher-request', {login: login})
+			.done(function(){
+				$scope.user.mode = "teacherRequestSent";
+				$scope.sendingMailAndWaitingFeedback = false;
+				$scope.$apply();
+			})
+			.e400(function(data){
+				$scope.sendingMailAndWaitingFeedback = false;
+				setError('auth.notify.' + JSON.parse(data.responseText).error + '.login');
+			});
 	}
 
 	$scope.canSubmitForgotForm = function(isInputValid : boolean) {

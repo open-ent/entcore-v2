@@ -53,6 +53,7 @@ import org.entcore.common.events.EventStore;
 import org.entcore.common.events.EventStoreFactory;
 import org.entcore.common.http.BaseServer;
 import org.entcore.common.neo4j.Neo;
+import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.sms.SmsSenderFactory;
 
 import java.security.InvalidKeyException;
@@ -116,6 +117,7 @@ public class Auth extends BaseServer {
 		authController.setOauthDataFactory(oauthDataFactory);
 		authController.setCheckFederatedLogin(checkFederatedLogin);
 		authController.setMfaService(mfaService);
+		authController.setNotification(new TimelineHelper(vertx, eb, config));
 		addController(authController);
 
 		final ConfigurationController configurationController = new ConfigurationController();

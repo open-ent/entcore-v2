@@ -97,4 +97,35 @@ public interface UserAuthAccount {
 	void forceChangePassword(String userId,  Handler<Either<String, JsonObject>> handler);
 
 	void erasePassword(String userId, Handler<Either<String, JsonObject>> handler);
+
+	/**
+	 * Feature 1er degré : a student requests a new password from the login page.
+	 * Sets a pending-request flag on the student account and returns the student's teacher(s)
+	 * (id + email) so they can be notified (timeline + email).
+	 * @param login student login (or loginAlias)
+	 * @param handler Right({studentName, studentId, previousRequestDate, teachers:[{id,email}]}) on success,
+	 *                Left(error) otherwise (e.g. unknown login, not a student, federated account).
+	 */
+	void requestTeacherPasswordReset(String login, Handler<Either<String, JsonObject>> handler);
+
+	/**
+	 * Feature 1er degré : a teacher resets a student's password to a generated, kid-friendly
+	 * temporary value, forces a change at next login and clears any pending request flag.
+	 * @param login student login (or loginAlias)
+	 * @param length length of the generated temporary password
+	 * @param request the originating request (for password-change mail, may be null)
+	 * @param handler Right({password, login, displayName, id}) with the PLAINTEXT temp password on success,
+	 *                Left(error) otherwise.
+	 */
+	void resetPasswordToTempValue(String login, int length, HttpServerRequest request, Handler<Either<String, JsonObject>> handler);
+
+	/**
+	 * Feature 1er degré : sends an email to a teacher telling them that one of their students
+	 * requested a new password from the login page.
+	 * @param request the originating request (for host/i18n)
+	 * @param teacherEmail recipient teacher email
+	 * @param studentName display name of the student who requested help
+	 */
+	void sendPasswordResetRequestMail(HttpServerRequest request, String teacherEmail, String studentName,
+			Handler<Either<String, JsonObject>> handler);
 }

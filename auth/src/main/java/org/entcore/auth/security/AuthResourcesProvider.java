@@ -52,7 +52,8 @@ public class AuthResourcesProvider implements ResourcesProvider {
 			final String method = serviceMethod
 					.substring(AuthController.class.getName().length() + 1);
 			if ("massGeneratePasswordRenewalCode".equals(method) || "blockUsers".equals(method) ||
-					"sendResetPassword".equals(method) || "generatePasswordRenewalCode".equals(method)) {
+					"sendResetPassword".equals(method) || "generatePasswordRenewalCode".equals(method) ||
+					"resetStudentTempPassword".equals(method)) {
 				checkFilterCases(request, user, handler, method);
 			} else if ("blockUser".equals(method)) {
 				adminUpdateFilter.checkADMCUpdate(request, user, hr -> {
@@ -79,6 +80,9 @@ public class AuthResourcesProvider implements ResourcesProvider {
 				isClassTeacherOfMultipleUsers(request, user, handler);
 				break;
 			case "sendResetPassword" :
+				isClassTeacherByUserLogin(request, user, handler);
+				break;
+			case "resetStudentTempPassword" :
 				isClassTeacherByUserLogin(request, user, handler);
 				break;
 			case "generatePasswordRenewalCode" :

@@ -88,7 +88,11 @@
                               </label>
                             </td>
                             <td style="text-align: left;">
-                              <div>[[user.safeDisplayName]]</div>
+                              <div>[[user.safeDisplayName]]
+                                <span class="label" style="background-color: #ff8d2e; color: #fff; border-radius: 4px; padding: 1px 6px; margin-left: 6px; font-size: 0.8em;" ng-if="is1D && user.passwordResetRequested">
+                                    <i18n>classAdmin.passwordRequest.pending</i18n>
+                                </span>
+                              </div>
                               <div ng-if="user.type === 'Student'" class="class-admin__relative"
                               >
                                 <span class="class-admin__relative--empty"

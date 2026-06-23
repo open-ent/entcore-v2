@@ -76,6 +76,7 @@ import org.entcore.auth.users.UserAuthAccount;
 import org.entcore.common.datavalidation.UserValidation;
 import org.entcore.common.events.EventStore;
 import org.entcore.common.http.filter.*;
+import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.redis.Redis;
 import org.entcore.common.redis.RedisClient;
@@ -141,6 +142,7 @@ public class AuthController extends BaseController {
 	private List<String> internalAddress;
 	private boolean checkFederatedLogin = false;
 	private long jwtTtlSeconds;
+	private TimelineHelper notification;
 	private RedisClient loginBanRedisClient;
 	private int pwMaxRetry;
 	private long pwBanDelay;
@@ -1613,6 +1615,108 @@ public class AuthController extends BaseController {
 		});
 	}
 
+	/**
+	 * Feature 1er degré : a (primary) student requests a new password from the login page.
+	 * The student's teacher(s) are notified (timeline + email) and a pending request is recorded
+	 * so the teacher can reset the password from the class settings.
+	 * Public endpoint (no session). Gated by the "primary-assisted-password-reset" config flag.
+	 * @response 200 always, even if the login is unknown / not a primary student, to avoid leaking account existence.
+	 */
+	@Post("/forgot/teacher-request")
+	public void teacherForgotPasswordRequest(final HttpServerRequest request) {
+		if (!config.getBoolean("primary-assisted-password-reset", false)) {
+			renderJson(request, new JsonObject());
+			return;
+		}
+		RequestUtils.bodyToJson(request, data -> {
+			final String login = data.getString("login");
+			if (login == null || login.trim().isEmpty() || login.contains(" ")) {
+				badRequest(request, "invalid.login");
+				return;
+			}
+			userAuthAccount.requestTeacherPasswordReset(login.trim(), result -> {
+				// Always answer 200 generically (anti-enumeration). Only notify on the success branch.
+				if (result.isRight() && result.right().getValue() != null
+						&& result.right().getValue().size() > 0
+						&& result.right().getValue().getString("studentId") != null) {
+					notifyTeachersOfPasswordRequest(request, result.right().getValue());
+				}
+				renderJson(request, new JsonObject());
+			});
+		});
+	}
+
+	private void notifyTeachersOfPasswordRequest(final HttpServerRequest request, final JsonObject data) {
+		// Debounce : do not re-notify if a request was already made within the configured window.
+		final Long previousDate = data.getLong("previousDate");
+		final long debounceMs = config.getLong("password-reset-request-debounce-ms", 3600000L);
+		if (previousDate != null && (System.currentTimeMillis() - previousDate) < debounceMs) {
+			return;
+		}
+
+		final String studentName = data.getString("studentName", "");
+		final String studentId = data.getString("studentId");
+		final JsonArray teachers = data.getJsonArray("teachers", new JsonArray());
+
+		final List<String> teacherIds = new ArrayList<>();
+		for (int i = 0; i < teachers.size(); i++) {
+			final JsonObject teacher = teachers.getJsonObject(i);
+			if (teacher == null) {
+				continue;
+			}
+			final String teacherId = teacher.getString("id");
+			if (teacherId != null && !teacherIds.contains(teacherId)) {
+				teacherIds.add(teacherId);
+			}
+			final String teacherEmail = teacher.getString("email");
+			if (teacherEmail != null && !teacherEmail.trim().isEmpty()) {
+				userAuthAccount.sendPasswordResetRequestMail(request, teacherEmail, studentName,
+						DefaultResponseHandler.defaultResponseHandler(request));
+			}
+		}
+
+		if (notification != null && !teacherIds.isEmpty()) {
+			final JsonObject params = new JsonObject()
+					.put("studentName", studentName)
+					.put("studentId", studentId)
+					.put("disableMailNotification", true)
+					.put("pushNotif", new JsonObject().put("title", "push.notif.password-reset-request")
+							.put("body", studentName));
+			notification.notifyTimeline(request, "password-reset-request.password-reset-request",
+					null, teacherIds, studentId + System.currentTimeMillis(), params);
+		}
+	}
+
+	/**
+	 * Feature 1er degré : a teacher resets a student's password to a generated temporary value,
+	 * displayed on screen (read to the child in person). Forces a password change at next login
+	 * and clears any pending request flag.
+	 * Secured like {@code sendResetPassword} : the caller must be a class teacher of the student
+	 * identified by the {@code login} form attribute (see {@link org.entcore.auth.security.AuthResourcesProvider}).
+	 * @response 200 {password, login, displayName} with the PLAINTEXT temporary password.
+	 */
+	@Post("/reset/student-temp-password")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	public void resetStudentTempPassword(final HttpServerRequest request) {
+		if (!config.getBoolean("primary-assisted-password-reset", false)) {
+			notFound(request);
+			return;
+		}
+		final String login = request.formAttributes().get("login");
+		if (login == null || login.trim().isEmpty()) {
+			badRequest(request, "login required");
+			return;
+		}
+		final int length = config.getInteger("primary-temp-password-length", 6);
+		userAuthAccount.resetPasswordToTempValue(login, length, request, either -> {
+			if (either.isRight()) {
+				renderJson(request, either.right().getValue());
+			} else {
+				renderError(request);
+			}
+		});
+	}
+
 	@Post("/sendResetPassword")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	public void sendResetPassword(final HttpServerRequest request) {
@@ -2332,6 +2436,10 @@ public class AuthController extends BaseController {
 
 	public void setMfaService( final MfaService mfaSvc ) {
 		this.mfaSvc = mfaSvc;
+	}
+
+	public void setNotification(final TimelineHelper notification) {
+		this.notification = notification;
 	}
 
 

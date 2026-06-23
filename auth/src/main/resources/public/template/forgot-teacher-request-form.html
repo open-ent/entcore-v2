@@ -1,0 +1,29 @@
+<section class="main">
+	<div class="panel activation">
+		<img class="logo absolute" src="/assets/themes/[[childTheme]]/img/illustrations/logo.png" alt="Logo de l'ENT">
+
+		<div ng-if="user.mode !== 'teacherRequestSent'">
+			<h1 translate content="auth.forgot.1d.teacherRequest.title"></h1>
+			<p class="warning" ng-if="error" translate content="[[error]]"></p>
+			<p translate content="auth.forgot.1d.teacherRequest.intro"></p>
+			<form method="post" name="teacherRequestForm" ng-submit="teacherRequest(user.login)">
+				<p>
+					<label translate content="auth.forgot.1d.teacherRequest.loginLabel"></label>
+					<input type="text" name="login" ng-keydown="noSpace($event)" ng-change="noUpperCase()" ng-model="user.login" autofocus required/>
+				</p>
+
+				<a href="/auth/login" class="right cell" translate content="auth.cancel"></a>
+
+				<input type="submit" translate attr="value" value="auth.forgot.1d.teacherRequest.submit" ng-disabled="teacherRequestForm.$invalid || sendingMailAndWaitingFeedback"/>
+
+				<div class="clear"></div>
+			</form>
+		</div>
+
+		<div ng-if="user.mode === 'teacherRequestSent'" class="teacher-request-sent">
+			<h1 translate content="auth.forgot.1d.teacherRequest.sent.title"></h1>
+			<p translate content="auth.forgot.1d.teacherRequest.sent.text"></p>
+			<a href="/auth/login" class="button" translate content="auth.forgot.1d.teacherRequest.sent.back"></a>
+		</div>
+	</div>
+</section>

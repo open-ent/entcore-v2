@@ -4,5 +4,8 @@
   "userbook.updated.mood": "a mis à jour son humeur",
   "userbook.updated.motto": "a mis à jour sa devise",
   "userbook.userbook_mood": "Changement d'humeur",
-  "userbook.userbook_motto": "Changement de devise"
+  "userbook.userbook_motto": "Changement de devise",
+  "password-reset-request.password-reset-request": "Demande de nouveau mot de passe",
+  "timeline.password-reset-request.message": "a oublié son mot de passe et a besoin de votre aide pour en créer un nouveau.",
+  "push.notif.password-reset-request": "Demande de nouveau mot de passe"
 }

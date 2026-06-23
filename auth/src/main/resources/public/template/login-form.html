@@ -79,8 +79,9 @@
                     <input type="hidden" name="details" ng-value="details" />
                     <div class="flex-magnet-container">
                         <div class="cell">
-													<a class="forgot-link" href="/auth/forgot#/id"><small><i18n>missing.id</i18n></small></a>
-													<a class="forgot-link" href="/auth/forgot#/password"><small><i18n>missing.password</i18n></small></a>
+													<a class="forgot-link" ng-if="!is1D" href="/auth/forgot#/id"><small><i18n>missing.id</i18n></small></a>
+													<a class="forgot-link" ng-if="!is1D" href="/auth/forgot#/password"><small><i18n>missing.password</i18n></small></a>
+													<a class="forgot-link" ng-if="is1D" href="/auth/forgot#/teacher-request"><small><i18n>auth.forgot.1d.teacherRequest.link</i18n></small></a>
 												</div>
                         <button tabindex="3" class="flex-magnet-bottom-right"><i18n>auth.login</i18n></button>
                     </div>

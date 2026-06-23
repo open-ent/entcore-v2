@@ -75,6 +75,8 @@ export class User extends Model {
     resetCode: string;
     resetCodeDate: string;
     activationCode: string;
+    passwordResetRequested: boolean;
+    passwordResetRequestDate: number;
     relativeIds: string[] = []
     relativeList: Array<{ relatedId: string, relatedName: string }> = [];
     source: "MANUAL" | "CLASS_PARAM" | "BE1D" | "CSV"

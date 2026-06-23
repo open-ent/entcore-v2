@@ -14,6 +14,9 @@ routes.define(function($routeProvider) {
 		.when('/password', {
 	  		action: 'actionPassword'
     })
+		.when('/teacher-request', {
+			action: 'actionTeacherRequest'
+    })
     .otherwise({
 		  	redirectTo: '/'
 		})

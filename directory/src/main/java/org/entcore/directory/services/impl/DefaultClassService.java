@@ -103,6 +103,7 @@ public class DefaultClassService implements ClassService {
 				(ine 
 					? "m.ine as ine, " 
 					: "") +
+				"m.passwordResetRequested as passwordResetRequested, m.passwordResetRequestDate as passwordResetRequestDate, " +
 				"p.name as type, m.blocked as blocked, m.source as source, relativeList " +
 				"ORDER BY type, lastName ";
 		neo.execute(query, params, validResultHandler(results));

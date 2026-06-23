@@ -143,6 +143,11 @@ export let loginController = ng.controller('LoginController', ['$scope', ($scope
 		eval(xhr.responseText.split('exports.')[1]);
 		const currentTheme = conf.overriding.find(t => t.child === skin.skin);
 		$scope.childTheme = currentTheme ? currentTheme.child : skin.skin;
+		// 1er degré detection : primary skins extend the "panda" parent theme (e.g. openent1d).
+		$scope.is1D = !!currentTheme && ((currentTheme as any).parent === 'panda' || currentTheme.child === 'openent1d');
+		if (!$scope.$$phase) {
+			$scope.$apply();
+		}
 	};
 	xhr.send();
 

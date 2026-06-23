@@ -1,4 +1,7 @@
 {
     "timeline.userbook.updated.mood": "has updated mood",
-    "timeline.userbook.updated.motto": "has updated motto"
+    "timeline.userbook.updated.motto": "has updated motto",
+    "password-reset-request.password-reset-request": "New password request",
+    "timeline.password-reset-request.message": "forgot their password and needs your help to create a new one.",
+    "push.notif.password-reset-request": "New password request"
 }

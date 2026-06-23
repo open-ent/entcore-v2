@@ -556,6 +556,38 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	}
 
 	@Override
+	public void sendPasswordResetRequestMail(HttpServerRequest request, String teacherEmail, String studentName,
+											 final Handler<Either<String, JsonObject>> handler) {
+		if (teacherEmail == null || teacherEmail.trim().isEmpty()) {
+			handler.handle(new Either.Right<String, JsonObject>(new JsonObject()));
+			return;
+		}
+		log.info("Sending password-reset request mail to teacher: " + teacherEmail + " for student: " + studentName);
+		JsonObject json = new JsonObject()
+				.put("host", notification.getHost(request))
+				.put("studentName", studentName != null ? studentName : "");
+		notification.sendEmail(
+				request,
+				teacherEmail,
+				config.getString("email", "noreply@one1d.fr"),
+				null,
+				null,
+				"mail.password.reset.request.subject",
+				"email/passwordResetRequestTeacher.html",
+				json,
+				true,
+				handlerToAsyncHandler(new Handler<Message<JsonObject>>() {
+					public void handle(Message<JsonObject> event) {
+						if ("error".equals(event.body().getString("status"))) {
+							handler.handle(new Either.Left<String, JsonObject>(event.body().getString("message", "")));
+						} else {
+							handler.handle(new Either.Right<String, JsonObject>(event.body()));
+						}
+					}
+				}));
+	}
+
+	@Override
 	public void sendForgottenIdMail(HttpServerRequest request, String login, String email, final Handler<Either<String, JsonObject>> handler){
 		if (email == null || email.trim().isEmpty()) {
 			handler.handle(new Either.Left<String, JsonObject>("invalid.mail"));
@@ -1092,6 +1124,88 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 			handler.handle(new Either.Left<>("Failed to force change password"));
 		});
 	}
+	@Override
+	public void requestTeacherPasswordReset(final String login, final Handler<Either<String, JsonObject>> handler) {
+		doRequestTeacherPasswordReset("login", login, result -> {
+			if (result.isLeft()) {
+				handler.handle(result);
+			} else if (result.right().getValue() == null || result.right().getValue().size() == 0) {
+				// Retry with loginAlias before giving up.
+				doRequestTeacherPasswordReset("loginAlias", login, handler);
+			} else {
+				handler.handle(result);
+			}
+		});
+	}
+
+	private void doRequestTeacherPasswordReset(final String matchField, final String login,
+			final Handler<Either<String, JsonObject>> handler) {
+		final String query =
+				"MATCH (n:User {" + matchField + ":{login}})-[:IN]->(sg:ProfileGroup)-[:DEPENDS]->(c:Class)" +
+				"<-[:DEPENDS]-(tg:ProfileGroup)<-[:IN]-(p:User), " +
+				"(sg)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name:'Student'}), " +
+				"(tg)-[:DEPENDS]->(tpg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name:'Teacher'}) " +
+				"WHERE n.activationCode IS NULL AND (NOT(HAS(n.federated)) OR n.federated = false) " +
+				"WITH n, n.passwordResetRequestDate AS previousDate, " +
+				"COLLECT(DISTINCT {id: p.id, email: p.email}) AS teachers " +
+				"SET n.passwordResetRequested = true, n.passwordResetRequestDate = {today} " +
+				"RETURN n.displayName AS studentName, n.id AS studentId, previousDate, teachers";
+		final JsonObject params = new JsonObject().put("login", login).put("today", new Date().getTime());
+		neo.execute(query, params, Neo4jResult.validUniqueResultHandler(handler));
+	}
+
+	@Override
+	public void resetPasswordToTempValue(final String login, final int length, final HttpServerRequest request,
+			final Handler<Either<String, JsonObject>> handler) {
+		final int safeLength = length >= 6 ? length : 6;
+		final String tempPassword = generateValidTempPassword(safeLength);
+		final String query =
+				"MATCH (n:User) " +
+				"WHERE n.login={login} AND NOT(n.password IS NULL) " +
+				"AND (NOT(HAS(n.federated)) OR n.federated = false) " +
+				"SET n.password = {password}, n.changePw = true, n.oldPasswords = {oldPasswords}, " +
+				"    n.resetCode = null, n.resetDate = null, " +
+				"    n.passwordResetRequested = null, n.passwordResetRequestDate = null " +
+				"RETURN n.password as pw, head(n.profiles) as profile, n.id as id, " +
+				"n.login as login, n.loginAlias as loginAlias, n.email AS email, " +
+				"n.firstName as firstName, n.displayName as displayName";
+		final Map<String, Object> params = new HashMap<>();
+		params.put("login", login);
+		updatePassword(user -> {
+			if (user == null) {
+				handler.handle(new Either.Left<>("reset.temp.password.failed"));
+				return;
+			}
+			// Notify the student by mail (optional, ignore failures) that their password changed.
+			if (request != null) {
+				sendPasswordModificationMail(request, user.getString("email"), user.getString("firstName"),
+						user.getString("login"), user.getString("profile"), null, true);
+			}
+			handler.handle(new Either.Right<>(new JsonObject()
+					.put("password", tempPassword)
+					.put("login", user.getString("login"))
+					.put("displayName", user.getString("displayName"))
+					.put("id", user.getString("id"))));
+		}, query, tempPassword, login, params);
+	}
+
+	/**
+	 * Generates a kid-friendly temporary password (lowercase letters without ambiguous chars + digits 3-9)
+	 * that satisfies the configured passwordRegex when one is set.
+	 */
+	private String generateValidTempPassword(final int length) {
+		final String regex = config.getString("passwordRegex");
+		String candidate = StringValidation.generateRandomCode(length);
+		if (regex != null && !regex.trim().isEmpty() && !".*".equals(regex.trim())) {
+			int attempts = 0;
+			while (!candidate.matches(regex) && attempts < 50) {
+				candidate = StringValidation.generateRandomCode(length);
+				attempts++;
+			}
+		}
+		return candidate;
+	}
+
 	private void validationFlag(Boolean flag,String userId, Handler<Boolean> handler) {
 		String query = "MATCH(u:User{id:{userId}}) SET u.needRevalidateTerms= "+ flag +" RETURN u";
 		JsonObject params = new JsonObject().put("userId", userId);

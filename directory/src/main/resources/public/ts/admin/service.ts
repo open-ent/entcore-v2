@@ -369,6 +369,13 @@ export const directoryService = {
     async generateResetCodes(users: User[]) {
         return http.post("/auth/massGeneratePasswordRenewalCode", { users: users.map((user) => user.id) });
     },
+    // 1er degré : reset a student's password to a temporary value, returned for on-screen display.
+    async resetStudentPasswordOnScreen(user: User): Promise<{ password: string, login: string, displayName: string }> {
+        const bodyFormData = new FormData();
+        bodyFormData.set('login', user.originalLogin || user.login);
+        const res = await http.post('/auth/reset/student-temp-password', bodyFormData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        return res.data;
+    },
     async getTheme() {
         const res = await http.get("/userbook/preference/theme");
         return res.data ? (res.data.preference || "") : ""

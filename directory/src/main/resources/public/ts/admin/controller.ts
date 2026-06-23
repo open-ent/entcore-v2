@@ -1,4 +1,4 @@
-import { ng, template, $, model, notify, ui } from 'entcore';
+import { ng, template, $, model, notify, ui, skin } from 'entcore';
 import { UserListDelegate, UserListDelegateScope } from './delegates/userList';
 import { MenuDelegate, MenuDelegateScope } from './delegates/menu';
 import { EventDelegate, ITracker, TRACK } from "./delegates/events";
@@ -33,6 +33,10 @@ export interface ClassAdminControllerScope extends UserListDelegateScope, UserIn
 	goToImport();
 	importCSV();
 	hasONDE():boolean
+	// 1er degré : assisted password reset
+	is1D: boolean;
+	tempPasswordResult: { password: string, login: string, displayName: string };
+	resetStudentPasswordOnScreen(user: User): void;
 }
 export const classAdminController = ng.controller('ClassAdminController', ['$scope', 'tracker', ($scope: ClassAdminControllerScope, tracker:ITracker) => {
 	// === Init delegates
@@ -61,6 +65,22 @@ export const classAdminController = ng.controller('ClassAdminController', ['$sco
 	setTimeout(() => {
 		template.open('lightboxes', 'admin/lightboxes');
 	}, 500);
+	// 1er degré detection (primary skins extend the "panda" parent theme, e.g. openent1d).
+	$scope.is1D = false;
+	let themeConf = { overriding: [] };
+	const themeXhr = new XMLHttpRequest();
+	themeXhr.open('get', '/assets/theme-conf.js');
+	themeXhr.onload = () => {
+		try {
+			eval(themeXhr.responseText.split('exports.')[1]);
+			const currentTheme = themeConf.overriding.find((t: any) => t.child === skin.skin);
+			$scope.is1D = !!currentTheme && ((currentTheme as any).parent === 'panda' || (currentTheme as any).child === 'openent1d');
+			$scope.safeApply();
+		} catch (e) {
+			console.warn('[ClassAdmin] could not resolve 1D theme', e);
+		}
+	};
+	themeXhr.send();
 	// === Methods
 	$scope.lightboxDelegateClose = () => false;
 	$scope.setLightboxDelegateClose = function (f) {
@@ -117,6 +137,18 @@ export const classAdminController = ng.controller('ClassAdminController', ['$sco
 			notify.success("directory.admin.reset.code.sent")
 		} catch (e) {
 			notify.error("directory.admin.reset.code.send.error");
+		}
+	}
+	$scope.resetStudentPasswordOnScreen = async function (user) {
+		try {
+			$scope.tracker.trackEvent( TRACK.event, TRACK.AUTH_MODIFICATION.action, TRACK.name(TRACK.AUTH_MODIFICATION.PWD_USER, user.type), 1 );
+			const data = await directoryService.resetStudentPasswordOnScreen(user);
+			$scope.tempPasswordResult = data;
+			user.passwordResetRequested = false;
+			$scope.openLightbox("admin/actions/temp-password");
+			$scope.safeApply();
+		} catch (e) {
+			notify.error("classAdmin.passwordRequest.reset.error");
 		}
 	}
 	$scope.goToImport = function () {
