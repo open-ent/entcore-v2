@@ -84,6 +84,21 @@ public class SearchingHandler implements Handler<Message<JsonObject>> {
 				} else {
 					log.error("Failure of the research module : " + searchingEvents.getClass().getSimpleName() +
 							"; message : " + event.left().getValue());
+					// Même en cas d'échec de la source (ex. index $text Mongo absent / collection inexistante),
+					// on répond à l'agrégateur avec un résultat vide afin qu'il considère cette source comme
+					// « traitée » (0 résultat) et poursuive l'agrégation, au lieu d'attendre indéfiniment.
+					// Sinon la recherche globale reste bloquée sur « Chargement… » (cf. anomalie 36 searchengine).
+					final String address = "search." + searchId;
+					final JsonObject message = new JsonObject()
+							.put("application", searchingEvents.getClass().getSimpleName())
+							.put("results", new JsonArray());
+					eb.request(address, message, new DeliveryOptions().setSendTimeout(5000l),
+							new Handler<AsyncResult<Message<JsonObject>>>() {
+								@Override
+								public void handle(AsyncResult<Message<JsonObject>> res) {
+									// réponse best-effort : rien à traiter côté source
+								}
+							});
 				}
 			}
 		});
