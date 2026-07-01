@@ -13,6 +13,10 @@ export const archiveService = {
 
         let activatedUserApps = myApps.data.apps.map(app => app.prefix ? app.prefix.slice(1) : app.displayName ? app.displayName : "undefined")
         .filter(app => Object.keys(exportApps.data.apps).includes(app))
+        // Déduplication : le registre peut exposer plusieurs Application pour un même
+        // préfixe (ex. /wiki « Cours et Wiki » + « Wiki », /poll « Sondages » + « Poll »).
+        // Sans cela, ng-repeat lève « ngRepeat:dupes » et la liste ne s'affiche pas.
+        .filter((app, index, arr) => arr.indexOf(app) === index)
         .sort(function(a, b) {
             let a2 = lang.translate(a), b2 = lang.translate(b);
             return a2 < b2 ? -1 : a2 > b2 ? 1 : 0;
