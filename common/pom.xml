@@ -29,7 +29,8 @@
             <groupId>io.vertx</groupId>
             <artifactId>vertx-pg-client</artifactId>
             <version>${vertxVersion}</version>
-            <scope>compile</scope>
+            <!-- provided : fourni par le launcher (vertx-pg-client 4.5.25) — evite le doublon de version -->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>
@@ -40,7 +41,8 @@
             <groupId>com.ongres.scram</groupId>
             <artifactId>client</artifactId>
             <version>${scramVersion}</version>
-            <scope>compile</scope>
+            <!-- provided : fourni par le launcher (scram-client 3.2) — evite le conflit SCRAM sous scram-sha-256 -->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>

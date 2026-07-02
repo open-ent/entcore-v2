@@ -23,6 +23,19 @@
             <version>${revision}</version>
             <scope>compile</scope>
         </dependency>
+        <!-- provided : fournis par le launcher (vertx 4.5.25) ; compilation transitive perdue depuis le passage de common en provided -->
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-pg-client</artifactId>
+            <version>${vertxVersion}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-sql-client</artifactId>
+            <version>${vertxVersion}</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>fr.wseduc</groupId>
             <artifactId>vertx-cron-timer</artifactId>
