@@ -64,11 +64,11 @@
                 </div>
                 <form method="post" action="/auth/login">
                     <p>
-                        <label><i18n>auth.email</i18n></label>
+                        <label for="email"><i18n>auth.email</i18n></label>
                         <input type="text" ng-model="user.email" ng-keydown="noSpace($event)" ng-change="noUpperCase()" name="email" id="email" autofocus tabindex=1 />
                     </p>
                     <p>
-                        <label><i18n>auth.password</i18n></label>
+                        <label for="password"><i18n>auth.password</i18n></label>
                         <input-password type="password" ng-model="user.password" name="password" id="password" tabindex=2></input-password>
                     </p>
 						<label>
