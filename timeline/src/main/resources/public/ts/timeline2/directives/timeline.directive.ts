@@ -623,11 +623,15 @@ class Directive implements IDirective<TimelineScope,JQLite,IAttributes,IControll
 				// Advanced transitions for filters
 				$('.filter-button').each(function (i) {
 					var target = '#' + $(this).data('target');
-					var filterTween = gsap.gsap.timeline().reversed(true).pause();
+					// Panneau « Filtrer vos nouveautés » déplié par défaut : la timeline
+					// n'est plus créée en `reversed(true)` (repliée) mais jouée d'emblée,
+					// de sorte que l'état initial soit ouvert. Un clic sur le bouton la
+					// referme ensuite (reversed() vaut false après play, cf. handler ci-dessous).
+					var filterTween = gsap.gsap.timeline().pause();
 					filterTween.from(target, { duration:0.8, height:1, autoAlpha:0, ease:"sin.inOut", display:'none' });
 					filterTween.from(target + " .filter", {
-						duration: 0.4, 
-						autoAlpha: 0, 
+						duration: 0.4,
+						autoAlpha: 0,
 						translateY: '10px',
 						ease: "power1.inOut",
 						stagger: {
@@ -636,6 +640,7 @@ class Directive implements IDirective<TimelineScope,JQLite,IAttributes,IControll
 						}
 					}, "-=0.8");
 					$(target).data('tween', filterTween);
+					filterTween.play(); // ouvre le panneau dès l'affichage
 				});
 
 				$('.filter-button').on('click', function (e) {

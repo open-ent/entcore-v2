@@ -191,7 +191,10 @@ export let timelineController = ng.controller('Timeline', ['$scope', 'model', ($
 		model.notifications.sync(true);
 	}
 
-	$scope.display = {};
+	// Panneau « Filtrer vos nouveautés » déplié dès l'ouverture (slide=true).
+	// Auparavant replié par défaut : l'utilisateur ne voyait pas que tous les
+	// types de nouveautés sont cochés. Le clic sur le libellé referme/rouvre ensuite.
+	$scope.display = { slide: true };
 
 	$scope.suffixTitle = function(type) {
 		return lang.translate(type === 'timeline' ? type + '.notification' : type);
