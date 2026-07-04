@@ -380,7 +380,7 @@ public class AuthController extends BaseController {
 
 	/** 
 	 * Endpoint to convert a valid OAuth2 token in another platform-recognized token representing a user session.
-	 * @param type Set to "QueryParam" to produce a JWT reusable in HTTP query params.
+	 * @param request Set to "QueryParam" to produce a JWT reusable in HTTP query params.
 	 * @return JSON {"token_type":"QueryParam", "access_token":stringified token, "expires_in":number of seconds}
 	 */
 	@Get("/oauth2/token")
