@@ -20,6 +20,12 @@ if [ "$#" -lt 1 ]; then
   exit 1
 fi
 
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
 if [[ "$*" == *"--no-user"* ]]
 then
   USER_OPTION=""
