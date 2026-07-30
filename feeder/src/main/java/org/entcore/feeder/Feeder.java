@@ -92,6 +92,7 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 	private String defaultFeed;
 	private final Map<String, Feed> feeds = new HashMap<>();
 	private ManualFeeder manual;
+	private org.entcore.feeder.scim.ScimFeeder scim;
 	private boolean allowManualActionsDuringFeeds = false;
 	private Neo4j neo4j;
 	private Exporter exporter;
@@ -218,6 +219,7 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 
 		manual = new ManualFeeder(neo4j, eb, new DefaultUserPositionService(eb, false));
 		manual.setLoginAliasValidatorForAD(config.getBoolean("ad-login-alias-validator", false));
+		scim = new org.entcore.feeder.scim.ScimFeeder(neo4j);
 		duplicateUsers = new DuplicateUsers(config.getBoolean("timetable", true),
 				config.getBoolean("autoMergeOnlyInSameStructure", true), vertx.eventBus());
 		postImport = new PostImport(vertx, duplicateUsers, config);
@@ -451,6 +453,11 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
             case "manual-update-group-linked-positions":
                 manual.updateManualGroupsByUserPositions(message);
                 break;
+			case "scim-event" :
+				scim.handleEvent(message.body().getJsonObject("event", new io.vertx.core.json.JsonObject()))
+					.onSuccess(r -> message.reply(new io.vertx.core.json.JsonObject().put("status", "ok").put("result", r)))
+					.onFailure(err -> sendError(message, err.getMessage()));
+				break;
 			case "transition" : launchTransition(message, null);
 				break;
 			case "import" : launchImport(message);

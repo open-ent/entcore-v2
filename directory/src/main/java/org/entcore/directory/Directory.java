@@ -207,6 +207,9 @@ public class Directory extends BaseServer {
 		ImportController importController = new ImportController(importService, schoolService, defaulStorage);
 		addController(importController);
 
+		// Endpoint d'ingestion SCIM/SET (IAM Magellan) : POST /scim/events -> bus entcore.feeder.
+		addController(new org.entcore.directory.controllers.ScimController());
+
 		MassMessagingController massMessagingController = new MassMessagingController(massMessagingService, importService, defaulStorage);
 		addController(massMessagingController);
 
