@@ -27,6 +27,7 @@
   "e500": "Internal Server Error",
   "e504": "The request timed out.",
   "error.user.info": "Error retrieving user information",
+  "extension.forbidden": "This file type is not allowed (extension blocked by your school).",
   "externalDocs": "My interactive resources",
   "file.too.large": "Not enough space to store the file.",
   "file.too.large.limit": "File(s) too large. Maximum allowed size: ",

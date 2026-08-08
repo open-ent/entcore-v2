@@ -27,6 +27,7 @@
   "e500": "L'application a rencontré une erreur. Si ce problème se reproduit, veuillez vous adresser au support.",
   "e504": "La demande a dépassé le délai imparti.",
   "error.user.info": "Erreur lors de la récupération des informations utilisateur",
+  "extension.forbidden": "Ce type de fichier n'est pas autorisé (extension bloquée par votre établissement).",
   "externalDocs": "Mes ressources interactives",
   "file.too.large": "Espace insuffisant pour stocker le fichier",
   "file.too.large.limit": "Fichier(s) trop volumineux. Taille maximum autorisée : ",

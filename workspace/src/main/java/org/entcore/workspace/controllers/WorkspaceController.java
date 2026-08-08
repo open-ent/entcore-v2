@@ -76,6 +76,15 @@ public class WorkspaceController extends BaseController {
 	// disable full text search for workspace
 	private boolean disableFullTextSearch;
 	private Storage storage;
+	private final MongoDb mongo;
+
+	// Extensions exécutables/scripts bloquées par défaut à l'upload, indépendamment de la
+	// configuration NextCloud (cf. fr.openent.nextcloud.core.constants.Field côté connecteur,
+	// même liste dupliquée ici volontairement : ce module n'a pas de dépendance vers ce connecteur).
+	private static final List<String> DEFAULT_EXCLUDED_EXTENSIONS = Arrays.asList(
+			"exe", "bat", "cmd", "com", "cpl", "msi", "msp", "scr", "vbs", "vbe",
+			"js", "jse", "wsf", "wsh", "ps1", "jar", "apk", "lnk", "dll", "sys", "iso", "hta"
+	);
 
 	public WorkspaceController(Storage storage, WorkspaceService workspaceService,
 														 final ShareService shareService,
@@ -84,8 +93,62 @@ public class WorkspaceController extends BaseController {
 		this.workspaceService = workspaceService;
 		this.shareService = shareService;
 		this.pdfGenerator = aPdfGenerator;
+		this.mongo = mongo;
 		this.dao = new DocumentDao(mongo);
 		this.folderManager = fm;
+	}
+
+	private static String extensionOf(String filename) {
+		if (filename == null) return "";
+		int i = filename.lastIndexOf('.');
+		return i < 0 || i == filename.length() - 1 ? "" : filename.substring(i + 1).toLowerCase();
+	}
+
+	/**
+	 * Vérifie l'extension d'un fichier téléversé contre les extensions bloquées par
+	 * l'établissement de l'utilisateur (surcharge locale, collection "config" — même mécanisme
+	 * que l'écran /nextcloud/desktop), ou le national, ou la liste par défaut ci-dessus.
+	 */
+	private void checkExtensionAllowed(String filename, UserInfos userInfos, Handler<Boolean> handler) {
+		String extension = extensionOf(filename);
+		List<String> structures = userInfos.getStructures();
+		String structureId = (structures != null && !structures.isEmpty()) ? structures.get(0) : null;
+
+		mongo.findOne("config", new JsonObject().put("_id", "uniqueId"), nationalEvent -> {
+			JsonObject national = extractConfig(nationalEvent);
+			if (structureId == null) {
+				handler.handle(!excludedExtensionsOf(national, DEFAULT_EXCLUDED_EXTENSIONS).contains(extension));
+				return;
+			}
+			mongo.findOne("config", new JsonObject().put("_id", structureId), localEvent -> {
+				JsonObject local = extractConfig(localEvent);
+				List<String> excluded = local != null && local.containsKey("excludedExtensions")
+						? toStringList(local.getJsonArray("excludedExtensions"))
+						: excludedExtensionsOf(national, DEFAULT_EXCLUDED_EXTENSIONS);
+				handler.handle(!excluded.contains(extension));
+			});
+		});
+	}
+
+	private static JsonObject extractConfig(Message<JsonObject> event) {
+		JsonObject body = event.body();
+		JsonObject result = body != null ? body.getJsonObject("result") : null;
+		return result == null || result.isEmpty() ? null : result;
+	}
+
+	private static List<String> excludedExtensionsOf(JsonObject config, List<String> fallback) {
+		if (config != null && config.containsKey("excludedExtensions")) {
+			return toStringList(config.getJsonArray("excludedExtensions"));
+		}
+		return fallback;
+	}
+
+	private static List<String> toStringList(JsonArray array) {
+		List<String> list = new java.util.ArrayList<>();
+		for (Object o : array) {
+			list.add(String.valueOf(o));
+		}
+		return list;
 	}
 
 	public void setDisableFullTextSearch(boolean disableFullTextSearch) {
@@ -124,9 +187,17 @@ public class WorkspaceController extends BaseController {
 						request.resume();
 						storage.writeUploadFile(request, emptySize, uploaded -> {
 							if ("ok".equals(uploaded.getString("status"))) {
-								final Handler<AsyncResult<JsonObject>> handler = eventHelper.onCreateResource(request, RESOURCE_NAME, asyncDefaultResponseHandler(request, 201));
-								workspaceService.addDocumentWithParent(resRights.result(), userInfos, quality, name, application, doc,
-										uploaded, handler);
+								String filename = uploaded.getJsonObject("metadata", new JsonObject()).getString("filename");
+								checkExtensionAllowed(filename, userInfos, allowed -> {
+									if (!allowed) {
+										storage.removeFile(uploaded.getString("_id"), r -> {});
+										badRequest(request, "extension.forbidden");
+										return;
+									}
+									final Handler<AsyncResult<JsonObject>> handler = eventHelper.onCreateResource(request, RESOURCE_NAME, asyncDefaultResponseHandler(request, 201));
+									workspaceService.addDocumentWithParent(resRights.result(), userInfos, quality, name, application, doc,
+											uploaded, handler);
+								});
 							} else {
 								badRequest(request, uploaded.getString("message"));
 							}
