@@ -11,6 +11,8 @@ import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.URL;
@@ -86,7 +88,7 @@ public class ScimJwtVerifier {
         if (cached != null) return Future.succeededFuture(cached);
         return vertx.executeBlocking(promise -> {
             try (InputStream in = new URL(jwksUrl).openStream()) {
-                final byte[] bytes = in.readAllBytes();
+                final byte[] bytes = readAll(in);
                 final JsonArray jwks = new JsonObject(new String(bytes, StandardCharsets.UTF_8)).getJsonArray("keys");
                 final Map<String, PublicKey> map = new HashMap<>();
                 final KeyFactory kf = KeyFactory.getInstance("RSA");
@@ -102,6 +104,15 @@ public class ScimJwtVerifier {
                 promise.fail(ex);
             }
         });
+    }
+
+    /** Équivalent de InputStream.readAllBytes(), indisponible ici : le CI compile en Java 8. */
+    private static byte[] readAll(InputStream in) throws IOException {
+        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        final byte[] buf = new byte[8192];
+        int read;
+        while ((read = in.read(buf)) != -1) bos.write(buf, 0, read);
+        return bos.toByteArray();
     }
 
     private static byte[] b64url(String s) {
