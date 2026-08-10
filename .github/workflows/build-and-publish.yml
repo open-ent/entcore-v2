@@ -147,6 +147,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Build frontends gulp (archive, auth, directory, timeline, workspace)
+        # Ces 5 modules ont un frontend GÉNÉRÉ, pas versionné :
+        #   - view/          <- gulp updateRefs, copie view-src/**/*.{html,txt,json} en
+        #                       substituant @@VERSION   (gitignoré, cf. .gitignore 37-69)
+        #   - public/dist/   <- webpack sur public/**/*.ts                (gitignoré, **/dist)
+        # Sans cette étape, un clone CI frais n'en contient RIEN et `mvn deploy` publie des
+        # fat-jars amputés : renderView() ne trouve plus son template et la page casse SANS
+        # aucune stack dans le launcher (panne muette). C'est ce qui a cassé /userbook/mon-compte
+        # (directory), l'écran de sauvegarde (archive) et les vues timeline le 2026-08-10.
+        # Équivalent CI de `build.sh buildNode` (image opendigitaleducation/node:20-alpine-pnpm).
+        run: |
+          npm install --legacy-peer-deps
+          node_modules/gulp/bin/gulp.js build
+          # Garde-fou : mieux vaut un CI rouge qu'un artefact creux publié sur nexus.
+          for a in archive auth directory timeline workspace; do
+            ls "$a/src/main/resources/view/"*.html >/dev/null 2>&1 \
+              || { echo "::error::${a} : view/ vide après gulp build — artefact non publiable"; exit 1; }
+          done
+
       - name: Build conversation React frontend
         # Sans cette étape le fat-jar conversation n'embarque pas view/index.html
         # (gitignoré) → ConversationController.renderView("index.html") → 500 sur
