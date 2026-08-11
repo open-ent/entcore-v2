@@ -186,14 +186,38 @@
                     </execution>
                 </executions>
             </plugin>
+            <!--
+              Attache le jar testJs comme artefact SECONDAIRE (classifier testJs) au lieu de
+              détourner le maven-deploy-plugin. AVANT : le maven-deploy-plugin portait
+              <file>...-testJs.jar</file> + <classifier>testJs</classifier>, ce qui REMPLAÇAIT
+              le déploiement du jar PRINCIPAL org.entcore:tests -> ce dernier n'était jamais
+              publié. Résultat : "Could not find artifact org.entcore:tests:jar:6.14.9-patched"
+              dans les CI des modules qui en dépendent en scope test (competences, calendar,
+              rbs, edt, forum, community, cahier-de-textes, presences).
+              Avec attach-artifact, le deploy publie jar principal + pom + testJs.
+            -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-deploy-plugin</artifactId>
-                <version>3.1.3</version>
-                <configuration>
-                    <file>${project.build.directory}/${project.artifactId}-${project.version}-testJs.jar</file>
-                    <classifier>testJs</classifier>
-                </configuration>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>attach-test-js-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>attach-artifact</goal>
+                        </goals>
+                        <configuration>
+                            <artifacts>
+                                <artifact>
+                                    <file>${project.build.directory}/${project.artifactId}-${project.version}-testJs.jar</file>
+                                    <type>jar</type>
+                                    <classifier>testJs</classifier>
+                                </artifact>
+                            </artifacts>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
