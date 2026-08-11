@@ -9,6 +9,34 @@
 </div>
 <import-files show="display.importFiles"></import-files>
 
+<!-- Sélecteur de dossier NextCloud pour « Déplacer / Partager vers NextCloud » (docs natifs).
+     On navigue dans l'arbre NextCloud ; « Valider » envoie les documents sélectionnés
+     dans le dossier COURANT (ncShare.path ; vide = racine). Cf. delegates/nextcloudShare.ts -->
+<lightbox show="ncShare.opened" on-close="closeNextcloudShare()">
+    <h2><i18n>nextcloud.share.picker.title</i18n></h2>
+    <div class="row">
+        <button type="button" ng-click="browseNextcloudFolder('')" ng-disabled="!ncShare.path">
+            <i18n>nextcloud.share.picker.root</i18n>
+        </button>
+        <span ng-if="ncShare.path"> / {{ ncShare.path }}</span>
+    </div>
+    <div ng-if="ncShare.loading" class="row">…</div>
+    <ul ng-if="!ncShare.loading" class="nextcloud-folder-picker">
+        <li ng-repeat="folder in ncShare.folders">
+            <button type="button" ng-click="browseNextcloudFolder(folder.path)">📁 {{ folder.name }}</button>
+        </li>
+        <li ng-if="ncShare.folders.length === 0" class="empty">—</li>
+    </ul>
+    <div class="row right-magnet">
+        <button type="button" class="cancel" ng-click="closeNextcloudShare()">
+            <i18n>nextcloud.share.cancel</i18n>
+        </button>
+        <button type="button" ng-click="confirmNextcloudShare()" ng-disabled="ncShare.submitting">
+            <i18n>nextcloud.share.confirm</i18n>
+        </button>
+    </div>
+</lightbox>
+
 <!-- Lool Modal Overlay -->
 <div ng-if="display.loolModal" ng-click="closeLoolModal($event)" class="lool-modal-overlay">
     <div class="lool-modal-container" ng-click="$event.stopPropagation()">

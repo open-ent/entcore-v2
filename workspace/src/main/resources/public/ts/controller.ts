@@ -25,6 +25,7 @@ import { SearchDelegate, SearchDelegateScope } from './delegates/search';
 import { RevisionDelegateScope, RevisionDelegate } from './delegates/revisions';
 import { KeyboardDelegate, KeyboardDelegateScope } from './delegates/keyboard';
 import { LoolDelegateScope, LoolDelegate } from './delegates/lool';
+import { NextcloudShareDelegate, NextcloudShareDelegateScope } from './delegates/nextcloudShare';
 import { models, workspaceService, DocumentCursor, Document, DocumentCursorParams, CursorUpdate } from "./services";
 import { DocumentActionType } from 'entcore/types/src/ts/workspace/services';
 import {ScratchDelegate, ScratchDelegateScope} from "./delegates/scratch";
@@ -36,7 +37,7 @@ declare var ENABLE_SCRATCH: boolean;
 declare var ENABLE_NEXTCLOUD: boolean;
 declare var ENABLE_GGB: boolean;
 declare var DISABLE_FULL_TEXT_SEARCH: boolean;
-export interface WorkspaceScope extends RevisionDelegateScope, NavigationDelegateScope, TreeDelegateScope, ActionDelegateScope, CommentDelegateScope, DragDelegateScope, SearchDelegateScope, KeyboardDelegateScope, LoolDelegateScope, ScratchDelegateScope, GeogebraDelegateScope {
+export interface WorkspaceScope extends RevisionDelegateScope, NavigationDelegateScope, TreeDelegateScope, ActionDelegateScope, CommentDelegateScope, DragDelegateScope, SearchDelegateScope, KeyboardDelegateScope, LoolDelegateScope, NextcloudShareDelegateScope, ScratchDelegateScope, GeogebraDelegateScope {
 	ENABLE_LOOL: boolean;
 	ENABLE_SCRATCH: boolean;
 	ENABLE_GGB: boolean;
@@ -166,6 +167,7 @@ export let workspaceController = ng.controller('Workspace', ['$scope', '$rootSco
 	RevisionDelegate($scope);
 	KeyboardDelegate($scope);
 	ENABLE_LOOL && LoolDelegate($scope, $route, $location);
+	ENABLE_NEXTCLOUD && NextcloudShareDelegate($scope);
 	ENABLE_SCRATCH && ScratchDelegate($scope, $route);
 	ENABLE_GGB && GeogebraDelegate($scope, $route);
 	$scope.ENABLE_LOOL = ENABLE_LOOL;
@@ -199,6 +201,8 @@ export let workspaceController = ng.controller('Workspace', ['$scope', '$rootSco
 		contextualButtons: [
 			{ text: lang.translate('workspace.move'), action: $scope.openMoveView, right: "manager", allow: allowAction("move") },
 			{ text: lang.translate('workspace.copy'), action: $scope.openCopyView, right: "read", allow: allowAction("copy") },
+			{ text: lang.translate('nextcloud.share.copy.action'), action: () => $scope.openNextcloudShare('copy'), right: "read", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
+			{ text: lang.translate('nextcloud.share.move.action'), action: () => $scope.openNextcloudShare('move'), right: "manager", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
 			{ text: lang.translate('workspace.move.trash'), action: $scope.toTrashConfirm, right: "manager" }
 		]
 	}), new models.ElementTree(shouldCache,{
@@ -221,6 +225,8 @@ export let workspaceController = ng.controller('Workspace', ['$scope', '$rootSco
 		contextualButtons: [
 			{ text: lang.translate('workspace.move'), action: $scope.openMoveView, right: "manager", allow: allowAction("move") },
 			{ text: lang.translate('workspace.copy'), action: $scope.openCopyView, right: "read", allow: allowAction("copy") },
+			{ text: lang.translate('nextcloud.share.copy.action'), action: () => $scope.openNextcloudShare('copy'), right: "read", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
+			{ text: lang.translate('nextcloud.share.move.action'), action: () => $scope.openNextcloudShare('move'), right: "manager", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
 			{ text: lang.translate('workspace.move.trash'), action: $scope.toTrashConfirm, right: "manager" }
 		]
 	}),new models.ElementTree(shouldCache,{
@@ -252,6 +258,8 @@ export let workspaceController = ng.controller('Workspace', ['$scope', '$rootSco
 		children: [],
 		contextualButtons: [
 			{ text: lang.translate('workspace.copy'), action: $scope.openCopyView, right: "read", allow: allowAction("copy") },
+			{ text: lang.translate('nextcloud.share.copy.action'), action: () => $scope.openNextcloudShare('copy'), right: "read", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
+			{ text: lang.translate('nextcloud.share.move.action'), action: () => $scope.openNextcloudShare('move'), right: "manager", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
 			{ text: lang.translate('workspace.move.trash'), action: $scope.toTrashConfirm, right: "manager" }
 		]
 	}), new models.ElementTree(shouldCache,{
