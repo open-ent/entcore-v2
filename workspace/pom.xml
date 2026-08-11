@@ -58,6 +58,39 @@
                     </classpathDependencyExcludes>
                 </configuration>
             </plugin>
+            <!--
+              Le loader de behaviours d'entcore charge /workspace/public/js/behaviours.js.
+              Le build front (gulp) écrit behaviours.js dans public/dist/ et le recopie dans
+              public/js/ via une tâche à part ; si cette tâche n'a pas tourné avant le
+              packaging, le jar sort SANS public/js/behaviours.js -> 404 -> myRights vide ->
+              toutes les actions du workspace (créer/importer/partager…) disparaissent.
+              On garantit ici, au packaging Maven, que public/js/behaviours.js est présent
+              dès que public/dist/behaviours.js existe (indépendamment de l'étape gulp).
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-behaviours-to-public-js</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}/public/js</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/src/main/resources/public/dist</directory>
+                                    <includes>
+                                        <include>behaviours.js</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
