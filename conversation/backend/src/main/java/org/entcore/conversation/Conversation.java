@@ -36,6 +36,7 @@ import org.entcore.conversation.controllers.StudentMessagingExclusionsController
 import org.entcore.conversation.util.MessagingHours;
 import org.entcore.conversation.util.StudentMessagingExclusions;
 import org.entcore.conversation.service.ConversationService;
+import org.entcore.conversation.events.ConversationSearchingEvents;
 import org.entcore.conversation.service.impl.ConversationRepositoryEvents;
 import org.entcore.conversation.service.impl.ConversationStorage;
 import org.entcore.conversation.service.impl.DeleteOrphan;
@@ -103,6 +104,9 @@ public class Conversation extends BaseServer {
 		StudentMessagingExclusions.getInstance().init(vertx, config);
 		addController(new StudentMessagingExclusionsController());
 
+		// Rend le contenu des messages interrogeable depuis le moteur de recherche
+		// (le module n'exposait aucune source, la messagerie était donc exclue).
+		setSearchingEvents(new ConversationSearchingEvents());
 		setRepositoryEvents(new ConversationRepositoryEvents(storage, getOrElse(config.getLong("repositoryEventsTimeout"), 300000l),vertx));
 
 		final String deleteOrphanCron = config.getString("deleteOrphanCron");
