@@ -32,12 +32,16 @@ export interface NextcloudShareDelegateScope {
 
 export function NextcloudShareDelegate($scope: NextcloudShareDelegateScope) {
 
-    // display existe déjà (initialisé par le contrôleur avant les délégués) ; accès via
-    // cast `any` (display n'est volontairement pas typé dans NextcloudShareDelegateScope).
-    const disp: any = ($scope as any).display || (($scope as any).display = {});
-    disp.ncShare = { mode: 'copy', opened: false, loading: false, path: "", folders: [], submitting: false };
-
-    const nc = () => (($scope as any).display.ncShare);
+    // display peut être RÉASSIGNÉ par le contrôleur APRÈS l'init du délégué (navigation, reset…),
+    // ce qui effacerait un ncShare posé une seule fois ici -> `Cannot set 'mode' of undefined`.
+    // On (re)crée donc ncShare À LA VOLÉE sur le display COURANT à chaque accès.
+    const nc = () => {
+        const d: any = ($scope as any).display || (($scope as any).display = {});
+        if (!d.ncShare) {
+            d.ncShare = { mode: 'copy', opened: false, loading: false, path: "", folders: [], submitting: false };
+        }
+        return d.ncShare;
+    };
 
     // Bouton visible seulement si NextCloud est activé et qu'au moins un DOCUMENT
     // (pas un dossier) est sélectionné.
