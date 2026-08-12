@@ -16,20 +16,13 @@ import { models } from "../services";
  * car les lightboxes du workspace ne voient que le scope `display.*` (sinon la
  * lightbox reste invisible même si la logique tourne).
  */
+// NB : on NE redéclare PAS `display` ici (les autres délégués le déclarent déjà avec
+// une forme différente -> conflit TS2430 sur WorkspaceScope). On accède à display.ncShare
+// via cast `any` dans le corps du délégué.
 export interface NextcloudShareDelegateScope {
     ENABLE_NEXTCLOUD: boolean;
     selectedItems(): models.Element[];
     safeApply();
-    display: {
-        ncShare?: {
-            mode: 'move' | 'copy';
-            opened: boolean;
-            loading: boolean;
-            path: string;           // dossier NextCloud courant ("" = racine)
-            folders: Array<{ name: string, path: string }>;
-            submitting: boolean;
-        }
-    };
     canShareToNextcloud(): boolean;
     openNextcloudShare(mode: 'move' | 'copy'): void;
     browseNextcloudFolder(path: string): void;
@@ -39,12 +32,12 @@ export interface NextcloudShareDelegateScope {
 
 export function NextcloudShareDelegate($scope: NextcloudShareDelegateScope) {
 
-    // $scope.display existe déjà (initialisé par le contrôleur avant les délégués),
-    // mais on protège au cas où.
-    if (!$scope.display) { ($scope as any).display = {}; }
-    $scope.display.ncShare = { mode: 'copy', opened: false, loading: false, path: "", folders: [], submitting: false };
+    // display existe déjà (initialisé par le contrôleur avant les délégués) ; accès via
+    // cast `any` (display n'est volontairement pas typé dans NextcloudShareDelegateScope).
+    const disp: any = ($scope as any).display || (($scope as any).display = {});
+    disp.ncShare = { mode: 'copy', opened: false, loading: false, path: "", folders: [], submitting: false };
 
-    const nc = () => $scope.display.ncShare;
+    const nc = () => (($scope as any).display.ncShare);
 
     // Bouton visible seulement si NextCloud est activé et qu'au moins un DOCUMENT
     // (pas un dossier) est sélectionné.
