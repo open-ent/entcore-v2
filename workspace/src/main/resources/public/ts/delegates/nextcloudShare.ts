@@ -12,34 +12,39 @@ import { models } from "../services";
  * FolderPicker ne pique que des dossiers WORKSPACE, pas NextCloud). Le sélecteur
  * charge les dossiers NextCloud via GET /nextcloud/files/user/:id?path=...
  *
- * NB : à builder + tester dans l'app (UI AngularJS non testable hors navigateur).
+ * IMPORTANT : l'état est stocké sous $scope.display.ncShare (et NON $scope.ncShare)
+ * car les lightboxes du workspace ne voient que le scope `display.*` (sinon la
+ * lightbox reste invisible même si la logique tourne).
  */
 export interface NextcloudShareDelegateScope {
     ENABLE_NEXTCLOUD: boolean;
     selectedItems(): models.Element[];
     safeApply();
-    ncShare: {
-        mode: 'move' | 'copy';
-        opened: boolean;
-        loading: boolean;
-        path: string;           // dossier NextCloud courant dans le sélecteur ("" = racine)
-        folders: Array<{ name: string, path: string }>;
-        submitting: boolean;
+    display: {
+        ncShare?: {
+            mode: 'move' | 'copy';
+            opened: boolean;
+            loading: boolean;
+            path: string;           // dossier NextCloud courant ("" = racine)
+            folders: Array<{ name: string, path: string }>;
+            submitting: boolean;
+        }
     };
-    // condition d'affichage des boutons
     canShareToNextcloud(): boolean;
-    // ouvre le sélecteur de dossier NextCloud pour le mode donné
     openNextcloudShare(mode: 'move' | 'copy'): void;
-    // navigue dans l'arbre NextCloud (sélecteur)
     browseNextcloudFolder(path: string): void;
-    // valide : déplace/copie les documents sélectionnés vers le dossier courant
     confirmNextcloudShare(): void;
     closeNextcloudShare(): void;
 }
 
 export function NextcloudShareDelegate($scope: NextcloudShareDelegateScope) {
 
-    $scope.ncShare = { mode: 'copy', opened: false, loading: false, path: "", folders: [], submitting: false };
+    // $scope.display existe déjà (initialisé par le contrôleur avant les délégués),
+    // mais on protège au cas où.
+    if (!$scope.display) { ($scope as any).display = {}; }
+    $scope.display.ncShare = { mode: 'copy', opened: false, loading: false, path: "", folders: [], submitting: false };
+
+    const nc = () => $scope.display.ncShare;
 
     // Bouton visible seulement si NextCloud est activé et qu'au moins un DOCUMENT
     // (pas un dossier) est sélectionné.
@@ -50,30 +55,30 @@ export function NextcloudShareDelegate($scope: NextcloudShareDelegateScope) {
     };
 
     $scope.openNextcloudShare = function (mode: 'move' | 'copy') {
-        $scope.ncShare.mode = mode;
-        $scope.ncShare.opened = true;
+        nc().mode = mode;
+        nc().opened = true;
         $scope.browseNextcloudFolder("");
     };
 
     $scope.closeNextcloudShare = function () {
-        $scope.ncShare.opened = false;
+        nc().opened = false;
     };
 
     // Charge les sous-dossiers NextCloud du chemin donné (sélecteur de destination).
     $scope.browseNextcloudFolder = function (path: string) {
-        $scope.ncShare.loading = true;
-        $scope.ncShare.path = path || "";
+        nc().loading = true;
+        nc().path = path || "";
         const userId = model.me.userId;
         const pathParam = path ? `?path=${encodeURIComponent(path)}` : "";
         http().get(`/nextcloud/files/user/${userId}${pathParam}`).done((res: any) => {
             const data = (res && res.data) ? res.data : [];
-            $scope.ncShare.folders = data
+            nc().folders = data
                 .filter((d: any) => d.isFolder)
                 .map((d: any) => ({ name: d.displayname || d.name, path: (d.path || '').replace(/\/$/, '') }));
-            $scope.ncShare.loading = false;
+            nc().loading = false;
             $scope.safeApply();
         }).error(() => {
-            $scope.ncShare.loading = false;
+            nc().loading = false;
             notify.error(lang.translate("nextcloud.share.picker.error"));
             $scope.safeApply();
         });
@@ -84,19 +89,19 @@ export function NextcloudShareDelegate($scope: NextcloudShareDelegateScope) {
         if (!sel.length) { $scope.closeNextcloudShare(); return; }
         const ids = sel.map(e => (e as any)._id);
         const userId = model.me.userId;
-        const target = $scope.ncShare.path || "";
+        const target = nc().path || "";
         const targetParam = target ? `&parentName=${encodeURIComponent(target)}` : "";
         const idsParam = ids.map(id => `id=${encodeURIComponent(id)}`).join('&');
-        const verb = $scope.ncShare.mode === 'move' ? 'move' : 'copy';
-        $scope.ncShare.submitting = true;
+        const verb = nc().mode === 'move' ? 'move' : 'copy';
+        nc().submitting = true;
         http().put(`/nextcloud/files/user/${userId}/workspace/${verb}/cloud?${idsParam}${targetParam}`).done(() => {
-            $scope.ncShare.submitting = false;
-            $scope.ncShare.opened = false;
-            notify.info(lang.translate($scope.ncShare.mode === 'move'
+            nc().submitting = false;
+            nc().opened = false;
+            notify.info(lang.translate(nc().mode === 'move'
                 ? "nextcloud.share.move.success" : "nextcloud.share.copy.success"));
             $scope.safeApply();
         }).error(() => {
-            $scope.ncShare.submitting = false;
+            nc().submitting = false;
             notify.error(lang.translate("nextcloud.share.error"));
             $scope.safeApply();
         });

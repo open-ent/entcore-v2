@@ -11,27 +11,27 @@
 
 <!-- Sélecteur de dossier NextCloud pour « Déplacer / Partager vers NextCloud » (docs natifs).
      On navigue dans l'arbre NextCloud ; « Valider » envoie les documents sélectionnés
-     dans le dossier COURANT (ncShare.path ; vide = racine). Cf. delegates/nextcloudShare.ts -->
-<lightbox show="ncShare.opened" on-close="closeNextcloudShare()">
+     dans le dossier COURANT (display.ncShare.path ; vide = racine). Cf. delegates/nextcloudShare.ts -->
+<lightbox show="display.ncShare.opened" on-close="closeNextcloudShare()">
     <h2><i18n>nextcloud.share.picker.title</i18n></h2>
     <div class="row">
-        <button type="button" ng-click="browseNextcloudFolder('')" ng-disabled="!ncShare.path">
+        <button type="button" ng-click="browseNextcloudFolder('')" ng-disabled="!display.ncShare.path">
             <i18n>nextcloud.share.picker.root</i18n>
         </button>
-        <span ng-if="ncShare.path"> / {{ ncShare.path }}</span>
+        <span ng-if="display.ncShare.path"> / {{ display.ncShare.path }}</span>
     </div>
-    <div ng-if="ncShare.loading" class="row">…</div>
-    <ul ng-if="!ncShare.loading" class="nextcloud-folder-picker">
-        <li ng-repeat="folder in ncShare.folders">
+    <div ng-if="display.ncShare.loading" class="row">…</div>
+    <ul ng-if="!display.ncShare.loading" class="nextcloud-folder-picker">
+        <li ng-repeat="folder in display.ncShare.folders">
             <button type="button" ng-click="browseNextcloudFolder(folder.path)">📁 {{ folder.name }}</button>
         </li>
-        <li ng-if="ncShare.folders.length === 0" class="empty">—</li>
+        <li ng-if="display.ncShare.folders.length === 0" class="empty">—</li>
     </ul>
     <div class="row right-magnet">
         <button type="button" class="cancel" ng-click="closeNextcloudShare()">
             <i18n>nextcloud.share.cancel</i18n>
         </button>
-        <button type="button" ng-click="confirmNextcloudShare()" ng-disabled="ncShare.submitting">
+        <button type="button" ng-click="confirmNextcloudShare()" ng-disabled="display.ncShare.submitting">
             <i18n>nextcloud.share.confirm</i18n>
         </button>
     </div>
