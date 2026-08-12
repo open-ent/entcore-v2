@@ -21,11 +21,16 @@
         <span ng-if="display.ncShare.path"> / [[display.ncShare.path]]</span>
     </div>
     <div ng-if="display.ncShare.loading" class="row">…</div>
-    <ul ng-if="!display.ncShare.loading" class="nextcloud-folder-picker">
-        <li ng-repeat="folder in display.ncShare.folders">
-            <button type="button" ng-click="browseNextcloudFolder(folder.path)">📁 [[folder.name]]</button>
+    <ul ng-if="!display.ncShare.loading" class="nextcloud-folder-picker" style="list-style:none; margin:12px 0; padding:0; max-height:320px; overflow-y:auto;">
+        <li ng-repeat="folder in display.ncShare.folders" style="display:block; margin:0;">
+            <button type="button" ng-click="browseNextcloudFolder(folder.path)"
+                    style="display:block; width:100%; text-align:left; background:transparent; border:none; border-bottom:1px solid #eee; padding:8px 12px; cursor:pointer; color:inherit; font-weight:normal;">
+                📁 [[folder.name]]
+            </button>
         </li>
-        <li ng-if="display.ncShare.folders.length === 0" class="empty">—</li>
+        <li ng-if="display.ncShare.folders.length === 0" class="empty" style="color:#888; padding:8px 12px;">
+            <i18n>nextcloud.share.picker.empty</i18n>
+        </li>
     </ul>
     <div class="row right-magnet">
         <button type="button" class="cancel" ng-click="closeNextcloudShare()">

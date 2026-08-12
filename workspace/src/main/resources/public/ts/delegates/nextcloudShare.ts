@@ -80,6 +80,8 @@ export function NextcloudShareDelegate($scope: NextcloudShareDelegateScope) {
             if (i >= 0) p = p.substring(i + `/${userId}`.length);
             return p.replace(/^\/+/, "").replace(/\/+$/, "");
         };
+        // les noms/displayname WebDAV sont percent-encodés (%20 = espace…) -> décoder pour l'affichage.
+        const dec = (s: string): string => { try { return decodeURIComponent(s || ""); } catch (e) { return s || ""; } };
         // Dossiers techniques masqués (tambouille NextCloud, sans sens pour un prof/élève) :
         // dossier de synchro d'établissement, dossier de gabarits, dossiers cachés.
         const HIDDEN = /^(Templates|ENT_PARTAGE_UAI_.*|\..*)$/i;
@@ -88,7 +90,7 @@ export function NextcloudShareDelegate($scope: NextcloudShareDelegateScope) {
             const data = (res && res.data) ? res.data : [];
             nc().folders = data
                 .filter((d: any) => d.isFolder)
-                .map((d: any) => ({ name: d.displayname || d.name, path: toRel(d.path) }))
+                .map((d: any) => ({ name: dec(d.displayname || d.name), path: toRel(d.path) }))
                 // on retire l'entrée « self » (le dossier courant lui-même, renvoyé par PROPFIND)
                 // et les dossiers techniques.
                 .filter((f: any) => f.path && f.path !== rel && !HIDDEN.test(f.name));

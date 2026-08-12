@@ -331,5 +331,6 @@
   "workspace.versions.list": "Versions",
   "workspace.warning.cancel": "Annuler",
   "workspace.warning.copy": "Copier et partager",
-  "workspace.warning.notcopy": "Partager sans copier"
+  "workspace.warning.notcopy": "Partager sans copier",
+  "nextcloud.share.picker.empty": "Aucun sous-dossier"
 }
