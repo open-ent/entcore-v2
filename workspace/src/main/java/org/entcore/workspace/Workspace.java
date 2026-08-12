@@ -27,6 +27,7 @@ import io.vertx.core.Promise;
 import org.apache.commons.lang3.tuple.Pair;
 import org.entcore.broker.api.utils.AddressParameter;
 import org.entcore.broker.api.utils.BrokerProxyUtils;
+import org.entcore.common.controller.ConfController;
 import org.entcore.common.folders.FolderManager;
 import org.entcore.common.folders.QuotaService;
 import org.entcore.common.http.BaseServer;
@@ -140,6 +141,12 @@ public class Workspace extends BaseServer {
 		QuotaController quotaController = new QuotaController();
 		quotaController.setQuotaService(quotaService);
 		addController(quotaController);
+
+		// Expose /workspace/conf/public (renvoie config.publicConf, dont "folder-service").
+		// Sans ce contrôleur, la route renvoie vide -> le front media-library (directive
+		// virtual-media-library) reçoit apps=[] et n'injecte JAMAIS le dossier NextCloud
+		// « Documents synchronisés » dans le sélecteur de fichiers.
+		addController(new ConfController());
 
 		if (config.getInteger("wsPort") != null) {
 			vertx.deployVerticle(AudioRecorderWorker.class, new DeploymentOptions().setConfig(config).setWorker(true));
