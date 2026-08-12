@@ -18,12 +18,12 @@
         <button type="button" ng-click="browseNextcloudFolder('')" ng-disabled="!display.ncShare.path">
             <i18n>nextcloud.share.picker.root</i18n>
         </button>
-        <span ng-if="display.ncShare.path"> / {{ display.ncShare.path }}</span>
+        <span ng-if="display.ncShare.path"> / [[display.ncShare.path]]</span>
     </div>
     <div ng-if="display.ncShare.loading" class="row">…</div>
     <ul ng-if="!display.ncShare.loading" class="nextcloud-folder-picker">
         <li ng-repeat="folder in display.ncShare.folders">
-            <button type="button" ng-click="browseNextcloudFolder(folder.path)">📁 {{ folder.name }}</button>
+            <button type="button" ng-click="browseNextcloudFolder(folder.path)">📁 [[folder.name]]</button>
         </li>
         <li ng-if="display.ncShare.folders.length === 0" class="empty">—</li>
     </ul>
