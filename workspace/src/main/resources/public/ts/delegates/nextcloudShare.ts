@@ -62,16 +62,36 @@ export function NextcloudShareDelegate($scope: NextcloudShareDelegateScope) {
     };
 
     // Charge les sous-dossiers NextCloud du chemin donné (sélecteur de destination).
+    // ATTENTION aux deux conventions de chemin côté connecteur :
+    //  - en ENTRÉE (?path= du listing, parentName du copy/move) le back attend un chemin
+    //    RELATIF à la racine de l'utilisateur (ex. "Documents", "" = racine) ;
+    //  - en SORTIE (d.path) le back renvoie le href WebDAV COMPLET
+    //    (/remote.php/dav/files/<userId>/Documents/). On convertit donc href -> relatif,
+    //    sinon le back re-préfixe la base DAV et le fichier part dans le vide (200 mais rien).
     $scope.browseNextcloudFolder = function (path: string) {
         nc().loading = true;
-        nc().path = path || "";
+        const rel = (path || "").replace(/^\/+/, "").replace(/\/+$/, "");
+        nc().path = rel;
         const userId = model.me.userId;
-        const pathParam = path ? `?path=${encodeURIComponent(path)}` : "";
+        // href WebDAV brut -> chemin relatif à la racine de l'utilisateur (tout ce qui suit /<userId>)
+        const toRel = (href: string): string => {
+            let p = decodeURIComponent(href || "");
+            const i = p.indexOf(`/${userId}`);
+            if (i >= 0) p = p.substring(i + `/${userId}`.length);
+            return p.replace(/^\/+/, "").replace(/\/+$/, "");
+        };
+        // Dossiers techniques masqués (tambouille NextCloud, sans sens pour un prof/élève) :
+        // dossier de synchro d'établissement, dossier de gabarits, dossiers cachés.
+        const HIDDEN = /^(Templates|ENT_PARTAGE_UAI_.*|\..*)$/i;
+        const pathParam = rel ? `?path=${encodeURIComponent(rel)}` : "";
         http().get(`/nextcloud/files/user/${userId}${pathParam}`).done((res: any) => {
             const data = (res && res.data) ? res.data : [];
             nc().folders = data
                 .filter((d: any) => d.isFolder)
-                .map((d: any) => ({ name: d.displayname || d.name, path: (d.path || '').replace(/\/$/, '') }));
+                .map((d: any) => ({ name: d.displayname || d.name, path: toRel(d.path) }))
+                // on retire l'entrée « self » (le dossier courant lui-même, renvoyé par PROPFIND)
+                // et les dossiers techniques.
+                .filter((f: any) => f.path && f.path !== rel && !HIDDEN.test(f.name));
             nc().loading = false;
             $scope.safeApply();
         }).error(() => {

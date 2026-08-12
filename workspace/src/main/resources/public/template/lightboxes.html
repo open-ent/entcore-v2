@@ -78,4 +78,27 @@
 .lool-modal-iframe.loaded {
     opacity: 1;
 }
+
+/* Sélecteur de dossier NextCloud (« Déplacer / Partager vers NextCloud ») :
+   liste verticale de dossiers plutôt que des boutons épars. */
+.nextcloud-folder-picker {
+    list-style: none;
+    margin: 12px 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+.nextcloud-folder-picker li {
+    display: block;
+    margin: 4px 0;
+}
+.nextcloud-folder-picker li button {
+    display: block;
+    width: 100%;
+    text-align: left;
+}
+.nextcloud-folder-picker li.empty {
+    color: #888;
+    padding: 8px 4px;
+}
 </style>
