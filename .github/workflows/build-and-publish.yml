@@ -201,6 +201,27 @@ jobs:
           test -f "$DST/view/index.html" || { echo "::error::conversation view/index.html manquant après build"; exit 1; }
           test -n "$(ls "$DST"/public/index-*.js 2>/dev/null)" || { echo "::error::bundle public/index-*.js manquant"; exit 1; }
 
+      - name: Build admin Angular frontend
+        # L'admin (/admin) est une app Angular MODERNE (admin/src/main/ts). Sans build,
+        # le fat-mod ne contient NI public/dist NI view/admin.html -> renderView casse
+        # -> GET /admin renvoie 500 (panne muette, aucune stack). L'ancienne CI ne buildait
+        # ni via l'étape gulp (5 modules vanilla) ni via conversation React -> admin oublié.
+        # npm run build-prod = `ng build --prod && gulp build` : gulp copie dist ->
+        # src/main/resources/public/dist et renomme index.html -> view/admin.html (packagé
+        # par mvn). Deps 100% publiques (aucun @open-ent/@edifice) -> pas de token requis.
+        env:
+          # Angular 14 (webpack 5) sur Node 20 : évite ERR_OSSL_EVP_UNSUPPORTED.
+          NODE_OPTIONS: --openssl-legacy-provider
+        run: |
+          cd admin/src/main/ts
+          npm install --legacy-peer-deps
+          npm run build-prod
+          cd ../../../..
+          test -f admin/src/main/resources/view/admin.html \
+            || { echo "::error::admin view/admin.html manquant apres build"; exit 1; }
+          test -n "$(ls admin/src/main/resources/public/dist/*.js 2>/dev/null)" \
+            || { echo "::error::admin public/dist manquant apres build"; exit 1; }
+
       - name: Build and publish to GitHub Packages
         run: |
           REVISION_OPT=""
