@@ -68,7 +68,7 @@ public class ConversationSearchingEvents implements SearchingEvents {
         }
 
         final String query =
-            " SELECT m.id, m.subject, m.body, m.date, m.\"from\", m.\"fromName\"" +
+            " SELECT m.id, m.subject, m.body, m.date, m.\"from\", m.\"fromName\", um.folder_id" +
             " FROM conversation.messages AS m" +
             " INNER JOIN conversation.usermessages AS um ON um.message_id = m.id" +
             " WHERE um.user_id = ?" +
@@ -88,7 +88,7 @@ public class ConversationSearchingEvents implements SearchingEvents {
             public void handle(Message<JsonObject> event) {
                 final Either<String, JsonArray> ei = validResult(event);
                 if (ei.isRight()) {
-                    handler.handle(new Right<String, JsonArray>(format(ei.right().getValue(), columnsHeader)));
+                    handler.handle(new Right<String, JsonArray>(format(ei.right().getValue(), columnsHeader, userId)));
                 } else {
                     log.error("[ConversationSearchingEvents] search failed : " + ei.left().getValue());
                     handler.handle(new Either.Left<String, JsonArray>(ei.left().getValue()));
@@ -98,7 +98,7 @@ public class ConversationSearchingEvents implements SearchingEvents {
     }
 
     /** Colonnes attendues par le moteur : title, description, modified, ownerDisplayName, ownerId, url. */
-    private JsonArray format(final JsonArray results, final JsonArray columnsHeader) {
+    private JsonArray format(final JsonArray results, final JsonArray columnsHeader, final String userId) {
         final List<String> header = columnsHeader.getList();
         final JsonArray formatted = new JsonArray();
         for (int i = 0; i < results.size(); i++) {
@@ -110,9 +110,27 @@ public class ConversationSearchingEvents implements SearchingEvents {
                 .put(header.get(2), new JsonObject().put("$date", row.getLong("date", 0L)))
                 .put(header.get(3), row.getString("fromName", ""))
                 .put(header.get(4), row.getString("from", ""))
-                .put(header.get(5), "/conversation#/read-mail/" + row.getString("id", "")));
+                .put(header.get(5), messageUrl(row, userId)));
         }
         return formatted;
+    }
+
+    /**
+     * Lien vers le message dans la messagerie.
+     * <p>
+     * L'ancienne route AngularJS {@code /conversation#/read-mail/<id>} ne fonctionne
+     * plus : {@code /conversation} seul renvoie 404, l'application React n'est donc
+     * jamais chargée et sa redirection de compatibilité ne s'exécute pas. On produit
+     * directement la route moderne, avec le dossier réel du message.
+     */
+    private String messageUrl(final JsonObject row, final String userId) {
+        final String id = row.getString("id", "");
+        final String folderId = row.getString("folder_id");
+        if (folderId != null && !folderId.isEmpty()) {
+            return "/conversation/folder/" + folderId + "/message/" + id;
+        }
+        final boolean sentByMe = userId != null && userId.equals(row.getString("from"));
+        return "/conversation/" + (sentByMe ? "outbox" : "inbox") + "/message/" + id;
     }
 
     /** Le corps est stocké en HTML ; l'IHM du moteur affiche du texte brut. */
