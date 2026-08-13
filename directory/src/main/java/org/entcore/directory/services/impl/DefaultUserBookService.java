@@ -56,6 +56,7 @@ import fr.wseduc.webutils.Either;
 import fr.wseduc.webutils.Utils;
 import fr.wseduc.webutils.http.ETag;
 import fr.wseduc.webutils.http.Renders;
+import io.vertx.core.AsyncResult;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -292,10 +293,32 @@ public class DefaultUserBookService implements UserBookService {
 						//
 						Future.all(futures).onComplete(finishRes -> futureCopy.complete(finishRes.succeeded()));
 					}
+					else
+					{
+						futureCopy.fail("Cannot create avatar thumbnails for document " + pictureId.get() + " : "
+								+ describeFailure(resDocWithThumbs));
+					}
 				});
+			}
+			else
+			{
+				futureCopy.fail("Cannot read workspace document " + pictureId.get() + " : "
+						+ describeFailure(resDoc));
 			}
 		});
 		return futureCopy.future();
+	}
+
+	/**
+	 * Décrit l'échec d'un appel au bus workspace, que l'appel lui-même ait échoué ou qu'il ait répondu en erreur.
+	 * @param result réponse du bus
+	 * @return le message d'erreur à journaliser
+	 */
+	private String describeFailure(AsyncResult<Message<JsonObject>> result) {
+		if (result.failed()) {
+			return result.cause() != null ? result.cause().getMessage() : "unknown.error";
+		}
+		return result.result().body().getString("message", "unknown.error");
 	}
 
 	@Override
