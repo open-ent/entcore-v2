@@ -8,7 +8,10 @@ import './i18n';
 import { Providers, queryClient } from './providers';
 import { router } from './routes';
 
-import '@open-ent/bootstrap/dist/index.css';
+// Le bootstrap openent n'est plus bundlé : il est chargé au runtime via
+// <link href="/assets/themes/openent-bootstrap/index.css"> dans index.html.
+// Sans ça, chaque changement de charte (ex. le magenta eclat-bfc) imposait de
+// recompiler et redéployer le module.
 import './index.css';
 
 const rootElement = document.getElementById('root');
