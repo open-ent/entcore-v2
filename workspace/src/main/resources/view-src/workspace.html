@@ -232,7 +232,7 @@
 					<i class="storage"></i><i18n class="storage zero-mobile">workspace.headers</i18n>
 					<i class="storage"></i><i18n class="storage zero-desktop">workspace.headers.short</i18n>
 				</h1>
-				<div class="right-magnet zero-mobile vertical-spacing-twice-1d " ng-if="openedFolder.all.length || reloadingContent">
+				<div class="right-magnet zero-mobile vertical-spacing-twice-1d ">
 					<div ng-repeat="button in currentTree.buttons" class="aligned">
 						<button ng-click="button.action()" ng-hide="canEmptyTrash()" ng-disabled="button.disabled()" workflow="[[button.workflow]]" class="document-buttons-add">
 							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd" clip-path="url(#icon-download_svg__a)" clip-rule="evenodd"><path d="M7.293 16.293a1 1 0 0 1 1.414 0L12 19.586l3.293-3.293a1 1 0 0 1 1.414 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 0-1.414"></path><path d="M12 11a1 1 0 0 1 1 1v9a1 1 0 1 1-2 0v-9a1 1 0 0 1 1-1"></path><path d="M8.668 1.994A9 9 0 0 1 17.48 8H18a6.002 6.002 0 0 1 5.689 7.919 6 6 0 0 1-2.234 2.989 1 1 0 1 1-1.15-1.636A4 4 0 0 0 18 10H16.74a1 1 0 0 1-.969-.751A7 7 0 1 0 3.75 15.627a1 1 0 1 1-1.498 1.326A9 9 0 0 1 8.668 1.994"></path></g><defs><clipPath id="icon-download_svg__a"><path fill="#fff" d="M0 0h24v24H0z"></path></clipPath></defs></svg>
@@ -276,27 +276,27 @@
 				<nav class="twelve cell toggle-buttons-spacer">
 					<div class="row">
 						<!--IMPORT MOBILE-->
-						<div ng-if="openedFolder.all.length || reloadingContent" class="zero-desktop six-mobile document-buttons-import-mobile-wrapper" ng-repeat="button in currentTree.buttons">
+						<div class="zero-desktop six-mobile document-buttons-import-mobile-wrapper" ng-repeat="button in currentTree.buttons">
 							<button ng-click="button.action(button.url)" ng-disabled="button.disabled()" workflow="[[button.workflow]]" class="document-buttons-add">
 								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M1 4a3 3 0 0 1 3-3h16a3 3 0 0 1 3 3v16a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3zm3-1a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm1 9a1 1 0 0 1 1-1h5V6a1 1 0 1 1 2 0v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H6a1 1 0 0 1-1-1" clip-rule="evenodd"></path></svg>
 								<span>[[translate(button.text)]]</span>
 							</button>
 						</div>
-						<div class="zero-desktop six-mobile document-buttons-add-mobile-wrapper" workflow="lool.createDocument" ng-if="canDropOnFolder() && !isSharedTree() && ENABLE_LOOL && (openedFolder.all.length || reloadingContent)">
+						<div class="zero-desktop six-mobile document-buttons-add-mobile-wrapper" workflow="lool.createDocument" ng-if="canDropOnFolder() && !isSharedTree() && ENABLE_LOOL">
 						<button class="document-buttons-import" ng-click="openLoolModal()">
 							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd" clip-path="url(#icon-download_svg__a)" clip-rule="evenodd"><path d="M7.293 16.293a1 1 0 0 1 1.414 0L12 19.586l3.293-3.293a1 1 0 0 1 1.414 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 0-1.414"></path><path d="M12 11a1 1 0 0 1 1 1v9a1 1 0 1 1-2 0v-9a1 1 0 0 1 1-1"></path><path d="M8.668 1.994A9 9 0 0 1 17.48 8H18a6.002 6.002 0 0 1 5.689 7.919 6 6 0 0 1-2.234 2.989 1 1 0 1 1-1.15-1.636A4 4 0 0 0 18 10H16.74a1 1 0 0 1-.969-.751A7 7 0 1 0 3.75 15.627a1 1 0 1 1-1.498 1.326A9 9 0 0 1 8.668 1.994"></path></g><defs><clipPath id="icon-download_svg__a"><path fill="#fff" d="M0 0h24v24H0z"></path></clipPath></defs></svg>
 							<i18n>workspace.lool.create-document</i18n>
 						</button>
 						</div>
 						<!--SEARCH DESKTOP-->
-						<div class="cell eight search-pagination zero-mobile" ng-if="openedFolder.all.length">
+						<div class="cell eight search-pagination zero-mobile" ng-if="openedFolder.folder">
 							<a ng-class="{'show-close':canResetSearch()}" ng-show="canResetSearch()" ng-click="resetSearch()" class="cell"><i class="blue-1d close horizontal-spacing cell-ellipsis"></i></a>
 							<input ng-class="{'eleven':canResetSearch(),'twelve':!canResetSearch()}" type="text" ng-model="search.criteria" ng-keyup="searchKeyUp($event)"
 							 i18n-placeholder="workspace.search.placeholder">
 							<i class="search" ng-click="searchSubmit()"></i>
 						</div>
 						<!--VIEW MODE-->
-						<div class="cell right-magnet" ng-if="openedFolder.all.length">
+						<div class="cell right-magnet" ng-if="openedFolder.folder">
 							<div class="choice-view">
 								<i class="show-icons" ng-class="{ selected: isViewMode('icons') }" ng-click="changeViewMode('icons')"></i>
 								<i class="show-list" ng-class="{ selected: isViewMode('list') }" ng-click="changeViewMode('list')"></i>
@@ -304,7 +304,7 @@
 							</div>
 						</div>
 						<!--SEARCH MOBILE-->
-						<div class="zero-desktop cell four search-pagination twelve-mobile vertical-spacing-twice" ng-if="openedFolder.all.length">
+						<div class="zero-desktop cell four search-pagination twelve-mobile vertical-spacing-twice" ng-if="openedFolder.folder">
 							<a ng-class="{'show-close':canResetSearch()}" ng-show="canResetSearch()" ng-click="resetSearch()"><i class="blue-1d close horizontal-spacing cell-ellipsis"></i></a>
 							<input ng-class="{'eleven twelve-1d':canResetSearch(),'twelve':!canResetSearch()}" type="text" ng-model="search.criteria" ng-keyup="searchKeyUp($event)"
 							 i18n-placeholder="workspace.search.placeholder">
@@ -342,16 +342,6 @@
 						<p ng-if="openedFolder.folder === currentTree" class="emptyscreen-footer">
 							<i18n>empty.workspace</i18n>
 						</p>
-						<div style="display: grid; grid-template-columns: 1fr 1fr">
-							<button ng-click="currentTree.buttons[0].action()" ng-disabled="currentTree.buttons[0].disabled()" workflow="[[currentTree.buttons[0].workflow]]">
-								<i18n>workspace.create.workspace</i18n>
-							</button>
-							<div workflow="lool.createDocument" ng-if="canDropOnFolder() && !isSharedTree() && ENABLE_LOOL">
-							<button class="primary-button" ng-click="openLoolModal()">
-								<i18n>workspace.lool.create-document</i18n>
-							</button>
-							</div>
-						</div>
 					</div>
 					<!-- Empty screen partagé avec moi -->
 					<div class="emptyscreen" ng-if="currentTree.filter === 'shared' && !openedFolder.all.length && !reloadingContent">
@@ -367,10 +357,6 @@
 						<p ng-if="openedFolder.folder === currentTree" class="emptyscreen-footer">
 							<i18n>empty.workspace.shared</i18n>
 						</p>
-						<button ng-click="currentTree.buttons[0].action()" ng-disabled="currentTree.buttons[0].disabled()"
-							workflow="[[currentTree.buttons[0].workflow]]">
-							<i18n>empty.workspace.shared.and.import</i18n>
-						</button>
 					</div>
 					<!-- Empty screen depuis les apps -->
 					<div class="emptyscreen" ng-if="currentTree.filter === 'protected' && !openedFolder.all.length && !reloadingContent">
