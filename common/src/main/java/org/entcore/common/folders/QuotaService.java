@@ -40,6 +40,13 @@ public interface QuotaService {
 
 	void update(JsonArray users, long quota, Handler<Either<String, JsonArray>> handler);
 
+	/**
+	 * Met à jour le quota de tous les utilisateurs d'un profil, pour toutes les structures
+	 * rattachées à un département (regroupement dérivé de codeDepartement/departement/zipCode).
+	 */
+	void updateByProfileAndDepartment(String profile, String departmentCode, long quota,
+			Handler<Either<String, JsonArray>> handler);
+
 	void updateQuotaDefaultMax(String profile, Long defaultQuota, Long maxQuota,
 			Handler<Either<String, JsonObject>> handler);
 

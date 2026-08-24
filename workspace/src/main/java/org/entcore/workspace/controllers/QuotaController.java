@@ -99,6 +99,25 @@ public class QuotaController extends BaseController {
 		});
 	}
 
+	/**
+	 * Met à jour le quota de tous les utilisateurs d'un profil, pour toutes les structures
+	 * d'un même département (modification multi-établissements).
+	 */
+	@Put("/quota/department/:departmentCode/profile/:profile")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@MfaProtected()
+	public void updateByDepartmentAndProfile(final HttpServerRequest request) {
+		RequestUtils.bodyToJson(request, pathPrefix + "updateQuotaByDepartment", new Handler<JsonObject>() {
+			@Override
+			public void handle(JsonObject object) {
+				String departmentCode = request.params().get("departmentCode");
+				String profile = request.params().get("profile");
+				quotaService.updateByProfileAndDepartment(profile, departmentCode, object.getLong("quota"),
+						arrayResponseHandler(request));
+			}
+		});
+	}
+
 	@Get("/quota/default")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()

@@ -97,6 +97,23 @@ public class BasicQuotaService implements org.entcore.common.folders.QuotaServic
 	}
 
 	@Override
+	public void updateByProfileAndDepartment(String profile, String departmentCode, long quota,
+			Handler<Either<String, JsonArray>> handler) {
+		String query = "MATCH (s:Structure) "
+				+ "WHERE coalesce(s.codeDepartement, s.departement, substring(s.zipCode, 0, 2)) = {departmentCode} "
+				+ "MATCH (s)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User)-[:USERBOOK]->(ub:UserBook) "
+				+ "MATCH (u)-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {name : {profile}}) "
+				+ "WHERE ub.storage <= {quota} AND {quota} <= coalesce(p.maxQuota, 1073741824) "
+				+ "SET ub.quota = {quota}, ub.alertSize = false "
+				+ "RETURN DISTINCT u.id as id ";
+		JsonObject params = new JsonObject()
+				.put("departmentCode", departmentCode)
+				.put("profile", profile)
+				.put("quota", quota);
+		neo4j.execute(query, params, validResultHandler(handler));
+	}
+
+	@Override
 	public void updateQuotaDefaultMax(String profile, Long defaultQuota, Long maxQuota,
 			Handler<Either<String, JsonObject>> handler) {
 		if (defaultQuota == null && maxQuota == null) {
