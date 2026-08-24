@@ -44,7 +44,7 @@ public class RepositoryHandler implements Handler<Message<JsonObject>> {
 	private final EventBus eb;
     private final Storage storage;
     private static final Logger log = LoggerFactory.getLogger(RepositoryHandler.class);
-    private final long LOCK_RELEASE_TIMEOUT = 500L;
+    private final long LOCK_RELEASE_TIMEOUT = 5000L;
     private final long LOCK_RELEASE_DELAY = 2 * LOCK_RELEASE_TIMEOUT;
 
 	public RepositoryHandler(EventBus eb, Storage storage) {
