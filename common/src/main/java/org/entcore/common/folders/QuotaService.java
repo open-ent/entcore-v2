@@ -19,6 +19,8 @@
 
 package org.entcore.common.folders;
 
+import org.entcore.common.user.UserInfos;
+
 import fr.wseduc.webutils.Either;
 
 import io.vertx.core.Handler;
@@ -46,6 +48,12 @@ public interface QuotaService {
 	 */
 	void updateByProfileAndDepartment(String profile, String departmentCode, long quota,
 			Handler<Either<String, JsonArray>> handler);
+
+	/**
+	 * Départements où l'utilisateur peut appliquer un quota multi-établissements
+	 * (SuperAdmin : tous ; ADML : ceux où son périmètre couvre tous les établissements).
+	 */
+	void getAllowedDepartments(UserInfos user, Handler<Either<String, JsonArray>> handler);
 
 	void updateQuotaDefaultMax(String profile, Long defaultQuota, Long maxQuota,
 			Handler<Either<String, JsonObject>> handler);

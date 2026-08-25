@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.entcore.common.neo4j.Neo4j;
+import org.entcore.common.user.DefaultFunctions;
+import org.entcore.common.user.UserInfos;
 
 import fr.wseduc.webutils.Either;
 import fr.wseduc.webutils.collections.Joiner;
@@ -101,6 +103,7 @@ public class BasicQuotaService implements org.entcore.common.folders.QuotaServic
 			Handler<Either<String, JsonArray>> handler) {
 		String query = "MATCH (s:Structure) "
 				+ "WHERE coalesce(s.codeDepartement, s.departement, substring(s.zipCode, 0, 2)) = {departmentCode} "
+				+ "AND coalesce(s.structureType, 'ETABLISSEMENT') = 'ETABLISSEMENT' "
 				+ "MATCH (s)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User)-[:USERBOOK]->(ub:UserBook) "
 				+ "MATCH (u)-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {name : {profile}}) "
 				+ "WHERE ub.storage <= {quota} AND {quota} <= coalesce(p.maxQuota, 1073741824) "
@@ -110,6 +113,36 @@ public class BasicQuotaService implements org.entcore.common.folders.QuotaServic
 				.put("departmentCode", departmentCode)
 				.put("profile", profile)
 				.put("quota", quota);
+		neo4j.execute(query, params, validResultHandler(handler));
+	}
+
+	@Override
+	public void getAllowedDepartments(UserInfos user, Handler<Either<String, JsonArray>> handler) {
+		boolean superAdmin = user.getFunctions() != null
+				&& user.getFunctions().containsKey(DefaultFunctions.SUPER_ADMIN);
+		String query;
+		JsonObject params = new JsonObject();
+		if (superAdmin) {
+			query = "MATCH (s:Structure) "
+					+ "WHERE coalesce(s.structureType, 'ETABLISSEMENT') = 'ETABLISSEMENT' "
+					+ "WITH coalesce(s.codeDepartement, s.departement, substring(s.zipCode, 0, 2)) AS departement, "
+					+ "count(s) AS totalEtablissements "
+					+ "RETURN departement, totalEtablissements ORDER BY departement ";
+		} else {
+			UserInfos.Function adminLocal = user.getFunctions() == null ? null
+					: user.getFunctions().get(DefaultFunctions.ADMIN_LOCAL);
+			if (adminLocal == null || adminLocal.getScope() == null) {
+				handler.handle(new Either.Right<String, JsonArray>(new JsonArray()));
+				return;
+			}
+			query = "MATCH (s:Structure) "
+					+ "WHERE coalesce(s.structureType, 'ETABLISSEMENT') = 'ETABLISSEMENT' "
+					+ "WITH coalesce(s.codeDepartement, s.departement, substring(s.zipCode, 0, 2)) AS departement, "
+					+ "collect(s.id) AS ids "
+					+ "WHERE ALL(sid IN ids WHERE sid IN {structures}) "
+					+ "RETURN departement, size(ids) AS totalEtablissements ORDER BY departement ";
+			params.put("structures", new JsonArray(adminLocal.getScope()));
+		}
 		neo4j.execute(query, params, validResultHandler(handler));
 	}
 

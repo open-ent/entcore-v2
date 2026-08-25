@@ -85,7 +85,9 @@ public class DefaultSchoolService implements SchoolService {
 	public void get(String id, Handler<Either<String, JsonObject>> result) {
 		String query =
 				"match (s:`Structure`) where s.id = {id} " +
-				"return s.id as id, s.externalId as externalId, s.UAI as UAI, s.name as name";
+				"return s.id as id, s.externalId as externalId, s.UAI as UAI, s.name as name, " +
+				"s.zipCode as zipCode, s.codeDepartement as codeDepartement, " +
+				"s.codeAcademie as codeAcademie, coalesce(s.structureType, 'ETABLISSEMENT') as structureType";
 		neo.execute(query, new JsonObject().put("id", id), validUniqueResultHandler(result));
 	}
 

@@ -174,9 +174,17 @@ public class WorkspaceResourcesProvider implements ResourcesProvider {
 			case "getQuotaGlobal":
 				isSuperAdmin(user, handler);
 				break;
+			case "updateByDepartmentAndProfile":
+				isAdminOfDepartment(request, user, handler);
+				break;
 			case "getDefault":
 				UserInfos.Function adminLocal = getFunction(user, handler);
 				if (adminLocal != null)
+					handler.handle(true);
+				break;
+			case "getAllowedDepartments":
+				UserInfos.Function adminLocalDept = getFunction(user, handler);
+				if (adminLocalDept != null)
 					handler.handle(true);
 				break;
 			default:
@@ -230,6 +238,36 @@ public class WorkspaceResourcesProvider implements ResourcesProvider {
 								&& res.getJsonObject(0).getInteger("nb", -1).equals(users.size()));
 					}
 				});
+			}
+		});
+	}
+
+	/**
+	 * Autorise le SuperAdmin, ou un ADML dont le périmètre (adminLocal.scope) couvre
+	 * la TOTALITÉ des structures du département visé (sinon il pourrait modifier le quota
+	 * d'établissements qu'il n'administre pas).
+	 */
+	private void isAdminOfDepartment(HttpServerRequest request, UserInfos user, final Handler<Boolean> handler) {
+		final UserInfos.Function adminLocal = getFunction(user, handler);
+		if (adminLocal == null)
+			return;
+		final String departmentCode = request.params().get("departmentCode");
+		String query = "MATCH (s:Structure) "
+				+ "WHERE coalesce(s.codeDepartement, s.departement, substring(s.zipCode, 0, 2)) = {departmentCode} "
+				+ "AND coalesce(s.structureType, 'ETABLISSEMENT') = 'ETABLISSEMENT' "
+				+ "AND NOT s.id IN {structures} "
+				+ "RETURN count(s) as notCovered ";
+		JsonObject params = new JsonObject()
+				.put("departmentCode", departmentCode)
+				.put("structures", new JsonArray(adminLocal.getScope()));
+		request.pause();
+		Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {
+			@Override
+			public void handle(Message<JsonObject> message) {
+				request.resume();
+				JsonArray res = message.body().getJsonArray("result");
+				handler.handle("ok".equals(message.body().getString("status")) && res != null && res.size() == 1
+						&& res.getJsonObject(0).getInteger("notCovered", -1) == 0);
 			}
 		});
 	}

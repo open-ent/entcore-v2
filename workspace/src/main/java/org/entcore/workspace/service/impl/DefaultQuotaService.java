@@ -118,6 +118,18 @@ public class DefaultQuotaService extends BasicQuotaService {
 	}
 
 	@Override
+	public void updateByProfileAndDepartment(String profile, String departmentCode, long quota,
+			Handler<Either<String, JsonArray>> handler) {
+		super.updateByProfileAndDepartment(profile, departmentCode, quota, handler);
+	}
+
+	@Override
+	public void getAllowedDepartments(org.entcore.common.user.UserInfos user,
+			Handler<Either<String, JsonArray>> handler) {
+		super.getAllowedDepartments(user, handler);
+	}
+
+	@Override
 	public void updateQuotaDefaultMax(String profile, Long defaultQuota, Long maxQuota,
 			Handler<Either<String, JsonObject>> handler) {
 		super.updateQuotaDefaultMax(profile, defaultQuota, maxQuota, handler);

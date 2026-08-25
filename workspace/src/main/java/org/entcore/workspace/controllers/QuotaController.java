@@ -23,6 +23,7 @@ import static org.entcore.common.http.response.DefaultResponseHandler.arrayRespo
 import static org.entcore.common.http.response.DefaultResponseHandler.notEmptyResponseHandler;
 
 import org.entcore.common.folders.QuotaService;
+import org.entcore.common.user.UserUtils;
 
 import fr.wseduc.bus.BusAddress;
 import fr.wseduc.rs.Get;
@@ -115,6 +116,24 @@ public class QuotaController extends BaseController {
 				quotaService.updateByProfileAndDepartment(profile, departmentCode, object.getLong("quota"),
 						arrayResponseHandler(request));
 			}
+		});
+	}
+
+	/**
+	 * Départements sur lesquels l'utilisateur connecté a le droit d'appliquer un quota
+	 * (SuperAdmin : tous ; ADML : uniquement ceux où son périmètre couvre 100% des
+	 * établissements). Alimente le sélecteur du dashboard pour n'y proposer que des
+	 * départements réellement actionnables.
+	 */
+	@Get("/quota/department/allowed")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	public void getAllowedDepartments(final HttpServerRequest request) {
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null) {
+				unauthorized(request);
+				return;
+			}
+			quotaService.getAllowedDepartments(user, arrayResponseHandler(request));
 		});
 	}
 
