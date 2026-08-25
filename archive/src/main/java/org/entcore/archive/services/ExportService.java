@@ -22,10 +22,12 @@ package org.entcore.archive.services;
 import fr.wseduc.webutils.Either;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import org.entcore.common.user.UserInfos;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerRequest;
 
+import java.util.List;
 import java.util.Map;
 
 public interface ExportService {
@@ -58,4 +60,11 @@ public interface ExportService {
   Future<Map<String, Long>> getUserExportInProgress();
 
   Future<Void> removeUserExportInProgress(final String key);
+
+  /**
+   * Liste, pour supervision admin, l'état de tous les exports actuellement suivis
+   * (en cours, prêts à télécharger, ou en erreur) tous utilisateurs confondus.
+   * Chaque entrée : {userId, exportId, status: "running"|"ready"|"error", startedAt, apps}.
+   */
+  Future<List<JsonObject>> getAllExportsStatus();
 }

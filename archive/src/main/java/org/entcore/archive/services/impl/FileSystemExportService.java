@@ -478,6 +478,47 @@ public class FileSystemExportService implements ExportService {
   }
 
   @Override
+  public Future<List<JsonObject>> getAllExportsStatus() {
+    return userExportInProgress.entries().compose(entries -> {
+      final List<Future<JsonObject>> futures = new ArrayList<>();
+      for (Map.Entry<String, Long> entry : entries.entrySet()) {
+        final String userId = entry.getKey();
+        final Long code = entry.getValue();
+        final String status;
+        if (code == null) {
+          continue;
+        } else if (code == EXPORT_ERROR) {
+          status = "error";
+        } else if (code == DOWNLOAD_READY || code == DOWNLOAD_IN_PROGRESS) {
+          status = "ready";
+        } else {
+          status = "running";
+        }
+        futures.add(userExport.get(userId).map(UserExport::fromJson).map(ue -> {
+          final JsonObject o = new JsonObject()
+              .put("userId", userId)
+              .put("status", status);
+          if (ue != null) {
+            o.put("exportId", ue.getExportId())
+                .put("startedAt", ue.getStart())
+                .put("apps", new JsonArray(new ArrayList<>(ue.getStateByModule().keySet())));
+          } else if (code > 0) {
+            o.put("startedAt", code);
+          }
+          return o;
+        }));
+      }
+      return Future.all(futures).map(cf -> {
+        final List<JsonObject> result = new ArrayList<>();
+        for (int i = 0; i < cf.size(); i++) {
+          result.add(cf.resultAt(i));
+        }
+        return result;
+      });
+    });
+  }
+
+  @Override
 	public Future<Void> setDownloadInProgress(String exportId) {
     return this.userExportExists(exportId).compose(userExport -> {
       if(userExport != null) {

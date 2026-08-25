@@ -313,6 +313,26 @@ public class ArchiveController extends BaseController {
     Renders.ok(request);
   }
 
+	/**
+	 * Supervision admin : liste tous les exports actuellement suivis (en cours, prêts à
+	 * télécharger, ou en erreur), tous utilisateurs confondus — y compris ceux lancés depuis
+	 * l'application "Mes données" (front natif), pas seulement via un outil d'administration.
+	 * Même protection que /export/clear (SuperAdmin), aucune autre vue équivalente n'existant.
+	 */
+	@Get("/export/admin/list")
+	@ResourceFilter(SuperAdminFilter.class)
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@MfaProtected()
+	public void listAllExports(final HttpServerRequest request)
+	{
+		exportService.getAllExportsStatus()
+			.onSuccess(list -> renderJson(request, new JsonArray(list)))
+			.onFailure(th -> {
+				log.error("An error occurred while listing all exports for admin supervision", th);
+				renderError(request);
+			});
+	}
+
 	@Delete("/export/clear/user/:userId")
 	@ResourceFilter(SuperAdminFilter.class)
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
