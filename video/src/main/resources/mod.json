@@ -7,6 +7,7 @@
 	"app-address": "http://localhost:8019/video/video",
 	"app-icon": "video-large",
 	"app-displayName": "video",
+	"app-type": "END_USER",
 	"mongo-address": "wse.mongodb.persistor",
 	"gridfs-address": "wse.gridfs.persistor",
 
