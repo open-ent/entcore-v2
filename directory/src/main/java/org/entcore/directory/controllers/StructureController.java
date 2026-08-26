@@ -19,6 +19,7 @@
 
 package org.entcore.directory.controllers;
 
+import fr.wseduc.rs.ApiDoc;
 import fr.wseduc.rs.Delete;
 import fr.wseduc.rs.Get;
 import fr.wseduc.rs.Post;
@@ -41,6 +42,8 @@ import org.entcore.common.http.filter.AdmlOfStructure;
 import org.entcore.common.http.filter.AdminFilter;
 import org.entcore.common.http.filter.ResourceFilter;
 import org.entcore.common.http.filter.SuperAdminFilter;
+import org.entcore.common.neo4j.Neo4j;
+import org.entcore.common.neo4j.Neo4jResult;
 import org.entcore.common.notification.NotificationUtils;
 import org.entcore.common.user.DefaultFunctions;
 import org.entcore.common.user.UserInfos;
@@ -119,6 +122,57 @@ public class StructureController extends BaseController {
 				});
 			}
 		});
+	}
+
+	// D9 (AO ENT ÉCLAT-BFC, personnalisation graphique par Entité/MOA/groupe d'ES) : logo + 2-3
+	// couleurs (primaryColor/accentColor) stockés directement comme propriétés du node Structure
+	// (pattern déjà en place ailleurs sur ce node, ex. UAI/timetable), écriture directe en Neo4j
+	// plutôt que via le event-bus "manual-update-structure" du feeder (qui filtre les champs connus
+	// et ignorerait silencieusement des propriétés qu'il ne reconnaît pas). "logo" est un id de
+	// document du workspace, réutilisant l'upload générique existant (WorkspaceController#POST
+	// /document), sur le même principe que ub.picture/userbook avatar - pas de nouvel upload créé ici.
+	@Put("/structure/:id/branding")
+	@ApiDoc("Sets the graphical branding (logo + primary/accent colors) of a structure.")
+	@ResourceFilter(AdminStructureFilter.class)
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	public void setBranding(final HttpServerRequest request) {
+		final String structureId = request.params().get("id");
+		RequestUtils.bodyToJson(request, body -> {
+			final String primaryColor = body.getString("primaryColor");
+			final String accentColor = body.getString("accentColor");
+			final String logo = body.getString("logo");
+			if (!isValidHexColorOrEmpty(primaryColor) || !isValidHexColorOrEmpty(accentColor)) {
+				Renders.badRequest(request, "directory.structure.branding.invalid.color");
+				return;
+			}
+			final String query = "MATCH (s:Structure {id: {id}}) " +
+					"SET s.brandingPrimaryColor = {primaryColor}, s.brandingAccentColor = {accentColor}, " +
+					"s.brandingLogo = {logo} " +
+					"RETURN s.id as id, s.brandingPrimaryColor as primaryColor, " +
+					"s.brandingAccentColor as accentColor, s.brandingLogo as logo";
+			final JsonObject params = new JsonObject()
+					.put("id", structureId)
+					.put("primaryColor", primaryColor)
+					.put("accentColor", accentColor)
+					.put("logo", logo);
+			Neo4j.getInstance().execute(query, params, Neo4jResult.validUniqueResultHandler(defaultResponseHandler(request)));
+		});
+	}
+
+	@Get("/structure/:id/branding")
+	@ApiDoc("Gets the graphical branding (logo + primary/accent colors) of a structure.")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void getBranding(final HttpServerRequest request) {
+		final String structureId = request.params().get("id");
+		final String query = "MATCH (s:Structure {id: {id}}) " +
+				"RETURN s.brandingPrimaryColor as primaryColor, s.brandingAccentColor as accentColor, " +
+				"s.brandingLogo as logo";
+		final JsonObject params = new JsonObject().put("id", structureId);
+		Neo4j.getInstance().execute(query, params, Neo4jResult.validUniqueResultHandler(defaultResponseHandler(request)));
+	}
+
+	private boolean isValidHexColorOrEmpty(final String color) {
+		return StringUtils.isEmpty(color) || color.matches("^#[0-9a-fA-F]{6}$");
 	}
 
 	@Put("/structure/:structureId/link/:userId")

@@ -332,7 +332,18 @@ public abstract class GenericEventStore implements EventStore {
 			event.put("deviceType", deviceType);
 			event.put("deviceName", deviceName);
 			
-			final String ip = Renders.getIp(request);
+			// Renders.getIp() lève une NullPointerException si request.remoteAddress() est null - cas
+			// systématique pour une requête JSON synthétique (org.entcore.common.http.request.
+			// JsonHttpServerRequest, utilisée par de nombreux modules pour un appel event-bus inter-module,
+			// ex. exercizer#sendMail) : remoteAddress() y est toujours null par construction. Sans cette
+			// garde, l'exception empêche la promesse appelante de se terminer et bloque indéfiniment
+			// l'appelant (bug trouvé en corrigeant l'action "relance" d'exercizer, 2026-08-27).
+			String ip = null;
+			try {
+				ip = Renders.getIp(request);
+			} catch (Exception e) {
+				logger.debug("Could not resolve IP for event (likely a synthetic inter-module request)", e);
+			}
 			if (ip != null) {
 				event.put("ip", ip);
 			}
