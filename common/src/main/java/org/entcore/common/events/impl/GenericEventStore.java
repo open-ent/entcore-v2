@@ -46,10 +46,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.net.URLDecoder;
+import java.util.regex.Pattern;
 
 import io.vertx.json.schema.*;
 
 public abstract class GenericEventStore implements EventStore {
+
+	// matches health-check clients that hit modules directly (bypassing the ingress),
+	// e.g. kube-probe/1.25 for kubelet liveness/readiness probes
+	private static final Pattern PROBE_USER_AGENT = Pattern.compile("^(kube-probe|GoogleHC)/.*", Pattern.CASE_INSENSITIVE);
 
 	protected String module;
 	protected EventBus eventBus;
@@ -246,6 +251,9 @@ public abstract class GenericEventStore implements EventStore {
 	}
 
 	private void execute(UserInfos user, String eventType, HttpServerRequest request, JsonObject customAttributes) {
+		if (isProbeRequest(request)) {
+			return;
+		}
 		if (user == null || !userBlacklist.contains(user.getUserId())) {
 			final JsonObject event = generateEvent(eventType, user, request, customAttributes);
 			validateEvent(event, this.vertx)
@@ -270,6 +278,14 @@ public abstract class GenericEventStore implements EventStore {
 	}
 
 
+
+	private boolean isProbeRequest(HttpServerRequest request) {
+		if (request == null) {
+			return false;
+		}
+		final String ua = request.headers().get("User-Agent");
+		return ua != null && PROBE_USER_AGENT.matcher(ua).matches();
+	}
 
 	private JsonObject generateEvent(String eventType, UserInfos user, HttpServerRequest request,
 			JsonObject customAttributes) {
