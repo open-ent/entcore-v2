@@ -769,6 +769,8 @@
   "my.apps.tabs.pedagogy": "Produce",
   "name": "Name",
   "navbar.applications": "My apps",
+  "navbar.chat": "Instant messaging",
+  "navbar.chat.activeCall": "Call in progress",
   "navbar.community": "Communities",
   "navbar.disconnect": "Log out",
   "navbar.help": "Online help",
