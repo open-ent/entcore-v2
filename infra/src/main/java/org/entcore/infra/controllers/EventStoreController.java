@@ -203,6 +203,35 @@ public class EventStoreController extends BaseController {
     }
   }
 
+	@Get("/event/mine/:type/:epoch")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void listMyEvents(final HttpServerRequest request) {
+		final String type = request.params().get("type");
+		if (!EventStoreService.EVENT_STORE_TYPES.contains(type)) {
+			badRequest(request, "invalid.type");
+			return;
+		}
+		try {
+			final long epoch = Long.parseLong(request.params().get("epoch"));
+			final long duration = request.params().contains("duration") ?
+					Long.parseLong(request.params().get("duration")) : EventStoreService.ONE_DAY_DURATION;
+			final boolean skipSynced =
+					("true".equals(request.params().get("skip-synced")) || !request.params().contains("skip-synced"));
+			final List<String> eventTypes = request.params().getAll("event-types");
+			final boolean sorted = "true".equals(request.params().get("sorted"));
+			UserUtils.getUserInfos(eb, request, user -> {
+				if (user == null) {
+					Renders.unauthorized(request);
+					return;
+				}
+				eventStoreService.listEventsForUser(type, user.getUserId(), epoch, duration, skipSynced, eventTypes, sorted,
+						asyncArrayResponseHandler(request));
+			});
+		} catch (RuntimeException e) {
+			badRequest(request, "invalid.input.format");
+		}
+	}
+
 	@Put("/event/mark/:type/:epoch")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(SuperAdminFilter.class)

@@ -157,8 +157,7 @@ public class MongoDbEventStore implements EventStoreService {
 		}
 	}
 
-	@Override
-	public void listEvents(String eventStoreType, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<JsonArray>> handler) {
+	static JsonObject buildEventsQuery(long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, String userId) {
 		final JsonObject query = new JsonObject().put("date", new JsonObject()
 			.put("$gte", startEpoch).put("$lt", (startEpoch + duration)));
 		if (skipSynced) {
@@ -167,6 +166,26 @@ public class MongoDbEventStore implements EventStoreService {
 		if (eventTypes != null && !eventTypes.isEmpty()) {
 			query.put("event-type", new JsonObject().put("$in", new JsonArray(eventTypes)));
 		}
+		if (userId != null) {
+			query.put("userId", userId);
+		}
+		return query;
+	}
+
+	@Override
+	public void listEvents(String eventStoreType, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<JsonArray>> handler) {
+		final JsonObject query = buildEventsQuery(startEpoch, duration, skipSynced, eventTypes, null);
+		JsonObject sort = null;
+		if (sorted) {
+			sort = new JsonObject().put("date", 1);
+		}
+		mongoDb.find(eventStoreType, query, sort, (JsonObject) null, -1, -1, Integer.MAX_VALUE,
+				new DeliveryOptions().setSendTimeout(QUERY_TIMEOUT), validAsyncResultsHandler(handler));
+	}
+
+	@Override
+	public void listEventsForUser(String eventStoreType, String userId, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<JsonArray>> handler) {
+		final JsonObject query = buildEventsQuery(startEpoch, duration, skipSynced, eventTypes, userId);
 		JsonObject sort = null;
 		if (sorted) {
 			sort = new JsonObject().put("date", 1);

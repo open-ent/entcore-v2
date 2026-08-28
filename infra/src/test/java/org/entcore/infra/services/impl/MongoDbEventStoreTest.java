@@ -1181,7 +1181,7 @@ public class MongoDbEventStoreTest {
 
         eventStore.store(unusualButValid, result -> {
             context.assertTrue(result.isRight(), "Event with unusual but valid values should be stored");
-            
+
             vertx.setTimer(300, id -> {
                 List<StoredEvent> events = getEventsInCollection(EVENTS_COLLECTION);
                 context.assertTrue(!events.isEmpty(),
@@ -1189,5 +1189,33 @@ public class MongoDbEventStoreTest {
                 async.complete();
             });
         });
+    }
+
+    // ==================== buildEventsQuery TESTS (self-service "mine" events) ====================
+
+    @Test
+    public void buildEventsQuery_withoutUserId_doesNotFilterByUser() {
+        final JsonObject query = MongoDbEventStore.buildEventsQuery(1000L, 500L, false, null, null);
+        Assert.assertFalse("query must not contain a userId filter when userId is null", query.containsKey("userId"));
+    }
+
+    @Test
+    public void buildEventsQuery_withUserId_forcesUserFilter() {
+        final JsonObject query = MongoDbEventStore.buildEventsQuery(1000L, 500L, false, null, "user-42");
+        Assert.assertTrue(query.containsKey("userId"));
+        Assert.assertEquals("user-42", query.getString("userId"));
+    }
+
+    @Test
+    public void buildEventsQuery_keepsDateRangeAndEventTypesFilters() {
+        final JsonObject query = MongoDbEventStore.buildEventsQuery(1000L, 500L, true,
+                java.util.Collections.singletonList("LOGIN"), "user-42");
+
+        final JsonObject dateFilter = query.getJsonObject("date");
+        Assert.assertEquals(1000L, (long) dateFilter.getLong("$gte"));
+        Assert.assertEquals(1500L, (long) dateFilter.getLong("$lt"));
+        Assert.assertTrue(query.containsKey("synced"));
+        Assert.assertEquals(new JsonArray(java.util.Collections.singletonList("LOGIN")), query.getJsonObject("event-type").getJsonArray("$in"));
+        Assert.assertEquals("user-42", query.getString("userId"));
     }
 }
