@@ -708,6 +708,26 @@ public class DefaultWorkspaceService extends FolderManagerWithQuota implements W
 	}
 
 	@Override
+	public void setPortalPublication(final String documentId, final UserInfos admin, final boolean publish,
+			final Handler<Either<String, JsonObject>> handler) {
+		final JsonObject query = new JsonObject().put("_id", documentId);
+		final JsonObject update;
+		if (publish) {
+			final JsonObject portalPublication = new JsonObject()
+					.put("publishedBy", admin.getUserId())
+					.put("publishedAt", MongoDb.formatDate(new Date()));
+			update = new JsonObject()
+					.put("$set", new JsonObject().put("public", true).put("portalPublication", portalPublication))
+					.put("$unset", new JsonObject().put("protected", ""));
+		} else {
+			update = new JsonObject()
+					.put("$unset", new JsonObject().put("public", "").put("portalPublication", ""));
+		}
+		mongo.update(DocumentDao.DOCUMENTS_COLLECTION, query, update, false, false, (MongoDb.WriteConcern) null,
+				MongoDbResult.validActionResultHandler(handler));
+	}
+
+	@Override
 	public Future<JsonArray> transferAll(
 			final List<String> sourceIds,
 			Optional<String> application,

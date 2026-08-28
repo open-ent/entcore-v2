@@ -155,6 +155,12 @@ public class WorkspaceResourcesProvider implements ResourcesProvider {
 			case "renameFolder":
 				authorizeDocumentOrFolder(request, user, binding.getServiceMethod(), handler);
 				break;
+			case "portalPublish":
+			case "portalUnpublish":
+				// Publishing to the public portal is reserved to the ADML of the document
+				// owner's structure (not a per-document share right).
+				authorizeAdmlOfDocumentOwner(request, user, handler);
+				break;
 			default:
 				handler.handle(false);
 			}
@@ -213,6 +219,50 @@ public class WorkspaceResourcesProvider implements ResourcesProvider {
 				JsonArray res = message.body().getJsonArray("result");
 				handler.handle("ok".equals(message.body().getString("status")) && res != null && res.size() == 1
 						&& res.getJsonObject(0).getBoolean("exists", false));
+			}
+		});
+	}
+
+	/**
+	 * Authorizes the SuperAdmin, or an ADML whose scope covers the structure of the
+	 * document's OWNER (not the caller) — the document itself has no structureId, only
+	 * its owner does, mirrored from {@link #isUserOrAdmin}.
+	 */
+	private void authorizeAdmlOfDocumentOwner(HttpServerRequest request, UserInfos user, final Handler<Boolean> handler) {
+		final String id = request.params().get("id");
+		if (id == null || id.trim().isEmpty()) {
+			handler.handle(false);
+			return;
+		}
+		final UserInfos.Function adminLocal = getFunction(user, handler);
+		if (adminLocal == null) {
+			// getFunction already called the handler (true for SUPER_ADMIN, false otherwise)
+			return;
+		}
+		mongo.findOne(DocumentDao.DOCUMENTS_COLLECTION, new JsonObject().put("_id", id),
+				new Handler<Message<JsonObject>>() {
+			@Override
+			public void handle(Message<JsonObject> res) {
+				final JsonObject doc = "ok".equals(res.body().getString("status"))
+						? res.body().getJsonObject("result") : null;
+				final String ownerId = doc != null ? doc.getString("owner") : null;
+				if (ownerId == null) {
+					handler.handle(false);
+					return;
+				}
+				String query = "MATCH (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User {id : {userId}}) "
+						+ "WHERE s.id IN {structures} " + "RETURN count(*) > 0 as exists ";
+				JsonObject params = new JsonObject()
+						.put("structures", new JsonArray(adminLocal.getScope()))
+						.put("userId", ownerId);
+				Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {
+					@Override
+					public void handle(Message<JsonObject> message) {
+						JsonArray result = message.body().getJsonArray("result");
+						handler.handle("ok".equals(message.body().getString("status")) && result != null
+								&& result.size() == 1 && result.getJsonObject(0).getBoolean("exists", false));
+					}
+				});
 			}
 		});
 	}

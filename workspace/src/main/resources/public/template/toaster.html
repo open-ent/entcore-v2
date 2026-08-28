@@ -37,6 +37,9 @@
 					<i18n>workspace.share</i18n>
 				</button>
 			</resource-right>
+			<button ng-click="openPortalPublishView()" ng-if="canPortalPublish()" class="cell">
+				<i18n>workspace.document.publish</i18n>
+			</button>
 			<resource-right resource="selectedItems()" name="manager">
 				<button ng-click="openRenameView()" ng-if="canRenameFolder()" class="cell">
 					<i18n>workspace.properties</i18n>

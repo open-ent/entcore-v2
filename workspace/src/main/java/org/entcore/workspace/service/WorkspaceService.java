@@ -150,6 +150,15 @@ public interface WorkspaceService extends FolderManager {
 	public void changeVisibility(final JsonArray documentIds, String visibility, final Handler<Message<JsonObject>> handler);
 
 	/**
+	 * Publish or unpublish a single document on the public portal (ADML action), independently
+	 * of the {@link #changeVisibility} flow (which only applies to documents already protected
+	 * or public). Sets/unsets the same "public" flag served anonymously by getPublicDocument,
+	 * plus a "portalPublication" audit sub-document (who/when) distinct from the access check.
+	 */
+	public void setPortalPublication(final String documentId, final UserInfos admin, final boolean publish,
+			final Handler<Either<String, JsonObject>> handler);
+
+	/**
 	 * Transfer file documents to protected or public space.
 	 * @param sourceIds List of documents id
 	 * @param application Optional application code

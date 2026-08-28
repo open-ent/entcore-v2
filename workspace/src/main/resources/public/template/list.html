@@ -84,6 +84,7 @@
 					<div class="twelve cell">
 						<i class="[[document.role()]]"></i>
 						<i ng-if="document.isShared && isSearchResult()" class="shared"></i>
+						<i ng-if="document.portalPublication" class="published"></i>
 					</div>
 				</td>
 				<td class="content"><a ng-click="viewFile(document)">[[document.name]]</a><em class="tag">[[document.metadata.extension]]</em></td>

@@ -4,9 +4,10 @@ import { ActionCreateDelegate, CreateDelegateScope } from "./create";
 import { ActionShareDelegate, ShareDelegateScope } from "./share";
 import { ActionCopyDelegate, ActionCopyDelegateScope } from "./copy";
 import { ActionTrashScope, ActionTrashDelegate } from "./trash";
+import { ActionPortalPublishDelegate, PortalPublishDelegateScope } from "./portalPublish";
 
 
-export interface ActionDelegateScope extends RenameDelegateScope, CreateDelegateScope, ShareDelegateScope, ActionCopyDelegateScope, ActionTrashScope {
+export interface ActionDelegateScope extends RenameDelegateScope, CreateDelegateScope, ShareDelegateScope, ActionCopyDelegateScope, ActionTrashScope, PortalPublishDelegateScope {
     //from others
     display: { nbFiles: number, importFiles?: boolean, editedImage?: models.Element, editImage?: boolean }
     currentTree: models.ElementTree;
@@ -34,6 +35,7 @@ export function ActionDelegate($scope: ActionDelegateScope) {
     ActionShareDelegate($scope);
     ActionCopyDelegate($scope)
     ActionTrashDelegate($scope)
+    ActionPortalPublishDelegate($scope)
 
     /**
      * Edit Image

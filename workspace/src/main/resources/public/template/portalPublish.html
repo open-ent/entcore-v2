@@ -1,0 +1,35 @@
+<div class="row">
+	<div class="twelve cell">
+		<h2><i18n>workspace.document.publish</i18n></h2>
+
+		<div class="row" ng-if="!isPortalPublished()">
+			<p><i18n>workspace.document.publish.description</i18n></p>
+		</div>
+
+		<div class="row" ng-if="isPortalPublished()">
+			<p><i18n>workspace.document.publish.published</i18n></p>
+			<div class="row">
+				<input type="text" readonly class="twelve" ng-value="portalPublishUrl" onclick="this.select()"
+					id="portalPublishUrlField" />
+				<button type="button" ng-click="document.execCommand('copy')"
+					ng-mousedown="document.getElementById('portalPublishUrlField').select()">
+					<i18n>copy</i18n>
+				</button>
+			</div>
+		</div>
+
+		<div class="lightbox-buttons fluid">
+			<button type="button" class="right-magnet" ng-if="!isPortalPublished()"
+				ng-click="portalPublish()" ng-disabled="portalPublishLoading">
+				<i18n>workspace.document.publish</i18n>
+			</button>
+			<button type="button" class="right-magnet" ng-if="isPortalPublished()"
+				ng-click="portalUnpublish()" ng-disabled="portalPublishLoading">
+				<i18n>workspace.document.publish.remove</i18n>
+			</button>
+			<button type="button" class="cancel right-magnet" ng-click="closePortalPublishView()">
+				<i18n>cancel</i18n>
+			</button>
+		</div>
+	</div>
+</div>

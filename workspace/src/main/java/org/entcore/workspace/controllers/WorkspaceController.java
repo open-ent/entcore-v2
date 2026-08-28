@@ -1122,6 +1122,47 @@ public class WorkspaceController extends BaseController {
 		getFile(request, null, true);
 	}
 
+	@Put("/document/:id/portal-publish")
+	@SecuredAction(value = "workspace.document.publish", type = ActionType.RESOURCE)
+	public void portalPublish(final HttpServerRequest request) {
+		setPortalPublication(request, true);
+	}
+
+	@Delete("/document/:id/portal-publish")
+	@SecuredAction(value = "workspace.document.publish", type = ActionType.RESOURCE)
+	public void portalUnpublish(final HttpServerRequest request) {
+		setPortalPublication(request, false);
+	}
+
+	private void setPortalPublication(final HttpServerRequest request, final boolean publish) {
+		final String id = request.params().get("id");
+		if (id == null || id.trim().isEmpty()) {
+			badRequest(request);
+			return;
+		}
+		UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
+			@Override
+			public void handle(UserInfos userInfos) {
+				if (userInfos == null) {
+					unauthorized(request);
+					return;
+				}
+				workspaceService.setPortalPublication(id, userInfos, publish, new Handler<Either<String, JsonObject>>() {
+					@Override
+					public void handle(Either<String, JsonObject> event) {
+						if (event.isLeft()) {
+							notFound(request);
+							return;
+						}
+						renderJson(request, new JsonObject()
+								.put("public", publish)
+								.put("url", publish ? "/workspace/pub/document/" + id : null));
+					}
+				});
+			}
+		});
+	}
+
 	@Get("/document/:id/revision/:revisionId")
 	@SecuredAction(value = "workspace.read", type = ActionType.RESOURCE)
 	public void getRevision(HttpServerRequest request) {

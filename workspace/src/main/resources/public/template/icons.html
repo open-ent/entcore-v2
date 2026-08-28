@@ -93,6 +93,7 @@
 				</a>
 
 				<i ng-if="document.isShared && isSearchResult()" class="shared inline"></i>
+				<i ng-if="document.portalPublication" class="published inline"></i>
 				<legend class="no-2d">
 					<a>
 						<span class="badge" ng-if="canShowBadgeComments(document)" translate  attr="title" title="comments" ng-click="showComments(document, $event)">[[document.comments.length]]</span>

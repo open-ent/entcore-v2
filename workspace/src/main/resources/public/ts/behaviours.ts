@@ -50,6 +50,9 @@ Behaviours.register('workspace', {
 			},
 			manager: {
 				right: 'org-entcore-workspace-controllers-WorkspaceController|shareJson'
+			},
+			publish: {
+				right: 'org-entcore-workspace-controllers-WorkspaceController|portalPublish'
 			}
 		},
 		workflow: {
