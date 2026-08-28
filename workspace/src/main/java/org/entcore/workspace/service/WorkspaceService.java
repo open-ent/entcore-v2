@@ -159,6 +159,14 @@ public interface WorkspaceService extends FolderManager {
 			final Handler<Either<String, JsonObject>> handler);
 
 	/**
+	 * List documents published on the public portal by users of a given structure. Anonymous,
+	 * like {@code getPublicDocument} : these documents are already served without authentication,
+	 * so listing "which ones exist for this structure" carries no more exposure than reading one
+	 * by id already does.
+	 */
+	public void listPortalPublications(final String structureId, final Handler<Either<String, JsonArray>> handler);
+
+	/**
 	 * Transfer file documents to protected or public space.
 	 * @param sourceIds List of documents id
 	 * @param application Optional application code

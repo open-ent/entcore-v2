@@ -728,6 +728,60 @@ public class DefaultWorkspaceService extends FolderManagerWithQuota implements W
 	}
 
 	@Override
+	public void listPortalPublications(final String structureId, final Handler<Either<String, JsonArray>> handler) {
+		if (structureId == null || structureId.trim().isEmpty()) {
+			handler.handle(new Either.Right<String, JsonArray>(new JsonArray()));
+			return;
+		}
+		final String query = "MATCH (s:Structure {id:{structureId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) "
+				+ "RETURN distinct u.id as id";
+		final JsonObject params = new JsonObject().put("structureId", structureId);
+		org.entcore.common.neo4j.Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {
+			@Override
+			public void handle(Message<JsonObject> message) {
+				final JsonArray rows = message.body().getJsonArray("result");
+				if (!"ok".equals(message.body().getString("status")) || rows == null || rows.isEmpty()) {
+					handler.handle(new Either.Right<String, JsonArray>(new JsonArray()));
+					return;
+				}
+				final List<String> ownerIds = new ArrayList<>();
+				for (Object row : rows) {
+					ownerIds.add(((JsonObject) row).getString("id"));
+				}
+				final Bson filter = Filters.and(
+						Filters.in("owner", ownerIds),
+						Filters.eq("public", true),
+						Filters.exists("portalPublication", true));
+				final JsonObject sort = new JsonObject().put("portalPublication.publishedAt", -1);
+				final JsonObject keys = new JsonObject()
+						.put("name", 1).put("owner", 1).put("ownerName", 1)
+						.put("metadata", 1).put("portalPublication", 1);
+				mongo.find(DocumentDao.DOCUMENTS_COLLECTION, MongoQueryBuilder.build(filter), sort, keys,
+						new Handler<Message<JsonObject>>() {
+					@Override
+					public void handle(Message<JsonObject> res) {
+						MongoDbResult.validResultsHandler(new Handler<Either<String, JsonArray>>() {
+							@Override
+							public void handle(Either<String, JsonArray> event) {
+								if (event.isLeft()) {
+									handler.handle(event);
+									return;
+								}
+								final JsonArray docs = event.right().getValue();
+								for (Object o : docs) {
+									final JsonObject doc = (JsonObject) o;
+									doc.put("url", "/workspace/pub/document/" + doc.getString("_id"));
+								}
+								handler.handle(new Either.Right<String, JsonArray>(docs));
+							}
+						}).handle(res);
+					}
+				});
+			}
+		});
+	}
+
+	@Override
 	public Future<JsonArray> transferAll(
 			final List<String> sourceIds,
 			Optional<String> application,

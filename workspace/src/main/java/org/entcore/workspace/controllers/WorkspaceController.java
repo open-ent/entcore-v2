@@ -1122,6 +1122,12 @@ public class WorkspaceController extends BaseController {
 		getFile(request, null, true);
 	}
 
+	@Get("/pub/structure/:structureId/documents")
+	public void listPortalPublications(final HttpServerRequest request) {
+		final String structureId = request.params().get("structureId");
+		workspaceService.listPortalPublications(structureId, arrayResponseHandler(request));
+	}
+
 	@Put("/document/:id/portal-publish")
 	@SecuredAction(value = "workspace.document.publish", type = ActionType.RESOURCE)
 	public void portalPublish(final HttpServerRequest request) {
