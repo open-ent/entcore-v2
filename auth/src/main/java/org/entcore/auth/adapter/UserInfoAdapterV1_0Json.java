@@ -23,6 +23,7 @@ package org.entcore.auth.adapter;
 import fr.wseduc.webutils.Utils;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import org.entcore.common.user.DefaultFunctions;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,6 +83,12 @@ public class UserInfoAdapterV1_0Json implements UserInfoAdapter {
 			if (structureNames != null && structureNames.size() > 0) {
 				filteredInfos.put("schoolName", structureNames.getString(0));
 			}
+			// Expose uniquement un indicateur booléen dérivé des fonctions ENT (pas les
+			// fonctions elles-mêmes ni leurs scopes de structure) : un client OAuth2 tiers
+			// (ex. connecteur WordPress) peut ainsi accorder des droits élevés à un vrai
+			// super administrateur ENT sans qu'on lui expose le détail des habilitations.
+			JsonObject functions = info.getJsonObject("functions");
+			filteredInfos.put("superAdmin", functions != null && functions.containsKey(DefaultFunctions.SUPER_ADMIN));
 			filteredInfos.remove("functions");
 			filteredInfos.remove("groupsIds");
 			filteredInfos.remove("structures");
