@@ -83,12 +83,27 @@ public class UserInfoAdapterV1_0Json implements UserInfoAdapter {
 			if (structureNames != null && structureNames.size() > 0) {
 				filteredInfos.put("schoolName", structureNames.getString(0));
 			}
-			// Expose uniquement un indicateur booléen dérivé des fonctions ENT (pas les
-			// fonctions elles-mêmes ni leurs scopes de structure) : un client OAuth2 tiers
-			// (ex. connecteur WordPress) peut ainsi accorder des droits élevés à un vrai
-			// super administrateur ENT sans qu'on lui expose le détail des habilitations.
+			// Expose un indicateur booléen dérivé des fonctions ENT (pas les fonctions
+			// elles-mêmes) : un client OAuth2 tiers (ex. connecteur WordPress) peut ainsi
+			// accorder des droits élevés à un vrai super administrateur ENT sans qu'on lui
+			// expose le détail des habilitations.
 			JsonObject functions = info.getJsonObject("functions");
 			filteredInfos.put("superAdmin", functions != null && functions.containsKey(DefaultFunctions.SUPER_ADMIN));
+			// Périmètre ADMIN_LOCAL (déjà résolu avec héritage aux structures rattachées par
+			// AuthManager, cf. HAS_FUNCTION/HAS_ATTACHMENT) : seule la LISTE d'identifiants de
+			// structure est exposée, pas la fonction elle-même ni son libellé. Permet à un
+			// client OAuth2 tiers de vérifier qu'un établissement précis (le sien) fait partie
+			// du périmètre administré par l'appelant, sans lui faire confiance sur un id fourni
+			// côté client — nécessaire notamment pour un référent territorial (ADMIN_LOCAL
+			// hérité sur une structure de tête + ADMIN_COLLECTIVITE) qui administre plusieurs
+			// établissements sans être super admin.
+			JsonArray adminLocalScope = new JsonArray();
+			if (functions != null) {
+				JsonObject adminLocal = functions.getJsonObject(DefaultFunctions.ADMIN_LOCAL);
+				JsonArray scope = adminLocal != null ? adminLocal.getJsonArray("scope") : null;
+				if (scope != null) adminLocalScope = scope;
+			}
+			filteredInfos.put("adminLocalStructures", adminLocalScope);
 			filteredInfos.remove("functions");
 			filteredInfos.remove("groupsIds");
 			filteredInfos.remove("structures");
