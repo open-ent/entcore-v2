@@ -132,7 +132,12 @@ public class AuthController extends BaseController {
 	private Set<String> clientIdsAuthorized = new HashSet();
 
 	public enum AuthEvent {
-		ACTIVATION, LOGIN, SMS
+		ACTIVATION, LOGIN, SMS,
+		// Tentative de connexion refusée (mot de passe erroné, compte/profil bloqué, OTP expiré…) sur
+		// un compte existant — alimente le journal « Tentatives de connexion » du dashboard
+		// d'administration (dashboard/admin/audit), en complément du blocage temporaire "logban" côté
+		// Redis (éphémère, cf. OAuthDataHandler#incrBanAuthentication) qui, lui, ne garde pas d'historique.
+		LOGIN_FAILURE
 	}
 	public static final String CREATE_SESSION_ADRESS = "auth.createSession";
 

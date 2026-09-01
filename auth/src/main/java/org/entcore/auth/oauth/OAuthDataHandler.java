@@ -71,6 +71,10 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	private static final String AUTH_ERROR_BAN = "auth.error.ban";
 	private static final String LOGIN_BAN_KEY = "logban:";
 	private static final String LOGIN_BAN_IP_KEY = "logbanip:";
+	// Miroir de AuthController.AuthEvent.LOGIN_FAILURE.name() (mêmes constantes dupliquées entre les
+	// deux classes que LOGIN_BAN_KEY ci-dessus) : persiste chaque tentative refusée dans la collection
+	// Mongo "events", à la différence du logban Redis qui expire et ne garde aucun historique.
+	private static final String LOGIN_FAILURE_EVENT = "LOGIN_FAILURE";
 	private static final Long OTP_DELAY = 600000L;
 	private final Neo4j neo;
 	private final MongoDb mongo;
@@ -213,6 +217,15 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	}
 
 	private void incrBanAuthentication(String username) {
+		// Journal persistant (Mongo, via EventStore) des tentatives refusées sur un compte existant —
+		// résolution du userId par login faite par EventStore lui-même ; une tentative sur un login
+		// inconnu (énumération) n'est pas journalisée ici, seul l'objectif « suivre les tentatives sur
+		// les comptes » est couvert, pas la détection d'énumération. Pas d'IP/UA sur cet événement :
+		// getRequest() ici renvoie le Request minimal de jp.eisbahn.oauth2 (get/getParameter/getHeader
+		// uniquement), pas un HttpServerRequest Vert.x — les seules surcharges d'EventStore qui
+		// acceptent un login sans passer par une UserInfos exigent ce type précis. L'IP reste
+		// disponible en temps réel via le blocage logban (logbanip:), cf. /admin/login-bans.
+		eventStore.createAndStoreEvent(LOGIN_FAILURE_EVENT, username);
 		if (redisClient != null) {
 			redisClient.getClient().lpush(newArrayList(LOGIN_BAN_KEY + username, Long.toString(System.currentTimeMillis()))).onComplete(ar -> {
 				if (ar.succeeded()) {
