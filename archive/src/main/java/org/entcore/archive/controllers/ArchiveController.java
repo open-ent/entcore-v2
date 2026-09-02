@@ -38,6 +38,7 @@ import org.entcore.archive.services.ExportService;
 import org.entcore.archive.services.StructureExportService;
 import org.entcore.archive.services.impl.DefaultStructureExportService;
 import org.entcore.archive.services.impl.FileSystemExportService;
+import org.entcore.archive.filters.StructureExportFilter;
 import org.entcore.common.email.EmailFactory;
 import org.entcore.common.events.EventStore;
 import org.entcore.common.events.EventStoreFactory;
@@ -46,6 +47,7 @@ import org.entcore.common.http.filter.SuperAdminFilter;
 import org.entcore.common.http.request.JsonHttpServerRequest;
 import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.storage.Storage;
+import org.entcore.common.user.DefaultFunctions;
 import org.entcore.common.user.UserUtils;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
@@ -107,6 +109,9 @@ public class ArchiveController extends BaseController {
 		structureExportService = new DefaultStructureExportService(vertx, storage, exportPath, signKey,
 				forceEncryption, config.getJsonObject("module-versions", new JsonObject()),
 				config.getInteger("max-users-per-batch", 200), config.getBoolean("local-state", false));
+		// StructureExportFilter doit résoudre structureId à partir d'un batchId (statut/téléchargement/
+		// suppression d'un lot) pour autoriser les comptes ADMIN_COLLECTIVITE scopés.
+		StructureExportFilter.setStructureExportService(structureExportService);
 
 		Long periodicUserClear = config.getLong("periodicUserClear");
 
@@ -520,16 +525,20 @@ public class ArchiveController extends BaseController {
 		}
 	}
 
-	// ─── Sauvegarde d'un établissement (super-admin) ─────────────────────────────
+	// ─── Sauvegarde d'un établissement (super-admin, ou ADMIN_COLLECTIVITE scopé) ────────────
 	//
 	// entcore n'exporte que par compte : ces routes lancent un export personnel par membre
-	// du groupe choisi et l'assemblent en un lot. Réservées au super-administrateur, avec MFA,
+	// du groupe choisi et l'assemblent en un lot. Réservées au super-administrateur avec MFA,
 	// comme /export/user dont elles partagent le même principe (export « pour un autre compte »
-	// que celui qui appelle).
+	// que celui qui appelle) — voir StructureExportFilter pour le périmètre exact. Un compte
+	// ADMIN_COLLECTIVITE (techniciens/ouvriers de service, cf. ability.ts dashboard) n'a
+	// vocation à voir aucune donnée pédagogique : ses exports sont restreints à des modules non
+	// pédagogiques, quels que soient les modules proposés par le client.
+	private static final Set<String> NON_PEDAGOGICAL_MODULES = new HashSet<>(Arrays.asList("workspace"));
 
 	@Post("/export/structure")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
-	@ResourceFilter(SuperAdminFilter.class)
+	@ResourceFilter(StructureExportFilter.class)
 	@MfaProtected()
 	public void exportStructure(final HttpServerRequest request)
 	{
@@ -547,6 +556,19 @@ public class ArchiveController extends BaseController {
 				{
 					unauthorized(request);
 					return;
+				}
+				final Map<String, org.entcore.common.user.UserInfos.Function> functions = user.getFunctions();
+				final boolean isSuperAdmin = functions != null && functions.containsKey(DefaultFunctions.SUPER_ADMIN);
+				if (!isSuperAdmin)
+				{
+					for (Object app : apps)
+					{
+						if (!NON_PEDAGOGICAL_MODULES.contains(String.valueOf(app)))
+						{
+							forbidden(request, "structure.export.module.not.allowed");
+							return;
+						}
+					}
 				}
 				structureExportService.launch(user, structureId, groupId, apps,
 						body.getBoolean("exportDocuments", true),
@@ -580,7 +602,7 @@ public class ArchiveController extends BaseController {
 
 	@Get("/export/structure/:batchId/status")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
-	@ResourceFilter(SuperAdminFilter.class)
+	@ResourceFilter(StructureExportFilter.class)
 	@MfaProtected()
 	public void structureExportStatus(final HttpServerRequest request)
 	{
@@ -595,7 +617,7 @@ public class ArchiveController extends BaseController {
 
 	@Get("/export/structure/:batchId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
-	@ResourceFilter(SuperAdminFilter.class)
+	@ResourceFilter(StructureExportFilter.class)
 	@MfaProtected()
 	public void downloadStructureExport(final HttpServerRequest request)
 	{
@@ -618,7 +640,7 @@ public class ArchiveController extends BaseController {
 
 	@Delete("/export/structure/:batchId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
-	@ResourceFilter(SuperAdminFilter.class)
+	@ResourceFilter(StructureExportFilter.class)
 	@MfaProtected()
 	public void deleteStructureExport(final HttpServerRequest request)
 	{
