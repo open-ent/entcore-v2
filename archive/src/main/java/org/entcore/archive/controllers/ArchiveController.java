@@ -35,6 +35,8 @@ import io.vertx.core.Future;
 import io.vertx.core.eventbus.MessageConsumer;
 import org.entcore.archive.Archive;
 import org.entcore.archive.services.ExportService;
+import org.entcore.archive.services.StructureExportService;
+import org.entcore.archive.services.impl.DefaultStructureExportService;
 import org.entcore.archive.services.impl.FileSystemExportService;
 import org.entcore.common.email.EmailFactory;
 import org.entcore.common.events.EventStore;
@@ -66,6 +68,7 @@ public class ArchiveController extends BaseController {
 	public static final String SIGNATURE_NAME = "archive.signature";
 
 	private ExportService exportService;
+	private StructureExportService structureExportService;
 	private EventStore eventStore;
 	private Storage storage;
 	private PrivateKey signKey;
@@ -96,6 +99,15 @@ public class ArchiveController extends BaseController {
 				signKey, forceEncryption, config.getJsonObject("module-versions", new JsonObject()), config.getBoolean("local-state", false));
 		eventStore = EventStoreFactory.getFactory().getEventStore(Archive.class.getSimpleName());
 
+		// Sauvegarde d'un établissement (super-admin) : un export personnel standard par compte
+		// du groupe choisi, assemblé en un lot. Un lot resté bloqué (application demandée dont le
+		// module ne répond jamais) est couvert par purgeStuckBatches ci-dessous, pas par un
+		// contrôle des applications au lancement : /archive/export (export personnel standard)
+		// n'en fait pas non plus.
+		structureExportService = new DefaultStructureExportService(vertx, storage, exportPath, signKey,
+				forceEncryption, config.getJsonObject("module-versions", new JsonObject()),
+				config.getInteger("max-users-per-batch", 200), config.getBoolean("local-state", false));
+
 		Long periodicUserClear = config.getLong("periodicUserClear");
 
 		if (periodicUserClear != null)
@@ -119,6 +131,16 @@ public class ArchiveController extends BaseController {
           });
 				}
 			});
+		}
+
+		// Purge des lots de sauvegarde d'établissement restés bloqués (application demandée non
+		// déployée malgré le contrôle au lancement, module tombé pendant le lot…), sur le même
+		// principe que periodicUserClear ci-dessus pour les exports personnels.
+		Long structureExportPurgePeriod = config.getLong("structureExportPurgePeriod");
+		if (structureExportPurgePeriod != null) {
+			vertx.setPeriodic(structureExportPurgePeriod, event ->
+					structureExportService.purgeStuckBatches(config.getLong("structureExportMaxAge", 21600000L))
+							.onFailure(th -> log.error("An error occurred while purging stuck structure export batches", th)));
 		}
 	}
 
@@ -428,13 +450,25 @@ public class ArchiveController extends BaseController {
 				}
 				break;
 			case "exported" :
-				exportService.onExportDone(
-						message.body().getString("exportId"),
-						message.body().getString("status"),
-						message.body().getString("locale", "fr"),
-						message.body().getString("host", config.getString("host", "")),
-                        message.body().getString("app")
-				);
+				// Une réponse "exported" concerne soit un export personnel, soit un compte
+				// d'un lot de sauvegarde d'établissement — distingués par le préfixe de
+				// l'exportId synthétique que StructureExportService.launch() a construit.
+				final String exportedId = message.body().getString("exportId");
+				if (StructureExportService.isBatchExportId(exportedId)) {
+					structureExportService.onAppExportDone(
+							exportedId,
+							message.body().getString("status"),
+							message.body().getString("app")
+					);
+				} else {
+					exportService.onExportDone(
+							exportedId,
+							message.body().getString("status"),
+							message.body().getString("locale", "fr"),
+							message.body().getString("host", config.getString("host", "")),
+							message.body().getString("app")
+					);
+				}
 				break;
 			default: log.error("Archive : invalid action " + action);
 		}
@@ -484,6 +518,114 @@ public class ArchiveController extends BaseController {
 					unauthorized(request);
 			});
 		}
+	}
+
+	// ─── Sauvegarde d'un établissement (super-admin) ─────────────────────────────
+	//
+	// entcore n'exporte que par compte : ces routes lancent un export personnel par membre
+	// du groupe choisi et l'assemblent en un lot. Réservées au super-administrateur, avec MFA,
+	// comme /export/user dont elles partagent le même principe (export « pour un autre compte »
+	// que celui qui appelle).
+
+	@Post("/export/structure")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void exportStructure(final HttpServerRequest request)
+	{
+		RequestUtils.bodyToJson(request, body -> {
+			final String structureId = body.getString("structureId");
+			final String groupId = body.getString("groupId");
+			final JsonArray apps = body.getJsonArray("apps");
+			if (structureId == null || groupId == null || apps == null || apps.isEmpty())
+			{
+				badRequest(request, "structure.export.missing.arguments");
+				return;
+			}
+			UserUtils.getUserInfos(eb, request, user -> {
+				if (user == null)
+				{
+					unauthorized(request);
+					return;
+				}
+				structureExportService.launch(user, structureId, groupId, apps,
+						body.getBoolean("exportDocuments", true),
+						body.getBoolean("exportSharedResources", true),
+						I18n.acceptLanguage(request),
+						request.headers().get("Host"))
+					.onSuccess(batchId -> renderJson(request, new JsonObject()
+							.put("message", "structure.export.in.progress")
+							.put("batchId", batchId)))
+					.onFailure(th -> badRequest(request, th.getMessage()));
+			});
+		});
+	}
+
+	// Chemin à 3 segments (pas "/export/structure") : "/export/:exportId" (téléchargement d'un
+	// export personnel, ci-dessus) a la même forme à 2 segments que "/export/structure" et
+	// l'intercepterait (":exportId" == "structure").
+	@Get("/export/structure/admin/list")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void listStructureExports(final HttpServerRequest request)
+	{
+		structureExportService.getAllBatchesStatus()
+			.onSuccess(list -> renderJson(request, new JsonArray(list)))
+			.onFailure(th -> {
+				log.error("An error occurred while listing structure export batches", th);
+				renderError(request);
+			});
+	}
+
+	@Get("/export/structure/:batchId/status")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void structureExportStatus(final HttpServerRequest request)
+	{
+		final String batchId = request.params().get("batchId");
+		structureExportService.status(batchId)
+			.onSuccess(status -> {
+				if (status == null) notFound(request);
+				else renderJson(request, status);
+			})
+			.onFailure(th -> renderError(request));
+	}
+
+	@Get("/export/structure/:batchId")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void downloadStructureExport(final HttpServerRequest request)
+	{
+		final String batchId = request.params().get("batchId");
+		structureExportService.status(batchId).onSuccess(status -> {
+			if (status == null || !"completed".equals(status.getString("status")))
+			{
+				notFound(request);
+				return;
+			}
+			storage.sendFile(batchId, "etablissement-" + batchId + ".zip", request, false, null,
+					event -> {
+						if (!event.succeeded() && !request.response().ended())
+						{
+							notFound(request);
+						}
+					});
+		}).onFailure(th -> renderError(request));
+	}
+
+	@Delete("/export/structure/:batchId")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void deleteStructureExport(final HttpServerRequest request)
+	{
+		final String batchId = request.params().get("batchId");
+		structureExportService.deleteBatch(batchId)
+			.onSuccess(v -> Renders.ok(request))
+			.onFailure(th -> renderError(request));
 	}
 
 }
