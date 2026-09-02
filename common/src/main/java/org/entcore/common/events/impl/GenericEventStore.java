@@ -53,8 +53,12 @@ import io.vertx.json.schema.*;
 public abstract class GenericEventStore implements EventStore {
 
 	// matches health-check clients that hit modules directly (bypassing the ingress),
-	// e.g. kube-probe/1.25 for kubelet liveness/readiness probes
-	private static final Pattern PROBE_USER_AGENT = Pattern.compile("^(kube-probe|GoogleHC)/.*", Pattern.CASE_INSENSITIVE);
+	// e.g. kube-probe/1.25 for kubelet liveness/readiness probes.
+	// Keep in sync with the audit maintenance endpoint (open-ent
+	// AuditMaintenanceResource) and the dashboard audit route (logs.ts), which
+	// filter already-stored events with the very same pattern.
+	private static final Pattern PROBE_USER_AGENT =
+			Pattern.compile("^(kube-probe|GoogleHC|ELB-HealthChecker)/.*", Pattern.CASE_INSENSITIVE);
 
 	protected String module;
 	protected EventBus eventBus;
