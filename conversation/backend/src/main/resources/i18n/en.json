@@ -105,6 +105,8 @@
   "exercice.create.description": "Simplify your life by using Exercises to distribute activities. Schedule your activities, benefit from easier tracking and automatic reminders for students.",
   "exercice.create.details": "Why are you receiving this suggestion?",
   "exercice.create.stop": "This is not a homework",
+  "file.infected": "This file was rejected: the antivirus detected malicious content in it.",
+  "file.not.scanned": "This file was rejected: the antivirus scan could not complete. Please try again later.",
   "file.too.large": "Storage quota: insufficient available space.",
   "filter": "Filter",
   "filter.read": "Read messages",

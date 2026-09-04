@@ -665,6 +665,8 @@
   "explorer.tree.trash": "Bin",
   "file.heavy": "Heavy file",
   "file.light": "Light file",
+  "file.infected": "This file was rejected: the antivirus detected malicious content in it.",
+  "file.not.scanned": "This file was rejected: the antivirus scan could not complete. Please try again later.",
   "file.too.large": "Insufficient space to store the file.",
   "file.viewer.download": "Download file",
   "filename": "Filename",

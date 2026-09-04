@@ -665,6 +665,8 @@
   "explorer.tree.trash": "Corbeille",
   "file.heavy": "Fichier lourd",
   "file.light": "Fichier léger",
+  "file.infected": "Ce fichier a été refusé : l'antivirus y a détecté un contenu malveillant.",
+  "file.not.scanned": "Ce fichier a été refusé : l'analyse antivirus n'a pas pu aboutir. Merci de réessayer plus tard.",
   "file.too.large": "Espace insuffisant pour stocker le fichier.",
   "file.viewer.download": "Télécharger le fichier",
   "filename": "Nom du fichier",

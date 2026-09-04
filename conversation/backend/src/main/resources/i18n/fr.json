@@ -104,6 +104,8 @@
   "exercice.create.description": "Simplifiez-vous la vie en utilisant Exercices pour distribuer les activités. Programmez vos activités, bénéficiez d’un suivi plus simple et de rappels automatiques aux élèves.",
   "exercice.create.details": "Pourquoi recevez-vous cette suggestion ?",
   "exercice.create.stop": "Ce n'est pas un devoir",
+  "file.infected": "Ce fichier a été refusé : l'antivirus y a détecté un contenu malveillant.",
+  "file.not.scanned": "Ce fichier a été refusé : l'analyse antivirus n'a pas pu aboutir. Merci de réessayer plus tard.",
   "file.too.large": "Quota de stockage : espace disponible insuffisant.",
   "filter": "Filtrer",
   "filter.read": "Messages lu",

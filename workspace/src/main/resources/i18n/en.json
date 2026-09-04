@@ -29,6 +29,8 @@
   "error.user.info": "Error retrieving user information",
   "extension.forbidden": "This file type is not allowed (extension blocked by your school).",
   "externalDocs": "My interactive resources",
+  "file.infected": "This file was rejected: the antivirus detected malicious content in it.",
+  "file.not.scanned": "This file was rejected: the antivirus scan could not complete. Please try again later.",
   "file.too.large": "Not enough space to store the file.",
   "file.too.large.limit": "File(s) too large. Maximum allowed size: ",
   "file.too.large.max": "Not enough space to store the file(s). Remaining space: ",

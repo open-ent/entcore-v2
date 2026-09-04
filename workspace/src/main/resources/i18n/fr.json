@@ -29,6 +29,8 @@
   "error.user.info": "Erreur lors de la récupération des informations utilisateur",
   "extension.forbidden": "Ce type de fichier n'est pas autorisé (extension bloquée par votre établissement).",
   "externalDocs": "Mes ressources interactives",
+  "file.infected": "Ce fichier a été refusé : l'antivirus y a détecté un contenu malveillant.",
+  "file.not.scanned": "Ce fichier a été refusé : l'analyse antivirus n'a pas pu aboutir. Merci de réessayer plus tard.",
   "file.too.large": "Espace insuffisant pour stocker le fichier",
   "file.too.large.limit": "Fichier(s) trop volumineux. Taille maximum autorisée : ",
   "file.too.large.max": "Espace insuffisant pour stocker le(s) fichier(s). Espace restant : ",
