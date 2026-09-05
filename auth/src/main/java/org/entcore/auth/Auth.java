@@ -41,6 +41,7 @@ import org.entcore.auth.security.SamlHelper;
 import org.entcore.auth.security.SamlValidator;
 import org.entcore.auth.services.MfaService;
 import org.entcore.auth.services.OpenIdConnectService;
+import org.entcore.auth.security.PasswordPolicy;
 import org.entcore.auth.services.SafeRedirectionService;
 import org.entcore.auth.services.impl.*;
 import org.entcore.auth.users.AuthRepositoryEvents;
@@ -90,6 +91,9 @@ public class Auth extends BaseServer {
 		final UserAuthAccount userAuthAccount = new DefaultUserAuthAccount(vertx, config, eventStore, authMap);
 		SafeRedirectionService.getInstance().init(vertx, config.getJsonObject("safeRedirect", new JsonObject()),
 				(JsonObject) authMap.get("skins"));
+		// Règle de robustesse des mots de passe, résolue par thème (1er / 2nd degré). Initialisée
+		// ici, avant le service de comptes qui s'en sert pour les mots de passe provisoires.
+		PasswordPolicy.init(config, (JsonObject) authMap.get("skins"));
 
 		SmsSenderFactory.getInstance().init(vertx, config);
 		UserValidationFactory.getFactory().setEventStore(eventStore, AuthEvent.SMS.name());

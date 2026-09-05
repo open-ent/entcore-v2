@@ -39,7 +39,10 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.collections4.CollectionUtils;
+import java.util.regex.Pattern;
+
 import org.entcore.auth.pojo.SendPasswordDestination;
+import org.entcore.auth.security.PasswordPolicy;
 import org.entcore.common.email.EmailFactory;
 import org.entcore.common.events.EventStore;
 import org.entcore.common.http.renders.TemplatedEmailRenders;
@@ -1158,7 +1161,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	public void resetPasswordToTempValue(final String login, final int length, final HttpServerRequest request,
 			final Handler<Either<String, JsonObject>> handler) {
 		final int safeLength = length >= 6 ? length : 6;
-		final String tempPassword = generateValidTempPassword(safeLength);
+		final String tempPassword = generateValidTempPassword(safeLength, request);
 		final String query =
 				"MATCH (n:User) " +
 				"WHERE n.login={login} AND NOT(n.password IS NULL) " +
@@ -1190,15 +1193,22 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	}
 
 	/**
-	 * Generates a kid-friendly temporary password (lowercase letters without ambiguous chars + digits 3-9)
-	 * that satisfies the configured passwordRegex when one is set.
+	 * Génère un mot de passe provisoire lisible par un enfant (minuscules sans caractères
+	 * ambigus + chiffres 3-9) qui satisfait la règle de robustesse <b>du thème d'où vient la
+	 * demande</b> (cf. {@link org.entcore.auth.security.PasswordPolicy}).
+	 *
+	 * <p>Le thème compte : ce parcours est celui du premier degré, dont la règle est plus
+	 * courte que celle du second. Valider le mot de passe provisoire contre la règle par défaut
+	 * ferait échouer les 50 tentatives puis livrerait un mot de passe que l'élève ne pourrait
+	 * pas ressaisir au premier changement imposé.
 	 */
-	private String generateValidTempPassword(final int length) {
-		final String regex = config.getString("passwordRegex");
+	private String generateValidTempPassword(final int length, final HttpServerRequest request) {
+		final PasswordPolicy policy = PasswordPolicy.getInstance();
+		final Pattern pattern = policy != null ? policy.patternFor(request) : null;
 		String candidate = StringValidation.generateRandomCode(length);
-		if (regex != null && !regex.trim().isEmpty() && !".*".equals(regex.trim())) {
+		if (pattern != null) {
 			int attempts = 0;
-			while (!candidate.matches(regex) && attempts < 50) {
+			while (!pattern.matcher(candidate).matches() && attempts < 50) {
 				candidate = StringValidation.generateRandomCode(length);
 				attempts++;
 			}

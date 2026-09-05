@@ -69,6 +69,7 @@ import org.entcore.auth.oauth.HttpServerRequestAdapter;
 import org.entcore.auth.oauth.JsonRequestAdapter;
 import org.entcore.auth.oauth.OAuthDataHandler;
 import org.entcore.auth.pojo.SendPasswordDestination;
+import org.entcore.auth.security.PasswordPolicy;
 import org.entcore.auth.services.MfaService;
 import org.entcore.auth.services.SafeRedirectionService;
 import org.entcore.auth.services.impl.OpenIdSloServiceImpl;
@@ -103,7 +104,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static fr.wseduc.webutils.Utils.*;
@@ -141,7 +141,7 @@ public class AuthController extends BaseController {
 	}
 	public static final String CREATE_SESSION_ADRESS = "auth.createSession";
 
-	private Pattern passwordPattern;
+	private PasswordPolicy passwordPolicy;
 	private String smsProvider;
 	private boolean slo;
 	private List<String> internalAddress;
@@ -173,7 +173,14 @@ public class AuthController extends BaseController {
 		protectedResource = new ProtectedResource();
 		protectedResource.setDataHandlerFactory(oauthDataFactory);
 		protectedResource.setAccessTokenFetcherProvider(accessTokenFetcherProvider);
-		passwordPattern = Pattern.compile(config.getString("passwordRegex", ".{8}.*"));
+		// La règle de robustesse dépend du thème servi (1er / 2nd degré) : elle est résolue à
+		// chaque requête à partir de la table "skins", cf. PasswordPolicy. Normalement déjà
+		// initialisée par le verticle Auth ; le repli couvre les tests qui montent le seul
+		// contrôleur.
+		if (PasswordPolicy.getInstance() == null) {
+			PasswordPolicy.init(config, (JsonObject) (server != null ? server.get("skins") : null));
+		}
+		passwordPolicy = PasswordPolicy.getInstance();
 		JsonArray authorizedSessions = getOrElse(config.getJsonArray("authorize-mobile-session"), new JsonArray());
 		authorizedSessions.forEach(session -> clientIdsAuthorized.add((String) session));
 		if (server != null && server.get("smsProvider") != null)
@@ -646,7 +653,7 @@ public class AuthController extends BaseController {
 		final JsonObject context = new JsonObject();
 		context.put("callBack", config.getJsonObject("authenticationServer").getString("loginCallback"));
 		context.put("cgu", config.getBoolean("cgu", true));
-		context.put("passwordRegex", passwordPattern.toString());
+		context.put("passwordRegex", passwordPolicy.regexFor(request));
 		context.put("mandatory", config.getJsonObject("mandatory", new JsonObject()));
 		// Human-readable password format :
 		final I18n i18n = I18n.getInstance();
@@ -1311,7 +1318,7 @@ public class AuthController extends BaseController {
 						if (!password.equals(confirmPassword)) {
 							validationErrors.add("auth.activation.error.password.mismatch");
 						}
-						if (!passwordPattern.matcher(password).matches()) {
+						if (!passwordPolicy.patternFor(request).matcher(password).matches()) {
 							validationErrors.add("auth.activation.error.password.format");
 						}
 					}
@@ -2157,7 +2164,8 @@ public class AuthController extends BaseController {
 						|| ((resetCode == null || resetCode.trim().isEmpty())
 						&& (oldPassword == null || oldPassword.trim().isEmpty() || oldPassword.equals(password)))
 						|| password == null || login.trim().isEmpty() || password.trim().isEmpty()
-						|| !password.equals(confirmPassword) || !passwordPattern.matcher(password).matches()) {
+						|| !password.equals(confirmPassword)
+						|| !passwordPolicy.patternFor(request).matcher(password).matches()) {
 					trace.info(getIp(request) + " - Erreur lors de la réinitialisation " + "du mot de passe de l'utilisateur " + login + " - Referer " + request.headers().get("Referer"));
 					JsonObject error = new JsonObject().put("error", new JsonObject().put("message", I18n.getInstance()
 							.translate("auth.reset.invalid.argument", getHost(request), I18n.acceptLanguage(request))));
