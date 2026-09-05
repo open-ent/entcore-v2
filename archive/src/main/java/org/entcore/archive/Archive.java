@@ -37,6 +37,7 @@ import org.entcore.archive.services.ImportService;
 import org.entcore.archive.services.RepriseService;
 import org.entcore.archive.services.impl.DefaultImportService;
 import org.entcore.archive.services.impl.DefaultRepriseService;
+import org.entcore.archive.services.impl.DefaultStructureImportService;
 import org.entcore.archive.services.impl.DeleteOldArchives;
 import org.entcore.common.http.BaseServer;
 import org.entcore.common.storage.Storage;
@@ -88,6 +89,12 @@ public class Archive extends BaseServer {
 		ImportService importService = new DefaultImportService(vertx, config, storage, importPath, null, verifyKey, forceEncryption);
 
 		ArchiveController ac = new ArchiveController(storage, signKey, forceEncryption);
+		// Restauration groupée : rejoue l'import personnel, compte par compte, à destination du
+		// compte d'origine. Elle réutilise l'ImportService ci-dessus — c'est lui qui sait déjà
+		// importer « pour quelqu'un d'autre » (même chemin que la reprise de plate-forme).
+		ac.setStructureImportService(new DefaultStructureImportService(vertx, importService, config,
+				importPath, config.getInteger("max-users-per-batch", 200),
+				config.getBoolean("local-state", false)));
 		ImportController ic = new ImportController(importService, storage);
 		DuplicationController dc = new DuplicationController(vertx, storage, importPath, signKey, verifyKey, forceEncryption);
 

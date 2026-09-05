@@ -36,6 +36,7 @@ import io.vertx.core.eventbus.MessageConsumer;
 import org.entcore.archive.Archive;
 import org.entcore.archive.services.ExportService;
 import org.entcore.archive.services.StructureExportService;
+import org.entcore.archive.services.StructureImportService;
 import org.entcore.archive.services.impl.DefaultStructureExportService;
 import org.entcore.archive.services.impl.FileSystemExportService;
 import org.entcore.archive.filters.StructureExportFilter;
@@ -71,6 +72,16 @@ public class ArchiveController extends BaseController {
 
 	private ExportService exportService;
 	private StructureExportService structureExportService;
+	/**
+	 * Restauration groupée. Construit par le verticle {@link org.entcore.archive.Archive}, seul
+	 * endroit où l'{@code ImportService} existe déjà : la restauration s'appuie dessus plutôt que
+	 * de refaire un import à elle.
+	 */
+	private StructureImportService structureImportService;
+
+	public void setStructureImportService(StructureImportService structureImportService) {
+		this.structureImportService = structureImportService;
+	}
 	private EventStore eventStore;
 	private Storage storage;
 	private PrivateKey signKey;
@@ -648,6 +659,104 @@ public class ArchiveController extends BaseController {
 		structureExportService.deleteBatch(batchId)
 			.onSuccess(v -> Renders.ok(request))
 			.onFailure(th -> renderError(request));
+	}
+
+
+	// ─── Restauration groupée (lot d'établissement) ───────────────────────────
+	// Symétrique de /export/structure. Réservé au super-administrateur : contrairement à
+	// l'export, la restauration ÉCRIT dans les comptes d'autres personnes — ce n'est pas un
+	// pouvoir qui se délègue à un périmètre d'établissement.
+
+	/** Dépose le .zip d'un lot. Répond l'identifiant de restauration, à analyser ensuite. */
+	@Post("/import/structure/upload")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void uploadStructureImport(final HttpServerRequest request)
+	{
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null) { unauthorized(request); return; }
+			structureImportService.uploadBatch(request, user, res -> {
+				if (res.isLeft()) {
+					badRequest(request, res.left().getValue());
+				} else {
+					renderJson(request, new JsonObject().put("restoreId", res.right().getValue()));
+				}
+			});
+		});
+	}
+
+	/** Inventaire du lot, compte par compte, sans rien restaurer. */
+	@Get("/import/structure/:restoreId/analyze")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void analyzeStructureImport(final HttpServerRequest request)
+	{
+		structureImportService.analyze(request.params().get("restoreId"))
+			.onSuccess(analysis -> renderJson(request, analysis))
+			.onFailure(th -> badRequest(request, th.getMessage()));
+	}
+
+	/** Lance la restauration. Refusée tant que l'analyse n'a pas déclaré le lot restaurable. */
+	@Post("/import/structure/:restoreId/launch")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void launchStructureImport(final HttpServerRequest request)
+	{
+		final String restoreId = request.params().get("restoreId");
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null) { unauthorized(request); return; }
+			structureImportService.launch(restoreId, user, I18n.acceptLanguage(request),
+					request.headers().get("Host"))
+				.onSuccess(v -> renderJson(request, new JsonObject()
+						.put("message", "structure.import.in.progress")
+						.put("restoreId", restoreId)))
+				.onFailure(th -> badRequest(request, th.getMessage()));
+		});
+	}
+
+	/** Avancement : comptes traités, résultat par compte, statut global. */
+	@Get("/import/structure/:restoreId/status")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void statusStructureImport(final HttpServerRequest request)
+	{
+		structureImportService.status(request.params().get("restoreId"))
+			.onSuccess(state -> {
+				if (state == null) notFound(request, "structure.import.unknown");
+				else renderJson(request, state);
+			})
+			.onFailure(th -> badRequest(request, th.getMessage()));
+	}
+
+	/** Supprime l'espace de travail d'une restauration. N'annule pas ce qui a déjà été restauré. */
+	@Delete("/import/structure/:restoreId")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void deleteStructureImport(final HttpServerRequest request)
+	{
+		structureImportService.delete(request.params().get("restoreId"))
+			.onSuccess(v -> renderJson(request, new JsonObject().put("status", "ok")))
+			.onFailure(th -> badRequest(request, th.getMessage()));
+	}
+
+	/** Chemin à 3 segments, comme /export/structure/admin/list : vue plateforme. */
+	@Get("/import/structure/admin/list")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void listStructureImports(final HttpServerRequest request)
+	{
+		structureImportService.getAllRestoresStatus()
+			.onSuccess(list -> renderJson(request, new JsonArray(list)))
+			.onFailure(th -> {
+				log.error("An error occurred while listing structure import restores", th);
+				renderError(request);
+			});
 	}
 
 }
