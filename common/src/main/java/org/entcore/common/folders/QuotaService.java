@@ -62,4 +62,19 @@ public interface QuotaService {
 
 	void init(String userId);
 
+	/**
+	 * Seuil d'alerte d'occupation du stockage propre à un établissement, en pourcentage, ou
+	 * {@code null} s'il n'en a pas fixé — le seuil de plate-forme ({@code alertStorage})
+	 * s'applique alors.
+	 */
+	void getStorageAlertThreshold(String structureId, Handler<Either<String, JsonObject>> handler);
+
+	/**
+	 * Fixe (ou retire, avec {@code threshold} à {@code null}) le seuil d'alerte d'un
+	 * établissement. Prend effet au prochain calcul d'occupation, sans reprise de l'existant :
+	 * le drapeau d'alerte d'une personne est recalculé à son prochain dépôt ou retrait de
+	 * fichier.
+	 */
+	void setStorageAlertThreshold(String structureId, Integer threshold, Handler<Either<String, JsonObject>> handler);
+
 }

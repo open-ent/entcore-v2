@@ -140,6 +140,9 @@ public class Workspace extends BaseServer {
 
 		QuotaController quotaController = new QuotaController();
 		quotaController.setQuotaService(quotaService);
+		// Même valeur que celle passée aux services de quota : l'écran d'administration doit
+		// annoncer le seuil réellement appliqué aux établissements qui n'en fixent pas.
+		quotaController.setDefaultAlertThreshold(threshold);
 		addController(quotaController);
 
 		// Expose /workspace/conf/public (renvoie config.publicConf, dont "folder-service").

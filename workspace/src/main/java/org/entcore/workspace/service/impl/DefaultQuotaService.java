@@ -59,9 +59,16 @@ public class DefaultQuotaService extends BasicQuotaService {
 			final Handler<Either<String, JsonObject>> handler) {
 		JsonObject params = new JsonObject().put("size", size).put("threshold", threshold);
 		if (!neo4jPlugin) {
+			// Le seuil d'alerte est celui de la plate-forme ({threshold}, cf. `alertStorage`), sauf
+			// si un établissement de la personne en a fixé un : on retient alors le PLUS BAS, pour
+			// prévenir au plus tôt — un élève rattaché à deux établissements ne doit pas se voir
+			// appliquer le seuil le plus laxiste des deux.
+			// MIN() ignore les null : sans aucune surcharge, COALESCE retombe sur le seuil global.
 			String query = "MATCH (u:UserBook { userid : {userId}}) " + "SET u.__lock__ = 1, u.storage = u.storage + {size} "
 					+ "WITH u, u.alertSize as oldAlert "
-					+ "SET u.alertSize = ((100.0 * u.storage / u.quota) > {threshold}), u.__lock__ = 0 "
+					+ "OPTIONAL MATCH (:User {id: {userId}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) "
+					+ "WITH u, oldAlert, COALESCE(MIN(s.storageAlertThreshold), {threshold}) as alertThreshold "
+					+ "SET u.alertSize = ((100.0 * u.storage / u.quota) > alertThreshold), u.__lock__ = 0 "
 					+ "RETURN u.storage as storage, (u.alertSize = true AND oldAlert <> u.alertSize) as notify ";
 			params.put("userId", userId);
 			neo4j.execute(query, params, validUniqueResultHandler(handler));

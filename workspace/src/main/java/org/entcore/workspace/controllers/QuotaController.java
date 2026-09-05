@@ -20,6 +20,7 @@
 package org.entcore.workspace.controllers;
 
 import static org.entcore.common.http.response.DefaultResponseHandler.arrayResponseHandler;
+import static org.entcore.common.http.response.DefaultResponseHandler.defaultResponseHandler;
 import static org.entcore.common.http.response.DefaultResponseHandler.notEmptyResponseHandler;
 
 import org.entcore.common.folders.QuotaService;
@@ -29,6 +30,9 @@ import fr.wseduc.bus.BusAddress;
 import fr.wseduc.rs.Get;
 import fr.wseduc.rs.Post;
 import fr.wseduc.rs.Put;
+import fr.wseduc.rs.Delete;
+import org.entcore.common.user.DefaultFunctions;
+import org.entcore.common.user.UserInfos;
 import fr.wseduc.security.ActionType;
 import fr.wseduc.security.MfaProtected;
 import fr.wseduc.security.SecuredAction;
@@ -43,6 +47,13 @@ import io.vertx.core.json.JsonObject;
 public class QuotaController extends BaseController {
 
 	private QuotaService quotaService;
+
+	/**
+	 * Seuil d'alerte de la plate-forme (`alertStorage`), servi aux établissements qui n'en
+	 * fixent pas. Renseigné au démarrage par le verticle, avec la même valeur que celle
+	 * transmise aux services de quota — les deux ne doivent pas diverger.
+	 */
+	private int defaultAlertThreshold = 80;
 
 	@Get("/quota/user/:userId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
@@ -196,7 +207,82 @@ public class QuotaController extends BaseController {
 	}
 
 
+	public void setDefaultAlertThreshold(int defaultAlertThreshold) {
+		this.defaultAlertThreshold = defaultAlertThreshold;
+	}
+
 	public void setQuotaService(QuotaService quotaService) {
 		this.quotaService = quotaService;
 	}
+
+	// ── Seuil d'alerte d'occupation du stockage ────────────────────────────────
+	// Le seuil au-delà duquel l'utilisateur est prévenu que son espace se remplit
+	// (« Votre espace de stockage est bientôt plein »). Défaut de plate-forme `alertStorage`,
+	// surchargeable par établissement.
+	//
+	// Sécurité sans nouveau workflow (pas de churn app-registry, cf. MessagingHoursController) :
+	// routes AUTHENTICATED, puis vérification manuelle de SUPER_ADMIN ou de l'ADML de la
+	// structure visée.
+
+	/** Seuil applicable à un établissement : le sien, ou celui de la plate-forme dont il hérite. */
+	@Get("/quota/alert-threshold/:structureId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void getAlertThreshold(final HttpServerRequest request) {
+		final String structureId = request.params().get("structureId");
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (!canAdminStructure(user, structureId)) { unauthorized(request); return; }
+			quotaService.getStorageAlertThreshold(structureId, res -> {
+				if (res.isRight()) {
+					final JsonObject found = res.right().getValue();
+					final Integer own = found.getInteger("threshold");
+					renderJson(request, found.copy()
+							.put("threshold", own != null ? own : defaultAlertThreshold)
+							.put("defaultThreshold", defaultAlertThreshold)
+							.put("inherited", own == null));
+				} else {
+					renderError(request, new JsonObject().put("error", res.left().getValue()));
+				}
+			});
+		});
+	}
+
+	/** Fixer le seuil d'un établissement. */
+	@Put("/quota/alert-threshold/:structureId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void setAlertThreshold(final HttpServerRequest request) {
+		final String structureId = request.params().get("structureId");
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (!canAdminStructure(user, structureId)) { unauthorized(request); return; }
+			RequestUtils.bodyToJson(request, body -> {
+				final Integer threshold = body.getInteger("threshold");
+				// Un seuil hors de ]0,100[ n'a pas de sens : à 0 tout le monde est en alerte en
+				// permanence, à 100 l'alerte n'arrive jamais avant le refus d'écriture.
+				if (threshold == null || threshold < 1 || threshold > 99) {
+					badRequest(request, "quota.alert.threshold.invalid");
+					return;
+				}
+				quotaService.setStorageAlertThreshold(structureId, threshold,
+						defaultResponseHandler(request));
+			});
+		});
+	}
+
+	/** Retirer la surcharge : l'établissement revient au seuil de la plate-forme. */
+	@Delete("/quota/alert-threshold/:structureId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void deleteAlertThreshold(final HttpServerRequest request) {
+		final String structureId = request.params().get("structureId");
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (!canAdminStructure(user, structureId)) { unauthorized(request); return; }
+			quotaService.setStorageAlertThreshold(structureId, null, defaultResponseHandler(request));
+		});
+	}
+
+	private boolean canAdminStructure(final UserInfos user, final String structureId) {
+		if (user == null || structureId == null || user.getFunctions() == null) return false;
+		if (user.getFunctions().containsKey(DefaultFunctions.SUPER_ADMIN)) return true;
+		final UserInfos.Function adml = user.getFunctions().get(DefaultFunctions.ADMIN_LOCAL);
+		return adml != null && adml.getScope() != null && adml.getScope().contains(structureId);
+	}
+
 }

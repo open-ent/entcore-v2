@@ -35,6 +35,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import org.entcore.common.neo4j.Neo4jResult;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 
@@ -190,6 +191,32 @@ public class BasicQuotaService implements org.entcore.common.folders.QuotaServic
 				}
 			}
 		});
+	}
+
+	@Override
+	public void getStorageAlertThreshold(String structureId, Handler<Either<String, JsonObject>> handler) {
+		final String query = "MATCH (s:Structure {id: {structureId}}) "
+				+ "RETURN s.id as structureId, s.name as name, s.storageAlertThreshold as threshold";
+		neo4j.execute(query, new JsonObject().put("structureId", structureId),
+				Neo4jResult.validUniqueResultHandler(handler));
+	}
+
+	@Override
+	public void setStorageAlertThreshold(String structureId, Integer threshold,
+			Handler<Either<String, JsonObject>> handler) {
+		// REMOVE plutôt que SET à null : une propriété absente est ce que lit MIN() côté
+		// calcul d'occupation (cf. DefaultQuotaService.incrementStorage), et c'est aussi ce
+		// qui distingue « pas de surcharge » d'une surcharge à zéro.
+		final String query = (threshold == null)
+				? "MATCH (s:Structure {id: {structureId}}) REMOVE s.storageAlertThreshold "
+						+ "RETURN s.id as structureId, s.name as name, null as threshold"
+				: "MATCH (s:Structure {id: {structureId}}) SET s.storageAlertThreshold = {threshold} "
+						+ "RETURN s.id as structureId, s.name as name, s.storageAlertThreshold as threshold";
+		final JsonObject params = new JsonObject().put("structureId", structureId);
+		if (threshold != null) {
+			params.put("threshold", threshold);
+		}
+		neo4j.execute(query, params, Neo4jResult.validUniqueResultHandler(handler));
 	}
 
 }
