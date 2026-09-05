@@ -913,6 +913,13 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 				"n.lastName as lastName, n.firstName as firstName, n.externalId as externalId, n.federated as federated, " +
 				"n.birthDate as birthDate, n.changePw as forceChangePassword, COALESCE(n.needRevalidateTerms, FALSE) as needRevalidateTerms,HAS(n.deleteDate) as deletePending, " +
 				"n.displayName as username, HEAD(n.profiles) as type, " +
+				// Second facteur réglé sur le compte lui-même. La dispense par structure ne
+				// suffit pas : un établissement doit pouvoir exempter des comptes de service ou
+				// de test tout en imposant le second facteur à ses administrateurs réels, et
+				// pouvoir l'imposer à un compte précis sans l'imposer à tout l'établissement.
+				// `requireMFA` l'emporte sur toute dispense — en cas de réglage contradictoire,
+				// on retient l'issue la plus sûre.
+				"COALESCE(n.ignoreMFA, FALSE) as userIgnoreMFA, COALESCE(n.requireMFA, FALSE) as userRequireMFA, " +
 				"COLLECT(distinct [child.id, child.lastName, child.firstName]) as childrenInfo, has(n.password) as hasPw, " +
 				"structures, COLLECT(distinct [f.externalId, rf.scope]) as functions, " +
 				"groupsIds, structureNodes, n.structures as structureExternalId, manualGroups, n.federatedIDP as federatedIDP, n.functions as aafFunctions, " +
@@ -1092,8 +1099,14 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 							attachedToOneStructure = true;
 						}
 					}
-					// ignoreMFA is true iif 
-					boolean ignoreMFA = attachedToOneStructure && allAttachedStructuresIgnoreMFA;
+					// ignoreMFA is true iif the account is not explicitly required to use MFA, and
+					// - the account itself carries an explicit exemption, or
+					// - the user is attached to at least one structure and all of them ignore MFA.
+					boolean ignoreMFA = !Boolean.TRUE.equals(j.getBoolean("userRequireMFA"))
+							&& (Boolean.TRUE.equals(j.getBoolean("userIgnoreMFA"))
+								|| (attachedToOneStructure && allAttachedStructuresIgnoreMFA));
+					j.remove("userIgnoreMFA");
+					j.remove("userRequireMFA");
 					j.remove("structures");
 					j.put("structures", new JsonArray(structureIds));
 					j.put("structureNames", new JsonArray(structureNames));
