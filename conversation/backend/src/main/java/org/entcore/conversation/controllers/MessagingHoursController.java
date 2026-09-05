@@ -1,5 +1,11 @@
 /*
- * API d'administration des horaires d'utilisation de la messagerie.
+ * API d'administration des horaires d'utilisation des espaces d'échange et de publication.
+ *
+ * Historiquement propre à la messagerie, d'où les chemins « messaging-hours » et la
+ * collection Mongo du même nom, conservés : les renommer perdrait les horaires déjà
+ * enregistrés. Un horaire porte désormais la liste des espaces auxquels il s'applique
+ * (`scopes`) — messagerie, blog, forum. Un horaire SANS `scopes` ne vaut que pour les
+ * messageries, ce qui laisse intacts ceux enregistrés avant cette évolution.
  *
  * - GET  /conversation/messaging-hours                     -> statut pour l'utilisateur courant (bandeau)
  * - GET  /conversation/messaging-hours/config              -> défaut global (super-admin)
@@ -27,6 +33,7 @@ import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.entcore.common.user.DefaultFunctions;
+import org.entcore.common.utils.SpaceOpeningHours;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.conversation.util.MessagingHours;
@@ -36,13 +43,19 @@ public class MessagingHoursController extends BaseController {
     private final MongoDb mongo = MongoDb.getInstance();
     private final MessagingHours hours = MessagingHours.getInstance();
 
-    /** Statut (ouvert/fermé + horaire applicable) pour l'utilisateur courant — alimente le bandeau. */
+    /**
+     * Statut (ouvert/fermé + horaire applicable) pour l'utilisateur courant — alimente le
+     * bandeau. Le paramètre `scope` désigne l'espace interrogé (messaging, blog, forum) ;
+     * en son absence, la messagerie, pour ne pas casser les appels existants.
+     */
     @Get("messaging-hours")
     @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
     public void status(final HttpServerRequest request) {
+        final String scope = scopeParam(request);
         UserUtils.getUserInfos(eb, request, user -> {
             if (user == null) { unauthorized(request); return; }
-            renderJson(request, hours.statusFor(user.getType(), user.getStructures()));
+            renderJson(request, SpaceOpeningHours.getInstance()
+                    .statusFor(scope, user.getType(), user.getStructures()));
         });
     }
 
@@ -119,6 +132,7 @@ public class MessagingHoursController extends BaseController {
                 .put("days", body.getJsonArray("days", new JsonArray().add(1).add(2).add(3).add(4).add(5)))
                 .put("start", body.getString("start", "08:00"))
                 .put("end", body.getString("end", "18:00"))
+                .put("scopes", sanitizeScopes(body.getJsonArray("scopes")))
                 .put("updatedAt", System.currentTimeMillis())
                 .put("updatedBy", user.getUserId());
         final JsonObject modifier = new JsonObject().put("$set", fields);
@@ -140,7 +154,36 @@ public class MessagingHoursController extends BaseController {
                 .put("enabled", false)
                 .put("days", new JsonArray().add(1).add(2).add(3).add(4).add(5))
                 .put("start", "08:00")
-                .put("end", "18:00");
+                .put("end", "18:00")
+                .put("scopes", new JsonArray().add(SpaceOpeningHours.SCOPE_MESSAGING));
+    }
+
+    /**
+     * Portée demandée en paramètre de requête, restreinte aux portées connues : une valeur
+     * inventée renverrait « toujours ouvert » sans que l'appelant comprenne pourquoi.
+     */
+    private static String scopeParam(final HttpServerRequest request) {
+        final String scope = request.params().get("scope");
+        return (scope != null && SpaceOpeningHours.KNOWN_SCOPES.contains(scope))
+                ? scope : SpaceOpeningHours.SCOPE_MESSAGING;
+    }
+
+    /**
+     * Retient les seules portées connues, et garantit qu'il en reste au moins une : un
+     * horaire activé sans portée ne s'appliquerait nulle part, ce qui donnerait un écran
+     * d'administration qui ment.
+     */
+    private static JsonArray sanitizeScopes(final JsonArray declared) {
+        final JsonArray scopes = new JsonArray();
+        if (declared != null) {
+            for (Object o : declared) {
+                if (o instanceof String && SpaceOpeningHours.KNOWN_SCOPES.contains(o)
+                        && !scopes.contains(o)) {
+                    scopes.add(o);
+                }
+            }
+        }
+        return scopes.isEmpty() ? new JsonArray().add(SpaceOpeningHours.SCOPE_MESSAGING) : scopes;
     }
 
     private boolean isSuperAdmin(final UserInfos user) {
