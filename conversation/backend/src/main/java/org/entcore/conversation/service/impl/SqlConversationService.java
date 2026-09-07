@@ -33,6 +33,7 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -206,10 +207,20 @@ public class SqlConversationService implements ConversationService{
 			String query =
 					"UPDATE " + messageTable +
 							" SET " + sb.toString() + " " +
-							"WHERE id = ? AND state = ?";
+							"WHERE id = ? AND state = ? " +
+							"RETURNING id";
 			values.add(messageId).add(State.DRAFT.name());
 
-			sql.prepared(query, values, SqlResult.validUniqueResultHandler(result));
+			sql.prepared(query, values, SqlResult.validUniqueResultHandler(new Handler<Either<String, JsonObject>>() {
+				@Override
+				public void handle(Either<String, JsonObject> event) {
+					if (event.isRight() && !event.right().getValue().containsKey("id")) {
+						result.handle(new Either.Left<String, JsonObject>("conversation.error.draft.not.found"));
+						return;
+					}
+					result.handle(event);
+				}
+			}));
 		}).onFailure(th -> {
 			String contentTransformationError = "Content transformation failed for message with id : " + message.getString("id");
 			log.error(contentTransformationError, th);
@@ -1318,6 +1329,10 @@ public class SqlConversationService implements ConversationService{
 						resultOriginal.handle(event);
 						return;
 					}
+					if(!event.right().getValue().containsKey("depth")){
+						resultOriginal.handle(new Either.Left<String, JsonObject>("conversation.error.parent.folder.not.found"));
+						return;
+					}
 					int parentDepth = event.right().getValue().getInteger("depth");
 					if(parentDepth >= maxFolderDepth){
 						resultOriginal.handle(new Either.Left<String, JsonObject>("error.max.folder.depth"));
@@ -1350,13 +1365,16 @@ public class SqlConversationService implements ConversationService{
 				}else{
 					resultOriginal.handle(res.left());
 				}
+			}else if(!res.right().getValue().containsKey("id")){
+				resultOriginal.handle(new Either.Left<String,JsonObject>("conversation.error.folder.not.found"));
 			}else{
 				resultOriginal.handle(res.right());
 			}
 		};
 		String query = "UPDATE " + folderTable + " AS f " +
 			"SET name = ?, skip_uniq=FALSE " +
-			"WHERE f.id = ? AND f.user_id = ?";
+			"WHERE f.id = ? AND f.user_id = ? " +
+			"RETURNING f.id";
 
 		JsonArray values = new fr.wseduc.webutils.collections.JsonArray()
 			.add(data.getString("name"))
@@ -1557,7 +1575,8 @@ public class SqlConversationService implements ConversationService{
 		String query =
 			"UPDATE " + folderTable + " AS f " +
 			"SET trashed = ? " +
-			"WHERE f.id = ? AND f.user_id = ? AND f.trashed = ?";
+			"WHERE f.id = ? AND f.user_id = ? AND f.trashed = ? " +
+			"RETURNING f.id";
 
 		JsonArray values = new fr.wseduc.webutils.collections.JsonArray()
 			.add(true)
@@ -1565,7 +1584,7 @@ public class SqlConversationService implements ConversationService{
 			.add(user.getUserId())
 			.add(false);
 
-		sql.prepared(query, values, SqlResult.validUniqueResultHandler(result));
+		sql.prepared(query, values, SqlResult.validUniqueResultHandler(checkFolderIdPresent(result)));
 	}
 
 	@Override
@@ -1573,7 +1592,8 @@ public class SqlConversationService implements ConversationService{
 		String query =
 			"UPDATE " + folderTable + " AS f " +
 			"SET trashed = ? " +
-			"WHERE f.id = ? AND f.user_id = ? AND f.trashed = ?";
+			"WHERE f.id = ? AND f.user_id = ? AND f.trashed = ? " +
+			"RETURNING f.id";
 
 			JsonArray values = new fr.wseduc.webutils.collections.JsonArray()
 				.add(false)
@@ -1581,7 +1601,24 @@ public class SqlConversationService implements ConversationService{
 				.add(user.getUserId())
 				.add(true);
 
-			sql.prepared(query, values, SqlResult.validUniqueResultHandler(result));
+			sql.prepared(query, values, SqlResult.validUniqueResultHandler(checkFolderIdPresent(result)));
+	}
+
+	/**
+	 * Wraps a result handler so an Either.Right with no "id" (guarded UPDATE matched 0 row) is
+	 * turned into an Either.Left instead of being treated as a success.
+	 */
+	private Handler<Either<String, JsonObject>> checkFolderIdPresent(final Handler<Either<String, JsonObject>> result) {
+		return new Handler<Either<String, JsonObject>>() {
+			@Override
+			public void handle(Either<String, JsonObject> event) {
+				if (event.isRight() && !event.right().getValue().containsKey("id")) {
+					result.handle(new Either.Left<String, JsonObject>("conversation.error.folder.not.found"));
+					return;
+				}
+				result.handle(event);
+			}
+		};
 	}
 
 	@Override
@@ -1815,7 +1852,16 @@ public class SqlConversationService implements ConversationService{
 			.add(user.getUserId())
 			.add(messageId);
 
-		sql.prepared(query, values, SqlResult.validUniqueResultHandler(result));
+		sql.prepared(query, values, SqlResult.validUniqueResultHandler(new Handler<Either<String, JsonObject>>() {
+			@Override
+			public void handle(Either<String, JsonObject> event) {
+				if (event.isRight() && !event.right().getValue().containsKey("id")) {
+					result.handle(new Either.Left<String, JsonObject>("conversation.error.attachment.not.found"));
+					return;
+				}
+				result.handle(event);
+			}
+		}));
 	}
 
 	@Override
@@ -2239,21 +2285,37 @@ public class SqlConversationService implements ConversationService{
 				.put("userId", user.getUserId())
 				.put("displayName", user.getUsername())
 				.put("date", System.currentTimeMillis());
-		final SqlStatementsBuilder builder = new SqlStatementsBuilder();
-		// Le message doit avoir été signalé dans cet établissement (double sécurité avec le filtre ADML)
-		builder.prepared(
+		// Le message doit avoir été signalé dans cet établissement (double sécurité avec le filtre ADML) :
+		// RETURNING id permet de détecter les 0 ligne affectée (message hors structure) avant de poursuivre.
+		final String query =
 				"UPDATE " + messageTable + " SET \"reportAction\" = ?::jsonb " +
 				"WHERE id = ? AND id IN (SELECT message_id FROM " + messageReportTable +
-				" WHERE jsonb_exists(structures, ?))",
-				new fr.wseduc.webutils.collections.JsonArray()
-						.add(reportAction.encode()).add(messageId).add(structure));
-		if (removeFromRecipients) {
-			// Modération « Supprimer » : retire le message des boîtes de tous les destinataires
-			builder.prepared(
-					"DELETE FROM " + userMessageTable + " WHERE message_id = ?",
-					new fr.wseduc.webutils.collections.JsonArray().add(messageId));
-		}
-		sql.transaction(builder.build(), SqlResult.validUniqueResultHandler(0, result));
+				" WHERE jsonb_exists(structures, ?)) RETURNING id";
+		final JsonArray values = new fr.wseduc.webutils.collections.JsonArray()
+				.add(reportAction.encode()).add(messageId).add(structure);
+		sql.prepared(query, values, SqlResult.validUniqueResultHandler(new Handler<Either<String, JsonObject>>() {
+			@Override
+			public void handle(Either<String, JsonObject> event) {
+				if (event.isLeft() || !event.right().getValue().containsKey("id")) {
+					result.handle(new Either.Left<String, JsonObject>("conversation.error.report.structure.mismatch"));
+					return;
+				}
+				if (removeFromRecipients) {
+					// Modération « Supprimer » : retire le message des boîtes de tous les destinataires
+					sql.prepared(
+							"DELETE FROM " + userMessageTable + " WHERE message_id = ?",
+							new fr.wseduc.webutils.collections.JsonArray().add(messageId),
+							new Handler<Message<JsonObject>>() {
+								@Override
+								public void handle(Message<JsonObject> message) {
+									result.handle(event);
+								}
+							});
+				} else {
+					result.handle(event);
+				}
+			}
+		}));
 	}
 
 }
