@@ -178,9 +178,33 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 		case "sessionNumber":
 			doSessionNumber(message);
 			break;
+		case "listSessions":
+			doListSessions(message);
+			break;
 		default:
 			sendError(message, "Invalid action: " + action);
 		}
+	}
+
+	/**
+	 * Liste les sessions ouvertes (supervision). Renvoie des entrées allégées : identité,
+	 * profil, établissements, heure de connexion et de dernière activité — jamais les droits
+	 * ni le cache de session.
+	 */
+	private void doListSessions(Message<JsonObject> message) {
+		sessionStore.listSessions(ar -> {
+			if (ar.succeeded()) {
+				final JsonArray sessions = ar.result();
+				sendOK(message, new JsonObject()
+						.put("sessions", sessions)
+						.put("count", sessions.size())
+						.put("sessionTimeout", config.getLong("session_timeout", SessionStore.DEFAULT_SESSION_TIMEOUT))
+						.put("inactivityEnabled", sessionStore.inactivityEnabled()));
+			} else {
+				logger.error("Error when listing sessions", ar.cause());
+				sendError(message, "Error when listing sessions");
+			}
+		});
 	}
 
 	private void doSessionNumber(Message<JsonObject> message) {
@@ -747,6 +771,13 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 		if (sessionId == null || sessionId.trim().isEmpty()) {
 			sendError(message, "Invalid sessionId.");
 			return;
+		}
+
+		// Déconnexion définitive : sans supprimer aussi la session persistée, findBySessionId
+		// la recrée à la requête suivante à partir du cookie encore détenu par le navigateur —
+		// une déconnexion forcée par un administrateur n'aurait alors aucun effet.
+		if (getOrElse(message.body().getBoolean("permanent"), false)) {
+			mongo.delete(SESSIONS_COLLECTION, new JsonObject().put("_id", sessionId));
 		}
 
 		if (sessionMeta) {

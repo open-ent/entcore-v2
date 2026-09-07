@@ -81,6 +81,7 @@ import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.redis.Redis;
 import org.entcore.common.redis.RedisClient;
+import org.entcore.common.user.DefaultFunctions;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.common.utils.MapFactory;
@@ -2104,6 +2105,188 @@ public class AuthController extends BaseController {
 				}
 			});
 		});
+	}
+
+	/**
+	 * Sessions actuellement ouvertes sur la plateforme (supervision, cf. dashboard /admin/audit).
+	 * La source est la grille de sessions du module session, pas le journal d'audit : on voit donc
+	 * qui est connecté maintenant, et non qui s'est connecté récemment.
+	 * Un ADML ne voit que les sessions rattachées à son périmètre ; un super-admin voit tout.
+	 */
+	@Get("/admin/sessions")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void listSessions(final HttpServerRequest request) {
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null || (!user.isADMC() && !user.isADML())) {
+				unauthorized(request);
+				return;
+			}
+			UserUtils.listSessions(eb, ar -> {
+				if (ar.failed()) {
+					log.error("Error listing sessions", ar.cause());
+					renderError(request);
+					return;
+				}
+				final JsonObject body = ar.result();
+				final Set<String> scope = adminLocalScope(user);
+				final JsonArray sessions = new JsonArray();
+				for (Object o : body.getJsonArray("sessions", new JsonArray())) {
+					if (!(o instanceof JsonObject)) continue;
+					final JsonObject session = (JsonObject) o;
+					if (scope != null && !inScope(session, scope)) continue;
+					sessions.add(session);
+				}
+				renderJson(request, new JsonObject()
+						.put("sessions", sessions)
+						.put("count", sessions.size())
+						.put("scoped", scope != null)
+						.put("sessionTimeout", body.getLong("sessionTimeout"))
+						.put("inactivityEnabled", body.getBoolean("inactivityEnabled", false)));
+			});
+		});
+	}
+
+	/**
+	 * Ferme une session ouverte (déconnexion forcée d'un appareil).
+	 * Réservé aux administrateurs, dans la limite de leur périmètre.
+	 */
+	@Delete("/admin/sessions/:sessionId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void deleteSessionAsAdmin(final HttpServerRequest request) {
+		final String sessionId = request.params().get("sessionId");
+		if (StringUtils.isEmpty(sessionId)) {
+			badRequest(request);
+			return;
+		}
+		withSessionInScope(request, sessionId, (user, session) -> {
+			UserUtils.deleteSessionPermanently(eb, sessionId, done -> {
+				if (Boolean.TRUE.equals(done)) {
+					trace.info(getIp(request) + " - Fermeture de la session " + sessionId
+							+ " (utilisateur " + session.getString("userId") + ") par " + user.getUserId());
+					renderJson(request, new JsonObject().put("status", "ok").put("sessionId", sessionId));
+				} else {
+					renderError(request);
+				}
+			});
+		});
+	}
+
+	/**
+	 * Ferme toutes les sessions d'un utilisateur (déconnexion de tous ses appareils).
+	 * Réservé aux administrateurs, dans la limite de leur périmètre.
+	 */
+	@Delete("/admin/sessions/user/:userId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void deleteUserSessionsAsAdmin(final HttpServerRequest request) {
+		final String userId = request.params().get("userId");
+		if (StringUtils.isEmpty(userId)) {
+			badRequest(request);
+			return;
+		}
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null || (!user.isADMC() && !user.isADML())) {
+				unauthorized(request);
+				return;
+			}
+			UserUtils.listSessions(eb, ar -> {
+				if (ar.failed()) {
+					log.error("Error listing sessions", ar.cause());
+					renderError(request);
+					return;
+				}
+				final Set<String> scope = adminLocalScope(user);
+				boolean found = false;
+				for (Object o : ar.result().getJsonArray("sessions", new JsonArray())) {
+					if (!(o instanceof JsonObject)) continue;
+					final JsonObject session = (JsonObject) o;
+					if (!userId.equals(session.getString("userId"))) continue;
+					if (scope != null && !inScope(session, scope)) continue;
+					found = true;
+					break;
+				}
+				if (!found) {
+					// Aucune session visible dans le périmètre de l'administrateur : on ne
+					// distingue pas « pas de session » de « hors périmètre », pour ne pas
+					// transformer cette route en oracle sur les connexions des autres.
+					notFound(request);
+					return;
+				}
+				UserUtils.deleteSessionsByUserId(eb, userId, dropped -> {
+					if (dropped.failed()) {
+						log.error("Error dropping sessions of user " + userId, dropped.cause());
+						renderError(request);
+						return;
+					}
+					trace.info(getIp(request) + " - Fermeture de toutes les sessions de " + userId
+							+ " par " + user.getUserId());
+					renderJson(request, new JsonObject()
+							.put("status", "ok")
+							.put("userId", userId)
+							.put("dropped", dropped.result()));
+				});
+			});
+		});
+	}
+
+	/**
+	 * Récupère la session {@code sessionId} et vérifie qu'elle est visible par l'administrateur
+	 * appelant avant d'exécuter {@code action}. Répond 401/404 sinon.
+	 */
+	private void withSessionInScope(final HttpServerRequest request, final String sessionId,
+			final java.util.function.BiConsumer<UserInfos, JsonObject> action) {
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null || (!user.isADMC() && !user.isADML())) {
+				unauthorized(request);
+				return;
+			}
+			UserUtils.listSessions(eb, ar -> {
+				if (ar.failed()) {
+					log.error("Error listing sessions", ar.cause());
+					renderError(request);
+					return;
+				}
+				final Set<String> scope = adminLocalScope(user);
+				for (Object o : ar.result().getJsonArray("sessions", new JsonArray())) {
+					if (!(o instanceof JsonObject)) continue;
+					final JsonObject session = (JsonObject) o;
+					if (!sessionId.equals(session.getString("sessionId"))) continue;
+					if (scope != null && !inScope(session, scope)) {
+						unauthorized(request);
+						return;
+					}
+					action.accept(user, session);
+					return;
+				}
+				notFound(request);
+			});
+		});
+	}
+
+	/**
+	 * Périmètre d'un administrateur : {@code null} pour un super-admin (aucune restriction),
+	 * sinon l'ensemble des établissements sur lesquels porte sa fonction ADMIN_LOCAL.
+	 */
+	private Set<String> adminLocalScope(final UserInfos user) {
+		if (user.isADMC()) {
+			return null;
+		}
+		final UserInfos.Function adminLocal = user.getFunctions() != null
+				? user.getFunctions().get(DefaultFunctions.ADMIN_LOCAL) : null;
+		final List<String> structures = adminLocal != null ? adminLocal.getScope() : null;
+		return structures != null ? new HashSet<>(structures) : new HashSet<>();
+	}
+
+	private boolean inScope(final JsonObject session, final Set<String> scope) {
+		final JsonArray structures = session.getJsonArray("structures");
+		if (structures == null) {
+			return false;
+		}
+		for (Object structureId : structures) {
+			if (scope.contains(structureId)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Get("/reset/:resetCode")
