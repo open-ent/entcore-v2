@@ -87,8 +87,19 @@ public class RepositoryHandler implements Handler<Message<JsonObject>> {
                     final String finalBusAddress = exportedBusAddress;
                     final SharedDataHelper sharedData = SharedDataHelper.getInstance();
                     final String lockName = "export_" + exportId + "_" + pathPrefix;
+                    // Le nom du verrou inclut l'exportId (unique par requête d'export) : une
+                    // collision réelle entre deux exports est structurellement impossible. Un
+                    // échec de getLock() (timeout, cf bug plateforme "spinner /archive infini"
+                    // constaté 2026-09-07 : le mécanisme de verrouillage lui-même est cassé, pas
+                    // une vraie contention) ne doit donc PAS bloquer l'export — on traite quand
+                    // même, sans libérer un verrou qu'on n'a jamais obtenu.
                     sharedData.getLock(lockName, LOCK_RELEASE_TIMEOUT)
-                        .onFailure(th -> log.debug("We could not get the export lock " + lockName+ " so it means that someone else is already treating the export", th))
+                        .recover(th -> {
+                            log.warn("Could not acquire the export lock " + lockName
+                                    + " (lock name is unique per export, so this cannot be a real"
+                                    + " collision) — proceeding without it.", th);
+                            return succeededFuture(null);
+                        })
                         .onSuccess(lock -> {
                             String path = message.body().getString("path", "");
                             final String locale = message.body().getString("locale", "fr");
@@ -96,7 +107,8 @@ public class RepositoryHandler implements Handler<Message<JsonObject>> {
                             final JsonArray groupIds = message.body().getJsonArray("groups", new fr.wseduc.webutils.collections.JsonArray());
                             final String appTitle = pathPrefix.replaceFirst("/", "");
                             try {
-                                log.info("We got a lock to process export " + exportId + " for user " + userId + " for app " + pathPrefix);
+                                log.info("Processing export " + exportId + " for user " + userId + " for app " + pathPrefix
+                                        + (lock != null ? " (lock acquired)" : " (no lock)"));
 
                                 repositoryEvents.exportResources(resourcesIds, exportDocuments.booleanValue(), exportSharedResources.booleanValue(),
                                         exportId, userId, groupIds, path, locale, host,
@@ -114,7 +126,7 @@ public class RepositoryHandler implements Handler<Message<JsonObject>> {
 												if(!res.succeeded()) {
 													log.error("An error occurred while moving exported files to storage", res.cause());
 												}
-                                                sharedData.releaseLockAfterDelay(lock, LOCK_RELEASE_DELAY);
+                                                if (lock != null) sharedData.releaseLockAfterDelay(lock, LOCK_RELEASE_DELAY);
                                                 final boolean exported = ok && res.succeeded();
                                                 JsonObject responsePayload = new JsonObject()
                                                         .put("action", "exported")
@@ -127,7 +139,7 @@ public class RepositoryHandler implements Handler<Message<JsonObject>> {
                                             });
                                         });
                             } catch (Exception e) {
-                                sharedData.releaseLockAfterDelay(lock, LOCK_RELEASE_DELAY);
+                                if (lock != null) sharedData.releaseLockAfterDelay(lock, LOCK_RELEASE_DELAY);
                                 log.error("An error occurred while treating an export " + message.body().encode(), e);
                                 JsonObject responsePayload = new JsonObject()
                                         .put("action", "exported")
