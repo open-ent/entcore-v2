@@ -339,7 +339,12 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		String query = "MATCH (u:User) WHERE u.email = {mail} AND u.activationCode IS NULL RETURN u.login as login, u.mobile as mobile";
 		JsonObject params = new JsonObject().put("mail", email);
 
-		neo.execute(query, params, Neo4jResult.validUniqueResultHandler(handler));
+		neo.execute(query, params, Neo4jResult.validUniqueResultHandler(event -> {
+			if (event.isLeft() || !event.right().getValue().containsKey("login"))
+				handler.handle(new Either.Left<String, JsonObject>("not.found"));
+			else
+				handler.handle(event);
+		}));
 	}
 
 	@Override
