@@ -232,6 +232,17 @@ jobs:
         # `concurrency:` ci-dessus, qui sérialise désormais ces deux triggers). Si malgré ça la
         # révision est déjà publiée à l'identique (redéclenchement redondant), on traite le 409
         # comme un succès idempotent plutôt que de faire échouer le job pour rien.
+        #
+        # `-pl '!tests'` : le module `tests` n'est PAS un livrable (scénarios de charge Gatling
+        # 2.3.1 en Scala 2.12.3, compilés par org.scala-tools:maven-scala-plugin:2.15.2). Scalac
+        # 2.12.3 ne sait pas relire les .class du JDK 21 et meurt sur
+        # `bad constant pool index: 0` en lisant java.lang.String. Le défaut était masqué :
+        # jusqu'ici le reactor mourait dès la racine sur un 409 (aucun package n'était purgé
+        # avant le deploy), 409 avalé comme « succès idempotent » -> les 24 modules étaient
+        # SKIPPED et la CI verte ne publiait RIEN. Depuis que l'étape de purge des versions
+        # rend le deploy réellement possible, le reactor va jusqu'au bout et bute sur `tests`.
+        # On l'exclut du job de publication : les scénarios Gatling se lancent à part, sur un
+        # JDK compatible, et leur fat-jar n'a jamais eu à partir sur GitHub Packages ni nexus.
         run: |
           REVISION_OPT=""
           if [ -n "${{ github.event.inputs.entcore_version }}" ]; then
@@ -239,6 +250,7 @@ jobs:
           fi
           set +e
           mvn deploy -DskipTests -DskipITs -B \
+            -pl '!tests' \
             ${REVISION_OPT} \
             -DbuildNumber="${GITHUB_SHA::8}" -DscmBranch="${GITHUB_REF_NAME}" \
             -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }} \
