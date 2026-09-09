@@ -354,6 +354,16 @@ public class DefaultCommunicationService implements CommunicationService {
 		final StatementsBuilder s1 = new StatementsBuilder();
 		final StatementsBuilder s2 = new StatementsBuilder();
 		final StatementsBuilder s3 = new StatementsBuilder();
+		// Ces trois requêtes balaient les groupes de TOUTE la plate-forme, et
+		// `POST /directory/class` les redéclenche à chaque classe créée sans attendre la
+		// réponse : créer un établissement de quinze classes lançait donc quinze balayages
+		// concurrents. Les deux derniers écrivaient sans condition (mesuré en production :
+		// 362 FunctionGroup et 23 635 FunctionalGroup réécrits par classe, alors que 0 à 1
+		// nœud en avait réellement besoin), d'où des verrous morts en cascade
+		// (Neo.TransientError.Transaction.DeadlockDetected) et un état final laissé au
+		// hasard des transactions survivantes. La garde d'idempotence ne change pas l'état
+		// obtenu — poser la même valeur est un no-op — mais elle évite de prendre le verrou
+		// sur des nœuds déjà à jour. La première requête, elle, était déjà gardée.
 		s3.add(
 				"MATCH (s:Structure)<-[:DEPENDS*1..2]-(g:ProfileGroup) " +
 						"WHERE NOT(HAS(g.communiqueWith)) " +
@@ -361,9 +371,11 @@ public class DefaultCommunicationService implements CommunicationService {
 		).add(
 				"MATCH (fg:FunctionGroup) " +
 						"WHERE fg.name ENDS WITH 'AdminLocal' " +
+						"AND COALESCE(fg.users, '') <> 'BOTH' " +
 						"SET fg.users = 'BOTH' "
 		).add(
 				"MATCH (ag:FunctionalGroup) " +
+						"WHERE COALESCE(ag.users, '') <> 'BOTH' " +
 						"SET ag.users = 'BOTH' "
 		);
 		for (String attr : defaultRules.fieldNames()) {
