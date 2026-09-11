@@ -131,48 +131,113 @@ public class StructureController extends BaseController {
 	// et ignorerait silencieusement des propriétés qu'il ne reconnaît pas). "logo" est un id de
 	// document du workspace, réutilisant l'upload générique existant (WorkspaceController#POST
 	// /document), sur le même principe que ub.picture/userbook avatar - pas de nouvel upload créé ici.
+	//
+	// L'identité "papier" de l'établissement suit la même logique et le même stockage : en-tête,
+	// cachet, signature du chef d'établissement et son état civil. Ce sont des données d'annuaire,
+	// pas de module : un certificat de scolarité, un bulletin ou une attestation les relisent tous
+	// au même endroit. Les trois images sont, comme le logo, des ids de document du workspace.
+	//
+	// Ces propriétés ne viennent pas de l'AAF : aucun import ne les écrase.
+
+	/** Champ du branding -> propriété du node Structure. Ordre stable pour un RETURN lisible. */
+	private static final java.util.Map<String, String> BRANDING_FIELDS;
+	static {
+		final java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+		m.put("primaryColor", "brandingPrimaryColor");
+		m.put("accentColor", "brandingAccentColor");
+		m.put("logo", "brandingLogo");
+		m.put("entete", "brandingEntete");
+		m.put("cachet", "brandingCachet");
+		m.put("signature", "brandingSignature");
+		m.put("cachetPourtour", "brandingCachetPourtour");
+		m.put("cachetMention", "brandingCachetMention");
+		m.put("signataireCivilite", "brandingSignataireCivilite");
+		m.put("signataireNom", "brandingSignataireNom");
+		m.put("signatairePrenom", "brandingSignatairePrenom");
+		m.put("signataireFonction", "brandingSignataireFonction");
+		m.put("signataireLibelle", "brandingSignataireLibelle");
+		BRANDING_FIELDS = java.util.Collections.unmodifiableMap(m);
+	}
+
+	/** Champs portant un id de document du workspace, donc soumis à {@link #isValidDocumentIdOrEmpty}. */
+	private static final java.util.Set<String> BRANDING_DOCUMENT_FIELDS = java.util.Collections
+			.unmodifiableSet(new java.util.HashSet<>(java.util.Arrays.asList("logo", "entete", "cachet", "signature")));
+
 	@Put("/structure/:id/branding")
-	@ApiDoc("Sets the graphical branding (logo + primary/accent colors) of a structure.")
+	@ApiDoc("Sets the graphical and documentary branding (logo, header, stamp, signature, signatory) of a structure.")
 	@ResourceFilter(AdminStructureFilter.class)
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	public void setBranding(final HttpServerRequest request) {
 		final String structureId = request.params().get("id");
 		RequestUtils.bodyToJson(request, body -> {
-			final String primaryColor = body.getString("primaryColor");
-			final String accentColor = body.getString("accentColor");
-			final String logo = body.getString("logo");
-			if (!isValidHexColorOrEmpty(primaryColor) || !isValidHexColorOrEmpty(accentColor)) {
-				Renders.badRequest(request, "directory.structure.branding.invalid.color");
+			// Seuls les champs PRÉSENTS dans le corps sont écrits : deux écrans distincts (thème
+			// d'un côté, identité documentaire de l'autre) doivent pouvoir enregistrer chacun sa
+			// part sans effacer celle de l'autre. Une clé présente à null efface, ce qui reste le
+			// seul moyen de retirer un logo.
+			final JsonObject params = new JsonObject().put("id", structureId);
+			final StringBuilder sets = new StringBuilder();
+			for (java.util.Map.Entry<String, String> champ : BRANDING_FIELDS.entrySet()) {
+				final String cle = champ.getKey();
+				if (!body.containsKey(cle)) {
+					continue;
+				}
+				final String valeur = body.getString(cle);
+				if (cle.endsWith("Color") && !isValidHexColorOrEmpty(valeur)) {
+					Renders.badRequest(request, "directory.structure.branding.invalid.color");
+					return;
+				}
+				if (BRANDING_DOCUMENT_FIELDS.contains(cle) && !isValidDocumentIdOrEmpty(valeur)) {
+					Renders.badRequest(request, "directory.structure.branding.invalid.document");
+					return;
+				}
+				sets.append(sets.length() == 0 ? "SET " : ", ")
+						.append("s.").append(champ.getValue()).append(" = {").append(cle).append("}");
+				params.put(cle, StringUtils.isEmpty(valeur) ? null : valeur);
+			}
+			if (sets.length() == 0) {
+				Renders.badRequest(request, "directory.structure.branding.empty");
 				return;
 			}
-			final String query = "MATCH (s:Structure {id: {id}}) " +
-					"SET s.brandingPrimaryColor = {primaryColor}, s.brandingAccentColor = {accentColor}, " +
-					"s.brandingLogo = {logo} " +
-					"RETURN s.id as id, s.brandingPrimaryColor as primaryColor, " +
-					"s.brandingAccentColor as accentColor, s.brandingLogo as logo";
-			final JsonObject params = new JsonObject()
-					.put("id", structureId)
-					.put("primaryColor", primaryColor)
-					.put("accentColor", accentColor)
-					.put("logo", logo);
+			final String query = "MATCH (s:Structure {id: {id}}) " + sets + " RETURN s.id as id, " + brandingReturn();
 			Neo4j.getInstance().execute(query, params, Neo4jResult.validUniqueResultHandler(defaultResponseHandler(request)));
 		});
 	}
 
 	@Get("/structure/:id/branding")
-	@ApiDoc("Gets the graphical branding (logo + primary/accent colors) of a structure.")
+	@ApiDoc("Gets the graphical and documentary branding of a structure.")
 	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
 	public void getBranding(final HttpServerRequest request) {
 		final String structureId = request.params().get("id");
+		// Le nom et la nature de l'établissement accompagnent le branding : ce sont eux qui
+		// fournissent les valeurs par défaut du cachet (pourtour = nom, mention déduite de la
+		// nature), que l'appelant n'a donc pas à aller chercher ailleurs.
 		final String query = "MATCH (s:Structure {id: {id}}) " +
-				"RETURN s.brandingPrimaryColor as primaryColor, s.brandingAccentColor as accentColor, " +
-				"s.brandingLogo as logo";
+				"RETURN " + brandingReturn() + ", s.name as name, s.type as type, s.city as city";
 		final JsonObject params = new JsonObject().put("id", structureId);
 		Neo4j.getInstance().execute(query, params, Neo4jResult.validUniqueResultHandler(defaultResponseHandler(request)));
 	}
 
+	/** Clause RETURN commune : toutes les propriétés de branding, sous leur nom d'API. */
+	private static String brandingReturn() {
+		final StringBuilder sb = new StringBuilder();
+		for (java.util.Map.Entry<String, String> champ : BRANDING_FIELDS.entrySet()) {
+			if (sb.length() > 0) sb.append(", ");
+			sb.append("s.").append(champ.getValue()).append(" as ").append(champ.getKey());
+		}
+		return sb.toString();
+	}
+
 	private boolean isValidHexColorOrEmpty(final String color) {
 		return StringUtils.isEmpty(color) || color.matches("^#[0-9a-fA-F]{6}$");
+	}
+
+	/**
+	 * Un id de document du workspace, ou rien. Le contrôle n'a pas pour but d'authentifier le
+	 * document — il interdit qu'une chaîne arbitraire (un chemin, une URL externe) se retrouve
+	 * stockée là où le rendu des documents attend un identifiant.
+	 */
+	private boolean isValidDocumentIdOrEmpty(final String documentId) {
+		return StringUtils.isEmpty(documentId) || documentId.matches("^[0-9a-zA-Z_-]{16,64}$");
 	}
 
 	@Put("/structure/:structureId/link/:userId")
