@@ -40,8 +40,21 @@ public interface MassMailService {
 
 	void massMailTypeMail(UserInfos user, final HttpServerRequest request, final String templatePath, final JsonArray users);
 
+	/**
+	 * Variante prenant le branding de l'établissement (logo, entête, cachet, signature, signataire),
+	 * exposé au gabarit sous la clé {@code branding}. La surcharge sans branding reste en place et
+	 * délègue avec un branding vide : tous les appelants n'ont pas de structure en contexte.
+	 */
+	void massMailTypeMail(UserInfos user, final HttpServerRequest request, final String templatePath,
+			final JsonArray users, final JsonObject branding);
+
 	void massMailTypeCSV(final HttpServerRequest request, JsonArray users);
 
 	void massMailTypePdf(UserInfos user, final HttpServerRequest request, final String templatePath, final String baseUrl, final String filename, final String type, final JsonArray users);
+
+	/** @see #massMailTypeMail(UserInfos, HttpServerRequest, String, JsonArray, JsonObject) */
+	void massMailTypePdf(UserInfos user, final HttpServerRequest request, final String templatePath,
+			final String baseUrl, final String filename, final String type, final JsonArray users,
+			final JsonObject branding);
 
 }

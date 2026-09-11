@@ -52,6 +52,7 @@ import org.entcore.common.utils.StringUtils;
 import org.entcore.directory.pojo.Ent;
 import org.entcore.directory.security.AdminStructureFilter;
 import org.entcore.directory.security.AnyAdminOfUser;
+import org.entcore.directory.services.StructureBrandingService;
 import org.entcore.directory.services.MassMailService;
 import org.entcore.directory.services.SchoolService;
 import io.vertx.core.AsyncResult;
@@ -95,6 +96,39 @@ public class StructureController extends BaseController {
 	public StructureController(JsonObject skins, String assetsPath) {
 		this.skins = skins;
 		this.assetsPath = assetsPath;
+	}
+
+	/**
+	 * Branding de l'établissement (logo, entête, cachet, signature), superposé au thème lors des
+	 * publipostages. Peut rester nul : le contrôleur retombe alors sur les seules images du thème,
+	 * comme avant l'introduction du service.
+	 */
+	private StructureBrandingService structureBrandingService;
+
+	public void setStructureBrandingService(StructureBrandingService structureBrandingService) {
+		this.structureBrandingService = structureBrandingService;
+	}
+
+	/**
+	 * Branding de la structure, sous une forme directement exploitable par un gabarit :
+	 * les identifiants de documents deviennent des URL absolues (le générateur de PDF est un
+	 * service distinct, qui ne saurait pas résoudre un chemin relatif).
+	 */
+	private io.vertx.core.Future<JsonObject> resolveBranding(final HttpServerRequest request,
+			final String structureId) {
+		if (structureBrandingService == null || structureId == null) {
+			return io.vertx.core.Future.succeededFuture(new JsonObject());
+		}
+		final String origin = getScheme(request) + "://" + Renders.getHost(request);
+		return structureBrandingService.getForStructure(structureId).map(branding -> {
+			for (String field : new String[]{"logo", "entete", "cachet", "signature"}) {
+				final String documentId = branding.getString(field);
+				if (documentId != null) {
+					branding.put(field + "Url", origin + "/workspace/document/" + documentId);
+				}
+			}
+			return branding;
+		});
 	}
 
 	@Override
@@ -641,39 +675,45 @@ public class StructureController extends BaseController {
 			final String templatePath = assetsPath + "/template/directory/";
 			final String baseUrl = getScheme(request) + "://" + Renders.getHost(request) + "/assets/themes/" + skin + "/img/";
 
-			UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
-				public void handle(final UserInfos infos) {
+			// Le branding de l'établissement est résolu une fois pour tout le lot : c'est lui qui
+			// met le logo et le cachet de l'établissement sur les courriers d'identifiants, là où
+			// seules les images du thème (communes à tout le domaine) apparaissaient jusqu'ici.
+			resolveBranding(request, structureId).onComplete(brandingRes -> {
+				final JsonObject branding = brandingRes.succeeded() ? brandingRes.result() : new JsonObject();
+				UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
+					public void handle(final UserInfos infos) {
 
-					//PDF
-					if("pdf".equals(type) || "newPdf".equals(type) || "simplePdf".equals(type)){
-						massMailService.massmailUsers(structureId, filter, filterMail, true, infos, new Handler<Either<String,JsonArray>>() {
-							public void handle(Either<String, JsonArray> result) {
-								if(result.isLeft()){
-									forbidden(request);
-									return;
+						//PDF
+						if("pdf".equals(type) || "newPdf".equals(type) || "simplePdf".equals(type)){
+							massMailService.massmailUsers(structureId, filter, filterMail, true, infos, new Handler<Either<String,JsonArray>>() {
+								public void handle(Either<String, JsonArray> result) {
+									if(result.isLeft()){
+										forbidden(request);
+										return;
+									}
+
+									massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, filename, type, result.right().getValue(), branding);
 								}
+							});
+						}
+						//Mail
+						else if("mail".equals(type)){
+							massMailService.massmailUsers(structureId, filter, filterMail, true, infos, new Handler<Either<String,JsonArray>>() {
+								public void handle(final Either<String, JsonArray> result) {
+									if(result.isLeft()){
+										forbidden(request);
+										return;
+									}
 
-								massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, filename, type, result.right().getValue());
-							}
-						});
-					}
-					//Mail
-					else if("mail".equals(type)){
-						massMailService.massmailUsers(structureId, filter, filterMail, true, infos, new Handler<Either<String,JsonArray>>() {
-							public void handle(final Either<String, JsonArray> result) {
-								if(result.isLeft()){
-									forbidden(request);
-									return;
+									massMailService.massMailTypeMail(infos, request, templatePath, result.right().getValue(), branding);
 								}
+							});
+						} else {
+							badRequest(request);
+						}
 
-								massMailService.massMailTypeMail(infos, request, templatePath, result.right().getValue());
-							}
-						});
-					} else {
-						badRequest(request);
 					}
-
-				}
+				});
 			});
 		});
 	}
@@ -718,6 +758,10 @@ public class StructureController extends BaseController {
 							filterObj.put("activated","both");
 							filterObj.put("sort",new JsonArray().add("displayName"));
 
+							// Même branding que le publipostage par structure : schoolId EST la structure
+							// concernée, un courrier de classe doit porter l'en-tête de son établissement.
+							resolveBranding(request, schoolId).onComplete(brandingRes -> {
+							final JsonObject branding = brandingRes.succeeded() ? brandingRes.result() : new JsonObject();
 							massMailService.massmailNoCheck(schoolId, filterObj, infos, new Handler<Either<String, JsonArray>>() {
 								@Override
 								public void handle(Either<String, JsonArray> result) {
@@ -730,10 +774,10 @@ public class StructureController extends BaseController {
 										case "pdf":
 										case "newPdf":
 										case "simplePdf":
-											massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, "massmail", type, users);
+											massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, "massmail", type, users, branding);
 											break;
 										case "mail":
-											massMailService.massMailTypeMail(infos, request, templatePath, users);
+											massMailService.massMailTypeMail(infos, request, templatePath, users, branding);
 											break;
 										case "csv":
 											massMailService.massMailTypeCSV(request, users);
@@ -742,6 +786,7 @@ public class StructureController extends BaseController {
 											badRequest(request);
 									}
 								}
+							});
 							});
 						}
 					});

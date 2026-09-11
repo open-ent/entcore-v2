@@ -48,8 +48,19 @@ public class DefaultMassMailService extends Renders implements MassMailService {
     }
 
     public void massMailTypePdf(UserInfos userInfos, final HttpServerRequest request, final String templatePath, final String baseUrl, final String filename, final String type, final JsonArray users) {
+        massMailTypePdf(userInfos, request, templatePath, baseUrl, filename, type, users, null);
+    }
+
+    public void massMailTypePdf(UserInfos userInfos, final HttpServerRequest request, final String templatePath, final String baseUrl, final String filename, final String type, final JsonArray users, final JsonObject branding) {
 
         final JsonObject templateProps = new JsonObject().put("hostname", Renders.getHost(request)).put("host",Renders.getScheme(request));
+
+        // Branding de l'établissement (logo, entête, cachet, signature, signataire). Les gabarits
+        // le testent avant de l'utiliser ({{#branding.logoUrl}}) et retombent sinon sur les images
+        // du thème via baseUrl : un établissement sans branding rend donc exactement comme avant.
+        if (branding != null && !branding.isEmpty()) {
+            templateProps.put("branding", branding);
+        }
 
         // Try to extend each user data.
         try {
@@ -134,6 +145,10 @@ public class DefaultMassMailService extends Renders implements MassMailService {
     }
 
     public void massMailTypeMail(UserInfos userInfos, final HttpServerRequest request, final String templatePath, final JsonArray users) {
+        massMailTypeMail(userInfos, request, templatePath, users, null);
+    }
+
+    public void massMailTypeMail(UserInfos userInfos, final HttpServerRequest request, final String templatePath, final JsonArray users, final JsonObject branding) {
         getTemplateName(userInfos, request, templatePath, "massmail.mail", "txt").onComplete(templateNameRes -> {
             if (templateNameRes.failed()) {
                 badRequest(request, templateNameRes.cause().getMessage());
@@ -169,7 +184,11 @@ public class DefaultMassMailService extends Renders implements MassMailService {
                         log.error("[MassMail] Error on StringReader (" + exc.toString() + ")");
                     }
 
-                    processTemplate(request, user, templateName, reader, writer -> {
+                    final JsonObject mailProps = (branding == null || branding.isEmpty())
+                            ? user
+                            : user.copy().put("branding", branding);
+
+                    processTemplate(request, mailProps, templateName, reader, writer -> {
                         String processedTemplate = ((StringWriter) writer).getBuffer().toString();
 
                         if (processedTemplate == null) {
