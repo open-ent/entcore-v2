@@ -93,11 +93,11 @@
   "integrity": {
     "algorithm": "sha256",
     "checksumsFile": "checksums.sha256",
-    "checksumsSha256": "d48653cacfa1c6d6b5e74e1557263f74cbf7eee72bae9e01cb46fbe974321b6a"
+    "checksumsSha256": "2b772a857a92c0cad3622735952ad9625e442328a0037ba4256c408a9687f5f7"
   },
   "schemaBundle": {
     "path": "schemas/1.0",
-    "sha256": "caff60bb6842d9df871148f40580e1a89a3d61113066b8407fe2c8b199777f30"
+    "sha256": "44badcc823d0601daf4ba929c557e01b859e185e2d11ad0619f62d29de05c56e"
   },
   "ccMapping": [
     {

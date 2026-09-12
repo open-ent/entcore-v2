@@ -6,6 +6,7 @@
 267df7380057b2bd8b1d429d922a014c376cedfcc0652d8ddff762ccf34b0994  resources/workspace/folders.json
 28930109fff9d29a743338ab9808171af42fbce789fc262f4800a0db67e6da0a  identifiers.json
 3234a925daf86f70e2bdaee9a7b1dd102a9025cc703f68441d7eb6f82cbafdbc  schemas/1.0/common-1.0.schema.json
+3c1740fec8153c8d0d7082e42eff89993038503bc6160299a2719e8f57b679fc  schemas/1.0/oeip-manifest-1.0.schema.json
 3c5731b7a9653f010f5a2c6e9a603cf25a58c8c78a05848bfef9721d76a5c37f  directory/memberships.json
 5437018053465d45d4e34aa592bb21fc752d353bdcf043ffb3da157c51e7a08a  schemas/1.0/identifiers-1.0.schema.json
 8ddb8fbccc798a156ffa7f46ee613452867f67fc70f0098053be6b346cc5ce56  resources/blog/content/fi/file-0001/index.html
@@ -16,7 +17,6 @@ b142cf82878e57b0d96588240b24c6bee2fd3d66399bbcefd75df6dee7a544ec  resources/work
 b561b058281d5a901844f48c38780171f7eefd986bdcc489a297e68e92b003f1  schemas/1.0/relations-1.0.schema.json
 c1df4566277cdca76fc9fa38431b7c4317ca284ec79c52607fb883eba997b1fc  schemas/1.0/resource-1.0.schema.json
 c4149ce64359ab95d49573d11d2086633f8e283109082a38dbd3a1caf0b6f6f5  resources/workspace/content/fi/file-0002/rapport.txt
-cb9869755459720051c6373723bd174b22668b6309b509be05c08a1948589a46  schemas/1.0/oeip-manifest-1.0.schema.json
 d442658357d10c7e9b22b32a6980e351f307b23a453de9b7f47652b3824b2e1a  META/provenance.json
 e6ca31d1159b7a653bee17449f7265fe0bf546364c5873b7c7b68d77ccfbbca4  META/rgpd.json
 fc974397bf13ca60109c2273b8bb6f167532cd7c1b08045209c2179bdfec6926  resources/blog/attachments.json

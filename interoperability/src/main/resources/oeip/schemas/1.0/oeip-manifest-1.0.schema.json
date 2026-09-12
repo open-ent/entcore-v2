@@ -207,6 +207,11 @@
           "description": "Version du module qui a produit les données, quand elle est connue. Sans rapport avec oeipVersion."
         },
 
+        "nativeFolder": {
+          "type": "string",
+          "description": "Nom du dossier que ce service portait dans l'archive d'origine — un libellé TRADUIT dans la langue de l'émetteur. Conservé parce que certains modules nomment aussi leur fichier d'index d'après ce libellé : sans lui, le destinataire ne saurait pas quoi renommer, et l'import échouerait dès que les deux instances n'ont pas la même langue."
+        },
+
         "normalized": {
           "type": "boolean",
           "description": "true = les données de ce service existent sous resources/<id>/ au modèle sémantique OEIP, donc relisibles par un ENT tiers."

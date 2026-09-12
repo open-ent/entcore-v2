@@ -90,6 +90,18 @@ public class OeipManifestBuilder {
      */
     public OeipManifestBuilder addNativeOnlyService(String serviceId, String labelFr, String labelEn,
                                                     String moduleVersion, JsonObject counts, String notice) {
+        return addNativeOnlyService(serviceId, labelFr, labelEn, moduleVersion, counts, notice, null);
+    }
+
+    /**
+     * @param nativeFolder nom du dossier d'origine dans l'archive — un libellé traduit. Le
+     *                     destinataire en a besoin : certains modules nomment leur fichier
+     *                     d'index d'après ce libellé, et le cherchent ensuite sous LEUR propre
+     *                     traduction.
+     */
+    public OeipManifestBuilder addNativeOnlyService(String serviceId, String labelFr, String labelEn,
+                                                    String moduleVersion, JsonObject counts,
+                                                    String notice, String nativeFolder) {
         if (notice == null || notice.trim().isEmpty()) {
             throw new IllegalArgumentException(
                     "une fidélité « native-only » doit être justifiée : notice requise pour " + serviceId);
@@ -108,6 +120,7 @@ public class OeipManifestBuilder {
         if (labels.size() > 0) svc.put("labels", labels);
         if (moduleVersion != null) svc.put("moduleVersion", moduleVersion);
         if (counts != null) svc.put("counts", counts);
+        if (nativeFolder != null) svc.put("nativeFolder", nativeFolder);
         services.add(svc);
         return this;
     }

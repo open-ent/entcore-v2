@@ -58,6 +58,26 @@ public class ArchiveImportSink {
      */
     public Path buildArchive(Map<String, Path> nativeDirs, Map<String, String> versions,
                              String importId, Path importPath) throws IOException {
+        return buildArchive(nativeDirs, versions, null, importId, importPath);
+    }
+
+    /**
+     * @param sourceFolders serviceId -> nom du dossier que le service portait chez l'ÉMETTEUR.
+     *
+     * <p>Ce paramètre corrige un défaut qui ne se voit qu'entre instances de langues
+     * différentes. Certains modules écrivent, à la racine de leur dossier, un fichier d'index
+     * portant le nom du dossier lui-même — puis le relisent sous LEUR propre traduction. C'est
+     * le cas de l'espace documentaire, qui cherche son index sous
+     * {@code I18n.translate("workspace.title", locale)}. Sans renommage, une archive produite en
+     * français échoue sur une instance anglophone avec « Can't find main workspace file ».
+     *
+     * <p>La règle appliquée est générale et non spécifique à un module : un fichier situé à la
+     * racine du dossier d'un service et portant le nom de ce dossier est son index, et suit le
+     * renommage du dossier.
+     */
+    public Path buildArchive(Map<String, Path> nativeDirs, Map<String, String> versions,
+                             Map<String, String> sourceFolders,
+                             String importId, Path importPath) throws IOException {
         if (!isValidImportId(importId)) {
             throw new IOException("Identifiant d'import invalide : " + importId
                     + " (forme attendue « <millis>_<userId> »)");
@@ -85,9 +105,14 @@ public class ArchiveImportSink {
                 }
                 manifest.put(serviceId, entry);
 
+                String sourceFolder = sourceFolders == null ? null : sourceFolders.get(serviceId);
+
                 List<Path> files = OeipChecksums.listFiles(source);
                 for (Path f : files) {
                     String rel = OeipChecksums.relative(source, f);
+                    if (sourceFolder != null && rel.equals(sourceFolder)) {
+                        rel = folder;
+                    }
                     writeEntry(zos, importId + "/" + folder + "/" + rel, Files.readAllBytes(f));
                 }
             }

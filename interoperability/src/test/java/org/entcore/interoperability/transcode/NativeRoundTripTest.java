@@ -251,9 +251,11 @@ public class NativeRoundTripTest {
 
         Map<String, Path> natives = new LinkedHashMap<String, Path>();
         Map<String, String> versions = new LinkedHashMap<String, String>();
+        Map<String, String> sourceFolders = new LinkedHashMap<String, String>();
         for (String serviceId : bundle.getServiceIds()) {
             natives.put(serviceId, bundle.folderFor(serviceId));
             versions.put(serviceId, bundle.getVersion(serviceId));
+            sourceFolders.put(serviceId, bundle.folderFor(serviceId).getFileName().toString());
         }
 
         String userId = uuid();
@@ -262,7 +264,7 @@ public class NativeRoundTripTest {
 
         // Instance destinataire francophone : les dossiers doivent être renommés.
         ArchiveImportSink sink = new ArchiveImportSink(new ArchiveFolderResolver(I18N_TARGET));
-        Path archive = sink.buildArchive(natives, versions, importId, importPath);
+        Path archive = sink.buildArchive(natives, versions, sourceFolders, importId, importPath);
 
         assertTrue(Files.isRegularFile(archive));
         assertEquals("le fichier doit porter l'identifiant d'import, sans extension",
@@ -294,6 +296,46 @@ public class NativeRoundTripTest {
         } catch (IOException expected) {
             assertTrue(expected.getMessage().contains("invalide"));
         }
+    }
+
+
+    /**
+     * L'espace documentaire écrit son index à la racine de son dossier, nommé COMME le dossier
+     * — un libellé traduit — puis le relit sous la traduction de l'instance destinataire
+     * (WorkspaceRepositoryEvents, « I18n.translate("workspace.title", locale) »). Sans renommage
+     * de cet index, un paquet produit en anglais échoue en français sur « Can't find main
+     * workspace file ». Le défaut ne se voit qu'entre instances de langues différentes.
+     */
+    @Test
+    public void renommeAussiLIndexPortantLeNomDuDossier() throws IOException {
+        Path dir = work.resolve("index-rename");
+        ArchiveBundle bundle = ArchiveBundle.unzip(
+                syntheticArchive("1700000000000_" + uuid(), I18N_SOURCE), dir, 1 << 20);
+
+        // L'archive de départ est anglophone : l'index s'appelle « Workspace ».
+        assertTrue(Files.isRegularFile(bundle.folderFor("workspace").resolve("Workspace")));
+
+        Map<String, Path> natives = new LinkedHashMap<String, Path>();
+        Map<String, String> sourceFolders = new LinkedHashMap<String, String>();
+        for (String serviceId : bundle.getServiceIds()) {
+            natives.put(serviceId, bundle.folderFor(serviceId));
+            sourceFolders.put(serviceId, bundle.folderFor(serviceId).getFileName().toString());
+        }
+
+        String importId = ArchiveImportSink.newImportId(uuid());
+        Path archive = new ArchiveImportSink(new ArchiveFolderResolver(I18N_TARGET))
+                .buildArchive(natives, null, sourceFolders, importId, work.resolve("index-import"));
+
+        ArchiveBundle rebuilt = ArchiveBundle.unzip(Files.readAllBytes(archive),
+                work.resolve("index-check"), 1 << 20);
+        Path ws = rebuilt.folderFor("workspace");
+
+        assertTrue("l'index doit porter le libellé de la CIBLE",
+                Files.isRegularFile(ws.resolve("Espace documentaire")));
+        assertFalse("l'index ne doit plus porter le libellé de l'émetteur",
+                Files.exists(ws.resolve("Workspace")));
+        // Le blog n'a pas d'index homonyme : rien ne doit être renommé chez lui.
+        assertEquals(3, rebuilt.countFiles("blog"));
     }
 
     // ------------------------------------------------------------------ utilitaires
