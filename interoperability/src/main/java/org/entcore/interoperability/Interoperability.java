@@ -10,6 +10,7 @@ import org.entcore.common.storage.StorageFactory;
 import org.entcore.interoperability.controllers.OeipDiscoveryController;
 import org.entcore.interoperability.controllers.OeipExportController;
 import org.entcore.interoperability.controllers.OeipImportController;
+import org.entcore.interoperability.providers.DirectoryOeipProvider;
 import org.entcore.interoperability.schema.OeipSchemaRegistry;
 import org.entcore.interoperability.services.impl.DefaultOeipExportService;
 import org.entcore.interoperability.services.impl.DefaultOeipImportService;
@@ -92,9 +93,13 @@ public class Interoperability extends BaseServer {
 
         final EventStore eventStore = EventStoreFactory.getFactory().getEventStore(Interoperability.class.getSimpleName());
 
-        // Les mappers sémantiques s'enregistreront ici. Tant qu'un service n'est pas enregistré,
-        // il n'est pas annoncé comme normalisé, et une demande le concernant est refusée
-        // explicitement plutôt que de produire un dossier vide.
+        // Mappers sémantiques. Un service absent d'ici n'est pas annoncé comme normalisé : il
+        // sort en « interne seulement », et le manifeste le déclare — jamais un dossier vide.
+        registry.register(new DirectoryOeipProvider(
+                org.entcore.common.neo4j.Neo4j.getInstance(),
+                oeipConfig.getString("source-system", "localhost"),
+                false));
+
         addController(new OeipDiscoveryController(registry, schemas, oeipConfig));
         addController(new OeipExportController(exportService, eventStore));
         addController(new OeipImportController(importService, eventStore));

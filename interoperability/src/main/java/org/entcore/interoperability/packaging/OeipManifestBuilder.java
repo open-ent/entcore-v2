@@ -125,6 +125,44 @@ public class OeipManifestBuilder {
         return this;
     }
 
+    /**
+     * Déclare un service décrit dans le modèle commun.
+     *
+     * @param fidelity « full » si rien de connu n'est perdu, « partial » sinon
+     * @param notice   obligatoire dès que la fidélité n'est pas « full »
+     * @param alsoNative true si la charge utile d'origine accompagne la description
+     */
+    public OeipManifestBuilder addNormalizedService(String serviceId, String labelFr, String labelEn,
+                                                    String moduleVersion, JsonObject counts,
+                                                    String fidelity, String notice,
+                                                    boolean alsoNative, String nativeFolder) {
+        if (!OeipFormat.FIDELITY_FULL.equals(fidelity) && (notice == null || notice.trim().isEmpty())) {
+            throw new IllegalArgumentException(
+                    "une fidélité « " + fidelity + " » doit être justifiée : notice requise pour " + serviceId);
+        }
+        JsonObject labels = new JsonObject();
+        if (labelFr != null) labels.put("fr", labelFr);
+        if (labelEn != null) labels.put("en", labelEn);
+
+        JsonObject paths = new JsonObject().put("core", "directory".equals(serviceId)
+                ? "directory" : "resources/" + serviceId);
+        if (alsoNative) paths.put("native", "native/" + serviceId);
+
+        JsonObject svc = new JsonObject()
+                .put("id", serviceId)
+                .put("normalized", true)
+                .put("native", alsoNative)
+                .put("fidelity", fidelity)
+                .put("paths", paths);
+        if (notice != null && !notice.trim().isEmpty()) svc.put("notice", notice);
+        if (labels.size() > 0) svc.put("labels", labels);
+        if (moduleVersion != null) svc.put("moduleVersion", moduleVersion);
+        if (counts != null) svc.put("counts", counts);
+        if (alsoNative && nativeFolder != null) svc.put("nativeFolder", nativeFolder);
+        services.add(svc);
+        return this;
+    }
+
     public OeipManifestBuilder addWarning(String code, String serviceId, String message) {
         JsonObject w = new JsonObject().put("code", code).put("message", message);
         if (serviceId != null) w.put("serviceId", serviceId);
@@ -198,12 +236,32 @@ public class OeipManifestBuilder {
         return source;
     }
 
-    /** Index d'identifiants minimal : obligatoire même quand aucun objet n'est indexé. */
+    /** Index d'identifiants. Obligatoire même quand aucun objet n'est indexé. */
     public JsonObject buildEmptyIdentifiers() {
+        return buildIdentifiers(new JsonArray(), new JsonArray());
+    }
+
+    public JsonObject buildIdentifiers(JsonArray entries, JsonArray aliases) {
+        JsonObject json = new JsonObject()
+                .put("oeipVersion", OeipFormat.VERSION)
+                .put("sourceSystem", sourceSystem)
+                .put("generatedAt", generatedAt)
+                .put("entries", entries == null ? new JsonArray() : entries);
+        if (aliases != null && aliases.size() > 0) {
+            json.put("aliases", aliases);
+        }
+        return json;
+    }
+
+    /** Document de relations, omis quand aucun lien n'a été déclaré. */
+    public JsonObject buildRelations(JsonArray relations) {
+        if (relations == null || relations.size() == 0) {
+            return null;
+        }
         return new JsonObject()
                 .put("oeipVersion", OeipFormat.VERSION)
                 .put("sourceSystem", sourceSystem)
                 .put("generatedAt", generatedAt)
-                .put("entries", new JsonArray());
+                .put("items", relations);
     }
 }

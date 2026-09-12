@@ -11,7 +11,9 @@ import org.entcore.interoperability.packaging.OeipManifestBuilder;
 import org.entcore.interoperability.packaging.OeipPackageWriter;
 import org.entcore.interoperability.schema.OeipSchemaRegistry;
 import org.entcore.interoperability.services.OeipJob;
+import org.entcore.interoperability.spi.OeipCoreExport;
 import org.entcore.interoperability.spi.OeipProviderRegistry;
+import org.entcore.interoperability.spi.OeipServiceMapper;
 import org.entcore.interoperability.transcode.ArchiveBundle;
 import org.entcore.interoperability.transcode.ArchiveExportSource;
 
@@ -19,6 +21,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 
@@ -78,10 +82,27 @@ public class DefaultOeipExportService {
     private void produce(final String jobId, final UserInfos user, final String locale, final String host,
                          final List<String> serviceIds, final boolean includeBinaries,
                          final boolean includeSharedResources) {
+        // Les services décrits dans le modèle commun sont produits par leur mapper ; les autres
+        // passent par l'export d'archive. Un même service peut relever des deux.
+        final List<String> coreIds = new ArrayList<String>();
+        final List<String> archiveIds = new ArrayList<String>();
+        for (String id : serviceIds) {
+            OeipServiceMapper mapper = providers.get(id);
+            if (mapper != null && mapper.supportsCore()) {
+                coreIds.add(id);
+            }
+            if (mapper == null || !mapper.supportsCore()) {
+                archiveIds.add(id);
+            }
+        }
+
         jobs.update(jobId, new JsonObject().put("state", OeipJob.RUNNING))
-            .compose(v -> archiveSource.export(user.getUserId(), locale, serviceIds,
-                    includeBinaries, includeSharedResources))
-            .compose(bundle -> pack(jobId, user, bundle))
+            .compose(v -> exportCore(coreIds, user.getUserId(), locale))
+            .compose(core -> archiveIds.isEmpty()
+                    ? pack(jobId, user, null, core)
+                    : archiveSource.export(user.getUserId(), locale, archiveIds,
+                            includeBinaries, includeSharedResources)
+                        .compose(bundle -> pack(jobId, user, bundle, core)))
             .onSuccess(v -> log.info("[OEIP] paquet prêt pour le travail " + jobId))
             .onFailure(err -> {
                 log.error("[OEIP] export " + jobId + " en échec", err);
@@ -89,7 +110,32 @@ public class DefaultOeipExportService {
             });
     }
 
-    private Future<Void> pack(final String jobId, final UserInfos user, final ArchiveBundle bundle) {
+
+    /** Exécute les mappers sémantiques, en séquence pour ne pas saturer les bases. */
+    private Future<Map<String, OeipCoreExport>> exportCore(List<String> serviceIds,
+                                                           String scopeUserId, String locale) {
+        final Map<String, OeipCoreExport> results = new LinkedHashMap<String, OeipCoreExport>();
+        Future<Void> chain = Future.succeededFuture();
+        for (final String id : serviceIds) {
+            final OeipServiceMapper mapper = providers.get(id);
+            chain = chain.compose(v -> mapper.exportCore(scopeUserId, locale)
+                    .map(export -> {
+                        results.put(id, export);
+                        return null;
+                    })
+                    .otherwise(err -> {
+                        // Un mapper en échec ne fait pas échouer tout l'export : le service sera
+                        // simplement absent, et le manifeste portera l'avertissement.
+                        log.error("[OEIP] mapper " + id + " en échec", err);
+                        return null;
+                    })
+                    .mapEmpty());
+        }
+        return chain.map(v -> results);
+    }
+
+    private Future<Void> pack(final String jobId, final UserInfos user, final ArchiveBundle bundle,
+                              final Map<String, OeipCoreExport> core) {
         final Promise<Void> promise = Promise.promise();
         vertx.<JsonObject>executeBlocking(blocking -> {
             try {
@@ -101,15 +147,33 @@ public class DefaultOeipExportService {
                         config.getJsonObject("oeip", new JsonObject()).getString("source-system", "localhost"),
                         config.getJsonObject("oeip", new JsonObject()).getString("archive-version"),
                         config.getJsonObject("oeip", new JsonObject()).getString("archive-version"))
-                        .emitNative(true)
+                        .emitNative(bundle != null)
                         .schemaBundleSha256(schemas.getBundleSha256())
                         .scope("person", "urn:oeip:" + OeipFormat.VERSION + ":person:"
                                 + config.getJsonObject("oeip", new JsonObject())
                                         .getString("source-system", "localhost")
                                 + ":" + user.getUserId());
 
-                int exported = 0;
-                for (String serviceId : bundle.getServiceIds()) {
+                JsonArray identifiers = new JsonArray();
+                JsonArray aliases = new JsonArray();
+                JsonArray relations = new JsonArray();
+
+                // Niveau Core : ce que les mappers sémantiques ont su décrire.
+                for (Map.Entry<String, OeipCoreExport> e : core.entrySet()) {
+                    OeipCoreExport ex = e.getValue();
+                    for (Map.Entry<String, JsonObject> doc : ex.getDocuments().entrySet()) {
+                        writer.putJson(doc.getKey(), doc.getValue());
+                    }
+                    identifiers.addAll(ex.getIdentifierEntries());
+                    aliases.addAll(ex.getAliases());
+                    relations.addAll(ex.getRelations());
+                    builder.addNormalizedService(e.getKey(), null, null, null, ex.getCounts(),
+                            ex.getFidelity(), ex.getNotice(), false, null);
+                }
+
+                int exported = core.size();
+                for (String serviceId : bundle == null
+                        ? java.util.Collections.<String>emptyList() : bundle.getServiceIds()) {
                     Path source = bundle.folderFor(serviceId);
                     if (source == null) {
                         // Le module n'a rien produit : on ne fabrique pas un dossier vide, et on
@@ -129,7 +193,11 @@ public class DefaultOeipExportService {
                 }
 
                 writer.putSchemas(schemas.getRawSchemas());
-                writer.putJson(OeipFormat.IDENTIFIERS, builder.buildEmptyIdentifiers());
+                writer.putJson(OeipFormat.IDENTIFIERS, builder.buildIdentifiers(identifiers, aliases));
+                JsonObject relationsDoc = builder.buildRelations(relations);
+                if (relationsDoc != null) {
+                    writer.putJson(OeipFormat.RELATIONS, relationsDoc);
+                }
 
                 JsonObject manifest = builder.build();
                 Path target = workDir.resolve(jobId).resolve(jobId + OeipFormat.EXTENSION);
@@ -155,6 +223,9 @@ public class DefaultOeipExportService {
                 .onComplete(u -> promise.complete());
         });
 
+        if (bundle == null) {
+            return promise.future();
+        }
         // L'archive intermédiaire contient des données personnelles : elle n'a aucune raison de
         // s'attarder dans le stockage une fois le paquet produit.
         return promise.future().compose(v ->
