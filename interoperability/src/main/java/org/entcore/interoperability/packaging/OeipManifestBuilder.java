@@ -242,6 +242,11 @@ public class OeipManifestBuilder {
     }
 
     public JsonObject buildIdentifiers(JsonArray entries, JsonArray aliases) {
+        return buildIdentifiers(entries, aliases, null, null);
+    }
+
+    public JsonObject buildIdentifiers(JsonArray entries, JsonArray aliases,
+                                       JsonArray rewrites, JsonArray unresolved) {
         JsonObject json = new JsonObject()
                 .put("oeipVersion", OeipFormat.VERSION)
                 .put("sourceSystem", sourceSystem)
@@ -249,6 +254,15 @@ public class OeipManifestBuilder {
                 .put("entries", entries == null ? new JsonArray() : entries);
         if (aliases != null && aliases.size() > 0) {
             json.put("aliases", aliases);
+        }
+        // Journal des réécritures : sans lui, la substitution serait aussi opaque que celle
+        // qu'OEIP remplace.
+        if (rewrites != null && rewrites.size() > 0) {
+            json.put("rewrites", rewrites);
+        }
+        // Les liens qu'on n'a pas su résoudre sont AVOUÉS, pas masqués.
+        if (unresolved != null && unresolved.size() > 0) {
+            json.put("unresolvedReferences", unresolved);
         }
         return json;
     }

@@ -10,6 +10,7 @@ import org.entcore.common.storage.StorageFactory;
 import org.entcore.interoperability.controllers.OeipDiscoveryController;
 import org.entcore.interoperability.controllers.OeipExportController;
 import org.entcore.interoperability.controllers.OeipImportController;
+import org.entcore.interoperability.providers.BlogOeipMapper;
 import org.entcore.interoperability.providers.DirectoryOeipProvider;
 import org.entcore.interoperability.schema.OeipSchemaRegistry;
 import org.entcore.interoperability.services.impl.DefaultOeipExportService;
@@ -99,6 +100,7 @@ public class Interoperability extends BaseServer {
                 org.entcore.common.neo4j.Neo4j.getInstance(),
                 oeipConfig.getString("source-system", "localhost"),
                 false));
+        registry.register(new BlogOeipMapper());
 
         addController(new OeipDiscoveryController(registry, schemas, oeipConfig));
         addController(new OeipExportController(exportService, eventStore));

@@ -21,6 +21,10 @@ public class OeipCoreExport {
     private final JsonArray identifierEntries = new JsonArray();
     private final JsonArray aliases = new JsonArray();
     private final JsonArray relations = new JsonArray();
+    private final Map<String, java.nio.file.Path> files = new LinkedHashMap<String, java.nio.file.Path>();
+    private final JsonArray warnings = new JsonArray();
+    private final JsonArray unresolved = new JsonArray();
+    private final JsonArray rewrites = new JsonArray();
     private final JsonObject counts = new JsonObject();
     private String fidelity;
     private String notice;
@@ -45,6 +49,38 @@ public class OeipCoreExport {
         return this;
     }
 
+    /** Binaire à recopier dans le paquet : chemin dans le paquet -> fichier source. */
+    public OeipCoreExport file(String packagePath, java.nio.file.Path source) {
+        files.put(packagePath, source);
+        return this;
+    }
+
+    /**
+     * Anomalie non bloquante : ce que le mapper a constaté et que le paquet doit avouer.
+     *
+     * C'est ici que se manifeste l'intérêt du niveau Core sur le niveau Interne : en
+     * comprenant ce qu'il transporte, un mapper peut signaler ce qui manquait déjà au départ.
+     */
+    public OeipCoreExport warning(String code, String message) {
+        warnings.add(new io.vertx.core.json.JsonObject().put("code", code).put("message", message));
+        return this;
+    }
+
+    /**
+     * Référence rencontrée mais non résolue. Elle reste telle quelle dans les données : un lien
+     * mort annoncé vaut mieux qu'un lien réécrit vers n'importe quoi.
+     */
+    public OeipCoreExport unresolved(io.vertx.core.json.JsonObject reference) {
+        unresolved.add(reference);
+        return this;
+    }
+
+    /** Réécriture de référence effectuée à l'export, journalisée pour être auditable. */
+    public OeipCoreExport rewrite(io.vertx.core.json.JsonObject entry) {
+        rewrites.add(entry);
+        return this;
+    }
+
     public OeipCoreExport count(String key, int value) {
         counts.put(key, value);
         return this;
@@ -63,6 +99,10 @@ public class OeipCoreExport {
     public JsonArray getIdentifierEntries() { return identifierEntries; }
     public JsonArray getAliases() { return aliases; }
     public JsonArray getRelations() { return relations; }
+    public Map<String, java.nio.file.Path> getFiles() { return files; }
+    public JsonArray getWarnings() { return warnings; }
+    public JsonArray getUnresolvedReferences() { return unresolved; }
+    public JsonArray getRewrites() { return rewrites; }
     public JsonObject getCounts() { return counts; }
     public String getFidelity() { return fidelity; }
     public String getNotice() { return notice; }

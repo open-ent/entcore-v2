@@ -78,7 +78,8 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
     }
 
     @Override
-    public Future<OeipCoreExport> exportCore(final String scopeUserId, String locale) {
+    public Future<OeipCoreExport> exportCore(final org.entcore.interoperability.spi.OeipExportContext context) {
+        final String scopeUserId = context.getScopeUserId();
         final JsonObject params = new JsonObject().put("id", scopeUserId);
         return query(Q_PERSON, params)
                 .compose(persons -> query(Q_ORGS, params)

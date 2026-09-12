@@ -32,9 +32,19 @@ public interface OeipServiceMapper {
      * @param scopeUserId compte concerné par l'export
      * @param locale      langue demandée, pour les libellés destinés à un humain
      */
-    default io.vertx.core.Future<OeipCoreExport> exportCore(String scopeUserId, String locale) {
+    default io.vertx.core.Future<OeipCoreExport> exportCore(OeipExportContext context) {
         return io.vertx.core.Future.failedFuture(
                 "[OEIP] aucun mapper sémantique pour le service " + serviceId());
+    }
+
+    /**
+     * true si ce mapper a besoin de la charge utile d'archive pour travailler.
+     *
+     * <p>Un mapper qui transcode n'extrait rien lui-même : il reprend ce que le module a déjà
+     * produit. C'est ce qui permet de décrire un service sans réécrire son extraction.
+     */
+    default boolean transcodesNativePayload() {
+        return false;
     }
 
     /** true si ce mapper sait produire du niveau Core. */
