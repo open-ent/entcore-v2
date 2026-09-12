@@ -1,0 +1,9 @@
+{
+	"main": "org.entcore.interoperability.Interoperability",
+	"port": 8092,
+	"mode": "dev",
+	"app-name": "Interoperability",
+	"app-address": "/interoperability",
+	"app-type": "SYSTEM",
+	"app-icon": "interoperability-large"
+}

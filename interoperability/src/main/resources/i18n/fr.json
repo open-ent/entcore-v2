@@ -1,0 +1,12 @@
+{
+  "interoperability.title": "Interoperabilite",
+  "interoperability.export.started": "L'export du paquet d'échange a démarré.",
+  "interoperability.export.ready": "Le paquet d'échange est prêt au téléchargement.",
+  "interoperability.export.error": "L'export du paquet d'échange a échoué.",
+  "interoperability.import.analyzed": "Le paquet d'échange a été analysé.",
+  "interoperability.import.done": "Le paquet d'échange a été importé.",
+  "interoperability.error.service.not.exportable": "Ce service ne sait pas produire de paquet d'échange sur cette plateforme.",
+  "interoperability.error.version.unsupported": "Cette version du format d'échange n'est pas prise en charge.",
+  "interoperability.error.package.invalid": "Ce paquet d'échange est invalide.",
+  "interoperability.error.not.oeip": "Ce fichier n'est pas un paquet d'échange OEIP."
+}

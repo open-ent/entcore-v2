@@ -1,0 +1,12 @@
+{
+  "interoperability.title": "Interoperability",
+  "interoperability.export.started": "Exchange package export started.",
+  "interoperability.export.ready": "The exchange package is ready for download.",
+  "interoperability.export.error": "Exchange package export failed.",
+  "interoperability.import.analyzed": "The exchange package has been analysed.",
+  "interoperability.import.done": "The exchange package has been imported.",
+  "interoperability.error.service.not.exportable": "This service cannot produce an exchange package on this platform.",
+  "interoperability.error.version.unsupported": "This exchange format version is not supported.",
+  "interoperability.error.package.invalid": "This exchange package is invalid.",
+  "interoperability.error.not.oeip": "This file is not an OEIP exchange package."
+}

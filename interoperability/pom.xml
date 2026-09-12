@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.entcore</groupId>
+        <artifactId>ent-core</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>interoperability</artifactId>
+
+    <properties>
+        <shade.minimizeJar>false</shade.minimizeJar>
+        <!--
+          Même artefact et même version que modules/mod-json-schema-validator : la 3.0.2 exige
+          Java 17 et réécrit l'API. On dépend directement de la bibliothèque plutôt que du
+          verticle, qui est figé sur draft-04 et ne rend qu'un Set.toString() inexploitable.
+        -->
+        <jsonSchemaValidatorVersion>1.0.87</jsonSchemaValidatorVersion>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.entcore</groupId>
+            <artifactId>common</artifactId>
+            <version>${revision}</version>
+            <scope>compile</scope>
+            <exclusions>
+                <!--
+                  mod-json-schema-validator est tiré en fat-jar par common, et ce fat-jar embarque
+                  jackson-databind 2.11.0 (2020), qui masque le 2.15.2 du réacteur : toute API
+                  Jackson postérieure à 2.11 échoue alors en NoSuchMethodError à l'exécution
+                  (constaté sur JsonNode.canConvertToExactIntegral, utilisée par le validateur).
+                  Ce module n'utilise pas ce verticle — il dépend directement de la bibliothèque
+                  networknt — et le verticle reste déployé séparément via ent-core.yaml.
+                -->
+                <exclusion>
+                    <groupId>com.opendigitaleducation</groupId>
+                    <artifactId>mod-json-schema-validator</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>${jsonSchemaValidatorVersion}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>mod-mongo-persistor</artifactId>
+            <version>4.1-zookeeper-SNAPSHOT</version>
+            <scope>runtime</scope>
+            <classifier>fat</classifier>
+        </dependency>
+    </dependencies>
+</project>
