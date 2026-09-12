@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Projection IMS Common Cartridge 1.3 de la partie pédagogique du paquet.
+  Ce fichier n'est PAS normatif pour un import OEIP : oeip-manifest.json fait seul autorité.
+  Aucune extension propriétaire n'y est injectée. Le seul pont vers OEIP est l'identifiant
+  catalogué OEIP porté par les métadonnées LOM de chaque ressource, dont la table de
+  correspondance complète est publiée dans oeip-manifest.json / ccMapping.
+  L'annuaire (organisations, personnes, groupes, adhésions) n'apparaît pas ici : Common
+  Cartridge n'a aucune notion d'utilisateur, de groupe ni d'inscription.
+-->
+<manifest identifier="M_oeip_ref_0001"
+          xmlns="http://www.imsglobal.org/xsd/imsccv1p3/imscp_v1p1"
+          xmlns:lom="http://ltsc.ieee.org/xsd/imsccv1p3/LOM/resource"
+          xmlns:lomimscc="http://ltsc.ieee.org/xsd/imsccv1p3/LOM/manifest"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://www.imsglobal.org/xsd/imsccv1p3/imscp_v1p1 http://www.imsglobal.org/profile/cc/ccv1p3/ccv1p3_imscp_v1p2_v1p0.xsd
+                              http://ltsc.ieee.org/xsd/imsccv1p3/LOM/resource http://www.imsglobal.org/profile/cc/ccv1p3/LOM/ccv1p3_lomresource_v1p0.xsd
+                              http://ltsc.ieee.org/xsd/imsccv1p3/LOM/manifest http://www.imsglobal.org/profile/cc/ccv1p3/LOM/ccv1p3_lommanifest_v1p0.xsd">
+
+  <metadata>
+    <schema>IMS Common Cartridge</schema>
+    <schemaversion>1.3.0</schemaversion>
+    <lomimscc:lom>
+      <lomimscc:general>
+        <lomimscc:title>
+          <lomimscc:string language="fr">Le blog de la 5e A — export de référence OEIP</lomimscc:string>
+        </lomimscc:title>
+        <lomimscc:description>
+          <lomimscc:string language="fr">Paquet de référence OEIP 1.0 : contenus pédagogiques projetés au profil Common Cartridge 1.3.</lomimscc:string>
+        </lomimscc:description>
+        <lomimscc:language>fr</lomimscc:language>
+      </lomimscc:general>
+    </lomimscc:lom>
+  </metadata>
+
+  <organizations>
+    <organization identifier="O_1" structure="rooted-hierarchy">
+      <item identifier="I_root">
+
+        <!-- Conteneur pédagogique : item purement structurel, sans identifierref.
+             C'est la seule façon de représenter un blog en Common Cartridge. -->
+        <item identifier="I_blog_0001">
+          <title>Le blog de la 5e A</title>
+          <item identifier="I_post_0001" identifierref="R_000000000001">
+            <title>Sortie au muséum</title>
+          </item>
+        </item>
+
+        <item identifier="I_folder_0001">
+          <title>Sorties scolaires</title>
+          <item identifier="I_doc_0002" identifierref="R_000000000002">
+            <title>Compte rendu de la sortie</title>
+          </item>
+        </item>
+
+      </item>
+    </organization>
+  </organizations>
+
+  <resources>
+
+    <resource identifier="R_000000000001" type="webcontent"
+              href="resources/blog/content/fi/file-0001/index.html">
+      <metadata>
+        <lom:lom>
+          <lom:general>
+            <lom:identifier>
+              <lom:catalog>OEIP</lom:catalog>
+              <lom:entry>urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001</lom:entry>
+            </lom:identifier>
+          </lom:general>
+        </lom:lom>
+      </metadata>
+      <file href="resources/blog/content/fi/file-0001/index.html"/>
+      <file href="resources/blog/content/fi/file-0001/squelette.png"/>
+    </resource>
+
+    <resource identifier="R_000000000002" type="webcontent"
+              href="resources/workspace/content/fi/file-0002/rapport.txt">
+      <metadata>
+        <lom:lom>
+          <lom:general>
+            <lom:identifier>
+              <lom:catalog>OEIP</lom:catalog>
+              <lom:entry>urn:oeip:1.0:file:ent.exemple-a.fr:file-0002</lom:entry>
+            </lom:identifier>
+          </lom:general>
+        </lom:lom>
+      </metadata>
+      <file href="resources/workspace/content/fi/file-0002/rapport.txt"/>
+    </resource>
+
+  </resources>
+</manifest>

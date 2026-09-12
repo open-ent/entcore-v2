@@ -1,0 +1,38 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "dataset": "persons",
+  "items": [
+    {
+      "globalId": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000011",
+      "sourceSystem": "ent.exemple-a.fr",
+      "externalId": "AAF-1122334455",
+      "login": "amelie.martin",
+      "profile": "Teacher",
+      "firstName": "Amélie",
+      "lastName": "Martin",
+      "displayName": "Amélie Martin",
+      "emails": ["amelie.martin@exemple-a.fr"],
+      "orgRefs": ["urn:oeip:1.0:org:ent.exemple-a.fr:org-0001"],
+      "deleted": false,
+      "sensitivity": "standard"
+    },
+    {
+      "globalId": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0002",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000012",
+      "sourceSystem": "ent.exemple-a.fr",
+      "externalId": "AAF-5566778899",
+      "login": "emael.shafy",
+      "profile": "Student",
+      "firstName": "Emaël",
+      "lastName": "Shafy",
+      "displayName": "Emaël Shafy",
+      "birthDate": "2011-04-17",
+      "orgRefs": ["urn:oeip:1.0:org:ent.exemple-a.fr:org-0001"],
+      "deleted": false,
+      "sensitivity": "minor"
+    }
+  ]
+}

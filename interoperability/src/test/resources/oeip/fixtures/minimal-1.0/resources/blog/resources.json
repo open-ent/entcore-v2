@@ -1,0 +1,58 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "serviceId": "blog",
+  "dataset": "resources",
+  "items": [
+    {
+      "globalId": "urn:oeip:1.0:resource:ent.exemple-a.fr:blog-0001",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000101",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "blog",
+      "resourceType": "urn:oeip:restype:blog.blog",
+      "title": "Le blog de la 5e A",
+      "description": "Les travaux de la classe.",
+      "authorRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "ownerRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "createdAt": "2026-09-01T08:00:00Z",
+      "modifiedAt": "2026-09-10T16:30:00Z",
+      "visibility": "shared",
+      "state": "published",
+      "language": "fr",
+      "acl": [
+        {
+          "granteeRef": "urn:oeip:1.0:group:ent.exemple-a.fr:group-0001",
+          "permissions": [
+            "read",
+            "comment"
+          ]
+        }
+      ]
+    },
+    {
+      "globalId": "urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000102",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "blog",
+      "resourceType": "urn:oeip:restype:blog.post",
+      "title": "Sortie au muséum",
+      "authorRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "ownerRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "createdAt": "2026-09-10T16:00:00Z",
+      "modifiedAt": "2026-09-10T16:30:00Z",
+      "publishedAt": "2026-09-10T16:30:00Z",
+      "parentResourceRef": "urn:oeip:1.0:resource:ent.exemple-a.fr:blog-0001",
+      "state": "published",
+      "language": "fr",
+      "body": {
+        "mediaType": "text/html",
+        "href": "resources/blog/content/fi/file-0001/index.html",
+        "sha256": "8ddb8fbccc798a156ffa7f46ee613452867f67fc70f0098053be6b346cc5ce56"
+      },
+      "attachmentRefs": [
+        "urn:oeip:1.0:file:ent.exemple-a.fr:file-0001"
+      ]
+    }
+  ]
+}

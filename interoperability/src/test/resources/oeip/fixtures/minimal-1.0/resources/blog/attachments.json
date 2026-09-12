@@ -1,0 +1,22 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "serviceId": "blog",
+  "dataset": "attachments",
+  "items": [
+    {
+      "globalId": "urn:oeip:1.0:file:ent.exemple-a.fr:file-0001",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000201",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "blog",
+      "fileName": "squelette.png",
+      "mediaType": "image/png",
+      "size": 71,
+      "sha256": "ae3b21d8abe49114f95ae64ccd9e782c65e795e9b5fcce8be364f50a3362ad16",
+      "path": "resources/blog/content/fi/file-0001/squelette.png",
+      "ownerRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "createdAt": "2026-09-10T16:10:00Z"
+    }
+  ]
+}

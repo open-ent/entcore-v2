@@ -1,0 +1,11 @@
+{
+  "oeipVersion": "1.0",
+  "purpose": "Portabilité des données à la demande de la personne concernée (article 20 du RGPD).",
+  "legalBasis": "Article 20 du règlement (UE) 2016/679 — droit à la portabilité.",
+  "controller": { "name": "Collectivité de rattachement", "contact": "dpo@exemple-a.fr" },
+  "dpo": { "contact": "dpo@exemple-a.fr" },
+  "dataCategories": ["identification", "scolarite", "contenus-pedagogiques", "contenus-personnels"],
+  "containsMinors": true,
+  "retention": { "packageTtlHours": 48, "notice": "Le paquet doit être détruit par le destinataire dès l'import effectué." },
+  "transferNotice": "Ce paquet contient des données à caractère personnel, dont celles de personnes mineures. Son acheminement doit être chiffré et son stockage limité à la durée de l'import."
+}

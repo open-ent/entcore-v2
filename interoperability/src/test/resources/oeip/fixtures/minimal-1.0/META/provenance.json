@@ -1,0 +1,8 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "exportedAt": "2026-09-12T09:00:00Z",
+  "exportedBy": { "globalId": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001", "role": "self" },
+  "jobId": "oeip-ref-0001",
+  "toolchain": { "product": "open-ent", "module": "interoperability", "version": "6.14.9-patched" }
+}

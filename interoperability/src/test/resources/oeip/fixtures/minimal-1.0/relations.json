@@ -1,0 +1,15 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "items": [
+    { "type": "memberOf",    "fromRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001", "toRef": "urn:oeip:1.0:group:ent.exemple-a.fr:group-0001" },
+    { "type": "memberOf",    "fromRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0002", "toRef": "urn:oeip:1.0:group:ent.exemple-a.fr:group-0001" },
+    { "type": "authoredBy",  "fromRef": "urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001",  "toRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001" },
+    { "type": "containedIn", "fromRef": "urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001",  "toRef": "urn:oeip:1.0:resource:ent.exemple-a.fr:blog-0001" },
+    { "type": "attachedTo",  "fromRef": "urn:oeip:1.0:file:ent.exemple-a.fr:file-0001",      "toRef": "urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001" },
+    { "type": "containedIn", "fromRef": "urn:oeip:1.0:file:ent.exemple-a.fr:file-0002",      "toRef": "urn:oeip:1.0:folder:ent.exemple-a.fr:folder-0001" },
+    { "type": "sharedWith",  "fromRef": "urn:oeip:1.0:resource:ent.exemple-a.fr:blog-0001",  "toRef": "urn:oeip:1.0:group:ent.exemple-a.fr:group-0001",
+      "attributes": { "permissions": ["read", "comment"] } }
+  ]
+}

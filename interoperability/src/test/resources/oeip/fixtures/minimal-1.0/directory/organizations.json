@@ -1,0 +1,20 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "dataset": "organizations",
+  "items": [
+    {
+      "globalId": "urn:oeip:1.0:org:ent.exemple-a.fr:org-0001",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000001",
+      "sourceSystem": "ent.exemple-a.fr",
+      "externalId": "STRUCT-0310000A",
+      "uai": "0310000A",
+      "name": "Collège Jean Rostand",
+      "type": "School",
+      "level": "2D",
+      "address": { "street": "12 rue des Écoles", "zip": "31000", "city": "Toulouse", "country": "FR" },
+      "timeZone": "Europe/Paris"
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "entries": [
+    {
+      "globalId": "urn:oeip:1.0:org:ent.exemple-a.fr:org-0001",
+      "kind": "org",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000001",
+      "sourceSystem": "ent.exemple-a.fr",
+      "href": "directory/organizations.json#/items/0"
+    },
+    {
+      "globalId": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "kind": "person",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000011",
+      "sourceSystem": "ent.exemple-a.fr",
+      "href": "directory/persons.json#/items/0"
+    },
+    {
+      "globalId": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0002",
+      "kind": "person",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000012",
+      "sourceSystem": "ent.exemple-a.fr",
+      "href": "directory/persons.json#/items/1"
+    },
+    {
+      "globalId": "urn:oeip:1.0:group:ent.exemple-a.fr:group-0001",
+      "kind": "group",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000021",
+      "sourceSystem": "ent.exemple-a.fr",
+      "href": "directory/groups.json#/items/0"
+    },
+    {
+      "globalId": "urn:oeip:1.0:membership:ent.exemple-a.fr:membership-0001",
+      "kind": "membership",
+      "level": "core",
+      "sourceSystem": "ent.exemple-a.fr",
+      "href": "directory/memberships.json#/items/0"
+    },
+    {
+      "globalId": "urn:oeip:1.0:membership:ent.exemple-a.fr:membership-0002",
+      "kind": "membership",
+      "level": "core",
+      "sourceSystem": "ent.exemple-a.fr",
+      "href": "directory/memberships.json#/items/1"
+    },
+    {
+      "globalId": "urn:oeip:1.0:resource:ent.exemple-a.fr:blog-0001",
+      "kind": "resource",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000101",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "blog",
+      "oeipType": "urn:oeip:restype:blog.blog",
+      "href": "resources/blog/resources.json#/items/0"
+    },
+    {
+      "globalId": "urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001",
+      "kind": "resource",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000102",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "blog",
+      "oeipType": "urn:oeip:restype:blog.post",
+      "href": "resources/blog/resources.json#/items/1"
+    },
+    {
+      "globalId": "urn:oeip:1.0:file:ent.exemple-a.fr:file-0001",
+      "kind": "file",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000201",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "blog",
+      "href": "resources/blog/content/fi/file-0001/squelette.png",
+      "sha256": "ae3b21d8abe49114f95ae64ccd9e782c65e795e9b5fcce8be364f50a3362ad16"
+    },
+    {
+      "globalId": "urn:oeip:1.0:folder:ent.exemple-a.fr:folder-0001",
+      "kind": "folder",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000301",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "workspace",
+      "href": "resources/workspace/folders.json#/items/0"
+    },
+    {
+      "globalId": "urn:oeip:1.0:file:ent.exemple-a.fr:file-0002",
+      "kind": "file",
+      "level": "core",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000302",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "workspace",
+      "href": "resources/workspace/content/fi/file-0002/rapport.txt",
+      "sha256": "c4149ce64359ab95d49573d11d2086633f8e283109082a38dbd3a1caf0b6f6f5"
+    }
+  ],
+  "aliases": [
+    {
+      "globalId": "urn:oeip:1.0:org:ent.exemple-a.fr:org-0001",
+      "sameAs": [
+        "urn:oeip:1.0:org:fr.men.uai:0310000A"
+      ]
+    },
+    {
+      "globalId": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "sameAs": [
+        "urn:oeip:1.0:person:fr.men.aaf:AAF-1122334455"
+      ]
+    },
+    {
+      "globalId": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0002",
+      "sameAs": [
+        "urn:oeip:1.0:person:fr.men.aaf:AAF-5566778899"
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "in": "urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001",
+      "field": "body.content",
+      "from": "/workspace/document/6f2b1a44-0000-4000-8000-000000000201",
+      "to": "oeip:file/urn:oeip:1.0:file:ent.exemple-a.fr:file-0001",
+      "count": 1
+    }
+  ],
+  "unresolvedReferences": []
+}

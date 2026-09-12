@@ -1,0 +1,68 @@
+{
+  "vocabulary": "oeip-service-ids",
+  "oeipVersion": "1.0",
+  "description": [
+    "Vocabulaire FERMÉ des identifiants de service OEIP. Un serviceId est le PRÉFIXE DE ROUTE du module,",
+    "c'est-à-dire la valeur de Server.getPathPrefix() : la clé « path-prefix » de ent-core.yaml quand elle",
+    "est présente, sinon le dernier segment du verticle « main » en minuscules.",
+    "Ce n'est NI l'app-address (qui vaut par exemple /workspace/workspace), NI le libellé traduit.",
+    "C'est déjà l'identifiant pivot du produit : clé du Manifest.json d'archive, clé de publicConf.apps,",
+    "et valeur testée par RepositoryHandler pour décider si un module répond à une demande d'export."
+  ],
+  "notes": [
+    "PIÈGE : l'analyse d'import d'archive retire les tirets des clés (formulaire-public y devient",
+    "formulairepublic). OEIP conserve le tiret ; c'est ArchiveImportSink qui applique la transformation",
+    "au moment de reconstruire un Manifest.json d'archive.",
+    "Les libellés de « labels » sont indicatifs : aucun traitement ne doit en dépendre."
+  ],
+  "fields": {
+    "store": "Persistance principale des ressources du service.",
+    "archiveExport": "Le module produit déjà une charge utile à l'export d'archive (implémente RepositoryEvents.exportResources).",
+    "archiveImport": "Le service est déclaré dans archive.publicConf.apps, donc réellement restaurable par le chemin d'import d'archive.",
+    "coreMapper": "Un mapper sémantique OEIP existe en 1.0. Sinon le service ne peut être exporté qu'en native-only."
+  },
+  "services": [
+    { "id": "directory",         "labels": { "fr": "Annuaire",                "en": "Directory" },            "store": "neo4j",    "archiveExport": false, "archiveImport": false, "coreMapper": true,
+      "comment": "Cas particulier : ses données ne vivent pas sous resources/ mais sous directory/. Son export d'archive est une méthode vide, d'où un fournisseur natif Cypher." },
+    { "id": "workspace",         "labels": { "fr": "Espace documentaire",     "en": "Workspace" },            "store": "mongodb",  "archiveExport": true,  "archiveImport": true,  "coreMapper": true },
+    { "id": "blog",              "labels": { "fr": "Blog",                    "en": "Blog" },                 "store": "mongodb",  "archiveExport": true,  "archiveImport": true,  "coreMapper": true },
+
+    { "id": "conversation",      "labels": { "fr": "Messagerie",              "en": "Conversation" },         "store": "postgresql", "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "rack",              "labels": { "fr": "Casier",                  "en": "Rack" },                 "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "actualites",        "labels": { "fr": "Actualités",              "en": "News" },                 "store": "postgresql", "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "calendar",          "labels": { "fr": "Agenda",                  "en": "Calendar" },             "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "wiki",              "labels": { "fr": "Wiki",                    "en": "Wiki" },                 "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "forum",             "labels": { "fr": "Forum",                   "en": "Forum" },                "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "poll",              "labels": { "fr": "Sondage",                 "en": "Poll" },                 "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "mindmap",           "labels": { "fr": "Carte mentale",           "en": "Mindmap" },              "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "pages",             "labels": { "fr": "Pages",                   "en": "Pages" },                "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "collaborativewall", "labels": { "fr": "Mur collaboratif",        "en": "Collaborative wall" },   "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "collaborativeeditor","labels": { "fr": "Éditeur collaboratif",   "en": "Collaborative editor" }, "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "community",         "labels": { "fr": "Communauté",              "en": "Community" },            "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "communities",       "labels": { "fr": "Communautés",             "en": "Communities" },          "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "video",             "labels": { "fr": "Vidéo",                   "en": "Video" },                "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "magneto",           "labels": { "fr": "Magnéto",                 "en": "Magneto" },              "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "rss",               "labels": { "fr": "Fils RSS",                "en": "RSS" },                  "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "timelinegenerator", "labels": { "fr": "Frise chronologique",     "en": "Timeline generator" },   "store": "mongodb",  "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "formulaire",        "labels": { "fr": "Formulaire",              "en": "Form" },                 "store": "postgresql", "archiveExport": true,  "archiveImport": true,  "coreMapper": false },
+    { "id": "workflowhub",       "labels": { "fr": "Démarches",               "en": "Workflow hub" },         "store": "postgresql", "archiveExport": true,  "archiveImport": true,  "coreMapper": false },
+    { "id": "exercizer",         "labels": { "fr": "Exercices",               "en": "Exercizer" },            "store": "postgresql", "archiveExport": true,  "archiveImport": false, "coreMapper": false,
+      "comment": "Cible d'un mapping QTI en 1.2 ; aucune projection Common Cartridge en 1.0." },
+    { "id": "rbs",               "labels": { "fr": "Réservation de ressources","en": "Resource booking" },    "store": "postgresql", "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "competences",       "labels": { "fr": "Compétences",             "en": "Competences" },          "store": "postgresql", "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+    { "id": "viescolaire",       "labels": { "fr": "Vie scolaire",            "en": "School life" },          "store": "postgresql", "archiveExport": true,  "archiveImport": false, "coreMapper": false },
+
+    { "id": "diary",             "labels": { "fr": "Cahier de textes",        "en": "Diary" },                "store": "postgresql", "archiveExport": false, "archiveImport": false, "coreMapper": false },
+    { "id": "edt",               "labels": { "fr": "Emploi du temps",         "en": "Timetable" },            "store": "postgresql", "archiveExport": false, "archiveImport": false, "coreMapper": false },
+    { "id": "presences",         "labels": { "fr": "Présences",               "en": "Attendance" },           "store": "postgresql", "archiveExport": false, "archiveImport": false, "coreMapper": false },
+    { "id": "schoolbook",        "labels": { "fr": "Carnet de liaison",       "en": "School book" },          "store": "postgresql", "archiveExport": false, "archiveImport": false, "coreMapper": false },
+    { "id": "support",           "labels": { "fr": "Assistance",              "en": "Support" },              "store": "postgresql", "archiveExport": false, "archiveImport": false, "coreMapper": false },
+    { "id": "vote",              "labels": { "fr": "Vote",                    "en": "Vote" },                 "store": "postgresql", "archiveExport": false, "archiveImport": false, "coreMapper": false,
+      "comment": "Le secret du scrutin interdit un export de bulletins : seule la métadonnée de scrutin serait exportable." },
+    { "id": "appointments",      "labels": { "fr": "Rendez-vous",             "en": "Appointments" },         "store": "postgresql", "archiveExport": false, "archiveImport": false, "coreMapper": false },
+    { "id": "esign",             "labels": { "fr": "Signature électronique",  "en": "E-signature" },          "store": "postgresql", "archiveExport": false, "archiveImport": false, "coreMapper": false },
+    { "id": "mediacentre",       "labels": { "fr": "Médiacentre",             "en": "Media centre" },         "store": "mongodb",  "archiveExport": false, "archiveImport": false, "coreMapper": false,
+      "comment": "Agrège des ressources externes ; un export porterait des liens, pas des contenus." },
+    { "id": "chat",              "labels": { "fr": "Messagerie instantanée",  "en": "Chat" },                 "store": "mongodb",  "archiveExport": false, "archiveImport": false, "coreMapper": false }
+  ]
+}

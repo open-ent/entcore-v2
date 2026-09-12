@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://open-ent.fr/oeip/1.0/common-1.0.schema.json",
+  "title": "OEIP 1.0 — définitions partagées",
+  "description": "Types réutilisés par les autres schémas OEIP. Ce fichier ne décrit aucun document du paquet : il n'est jamais validé seul.",
+
+  "definitions": {
+
+    "globalId": {
+      "type": "string",
+      "description": "Identifiant global OEIP : urn:oeip:<version>:<kind>:<authority>:<localpart>. L'autorité est le sourceSystem de l'émetteur, ou un référentiel national (fr.men.uai, fr.men.aaf).",
+      "pattern": "^urn:oeip:1\\.0:(org|person|group|membership|folder|resource|file|relation):[A-Za-z0-9][A-Za-z0-9.-]*:[A-Za-z0-9._~-]+$",
+      "maxLength": 512
+    },
+
+    "globalIdList": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/globalId" },
+      "uniqueItems": true
+    },
+
+    "kind": {
+      "type": "string",
+      "enum": ["org", "person", "group", "membership", "folder", "resource", "file", "relation"]
+    },
+
+    "sourceSystem": {
+      "type": "string",
+      "description": "Autorité émettrice : nom d'hôte pleinement qualifié de la plateforme qui a produit le paquet.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]*$",
+      "maxLength": 253
+    },
+
+    "sourceId": {
+      "type": "string",
+      "description": "Identifiant brut dans la plateforme émettrice. ABSENT quand l'option pseudonymize est active.",
+      "minLength": 1,
+      "maxLength": 256
+    },
+
+    "serviceId": {
+      "type": "string",
+      "description": "Identifiant stable de service = préfixe de route du module, tel que rendu par Server.getPathPrefix() : la clé « path-prefix » de ent-core.yaml si elle existe, sinon le dernier segment du verticle « main » en minuscules. Ce n'est ni l'app-address ni un libellé traduit. Vocabulaire fermé : oeip/vocab/service-ids.json.",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    },
+
+    "identity": {
+      "type": "object",
+      "description": "Triplet d'identité porté par toute entité OEIP.",
+      "properties": {
+        "globalId": { "$ref": "#/definitions/globalId" },
+        "sourceId": { "$ref": "#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "#/definitions/sourceSystem" }
+      },
+      "required": ["globalId", "sourceSystem"]
+    },
+
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+
+    "packagePath": {
+      "type": "string",
+      "description": "Chemin relatif à la racine du paquet. Toujours en « / », jamais absolu, jamais « .. ».",
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\\\]+$",
+      "maxLength": 1024
+    },
+
+    "dateTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Horodatage ISO 8601 avec fuseau explicite (RFC 3339)."
+    },
+
+    "date": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+
+    "mediaType": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*/[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]*$"
+    },
+
+    "labels": {
+      "type": "object",
+      "description": "Libellés humains par code de langue. N'a JAMAIS de valeur structurante : aucun traitement ne doit en dépendre.",
+      "propertyNames": { "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+      "additionalProperties": { "type": "string" },
+      "minProperties": 1
+    },
+
+    "extensions": {
+      "type": "object",
+      "description": "Données propres à un service, non modélisées par OEIP. Clé de premier niveau = serviceId. Jamais lu par le noyau OEIP ni par un importeur générique.",
+      "propertyNames": { "$ref": "#/definitions/serviceId" },
+      "additionalProperties": { "type": "object" }
+    },
+
+    "aclEntry": {
+      "type": "object",
+      "description": "Une autorisation. Le bénéficiaire est une personne ou un groupe désigné par globalId.",
+      "properties": {
+        "granteeRef": { "$ref": "#/definitions/globalId" },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["read", "comment", "contribute", "manage"] },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": ["granteeRef", "permissions"],
+      "additionalProperties": false
+    },
+
+    "documentEnvelope": {
+      "type": "object",
+      "description": "Enveloppe commune à tout fichier de données du paquet.",
+      "properties": {
+        "oeipVersion": { "type": "string", "const": "1.0" },
+        "sourceSystem": { "$ref": "#/definitions/sourceSystem" },
+        "generatedAt": { "$ref": "#/definitions/dateTime" }
+      },
+      "required": ["oeipVersion", "sourceSystem"]
+    }
+  }
+}

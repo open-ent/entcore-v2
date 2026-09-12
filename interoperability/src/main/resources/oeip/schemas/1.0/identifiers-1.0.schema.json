@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://open-ent.fr/oeip/1.0/identifiers-1.0.schema.json",
+  "title": "OEIP 1.0 — identifiers.json",
+  "description": "Index unique des identifiants du paquet. Il couvre les DEUX niveaux : une ressource présente uniquement en native-only y figure aussi, ce qui permet de résoudre une référence croisée entre un service normalisé et un service natif. C'est ce fichier qui remplace la substitution d'UUID par expression régulière : à l'import, toute résolution se fait par clé exacte.",
+  "type": "object",
+
+  "properties": {
+
+    "oeipVersion": { "type": "string", "const": "1.0" },
+    "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+    "generatedAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+
+    "entries": {
+      "type": "array",
+      "description": "Une entrée par objet identifié du paquet.",
+      "items": { "$ref": "#/definitions/entry" }
+    },
+
+    "aliases": {
+      "type": "array",
+      "description": "Identités équivalentes. Sert à rattacher un globalId local à une ancre nationale (UAI, identifiant AAF) afin qu'une plateforme tierce puisse apparier sans connaître nos UUID.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+          "sameAs": {
+            "allOf": [
+              { "$ref": "common-1.0.schema.json#/definitions/globalIdList" },
+              { "minItems": 1 }
+            ]
+          }
+        },
+        "required": ["globalId", "sameAs"],
+        "additionalProperties": false
+      }
+    },
+
+    "rewrites": {
+      "type": "array",
+      "description": "Journal des réécritures de références effectuées à l'export. Rend l'opération auditable et testable : un aller-retour doit reproduire les mêmes chaînes. C'est l'inverse exact du comportement historique, qui substituait sans trace.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "in": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+          "field": {
+            "type": "string",
+            "description": "Pointeur JSON relatif à l'objet réécrit, ex. « body.content ».",
+            "minLength": 1
+          },
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 },
+          "count": { "type": "integer", "minimum": 1 }
+        },
+        "required": ["in", "field", "from", "to"],
+        "additionalProperties": false
+      }
+    },
+
+    "unresolvedReferences": {
+      "type": "array",
+      "description": "Références rencontrées à l'export mais NON résolues. Elles sont laissées telles quelles dans les données : jamais remplacées au hasard. Leur présence ici est la seule façon honnête de signaler un lien qui sera mort à l'arrivée.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "in": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+          "field": { "type": "string", "minLength": 1 },
+          "rawValue": { "type": "string", "minLength": 1 },
+          "reason": {
+            "type": "string",
+            "enum": ["not-found", "out-of-scope", "deleted", "unsupported-service", "access-denied"]
+          }
+        },
+        "required": ["in", "field", "rawValue", "reason"],
+        "additionalProperties": false
+      }
+    }
+  },
+
+  "required": ["oeipVersion", "sourceSystem", "entries"],
+  "additionalProperties": false,
+
+  "definitions": {
+
+    "entry": {
+      "type": "object",
+      "properties": {
+
+        "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "kind": { "$ref": "common-1.0.schema.json#/definitions/kind" },
+
+        "sourceId": { "$ref": "common-1.0.schema.json#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+
+        "serviceId": { "$ref": "common-1.0.schema.json#/definitions/serviceId" },
+
+        "oeipType": {
+          "type": "string",
+          "description": "Type métier, sous forme d'URN : urn:oeip:restype:<serviceId>.<type>. Ex. urn:oeip:restype:blog.post.",
+          "pattern": "^urn:oeip:restype:[a-z][a-z0-9-]*\\.[a-z][a-zA-Z0-9-]*$"
+        },
+
+        "href": {
+          "description": "Où trouver l'objet dans le paquet. Chemin de fichier pour un binaire ; chemin + pointeur JSON (#/…) pour un objet inclus dans un tableau.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1280
+        },
+
+        "sha256": { "$ref": "common-1.0.schema.json#/definitions/sha256" },
+
+        "level": {
+          "type": "string",
+          "description": "Niveau où cet objet est réellement décrit. « native » signifie qu'il n'a pas de représentation sémantique : il est indexé pour la résolution de références, pas pour la relecture par un tiers.",
+          "enum": ["core", "native"]
+        }
+      },
+
+      "required": ["globalId", "kind", "level"],
+      "additionalProperties": false,
+
+      "allOf": [
+        {
+          "description": "Un fichier binaire est toujours localisable et vérifiable.",
+          "if": { "properties": { "kind": { "const": "file" } }, "required": ["kind"] },
+          "then": { "required": ["href", "sha256"] }
+        },
+        {
+          "description": "Un objet décrit au niveau Core est toujours localisable.",
+          "if": { "properties": { "level": { "const": "core" } }, "required": ["level"] },
+          "then": { "required": ["href"] }
+        }
+      ]
+    }
+  }
+}

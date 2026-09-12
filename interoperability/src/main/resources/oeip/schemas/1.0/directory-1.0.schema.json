@@ -1,0 +1,152 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://open-ent.fr/oeip/1.0/directory-1.0.schema.json",
+  "title": "OEIP 1.0 — directory/*.json",
+  "description": "Modèle d'annuaire : organisations, personnes, groupes, adhésions. Le nommage des champs suit OneRoster v1.1 là où un équivalent existe, pour ne pas inventer un vocabulaire — sans pour autant revendiquer la conformité OneRoster. Aucune de ces entités n'est représentable en IMS Common Cartridge : elles vivent ici et nulle part ailleurs.",
+  "type": "object",
+
+  "properties": {
+    "oeipVersion": { "type": "string", "const": "1.0" },
+    "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+    "generatedAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+    "dataset": { "type": "string", "enum": ["organizations", "persons", "groups", "memberships"] },
+    "items": { "type": "array" }
+  },
+
+  "required": ["oeipVersion", "sourceSystem", "dataset", "items"],
+  "additionalProperties": false,
+
+  "allOf": [
+    {
+      "if": { "properties": { "dataset": { "const": "organizations" } }, "required": ["dataset"] },
+      "then": { "properties": { "items": { "items": { "$ref": "#/definitions/organization" } } } }
+    },
+    {
+      "if": { "properties": { "dataset": { "const": "persons" } }, "required": ["dataset"] },
+      "then": { "properties": { "items": { "items": { "$ref": "#/definitions/person" } } } }
+    },
+    {
+      "if": { "properties": { "dataset": { "const": "groups" } }, "required": ["dataset"] },
+      "then": { "properties": { "items": { "items": { "$ref": "#/definitions/group" } } } }
+    },
+    {
+      "if": { "properties": { "dataset": { "const": "memberships" } }, "required": ["dataset"] },
+      "then": { "properties": { "items": { "items": { "$ref": "#/definitions/membership" } } } }
+    }
+  ],
+
+  "definitions": {
+
+    "organization": {
+      "type": "object",
+      "properties": {
+        "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "sourceId": { "$ref": "common-1.0.schema.json#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+        "externalId": { "type": "string" },
+        "uai": {
+          "type": "string",
+          "description": "Ancre nationale française. Quand elle est présente, l'organisation porte aussi un alias urn:oeip:1.0:org:fr.men.uai:<uai> dans identifiers.json.",
+          "pattern": "^[0-9]{7}[A-Z]$"
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "enum": ["School", "Structure", "Tenant", "District"] },
+        "level": { "type": "string", "enum": ["1D", "2D", "SUP", "OTHER"] },
+        "parentOrgRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "address": {
+          "type": "object",
+          "properties": {
+            "street": { "type": "string" },
+            "zip": { "type": "string" },
+            "city": { "type": "string" },
+            "country": { "type": "string", "pattern": "^[A-Z]{2}$" }
+          },
+          "additionalProperties": false
+        },
+        "timeZone": { "type": "string" },
+        "extensions": { "$ref": "common-1.0.schema.json#/definitions/extensions" }
+      },
+      "required": ["globalId", "sourceSystem", "name", "type"],
+      "additionalProperties": false
+    },
+
+    "person": {
+      "type": "object",
+      "properties": {
+        "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "sourceId": { "$ref": "common-1.0.schema.json#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+        "externalId": {
+          "type": "string",
+          "description": "Identifiant d'alimentation (AAF). C'est la clé d'appariement PRIVILÉGIÉE entre deux plateformes, avant le login."
+        },
+        "login": { "type": "string" },
+        "profile": { "type": "string", "enum": ["Student", "Teacher", "Relative", "Personnel", "Guest"] },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "displayName": { "type": "string" },
+        "birthDate": { "$ref": "common-1.0.schema.json#/definitions/date" },
+        "emails": {
+          "type": "array",
+          "items": { "type": "string", "format": "email" },
+          "uniqueItems": true
+        },
+        "orgRefs": { "$ref": "common-1.0.schema.json#/definitions/globalIdList" },
+        "deleted": { "type": "boolean" },
+        "sensitivity": {
+          "type": "string",
+          "description": "Niveau de sensibilité des données portées. « minor » impose une vigilance RGPD renforcée au destinataire.",
+          "enum": ["standard", "minor", "restricted"]
+        },
+        "extensions": { "$ref": "common-1.0.schema.json#/definitions/extensions" }
+      },
+      "required": ["globalId", "sourceSystem", "profile"],
+      "additionalProperties": false
+    },
+
+    "group": {
+      "type": "object",
+      "properties": {
+        "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "sourceId": { "$ref": "common-1.0.schema.json#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+        "externalId": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "groupType": {
+          "type": "string",
+          "enum": ["ProfileGroup", "ClassGroup", "FunctionalGroup", "ManualGroup", "CommunityGroup"]
+        },
+        "orgRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "parentGroupRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "extensions": { "$ref": "common-1.0.schema.json#/definitions/extensions" }
+      },
+      "required": ["globalId", "sourceSystem", "name", "groupType"],
+      "additionalProperties": false
+    },
+
+    "membership": {
+      "type": "object",
+      "description": "Une adhésion est une entité de première classe : elle porte un rôle et des dates. Ce n'est pas un simple tableau d'identifiants sur la personne ou le groupe.",
+      "properties": {
+        "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "sourceId": { "$ref": "common-1.0.schema.json#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+        "personRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "containerRef": {
+          "description": "Le conteneur d'adhésion : une organisation OU un groupe.",
+          "$ref": "common-1.0.schema.json#/definitions/globalId"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["member", "manager", "teacher", "student", "relative", "guest"]
+        },
+        "primary": { "type": "boolean" },
+        "beginDate": { "$ref": "common-1.0.schema.json#/definitions/date" },
+        "endDate": { "$ref": "common-1.0.schema.json#/definitions/date" },
+        "extensions": { "$ref": "common-1.0.schema.json#/definitions/extensions" }
+      },
+      "required": ["globalId", "sourceSystem", "personRef", "containerRef", "role"],
+      "additionalProperties": false
+    }
+  }
+}

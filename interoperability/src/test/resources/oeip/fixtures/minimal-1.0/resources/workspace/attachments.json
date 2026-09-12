@@ -1,0 +1,23 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "serviceId": "workspace",
+  "dataset": "attachments",
+  "items": [
+    {
+      "globalId": "urn:oeip:1.0:file:ent.exemple-a.fr:file-0002",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000302",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "workspace",
+      "fileName": "rapport.txt",
+      "mediaType": "text/plain",
+      "size": 91,
+      "sha256": "c4149ce64359ab95d49573d11d2086633f8e283109082a38dbd3a1caf0b6f6f5",
+      "path": "resources/workspace/content/fi/file-0002/rapport.txt",
+      "ownerRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "folderRef": "urn:oeip:1.0:folder:ent.exemple-a.fr:folder-0001",
+      "createdAt": "2026-09-10T17:00:00Z"
+    }
+  ]
+}

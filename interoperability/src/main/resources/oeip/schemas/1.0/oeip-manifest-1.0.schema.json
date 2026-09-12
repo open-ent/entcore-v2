@@ -1,0 +1,265 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://open-ent.fr/oeip/1.0/oeip-manifest-1.0.schema.json",
+  "title": "OEIP 1.0 — oeip-manifest.json",
+  "description": "Manifeste normatif du paquet. C'est LE fichier qui fait autorité : un importeur OEIP lit celui-ci, jamais imsmanifest.xml. Son absence rend le paquet invalide.",
+  "type": "object",
+
+  "properties": {
+
+    "format": { "type": "string", "const": "open-ent-interoperability-package" },
+    "oeipVersion": { "type": "string", "const": "1.0" },
+
+    "profile": {
+      "type": "string",
+      "description": "Portée fonctionnelle du paquet. « directory-only » dispense de imsmanifest.xml.",
+      "enum": ["full", "directory-only", "resources-only"]
+    },
+
+    "levels": {
+      "type": "object",
+      "description": "Niveaux de conformité effectivement présents dans ce paquet. « core » est toujours vrai : c'est le niveau obligatoire.",
+      "properties": {
+        "core": { "type": "boolean", "const": true },
+        "cc": { "type": "boolean" },
+        "native": { "type": "boolean" }
+      },
+      "required": ["core", "cc", "native"],
+      "additionalProperties": false
+    },
+
+    "nativeFormat": {
+      "type": "object",
+      "description": "OBLIGATOIRE si levels.native vaut true. Décrit le produit émetteur de la charge utile native/. Un importeur ne lit native/ que si product correspond à son propre produit et que archiveVersion lui est compatible.",
+      "properties": {
+        "product": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "archiveVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "rootFolderName": {
+          "type": "string",
+          "description": "Nom de dossier attendu par le format natif à la réinjection. Pour Open ENT, le sink le régénère : cette valeur est informative."
+        }
+      },
+      "required": ["product", "archiveVersion"],
+      "additionalProperties": false
+    },
+
+    "source": {
+      "type": "object",
+      "properties": {
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+        "product": { "type": "string" },
+        "productVersion": { "type": "string" },
+        "platformLabel": { "type": "string" }
+      },
+      "required": ["sourceSystem", "product"],
+      "additionalProperties": false
+    },
+
+    "generatedAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+
+    "scope": {
+      "type": "object",
+      "description": "Périmètre exporté.",
+      "properties": {
+        "type": { "type": "string", "enum": ["person", "structure", "platform"] },
+        "refs": { "$ref": "common-1.0.schema.json#/definitions/globalIdList" },
+        "uai": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[0-9]{7}[A-Z]$" },
+          "uniqueItems": true
+        }
+      },
+      "required": ["type", "refs"],
+      "additionalProperties": false
+    },
+
+    "datasets": {
+      "type": "array",
+      "description": "Fichiers de données de niveau Core présents à la racine des dossiers directory/ et à la racine du paquet.",
+      "items": { "type": "string", "enum": ["organizations", "persons", "groups", "memberships", "relations", "identifiers"] },
+      "uniqueItems": true
+    },
+
+    "services": {
+      "type": "array",
+      "description": "Un descripteur par service exporté. La fidélité y est déclarée SERVICE PAR SERVICE : c'est ce qui rend explicite ce qui sera relisible ailleurs, et ce qui ne le sera pas.",
+      "items": { "$ref": "#/definitions/serviceDescriptor" }
+    },
+
+    "integrity": {
+      "type": "object",
+      "description": "Intégrité vérifiable SANS aucune clé. Distincte de la signature, qui est optionnelle et séparée.",
+      "properties": {
+        "algorithm": { "type": "string", "const": "sha256" },
+        "checksumsFile": { "type": "string", "const": "checksums.sha256" },
+        "checksumsSha256": { "$ref": "common-1.0.schema.json#/definitions/sha256" }
+      },
+      "required": ["algorithm", "checksumsFile", "checksumsSha256"],
+      "additionalProperties": false
+    },
+
+    "schemaBundle": {
+      "type": "object",
+      "description": "Épingle le lot de schémas embarqué sous schemas/. Une divergence de sha256 avec le lot connu de l'importeur produit un AVERTISSEMENT, jamais un rejet : un ENT tiers peut légitimement étendre le format.",
+      "properties": {
+        "path": { "type": "string", "const": "schemas/1.0" },
+        "sha256": { "$ref": "common-1.0.schema.json#/definitions/sha256" }
+      },
+      "required": ["path", "sha256"],
+      "additionalProperties": false
+    },
+
+    "ccMapping": {
+      "type": "array",
+      "description": "Table de correspondance entre les identifiants de ressources de imsmanifest.xml et les globalId OEIP. OBLIGATOIRE si levels.cc vaut true. C'est le seul pont entre les deux manifestes : aucune extension propriétaire n'est injectée dans le XML.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ccResourceIdentifier": { "type": "string", "pattern": "^R_[a-f0-9]{12}$" },
+          "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" }
+        },
+        "required": ["ccResourceIdentifier", "globalId"],
+        "additionalProperties": false
+      }
+    },
+
+    "part": {
+      "type": "object",
+      "description": "Présent uniquement quand l'export a dû être découpé en plusieurs paquets.",
+      "properties": {
+        "packageSetId": { "type": "string", "minLength": 1 },
+        "index": { "type": "integer", "minimum": 1 },
+        "total": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["packageSetId", "index", "total"],
+      "additionalProperties": false
+    },
+
+    "options": {
+      "type": "object",
+      "properties": {
+        "includeBinaries": { "type": "boolean" },
+        "includeSharedResources": { "type": "boolean" },
+        "pseudonymized": {
+          "type": "boolean",
+          "description": "Si true, sourceId/login/email/birthDate sont absents. INCOMPATIBLE avec levels.native (la charge utile native n'est pas filtrée par le modèle Core)."
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "warnings": {
+      "type": "array",
+      "description": "Anomalies non bloquantes rencontrées à la production du paquet (références non résolues, service en échec, etc.).",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "serviceId": { "$ref": "common-1.0.schema.json#/definitions/serviceId" },
+          "message": { "type": "string" },
+          "count": { "type": "integer", "minimum": 1 }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      }
+    }
+  },
+
+  "required": [
+    "format", "oeipVersion", "profile", "levels", "source",
+    "generatedAt", "scope", "services", "integrity", "schemaBundle"
+  ],
+  "additionalProperties": false,
+
+  "allOf": [
+    {
+      "description": "Un paquet déclarant le niveau Native doit décrire le produit émetteur.",
+      "if": { "properties": { "levels": { "properties": { "native": { "const": true } } } }, "required": ["levels"] },
+      "then": { "required": ["nativeFormat"] }
+    },
+    {
+      "description": "Un paquet déclarant le niveau CC doit publier la table de correspondance.",
+      "if": { "properties": { "levels": { "properties": { "cc": { "const": true } } } }, "required": ["levels"] },
+      "then": { "required": ["ccMapping"] }
+    },
+    {
+      "description": "La pseudonymisation et la charge utile native s'excluent.",
+      "if": {
+        "properties": { "options": { "properties": { "pseudonymized": { "const": true } }, "required": ["pseudonymized"] } },
+        "required": ["options"]
+      },
+      "then": { "properties": { "levels": { "properties": { "native": { "const": false } } } } }
+    }
+  ],
+
+  "definitions": {
+
+    "serviceDescriptor": {
+      "type": "object",
+      "properties": {
+
+        "id": { "$ref": "common-1.0.schema.json#/definitions/serviceId" },
+
+        "labels": { "$ref": "common-1.0.schema.json#/definitions/labels" },
+
+        "moduleVersion": {
+          "type": "string",
+          "description": "Version du module qui a produit les données, quand elle est connue. Sans rapport avec oeipVersion."
+        },
+
+        "normalized": {
+          "type": "boolean",
+          "description": "true = les données de ce service existent sous resources/<id>/ au modèle sémantique OEIP, donc relisibles par un ENT tiers."
+        },
+
+        "native": {
+          "type": "boolean",
+          "description": "true = la charge utile d'origine est conservée verbatim sous native/<id>/."
+        },
+
+        "fidelity": {
+          "type": "string",
+          "description": "full : normalisé sans perte connue. partial : normalisé, mais une partie des données n'est portée que par native/ ou extensions. native-only : aucun mapping sémantique, relisible uniquement par le produit émetteur. none : le service a échoué ou n'a rien produit.",
+          "enum": ["full", "partial", "native-only", "none"]
+        },
+
+        "notice": {
+          "type": "string",
+          "description": "Explication destinée à un humain, obligatoire dès que fidelity n'est pas « full »."
+        },
+
+        "counts": {
+          "type": "object",
+          "description": "Compteurs par type d'entité. Sert au contrôle d'équivalence entre les niveaux Core et Native, et au rapport d'import.",
+          "propertyNames": { "pattern": "^[a-z][a-zA-Z]*$" },
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+
+        "paths": {
+          "type": "object",
+          "properties": {
+            "core": { "$ref": "common-1.0.schema.json#/definitions/packagePath" },
+            "native": { "$ref": "common-1.0.schema.json#/definitions/packagePath" }
+          },
+          "additionalProperties": false
+        }
+      },
+
+      "required": ["id", "normalized", "native", "fidelity"],
+      "additionalProperties": false,
+
+      "allOf": [
+        {
+          "description": "Toute fidélité dégradée doit être justifiée en clair : c'est ce qui remplace la perte silencieuse.",
+          "if": { "properties": { "fidelity": { "enum": ["partial", "native-only", "none"] } }, "required": ["fidelity"] },
+          "then": { "required": ["notice"] }
+        },
+        {
+          "description": "Un service non normalisé ne peut pas être déclaré « full ».",
+          "if": { "properties": { "normalized": { "const": false } }, "required": ["normalized"] },
+          "then": { "properties": { "fidelity": { "enum": ["native-only", "none"] } } }
+        }
+      ]
+    }
+  }
+}

@@ -102,3 +102,5 @@ dependency-reduced-pom.xml
 .pnpm-store
 
 ?
+# Paquets OEIP : artefacts de build, reconstruits par tools/oeip_lint.py build
+*.oeip

@@ -1,0 +1,26 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "dataset": "memberships",
+  "items": [
+    {
+      "globalId": "urn:oeip:1.0:membership:ent.exemple-a.fr:membership-0001",
+      "sourceSystem": "ent.exemple-a.fr",
+      "personRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "containerRef": "urn:oeip:1.0:group:ent.exemple-a.fr:group-0001",
+      "role": "teacher",
+      "primary": true,
+      "beginDate": "2026-09-01"
+    },
+    {
+      "globalId": "urn:oeip:1.0:membership:ent.exemple-a.fr:membership-0002",
+      "sourceSystem": "ent.exemple-a.fr",
+      "personRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0002",
+      "containerRef": "urn:oeip:1.0:group:ent.exemple-a.fr:group-0001",
+      "role": "student",
+      "primary": true,
+      "beginDate": "2026-09-01"
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "format": "open-ent-interoperability-package",
+  "oeipVersion": "1.0",
+  "profile": "full",
+  "levels": {
+    "core": true,
+    "cc": true,
+    "native": false
+  },
+  "source": {
+    "sourceSystem": "ent.exemple-a.fr",
+    "product": "open-ent",
+    "productVersion": "6.14.9-patched",
+    "platformLabel": "ENT de démonstration A"
+  },
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "scope": {
+    "type": "person",
+    "refs": [
+      "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001"
+    ],
+    "uai": [
+      "0310000A"
+    ]
+  },
+  "datasets": [
+    "organizations",
+    "persons",
+    "groups",
+    "memberships",
+    "relations",
+    "identifiers"
+  ],
+  "services": [
+    {
+      "id": "directory",
+      "labels": {
+        "fr": "Annuaire",
+        "en": "Directory"
+      },
+      "moduleVersion": "6.14.9-patched",
+      "normalized": true,
+      "native": false,
+      "fidelity": "partial",
+      "notice": "Les fonctions et rattachements administratifs ne sont pas modélisés en 1.0.",
+      "counts": {
+        "organizations": 1,
+        "persons": 2,
+        "groups": 1,
+        "memberships": 2
+      },
+      "paths": {
+        "core": "directory"
+      }
+    },
+    {
+      "id": "blog",
+      "labels": {
+        "fr": "Blog",
+        "en": "Blog"
+      },
+      "moduleVersion": "6.14.9-patched",
+      "normalized": true,
+      "native": false,
+      "fidelity": "full",
+      "counts": {
+        "resources": 2,
+        "attachments": 1
+      },
+      "paths": {
+        "core": "resources/blog"
+      }
+    },
+    {
+      "id": "workspace",
+      "labels": {
+        "fr": "Espace documentaire",
+        "en": "Workspace"
+      },
+      "moduleVersion": "6.14.9-patched",
+      "normalized": true,
+      "native": false,
+      "fidelity": "full",
+      "counts": {
+        "folders": 1,
+        "attachments": 1
+      },
+      "paths": {
+        "core": "resources/workspace"
+      }
+    }
+  ],
+  "integrity": {
+    "algorithm": "sha256",
+    "checksumsFile": "checksums.sha256",
+    "checksumsSha256": "d48653cacfa1c6d6b5e74e1557263f74cbf7eee72bae9e01cb46fbe974321b6a"
+  },
+  "schemaBundle": {
+    "path": "schemas/1.0",
+    "sha256": "caff60bb6842d9df871148f40580e1a89a3d61113066b8407fe2c8b199777f30"
+  },
+  "ccMapping": [
+    {
+      "ccResourceIdentifier": "R_000000000001",
+      "globalId": "urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001"
+    },
+    {
+      "ccResourceIdentifier": "R_000000000002",
+      "globalId": "urn:oeip:1.0:file:ent.exemple-a.fr:file-0002"
+    }
+  ],
+  "options": {
+    "includeBinaries": true,
+    "includeSharedResources": true,
+    "pseudonymized": false
+  },
+  "warnings": []
+}
