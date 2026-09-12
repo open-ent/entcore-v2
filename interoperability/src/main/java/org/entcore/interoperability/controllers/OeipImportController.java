@@ -116,17 +116,42 @@ public class OeipImportController extends BaseController {
                 // être un acte délibéré, pas la conséquence d'un paramètre oublié.
                 final boolean dryRun = !"apply".equals(body.getString("mode", "dry-run"));
 
-                importService.apply(jobId, user, services,
-                                I18n.acceptLanguage(request), getHost(request), dryRun)
-                        .onSuccess(report -> {
-                            eventStore.createAndStoreEvent("OEIP_IMPORT_APPLY", request,
-                                    new JsonObject().put("jobId", jobId).put("dryRun", dryRun));
-                            renderJson(request, report);
-                        })
-                        .onFailure(err -> renderError(request, new JsonObject()
-                                .put("error", String.valueOf(err.getMessage()))));
+                // Compte destinataire. Sans ce paramètre, l'import atterrirait dans le compte de
+                // l'opérateur — ce qui n'a aucun sens pour une migration : les données d'une
+                // personne doivent revenir DANS SON compte. Le module archive sait déjà importer
+                // « pour quelqu'un d'autre » : c'est par là que passent la restauration groupée
+                // et la reprise de plate-forme. Réservé au super-administrateur par la route.
+                final String targetUserId = body.getString("targetUserId");
+                if (targetUserId == null || targetUserId.equals(user.getUserId())) {
+                    runApply(request, jobId, user, services, dryRun);
+                    return;
+                }
+                UserUtils.getUserInfos(eb, targetUserId, target -> {
+                    if (target == null) {
+                        badRequest(request, "interoperability.error.target.unknown");
+                        return;
+                    }
+                    runApply(request, jobId, target, services, dryRun);
+                });
             });
         });
+    }
+
+
+    private void runApply(final HttpServerRequest request, final String jobId,
+                          final org.entcore.common.user.UserInfos target,
+                          final List<String> services, final boolean dryRun) {
+        importService.apply(jobId, target, services,
+                        I18n.acceptLanguage(request), getHost(request), dryRun)
+                .onSuccess(report -> {
+                    eventStore.createAndStoreEvent("OEIP_IMPORT_APPLY", request,
+                            new JsonObject().put("jobId", jobId)
+                                    .put("dryRun", dryRun)
+                                    .put("targetUserId", target.getUserId()));
+                    renderJson(request, report.copy().put("targetUserId", target.getUserId()));
+                })
+                .onFailure(err -> renderError(request, new JsonObject()
+                        .put("error", String.valueOf(err.getMessage()))));
     }
 
     @Get("/import/:jobId")
