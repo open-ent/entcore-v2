@@ -64,10 +64,13 @@ def build(root: Path) -> int:
     errors = []
 
     # .../src/test/resources/oeip/fixtures/<paquet> -> .../src/main/resources/oeip/schemas/1.0
-    schemas_src = root.parents[4] / "main" / "resources" / "oeip" / SCHEMA_DIR_REL
-    if not schemas_src.is_dir():
-        # Chemin alternatif : exécution depuis un paquet déjà constitué.
-        schemas_src = None
+    # L'outil doit fonctionner sur N'IMPORTE QUEL dossier de paquet, pas seulement sur les
+    # fixtures : hors de cette arborescence, on se contente des schémas déjà embarqués.
+    schemas_src = None
+    if len(root.parents) >= 5:
+        candidate = root.parents[4] / "main" / "resources" / "oeip" / SCHEMA_DIR_REL
+        if candidate.is_dir():
+            schemas_src = candidate
     if schemas_src:
         dest = root / SCHEMA_DIR_REL
         dest.mkdir(parents=True, exist_ok=True)

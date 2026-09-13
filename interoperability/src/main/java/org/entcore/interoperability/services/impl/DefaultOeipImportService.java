@@ -39,14 +39,17 @@ public class DefaultOeipImportService {
     private final JsonObject config;
     private final Path workDir;
     private final Path archiveImportPath;
+    private final org.entcore.interoperability.spi.OeipProviderRegistry providers;
 
     public DefaultOeipImportService(Vertx vertx, MongoOeipJobStore jobs, JsonObject config,
-                                    Path workDir, Path archiveImportPath) {
+                                    Path workDir, Path archiveImportPath,
+                                    org.entcore.interoperability.spi.OeipProviderRegistry providers) {
         this.vertx = vertx;
         this.jobs = jobs;
         this.config = config;
         this.workDir = workDir;
         this.archiveImportPath = archiveImportPath;
+        this.providers = providers;
     }
 
     public String newJobId() {
@@ -197,23 +200,77 @@ public class DefaultOeipImportService {
                 return;
             }
             final JsonObject built = res.result();
+            // Les importeurs sémantiques passent en premier : ils apparient les identités, ce dont
+            // la reprise des contenus dépend pour savoir à qui les rattacher.
+            runCoreImporters(jobId, user, dryRun).onComplete(coreRes -> {
+                JsonArray coreReports = coreRes.succeeded() ? coreRes.result() : new JsonArray();
+                finishApply(jobId, built, user, locale, host, dryRun, coreReports, promise);
+            });
+        });
+    }
+
+    /** Exécute les importeurs sémantiques présents pour les services décrits dans le paquet. */
+    private Future<JsonArray> runCoreImporters(final String jobId, final UserInfos user,
+                                               final boolean dryRun) {
+        final JsonArray reports = new JsonArray();
+        final Path unzipped = workDir.resolve(jobId).resolve("unzipped");
+        JsonObject manifest;
+        try {
+            manifest = new JsonObject(new String(java.nio.file.Files.readAllBytes(
+                    unzipped.resolve(OeipFormat.MANIFEST)), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return Future.succeededFuture(reports);
+        }
+        final org.entcore.interoperability.spi.OeipImportContext context =
+                new org.entcore.interoperability.spi.OeipImportContext(unzipped, user.getUserId(),
+                        user.getLogin(), dryRun, manifest);
+
+        JsonArray services = manifest.getJsonArray("services", new JsonArray());
+        Future<Void> chain = Future.succeededFuture();
+        for (int i = 0; i < services.size(); i++) {
+            JsonObject svc = services.getJsonObject(i);
+            if (!Boolean.TRUE.equals(svc.getBoolean("normalized"))) {
+                continue;
+            }
+            final org.entcore.interoperability.spi.OeipServiceMapper mapper =
+                    providers.get(svc.getString("id"));
+            if (mapper == null || !mapper.supportsCoreImport()) {
+                continue;
+            }
+            chain = chain.compose(v -> mapper.importCore(context)
+                    .map(report -> { reports.add(report); return (Void) null; })
+                    .otherwise(err -> {
+                        // Un importeur en échec n'annule pas le reste : le rapport le dira.
+                        log.error("[OEIP] importeur " + mapper.serviceId() + " en échec", err);
+                        reports.add(new JsonObject().put("service", mapper.serviceId())
+                                .put("error", String.valueOf(err.getMessage())));
+                        return null;
+                    }));
+        }
+        return chain.map(v -> reports);
+    }
+
+    private void finishApply(final String jobId, final JsonObject built, final UserInfos user,
+                             final String locale, final String host, final boolean dryRun,
+                             final JsonArray coreReports, final Promise<JsonObject> promise) {
             if (dryRun) {
                 JsonObject report = new JsonObject()
                         .put("dryRun", true)
                         .put("services", built.getJsonArray("services"))
                         .put("refused", built.getJsonArray("refused"))
+                        .put("core", coreReports)
                         .put("notice", "Archive reconstruite et vérifiée ; aucune écriture en base.");
                 jobs.update(jobId, new JsonObject().put("state", OeipJob.DONE).put("report", report))
                     .onComplete(v -> promise.complete(report));
                 return;
             }
-            submit(jobId, built, user, locale, host, promise);
-        });
+            submit(jobId, built, user, locale, host, coreReports, promise);
     }
 
     /** Remet l'archive reconstruite au module archive, et attend son rapport. */
     private void submit(final String jobId, final JsonObject built, final UserInfos user,
-                        final String locale, final String host, final Promise<JsonObject> promise) {
+                        final String locale, final String host, final JsonArray coreReports,
+                        final Promise<JsonObject> promise) {
         JsonObject message = new JsonObject()
                 .put("action", "import-file")
                 .put("importId", built.getString("importId"))
@@ -240,6 +297,7 @@ public class DefaultOeipImportService {
                             .put("status", body.getString("status"))
                             .put("services", built.getJsonArray("services"))
                             .put("refused", built.getJsonArray("refused"))
+                            .put("core", coreReports)
                             .put("result", body.getJsonObject("result", new JsonObject()));
                     String state = "ok".equals(body.getString("status")) ? OeipJob.DONE : OeipJob.ERROR;
                     jobs.update(jobId, new JsonObject().put("state", state).put("report", report))

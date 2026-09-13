@@ -13,7 +13,9 @@ import org.entcore.interoperability.spi.OeipServiceMapper;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Décrit l'annuaire dans le modèle commun : établissements, personnes, groupes, adhésions.
@@ -47,6 +49,35 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
             "OPTIONAL MATCH (g)-[:DEPENDS]->(:Class)-[:BELONGS]->(cs:Structure) " +
             "RETURN DISTINCT g.id AS id, g.name AS name, g.externalId AS externalId, " +
             "labels(g) AS labels, coalesce(s.id, cs.id) AS orgId";
+
+    /**
+     * Appariement par identifiant d'alimentation, puis par login.
+     *
+     * L'identifiant d'alimentation est privilégié : il est stable entre plateformes alimentées
+     * par la même source, alors qu'un login peut être réattribué ou différer d'une convention à
+     * l'autre.
+     */
+    private static final String Q_MATCH_EXTERNAL =
+            "MATCH (u:User) WHERE u.externalId IN {values} " +
+            "RETURN u.externalId AS key, u.id AS id, u.login AS login";
+
+    private static final String Q_MATCH_LOGIN =
+            "MATCH (u:User) WHERE u.login IN {values} " +
+            "RETURN u.login AS key, u.id AS id, u.login AS login";
+
+    private static final String Q_MATCH_UAI =
+            "MATCH (s:Structure) WHERE s.UAI IN {values} " +
+            "RETURN s.UAI AS key, s.id AS id, s.name AS name";
+
+    /**
+     * Marque un compte existant d'un alias vers son identité d'échange.
+     *
+     * C'est la SEULE écriture que cet importeur s'autorise sur l'annuaire. Créer un compte
+     * court-circuiterait l'alimentation et corromprait le graphe ; la reprise des contenus, elle,
+     * se rattache à des comptes déjà présents.
+     */
+    private static final String Q_TAG_ALIAS =
+            "MATCH (u:User {id:{id}}) SET u._oeipGlobalId = {globalId} RETURN u.id AS id";
 
     private final Neo4j neo4j;
     private final String sourceSystem;
@@ -247,6 +278,194 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
             e.put("sourceId", sourceId);
         }
         return e;
+    }
+
+    @Override
+    public boolean supportsCoreImport() {
+        return true;
+    }
+
+    @Override
+    public Future<JsonObject> importCore(final org.entcore.interoperability.spi.OeipImportContext context) {
+        final JsonArray persons = readItems(context, "directory/persons.json");
+        final JsonArray orgs = readItems(context, "directory/organizations.json");
+
+        return matchPersons(persons)
+                .compose(personReport -> matchOrganizations(orgs)
+                .compose(orgReport -> applyAliases(context, personReport)
+                .map(applied -> new JsonObject()
+                        .put("service", SERVICE_ID)
+                        .put("dryRun", context.isDryRun())
+                        .put("persons", personReport)
+                        .put("organizations", orgReport)
+                        .put("aliasesWritten", applied)
+                        .put("notice", "Aucun compte n'est créé par un import : la création des "
+                                + "utilisateurs reste le métier de l'alimentation de l'annuaire."))));
+    }
+
+    /** Apparie d'abord par identifiant d'alimentation, puis par login pour le reste. */
+    private Future<JsonObject> matchPersons(final JsonArray persons) {
+        final Map<String, JsonObject> byExternal = new LinkedHashMap<String, JsonObject>();
+        final Map<String, JsonObject> byLogin = new LinkedHashMap<String, JsonObject>();
+        for (int i = 0; i < persons.size(); i++) {
+            JsonObject p = persons.getJsonObject(i);
+            if (p.getString("externalId") != null) {
+                byExternal.put(p.getString("externalId"), p);
+            } else if (p.getString("login") != null) {
+                byLogin.put(p.getString("login"), p);
+            }
+        }
+
+        final JsonArray matched = new JsonArray();
+        final JsonArray unmatched = new JsonArray();
+
+        return lookup(Q_MATCH_EXTERNAL, byExternal.keySet())
+            .compose(foundExternal -> {
+                for (Map.Entry<String, JsonObject> e : byExternal.entrySet()) {
+                    JsonObject local = foundExternal.get(e.getKey());
+                    if (local != null) {
+                        matched.add(describeMatch(e.getValue(), local, "externalId"));
+                    } else if (e.getValue().getString("login") != null) {
+                        // Repli sur le login : moins sûr, mais mieux que renoncer.
+                        byLogin.put(e.getValue().getString("login"), e.getValue());
+                    } else {
+                        unmatched.add(describeMiss(e.getValue(), "aucun identifiant d'alimentation correspondant"));
+                    }
+                }
+                return lookup(Q_MATCH_LOGIN, byLogin.keySet());
+            })
+            .map(foundLogin -> {
+                for (Map.Entry<String, JsonObject> e : byLogin.entrySet()) {
+                    JsonObject local = foundLogin.get(e.getKey());
+                    if (local != null) {
+                        matched.add(describeMatch(e.getValue(), local, "login"));
+                    } else {
+                        unmatched.add(describeMiss(e.getValue(),
+                                "aucun compte correspondant sur cette plateforme"));
+                    }
+                }
+                return new JsonObject()
+                        .put("total", persons.size())
+                        .put("matchedCount", matched.size())
+                        .put("unmatchedCount", unmatched.size())
+                        .put("matched", matched)
+                        .put("unmatched", unmatched);
+            });
+    }
+
+    private Future<JsonObject> matchOrganizations(final JsonArray orgs) {
+        final Map<String, JsonObject> byUai = new LinkedHashMap<String, JsonObject>();
+        for (int i = 0; i < orgs.size(); i++) {
+            JsonObject o = orgs.getJsonObject(i);
+            if (isUai(o.getString("uai"))) {
+                byUai.put(o.getString("uai"), o);
+            }
+        }
+        return lookup(Q_MATCH_UAI, byUai.keySet()).map(found -> {
+            JsonArray matched = new JsonArray();
+            JsonArray unmatched = new JsonArray();
+            for (Map.Entry<String, JsonObject> e : byUai.entrySet()) {
+                JsonObject local = found.get(e.getKey());
+                if (local != null) {
+                    matched.add(new JsonObject()
+                            .put("globalId", e.getValue().getString("globalId"))
+                            .put("uai", e.getKey())
+                            .put("localId", local.getString("id"))
+                            .put("matchedBy", "uai"));
+                } else {
+                    unmatched.add(new JsonObject()
+                            .put("globalId", e.getValue().getString("globalId"))
+                            .put("uai", e.getKey())
+                            .put("reason", "établissement inconnu de cette plateforme"));
+                }
+            }
+            return new JsonObject()
+                    .put("total", orgs.size())
+                    .put("matchedCount", matched.size())
+                    .put("unmatchedCount", unmatched.size())
+                    .put("matched", matched)
+                    .put("unmatched", unmatched);
+        });
+    }
+
+    /**
+     * Pose l'alias d'échange sur les comptes appariés — et rien d'autre.
+     *
+     * En mode d'essai, rien n'est écrit : le rapport est identique, ce qui permet de comparer
+     * avant et après sans surprise.
+     */
+    private Future<Integer> applyAliases(org.entcore.interoperability.spi.OeipImportContext context,
+                                         JsonObject personReport) {
+        JsonArray matched = personReport.getJsonArray("matched", new JsonArray());
+        if (context.isDryRun() || matched.isEmpty()) {
+            return Future.succeededFuture(0);
+        }
+        Future<Integer> chain = Future.succeededFuture(0);
+        for (int i = 0; i < matched.size(); i++) {
+            final JsonObject m = matched.getJsonObject(i);
+            chain = chain.compose(count -> query(Q_TAG_ALIAS, new JsonObject()
+                    .put("id", m.getString("localId"))
+                    .put("globalId", m.getString("globalId")))
+                    .map(rows -> count + rows.size()));
+        }
+        return chain;
+    }
+
+    private JsonObject describeMatch(JsonObject remote, JsonObject local, String by) {
+        return new JsonObject()
+                .put("globalId", remote.getString("globalId"))
+                .put("localId", local.getString("id"))
+                .put("login", local.getString("login"))
+                .put("matchedBy", by);
+    }
+
+    private JsonObject describeMiss(JsonObject remote, String reason) {
+        JsonObject miss = new JsonObject()
+                .put("globalId", remote.getString("globalId"))
+                .put("reason", reason);
+        // Le rapport nomme la personne : sans cela l'opérateur ne peut rien faire de l'échec.
+        // Il détient déjà le paquet, qui porte ces mêmes champs — les taire ici ne protégerait
+        // rien et rendrait le diagnostic impossible.
+        for (String key : new String[] { "profile", "login", "externalId", "displayName" }) {
+            if (remote.getString(key) != null) {
+                miss.put(key, remote.getString(key));
+            }
+        }
+        return miss;
+    }
+
+    private Future<Map<String, JsonObject>> lookup(String cypher, java.util.Collection<String> values) {
+        final Map<String, JsonObject> found = new LinkedHashMap<String, JsonObject>();
+        if (values.isEmpty()) {
+            return Future.succeededFuture(found);
+        }
+        JsonArray list = new JsonArray();
+        for (String v : values) {
+            list.add(v);
+        }
+        return query(cypher, new JsonObject().put("values", list)).map(rows -> {
+            for (int i = 0; i < rows.size(); i++) {
+                JsonObject row = rows.getJsonObject(i);
+                if (row.getString("key") != null) {
+                    found.put(row.getString("key"), row);
+                }
+            }
+            return found;
+        });
+    }
+
+    private JsonArray readItems(org.entcore.interoperability.spi.OeipImportContext context, String path) {
+        try {
+            java.nio.file.Path p = context.getPackageRoot().resolve(path);
+            if (!java.nio.file.Files.isRegularFile(p)) {
+                return new JsonArray();
+            }
+            JsonObject doc = new JsonObject(new String(
+                    java.nio.file.Files.readAllBytes(p), java.nio.charset.StandardCharsets.UTF_8));
+            return doc.getJsonArray("items", new JsonArray());
+        } catch (Exception e) {
+            return new JsonArray();
+        }
     }
 
     // ------------------------------------------------------------------ correspondances

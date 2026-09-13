@@ -38,6 +38,25 @@ public interface OeipServiceMapper {
     }
 
     /**
+     * Reprend la description sémantique de ce service sur CETTE plateforme.
+     *
+     * <p>Aucun importeur ne crée de compte : la création des utilisateurs reste le métier de
+     * l'alimentation de l'annuaire. Un import rattache des données à des comptes qui existent
+     * déjà ; il ne peuple pas un ENT vide.
+     *
+     * @return un rapport décrivant ce qui a été apparié, et ce qui ne l'a pas été
+     */
+    default io.vertx.core.Future<io.vertx.core.json.JsonObject> importCore(OeipImportContext context) {
+        return io.vertx.core.Future.failedFuture(
+                "[OEIP] aucun importeur sémantique pour le service " + serviceId());
+    }
+
+    /** true si ce mapper sait reprendre une description de niveau Core. */
+    default boolean supportsCoreImport() {
+        return false;
+    }
+
+    /**
      * true si ce mapper a besoin de la charge utile d'archive pour travailler.
      *
      * <p>Un mapper qui transcode n'extrait rien lui-même : il reprend ce que le module a déjà

@@ -91,7 +91,7 @@ public class Interoperability extends BaseServer {
         final DefaultOeipExportService exportService = new DefaultOeipExportService(
                 vertx, jobs, archiveSource, schemas, registry, config, workDir);
         final DefaultOeipImportService importService = new DefaultOeipImportService(
-                vertx, jobs, config, workDir, archiveImportPath);
+                vertx, jobs, config, workDir, archiveImportPath, registry);
 
         final EventStore eventStore = EventStoreFactory.getFactory().getEventStore(Interoperability.class.getSimpleName());
 
