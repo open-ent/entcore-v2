@@ -53,6 +53,7 @@ public class OeipManifestBuilder {
     }
 
     public OeipManifestBuilder generatedAt(String iso) { this.generatedAt = iso; return this; }
+    public String getGeneratedAt() { return generatedAt; }
     public OeipManifestBuilder platformLabel(String label) { this.platformLabel = label; return this; }
     public OeipManifestBuilder schemaBundleSha256(String sha) { this.schemaBundleSha256 = sha; return this; }
     public OeipManifestBuilder emitCc(boolean v) { this.emitCc = v; return this; }

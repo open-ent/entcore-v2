@@ -280,6 +280,32 @@ public class DefaultOeipExportService {
                     }
                 }
 
+                // Métadonnées : d'où vient ce paquet, et à quelles conditions il peut être traité.
+                // La notice de traitement accompagne CHAQUE paquet, y compris — et surtout —
+                // quand la plateforme n'a rien renseigné.
+                org.entcore.interoperability.packaging.OeipMetaBuilder meta =
+                        new org.entcore.interoperability.packaging.OeipMetaBuilder(
+                                oeip.getJsonObject("rgpd"), sourceSystem,
+                                oeip.getString("archive-version"));
+                String generatedAt = manifestGeneratedAt(builder);
+                writer.putJson(org.entcore.interoperability.packaging.OeipMetaBuilder.PROVENANCE,
+                        meta.provenance(jobId, "urn:oeip:" + OeipFormat.VERSION + ":person:"
+                                + sourceSystem + ":"
+                                + org.entcore.interoperability.providers.OeipUrn.localPart(
+                                        user.getUserId(), sourceSystem, pseudonymize),
+                                generatedAt));
+                writer.putJson(org.entcore.interoperability.packaging.OeipMetaBuilder.RGPD,
+                        meta.rgpd(containsMinors(core), pseudonymize,
+                                config.getLong("package-ttl-hours", 48L)));
+                if (!meta.isConfigured()) {
+                    builder.addWarning(
+                            org.entcore.interoperability.packaging.OeipMetaBuilder.WARNING_UNCONFIGURED,
+                            null,
+                            "Le responsable de traitement ou le délégué à la protection des "
+                            + "données ne sont pas renseignés sur cette plateforme : le "
+                            + "destinataire devra les obtenir avant tout traitement.");
+                }
+
                 writer.putSchemas(schemas.getRawSchemas());
                 writer.putJson(OeipFormat.IDENTIFIERS,
                         builder.buildIdentifiers(identifiers, aliases, rewrites, unresolved));
@@ -385,6 +411,32 @@ public class DefaultOeipExportService {
         }
         rewrites.addAll(rewriter.getRewrites());
         unresolved.addAll(rewriter.getUnresolvedReferences());
+    }
+
+
+    /**
+     * Une personne signalée mineure engage le destinataire : il doit le savoir avant d'ouvrir
+     * quoi que ce soit, et non le découvrir en parcourant l'annuaire.
+     */
+    private static boolean containsMinors(Map<String, OeipCoreExport> core) {
+        for (OeipCoreExport ex : core.values()) {
+            JsonObject persons = ex.getDocuments().get("directory/persons.json");
+            if (persons == null) {
+                continue;
+            }
+            JsonArray items = persons.getJsonArray("items", new JsonArray());
+            for (int i = 0; i < items.size(); i++) {
+                if ("minor".equals(items.getJsonObject(i).getString("sensitivity"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Même horodatage que le manifeste : deux dates différentes seraient inexplicables. */
+    private static String manifestGeneratedAt(OeipManifestBuilder builder) {
+        return builder.getGeneratedAt();
     }
 
     /** Services que cette plateforme sait exporter. */
