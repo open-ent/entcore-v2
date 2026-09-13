@@ -60,10 +60,22 @@ public class BlogOeipMapper implements OeipServiceMapper {
     @Override
     public OeipCapability capability() {
         return new OeipCapability(SERVICE_ID, "Blog", "Blog", null,
-                true, true, false, true,
+                true, true, true, true,
                 OeipFormat.FIDELITY_PARTIAL,
                 "Les commentaires et l'historique des versions ne sont pas modélisés en 1.0. "
                 + "Les partages sont décrits mais devront être rétablis à l'arrivée.");
+    }
+
+    @Override
+    public boolean supportsCoreImport() {
+        return true;
+    }
+
+    @Override
+    public Future<JsonObject> importCore(org.entcore.interoperability.spi.OeipImportContext context) {
+        // MongoDb n'est câblé qu'après le démarrage du verticle : on l'obtient à l'appel, pas à
+        // la construction du mapper.
+        return new BlogOeipImporter(fr.wseduc.mongodb.MongoDb.getInstance()).importCore(context);
     }
 
     @Override

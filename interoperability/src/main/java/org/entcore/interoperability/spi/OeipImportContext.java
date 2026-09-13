@@ -15,14 +15,24 @@ public class OeipImportContext {
     private final Path packageRoot;
     private final String targetUserId;
     private final String targetUserLogin;
+    private final String targetUserName;
     private final boolean dryRun;
+    /**
+     * Identifiants d'échange déjà repris, et leur équivalent local.
+     *
+     * Un contenu peut citer un fichier importé par un AUTRE service : cette table se remplit au
+     * fil des importeurs, et permet aux suivants de résoudre ce que les précédents ont créé.
+     */
+    private final java.util.Map<String, String> localByGlobalId =
+            new java.util.LinkedHashMap<String, String>();
     private final JsonObject manifest;
 
     public OeipImportContext(Path packageRoot, String targetUserId, String targetUserLogin,
-                             boolean dryRun, JsonObject manifest) {
+                             String targetUserName, boolean dryRun, JsonObject manifest) {
         this.packageRoot = packageRoot;
         this.targetUserId = targetUserId;
         this.targetUserLogin = targetUserLogin;
+        this.targetUserName = targetUserName == null ? targetUserLogin : targetUserName;
         this.dryRun = dryRun;
         this.manifest = manifest == null ? new JsonObject() : manifest;
     }
@@ -32,6 +42,10 @@ public class OeipImportContext {
 
     public String getTargetUserId() { return targetUserId; }
     public String getTargetUserLogin() { return targetUserLogin; }
+    public String getTargetUserName() { return targetUserName; }
+
+    /** Table des objets déjà repris : identifiant d'échange -> identifiant local créé. */
+    public java.util.Map<String, String> getLocalByGlobalId() { return localByGlobalId; }
 
     /** true = on va jusqu'au bout du raisonnement, mais rien n'est écrit. */
     public boolean isDryRun() { return dryRun; }

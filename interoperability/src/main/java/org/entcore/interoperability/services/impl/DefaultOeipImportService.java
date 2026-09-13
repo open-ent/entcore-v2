@@ -162,20 +162,32 @@ public class DefaultOeipImportService {
                     return;
                 }
 
-                Map<String, Path> all = reader.nativeDirs();
+                java.util.Set<String> coreHandled = coreHandledServices(reader.getManifest());
+                Map<String, Path> all = new LinkedHashMap<String, Path>(reader.nativeDirs());
+                for (String id : coreHandled) {
+                    all.remove(id);
+                }
                 Map<String, Path> selected = new LinkedHashMap<String, Path>();
                 List<String> refused = new ArrayList<String>();
                 for (String id : (serviceIds == null || serviceIds.isEmpty())
                         ? new ArrayList<String>(all.keySet()) : serviceIds) {
                     if (all.containsKey(id)) {
                         selected.put(id, all.get(id));
-                    } else {
+                    } else if (!coreHandled.contains(id)) {
                         // Refus explicite : jamais un service silencieusement absent du résultat.
                         refused.add(id);
                     }
                 }
-                if (selected.isEmpty()) {
+                if (selected.isEmpty() && coreHandled.isEmpty()) {
                     blocking.fail(new IllegalStateException("aucun service reprenable dans ce paquet"));
+                    return;
+                }
+                if (selected.isEmpty()) {
+                    // Tout est pris en charge par la reprise sémantique : rien à réinjecter.
+                    blocking.complete(new JsonObject()
+                            .put("services", new JsonArray())
+                            .put("refused", new JsonArray(new ArrayList<Object>(refused)))
+                            .put("coreOnly", true));
                     return;
                 }
 
@@ -209,6 +221,31 @@ public class DefaultOeipImportService {
         });
     }
 
+
+    /**
+     * Services que la reprise sémantique prend en charge sur cette plateforme.
+     *
+     * Un paquet peut porter, pour un même service, une description dans le modèle commun ET la
+     * charge utile d'origine. Les reprendre toutes les deux créerait chaque contenu en double :
+     * quand une description est exploitable ici, c'est elle qui fait foi, et la charge utile
+     * d'origine est ignorée.
+     */
+    private java.util.Set<String> coreHandledServices(JsonObject manifest) {
+        java.util.Set<String> handled = new java.util.LinkedHashSet<String>();
+        JsonArray services = manifest.getJsonArray("services", new JsonArray());
+        for (int i = 0; i < services.size(); i++) {
+            JsonObject svc = services.getJsonObject(i);
+            if (!Boolean.TRUE.equals(svc.getBoolean("normalized"))) {
+                continue;
+            }
+            org.entcore.interoperability.spi.OeipServiceMapper mapper = providers.get(svc.getString("id"));
+            if (mapper != null && mapper.supportsCoreImport()) {
+                handled.add(svc.getString("id"));
+            }
+        }
+        return handled;
+    }
+
     /** Exécute les importeurs sémantiques présents pour les services décrits dans le paquet. */
     private Future<JsonArray> runCoreImporters(final String jobId, final UserInfos user,
                                                final boolean dryRun) {
@@ -223,7 +260,7 @@ public class DefaultOeipImportService {
         }
         final org.entcore.interoperability.spi.OeipImportContext context =
                 new org.entcore.interoperability.spi.OeipImportContext(unzipped, user.getUserId(),
-                        user.getLogin(), dryRun, manifest);
+                        user.getLogin(), user.getUsername(), dryRun, manifest);
 
         JsonArray services = manifest.getJsonArray("services", new JsonArray());
         Future<Void> chain = Future.succeededFuture();
@@ -260,6 +297,19 @@ public class DefaultOeipImportService {
                         .put("refused", built.getJsonArray("refused"))
                         .put("core", coreReports)
                         .put("notice", "Archive reconstruite et vérifiée ; aucune écriture en base.");
+                jobs.update(jobId, new JsonObject().put("state", OeipJob.DONE).put("report", report))
+                    .onComplete(v -> promise.complete(report));
+                return;
+            }
+            if (Boolean.TRUE.equals(built.getBoolean("coreOnly"))) {
+                JsonObject report = new JsonObject()
+                        .put("dryRun", false)
+                        .put("status", "ok")
+                        .put("services", built.getJsonArray("services"))
+                        .put("refused", built.getJsonArray("refused"))
+                        .put("core", coreReports)
+                        .put("notice", "Repris intégralement par la description commune ; "
+                                + "la charge utile d'origine n'a pas été sollicitée.");
                 jobs.update(jobId, new JsonObject().put("state", OeipJob.DONE).put("report", report))
                     .onComplete(v -> promise.complete(report));
                 return;
