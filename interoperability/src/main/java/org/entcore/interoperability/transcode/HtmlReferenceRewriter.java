@@ -25,6 +25,7 @@ public class HtmlReferenceRewriter {
     private final Map<String, String> fileGlobalIdBySourceId;
     private final JsonArray rewrites = new JsonArray();
     private final JsonArray unresolved = new JsonArray();
+    private final java.util.Set<String> referenced = new java.util.LinkedHashSet<String>();
 
     public HtmlReferenceRewriter(Map<String, String> fileGlobalIdBySourceId) {
         this.fileGlobalIdBySourceId = fileGlobalIdBySourceId == null
@@ -56,6 +57,7 @@ public class HtmlReferenceRewriter {
                 m.appendReplacement(sb, Matcher.quoteReplacement(m.group()));
                 continue;
             }
+            referenced.add(globalId);
             String replacement = "oeip:file/" + globalId;
             String key = m.group() + " " + replacement;
             Integer previous = counts.get(key);
@@ -75,6 +77,9 @@ public class HtmlReferenceRewriter {
         }
         return sb.toString();
     }
+
+    /** Identifiants d'échange réellement cités par le contenu réécrit. */
+    public java.util.Set<String> getReferenced() { return referenced; }
 
     public JsonArray getRewrites() { return rewrites; }
     public JsonArray getUnresolvedReferences() { return unresolved; }

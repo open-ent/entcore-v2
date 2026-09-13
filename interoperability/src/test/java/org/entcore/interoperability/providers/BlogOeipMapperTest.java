@@ -142,29 +142,38 @@ public class BlogOeipMapperTest {
 
     // ------------------------------------------------------------------ références HTML
 
-    @Test
-    public void reecritLesLiensInternesEnReferencesDEchange() throws IOException {
-        OeipCoreExport out = run(payload("liens"), true);
-        String body = out.getDocuments().get("resources/blog/resources.json").encode();
-
-        assertTrue("le lien résolu doit devenir une référence d'échange",
-                body.contains("oeip:file/urn:oeip:1.0:file:" + SS + ":" + FILE_ID));
-        assertFalse("aucun lien interne résolu ne doit survivre",
-                body.contains("/workspace/document/" + FILE_ID));
-        assertEquals("chaque réécriture doit être journalisée", 1, out.getRewrites().size());
+    /** Le corps est un fichier du paquet, pas une chaîne dans l'index : on le lit là où il est. */
+    private static String bodyOf(OeipCoreExport out) throws IOException {
+        for (Map.Entry<String, Path> f : out.getFiles().entrySet()) {
+            if (f.getKey().endsWith("index.html")) {
+                return new String(Files.readAllBytes(f.getValue()), StandardCharsets.UTF_8);
+            }
+        }
+        return "";
     }
 
-    @Test
-    public void signaleUnLienNonResoluAuLieuDeLeReecrireAuHasard() throws IOException {
-        OeipCoreExport out = run(payload("orphelin"), true);
-        String body = out.getDocuments().get("resources/blog/resources.json").encode();
 
-        // Laissé tel quel : un lien mort annoncé vaut mieux qu'un lien réécrit vers n'importe quoi.
-        assertTrue(body.contains("/workspace/document/" + ORPHAN_ID));
-        assertEquals(1, out.getUnresolvedReferences().size());
-        JsonObject ref = out.getUnresolvedReferences().getJsonObject(0);
-        assertEquals("not-found", ref.getString("reason"));
-        assertTrue(ref.getString("rawValue").contains(ORPHAN_ID));
+
+    @Test
+    public void conserveLeCorpsTelQuelPourUneResolutionGlobale() throws IOException {
+        OeipCoreExport out = run(payload("corps-brut"), true);
+        String body = bodyOf(out);
+
+        // Le mapper ne résout RIEN : un billet peut citer un document d'un autre service, dont il
+        // n'a pas connaissance. La réécriture a lieu une fois tous les services décrits.
+        assertTrue("le corps est conservé tel quel", body.contains("/workspace/document/" + FILE_ID));
+        assertEquals("aucune réécriture à cet étage", 0, out.getRewrites().size());
+
+        // En revanche l'index désigne bien le fichier, avec son type et son empreinte.
+        JsonObject post = null;
+        JsonArray items = out.getDocuments().get("resources/blog/resources.json").getJsonArray("items");
+        for (int i = 0; i < items.size(); i++) {
+            if (items.getJsonObject(i).getJsonObject("body") != null) post = items.getJsonObject(i);
+        }
+        assertNotNull(post);
+        assertEquals("text/html", post.getJsonObject("body").getString("mediaType"));
+        assertTrue(post.getJsonObject("body").getString("href").endsWith("index.html"));
+        assertTrue(post.getJsonObject("body").getString("sha256").matches("^[a-f0-9]{64}$"));
     }
 
     // ------------------------------------------------------------------ pièces jointes
@@ -189,8 +198,11 @@ public class BlogOeipMapperTest {
     public void sansBinairesAucunePieceJointeNEstAnnoncee() throws IOException {
         OeipCoreExport out = run(payload("sans-binaires"), false);
         assertNull(out.getDocuments().get("resources/blog/attachments.json"));
-        assertTrue(out.getFiles().isEmpty());
         assertEquals(0, (int) out.getCounts().getInteger("attachments"));
+        // Le corps du billet reste emporté : c'est du contenu, pas une pièce jointe.
+        for (String path : out.getFiles().keySet()) {
+            assertTrue("aucun binaire ne doit être emporté : " + path, path.endsWith("index.html"));
+        }
     }
 
     // ------------------------------------------------------------------ honnêteté

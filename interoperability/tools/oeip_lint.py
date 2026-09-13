@@ -388,12 +388,24 @@ def lint(target: Path) -> int:
                 err(f"imsmanifest.xml contient une entité d'annuaire ({kind}) : "
                     f"Common Cartridge ne modélise pas l'annuaire")
 
-    # --- 6. aucun identifiant brut résiduel dans les contenus
+    # --- 6. identifiants bruts résiduels dans les contenus
+    #
+    # Un lien qu'on n'a pas su résoudre PEUT légitimement rester brut — un contenu peut citer un
+    # fichier que la plateforme de départ avait déjà perdu. Ce qui est fautif n'est pas le lien
+    # mort, c'est le lien mort NON DÉCLARÉ : un paquet doit avouer ce qu'il ne sait pas résoudre.
+    declared_raw = set()
+    for u in idf.get("unresolvedReferences", []):
+        declared_raw.update(UUID_RE.findall(u.get("rawValue", "")))
+
     for n in pkg.names:
         if n.endswith((".html", ".htm")):
             txt = pkg.read(n).decode("utf-8", "replace")
             for u in set(UUID_RE.findall(txt)):
-                err(f"{n} : identifiant brut résiduel {u} — toute référence doit être un globalId")
+                if u in declared_raw:
+                    warn(f"{n} : lien non résolu {u} — déclaré dans unresolvedReferences")
+                else:
+                    err(f"{n} : identifiant brut résiduel {u}, NON déclaré — "
+                        f"toute référence doit être résolue ou avouée")
 
     # --- 7. fidélité déclarée service par service
     for svc in man.get("services", []):

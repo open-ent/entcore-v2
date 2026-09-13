@@ -120,6 +120,7 @@ public class BlogOeipMapper implements OeipServiceMapper {
 
         // 2. Les ressources : un fichier JSON par blog ou billet, sans extension.
         final HtmlReferenceRewriter rewriter = new HtmlReferenceRewriter(fileGlobalIds);
+        final java.util.Map<String, String> bodies = new LinkedHashMap<String, String>();
         final JsonArray resources = new JsonArray();
         int blogs = 0;
         int posts = 0;
@@ -138,7 +139,7 @@ public class BlogOeipMapper implements OeipServiceMapper {
                 continue;
             }
             boolean isPost = doc.containsKey("blog") || rawTitle(doc).startsWith(POST_PREFIX);
-            JsonObject resource = toResource(doc, isPost, ss, rewriter);
+            JsonObject resource = toResource(doc, isPost, ss, rewriter, bodies);
             resources.add(resource);
             out.identifier(new JsonObject()
                     .put("globalId", resource.getString("globalId")).put("kind", "resource")
@@ -159,6 +160,23 @@ public class BlogOeipMapper implements OeipServiceMapper {
                         .put("toRef", resource.getString("parentResourceRef")));
             }
             if (isPost) { posts++; } else { blogs++; }
+        }
+
+        // Matérialise les corps, et complète chaque ressource de l'empreinte de son fichier.
+        java.nio.file.Path bodyDir = java.nio.file.Files.createTempDirectory("oeip-blog-bodies");
+        for (Map.Entry<String, String> b : bodies.entrySet()) {
+            String path = bodyPath(b.getKey());
+            java.nio.file.Path file = bodyDir.resolve(
+                    path.substring(path.lastIndexOf('/') + 1) + "-" + bodies.size() + "-"
+                    + Integer.toHexString(b.getKey().hashCode()) + ".html");
+            java.nio.file.Files.write(file, b.getValue().getBytes(StandardCharsets.UTF_8));
+            out.file(path, file);
+            for (int i = 0; i < resources.size(); i++) {
+                JsonObject r = resources.getJsonObject(i);
+                if (b.getKey().equals(r.getString("globalId")) && r.getJsonObject("body") != null) {
+                    r.getJsonObject("body").put("sha256", OeipChecksums.sha256(file));
+                }
+            }
         }
 
         out.document("resources/" + SERVICE_ID + "/resources.json",
@@ -194,8 +212,16 @@ public class BlogOeipMapper implements OeipServiceMapper {
         return out;
     }
 
+    /** Chemin du corps HTML d'une ressource dans le paquet. */
+    static String bodyPath(String globalId) {
+        String localPart = globalId.substring(globalId.lastIndexOf(':') + 1);
+        return "resources/" + SERVICE_ID + "/content/" + MapperSupport.shard(localPart) + "/"
+                + localPart + "/index.html";
+    }
+
     private JsonObject toResource(JsonObject doc, boolean isPost, String ss,
-                                  HtmlReferenceRewriter rewriter) {
+                                  HtmlReferenceRewriter rewriter,
+                                  java.util.Map<String, String> bodies) {
         String sourceId = doc.getString("_id");
         String globalId = OeipUrn.of("resource", ss, sourceId == null ? "inconnu" : sourceId);
 
@@ -239,9 +265,16 @@ public class BlogOeipMapper implements OeipServiceMapper {
             }
             String content = doc.getString("content");
             if (content != null && !content.isEmpty()) {
+                // Le corps est écrit dans un fichier plutôt qu'inséré dans le JSON : c'est ce qui
+                // permet à la projection pédagogique de le désigner, et cela évite de charger un
+                // billet volumineux en mémoire à chaque lecture de l'index.
+                // Le corps est conservé tel quel : la réécriture des liens a lieu APRÈS, quand
+                // tous les services ont été décrits. Un billet peut citer un document de
+                // l'espace documentaire, que ce mapper ne connaît pas.
+                bodies.put(globalId, content);
                 resource.put("body", new JsonObject()
                         .put("mediaType", "text/html")
-                        .put("content", rewriter.rewrite(content, globalId, "body.content")));
+                        .put("href", bodyPath(globalId)));
             }
             String state = doc.getString("state");
             if ("PUBLISHED".equalsIgnoreCase(state)) {

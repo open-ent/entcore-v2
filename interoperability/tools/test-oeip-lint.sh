@@ -15,6 +15,21 @@ SRC=src/test/resources/oeip/fixtures/minimal-1.0
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 pass=0; fail=0
 
+expect_accept() {
+  local name="$1"; shift
+  rm -rf "$TMP/case"; cp -r "$SRC" "$TMP/case"
+  ( cd "$TMP/case" && eval "$@" ) || true
+  # Les sommes doivent être refaites : on vient de modifier des fichiers couverts.
+  python3 tools/oeip_lint.py build "$TMP/case" > /dev/null 2>&1
+  local out; out=$(python3 tools/oeip_lint.py lint "$TMP/case" 2>&1)
+  if printf '%s' "$out" | grep -q "ERREUR"; then
+    echo "  ÉCHEC    rejeté à tort : $name"; fail=$((fail+1))
+    printf '%s' "$out" | grep "ERREUR" | head -2 | sed 's/^/             /'
+  else
+    echo "  ok       accepté : $name"; pass=$((pass+1))
+  fi
+}
+
 expect_reject() {
   local name="$1"; shift
   rm -rf "$TMP/case"; cp -r "$SRC" "$TMP/case"
@@ -40,7 +55,7 @@ expect_reject "binaire altéré" \
   "printf 'x' >> resources/blog/content/fi/file-0001/squelette.png"
 expect_reject "objet absent de l'index d'identifiants" \
   "python3 -c \"import json;d=json.load(open('identifiers.json'));d['entries']=[e for e in d['entries'] if 'post-0001' not in e['globalId']];json.dump(d,open('identifiers.json','w'))\""
-expect_reject "identifiant brut résiduel dans un corps HTML" \
+expect_reject "identifiant brut résiduel NON déclaré dans un corps HTML" \
   "sed -i 's|oeip:file/urn:oeip:1.0:file:ent.exemple-a.fr:file-0001|/workspace/document/6f2b1a44-0000-4000-8000-000000000201|' resources/blog/content/fi/file-0001/index.html"
 expect_reject "entité d'annuaire projetée dans Common Cartridge" \
   "sed -i 's|urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001|urn:oeip:1.0:person:ent.exemple-a.fr:person-0001|' imsmanifest.xml"
@@ -60,6 +75,9 @@ expect_reject "type de relation hors vocabulaire" \
   "python3 -c \"import json;d=json.load(open('relations.json'));d['items'][0]['type']='teleportedTo';json.dump(d,open('relations.json','w'))\""
 expect_reject "JSON illisible dans le paquet" \
   "printf 'pas du json' > relations.json"
+expect_accept "lien non résolu, mais déclaré dans l'index" \
+  "sed -i 's|oeip:file/urn:oeip:1.0:file:ent.exemple-a.fr:file-0001|/workspace/document/6f2b1a44-0000-4000-8000-000000000201|' resources/blog/content/fi/file-0001/index.html && python3 -c \"import json;d=json.load(open('identifiers.json'));d['unresolvedReferences']=[{'in':'urn:oeip:1.0:resource:ent.exemple-a.fr:post-0001','field':'body.content','rawValue':'/workspace/document/6f2b1a44-0000-4000-8000-000000000201','reason':'not-found'}];json.dump(d,open('identifiers.json','w'))\""
+
 expect_reject "manifeste absent" \
   "rm -f oeip-manifest.json"
 

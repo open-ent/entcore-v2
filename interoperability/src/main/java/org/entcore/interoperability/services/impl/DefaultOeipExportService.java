@@ -164,6 +164,8 @@ public class DefaultOeipExportService {
                 JsonArray relations = new JsonArray();
                 JsonArray rewrites = new JsonArray();
                 JsonArray unresolved = new JsonArray();
+                Map<String, JsonArray> ccResources = new LinkedHashMap<String, JsonArray>();
+                Map<String, JsonArray> ccAttachments = new LinkedHashMap<String, JsonArray>();
 
                 // 1. Ce que les mappers ont su décrire.
                 for (Map.Entry<String, OeipCoreExport> e : core.entrySet()) {
@@ -171,6 +173,12 @@ public class DefaultOeipExportService {
                     OeipCoreExport ex = e.getValue();
                     for (Map.Entry<String, JsonObject> doc : ex.getDocuments().entrySet()) {
                         writer.putJson(doc.getKey(), doc.getValue());
+                        String dataset = doc.getValue().getString("dataset");
+                        if ("resources".equals(dataset)) {
+                            ccResources.put(serviceId, doc.getValue().getJsonArray("items", new JsonArray()));
+                        } else if ("attachments".equals(dataset)) {
+                            ccAttachments.put(serviceId, doc.getValue().getJsonArray("items", new JsonArray()));
+                        }
                     }
                     for (Map.Entry<String, Path> f : ex.getFiles().entrySet()) {
                         writer.copyFile(f.getKey(), f.getValue());
@@ -219,6 +227,23 @@ public class DefaultOeipExportService {
                             source.getFileName().toString());
                 }
 
+                // Résolution des liens internes, une fois TOUS les services décrits. Un billet
+                // peut citer un document de l'espace documentaire : aucun mapper pris isolément
+                // ne dispose de la table complète, la réécriture ne peut donc avoir lieu qu'ici.
+                resolveReferences(writer, staging, ccResources, ccAttachments, rewrites, unresolved);
+
+                // Projection pédagogique, si la plateforme l'émet et qu'il y a de quoi projeter.
+                if (oeip.getJsonObject("cc", new JsonObject()).getBoolean("emit", true)) {
+                    org.entcore.interoperability.packaging.ImsManifestWriter cc =
+                            new org.entcore.interoperability.packaging.ImsManifestWriter(
+                                    "Export Open ENT — " + user.getUsername(), "fr");
+                    String xml = cc.build(ccResources, ccAttachments);
+                    if (xml != null) {
+                        writer.putText(OeipFormat.IMS_MANIFEST, xml);
+                        builder.emitCc(true).ccMapping(cc.getCcMapping());
+                    }
+                }
+
                 writer.putSchemas(schemas.getRawSchemas());
                 writer.putJson(OeipFormat.IDENTIFIERS,
                         builder.buildIdentifiers(identifiers, aliases, rewrites, unresolved));
@@ -257,6 +282,78 @@ public class DefaultOeipExportService {
         // s'attarder dans le stockage une fois le paquet produit.
         return promise.future().compose(v ->
                 archiveSource.discard(bundle.getRoot().getFileName().toString()));
+    }
+
+
+    /**
+     * Réécrit les liens internes des contenus, avec la table de TOUS les services du paquet.
+     *
+     * Chaque réécriture est journalisée et chaque lien non résolu signalé : un lien mort annoncé
+     * vaut mieux qu'un lien réécrit vers n'importe quoi. Les identifiants réellement cités
+     * deviennent les pièces jointes déclarées de la ressource, ce dont la projection pédagogique
+     * a besoin pour lister les fichiers qui accompagnent un contenu.
+     */
+    private void resolveReferences(OeipPackageWriter writer, Path staging,
+                                   Map<String, JsonArray> resourcesByService,
+                                   Map<String, JsonArray> attachmentsByService,
+                                   JsonArray rewrites, JsonArray unresolved) throws java.io.IOException {
+        Map<String, String> globalBySourceId = new LinkedHashMap<String, String>();
+        for (JsonArray items : attachmentsByService.values()) {
+            for (int i = 0; i < items.size(); i++) {
+                JsonObject a = items.getJsonObject(i);
+                if (a.getString("sourceId") != null) {
+                    globalBySourceId.put(a.getString("sourceId"), a.getString("globalId"));
+                }
+            }
+        }
+
+        org.entcore.interoperability.transcode.HtmlReferenceRewriter rewriter =
+                new org.entcore.interoperability.transcode.HtmlReferenceRewriter(globalBySourceId);
+
+        for (Map.Entry<String, JsonArray> e : resourcesByService.entrySet()) {
+            JsonArray items = e.getValue();
+            for (int i = 0; i < items.size(); i++) {
+                JsonObject r = items.getJsonObject(i);
+                JsonObject body = r.getJsonObject("body");
+                if (body == null || body.getString("href") == null) {
+                    continue;
+                }
+                Path file = staging.resolve(body.getString("href"));
+                if (!java.nio.file.Files.isRegularFile(file)) {
+                    continue;
+                }
+                String before = new String(java.nio.file.Files.readAllBytes(file),
+                        java.nio.charset.StandardCharsets.UTF_8);
+                java.util.Set<String> seen =
+                        new java.util.LinkedHashSet<String>(rewriter.getReferenced());
+                String after = rewriter.rewrite(before, r.getString("globalId"), "body.content");
+                if (!after.equals(before)) {
+                    java.nio.file.Files.write(file, after.getBytes(
+                            java.nio.charset.StandardCharsets.UTF_8));
+                    body.put("sha256", org.entcore.interoperability.packaging.OeipChecksums.sha256(file));
+                }
+                JsonArray refs = r.getJsonArray("attachmentRefs", new JsonArray());
+                for (String gid : rewriter.getReferenced()) {
+                    if (!seen.contains(gid) && !refs.contains(gid)) {
+                        refs.add(gid);
+                    }
+                }
+                if (refs.size() > 0) {
+                    r.put("attachmentRefs", refs);
+                }
+            }
+            // L'index sur disque doit refléter les corrections apportées ici.
+            String serviceId = e.getKey();
+            String path = "resources/" + serviceId + "/resources.json";
+            if (java.nio.file.Files.isRegularFile(staging.resolve(path))) {
+                JsonObject doc = new JsonObject(new String(java.nio.file.Files.readAllBytes(
+                        staging.resolve(path)), java.nio.charset.StandardCharsets.UTF_8));
+                doc.put("items", items);
+                writer.putJson(path, doc);
+            }
+        }
+        rewrites.addAll(rewriter.getRewrites());
+        unresolved.addAll(rewriter.getUnresolvedReferences());
     }
 
     /** Services que cette plateforme sait exporter. */

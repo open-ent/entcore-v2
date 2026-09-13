@@ -43,6 +43,7 @@ public class OeipManifestBuilder {
     private boolean includeBinaries = true;
     private boolean includeSharedResources = true;
     private String schemaBundleSha256;
+    private JsonArray ccMapping;
 
     public OeipManifestBuilder(String sourceSystem, String productVersion, String archiveVersion) {
         this.sourceSystem = sourceSystem;
@@ -55,6 +56,13 @@ public class OeipManifestBuilder {
     public OeipManifestBuilder platformLabel(String label) { this.platformLabel = label; return this; }
     public OeipManifestBuilder schemaBundleSha256(String sha) { this.schemaBundleSha256 = sha; return this; }
     public OeipManifestBuilder emitCc(boolean v) { this.emitCc = v; return this; }
+
+    /**
+     * Table de correspondance entre les identifiants du cartouche et les identifiants d'échange.
+     * C'est le SEUL pont entre les deux manifestes : aucune extension propriétaire n'est injectée
+     * dans le XML, que des validateurs tiers rejetteraient.
+     */
+    public OeipManifestBuilder ccMapping(JsonArray mapping) { this.ccMapping = mapping; return this; }
     public OeipManifestBuilder emitNative(boolean v) { this.emitNative = v; return this; }
     public OeipManifestBuilder includeBinaries(boolean v) { this.includeBinaries = v; return this; }
     public OeipManifestBuilder includeSharedResources(boolean v) { this.includeSharedResources = v; return this; }
@@ -214,6 +222,9 @@ public class OeipManifestBuilder {
                         .put("includeSharedResources", includeSharedResources)
                         .put("pseudonymized", pseudonymized));
 
+        if (emitCc && ccMapping != null) {
+            manifest.put("ccMapping", ccMapping);
+        }
         if (emitNative) {
             manifest.put("nativeFormat", new JsonObject()
                     .put("product", OeipFormat.NATIVE_PRODUCT)
