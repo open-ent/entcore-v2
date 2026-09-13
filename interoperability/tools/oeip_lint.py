@@ -122,7 +122,15 @@ def build(root: Path) -> int:
     man["schemaBundle"]["sha256"] = schema_bundle_sha(root)
     dump_json(man_path, man)
 
-    # 3. checksums.sha256 — couvre tout sauf lui-même et la signature
+    # 3. le manifeste ne porte plus l'empreinte du relevé : il est écrit AVANT lui, pour que
+    #    le relevé le couvre. L'ordre inverse obligeait à l'exclure du relevé, par circularité,
+    #    et laissait ses déclarations réécrivables sans casser quoi que ce soit.
+    man = load_json(man_path)
+    man["integrity"].pop("checksumsSha256", None)
+    dump_json(man_path, man)
+
+    # 4. checksums.sha256 — couvre TOUT, manifeste compris ; seuls s'en excluent le relevé
+    #    lui-même et la signature, qui ne peuvent s'y contenir.
     lines = []
     for p in iter_files(root):
         r = rel(root, p)
@@ -130,25 +138,6 @@ def build(root: Path) -> int:
             continue
         lines.append(f"{sha256_file(p)}  {r}")
     (root / CHECKSUMS).write_text("\n".join(sorted(lines)) + "\n", encoding="utf-8")
-
-    # 4. le manifeste épingle l'empreinte du fichier de sommes
-    man = load_json(man_path)
-    man["integrity"]["checksumsSha256"] = sha256_file(root / CHECKSUMS)
-    dump_json(man_path, man)
-
-    # Le manifeste vient de changer : sa ligne dans checksums.sha256 est périmée.
-    # On réécrit le fichier de sommes en excluant le manifeste, qui est couvert par
-    # l'empreinte du manifeste lui-même via integrity (chaîne de confiance explicite).
-    lines = []
-    for p in iter_files(root):
-        r = rel(root, p)
-        if r in (CHECKSUMS, SIGNATURE, "oeip-manifest.json") or r.endswith(".oeip"):
-            continue
-        lines.append(f"{sha256_file(p)}  {r}")
-    (root / CHECKSUMS).write_text("\n".join(sorted(lines)) + "\n", encoding="utf-8")
-    man = load_json(man_path)
-    man["integrity"]["checksumsSha256"] = sha256_file(root / CHECKSUMS)
-    dump_json(man_path, man)
 
     if errors:
         for e in errors:
@@ -295,7 +284,8 @@ def lint(target: Path) -> int:
                 continue
             h, _, name = line.partition("  ")
             declared[name] = h
-        covered = {n for n in pkg.names if n not in (CHECKSUMS, SIGNATURE, "oeip-manifest.json")}
+        # Le manifeste EST couvert : c'est le document normatif du paquet.
+        covered = {n for n in pkg.names if n not in (CHECKSUMS, SIGNATURE)}
         for name in sorted(covered - declared.keys()):
             err(f"fichier non couvert par {CHECKSUMS} : {name}")
         for name in sorted(declared.keys() - covered):
@@ -304,9 +294,11 @@ def lint(target: Path) -> int:
             got = hashlib.sha256(pkg.read(name)).hexdigest()
             if got != declared[name]:
                 err(f"empreinte incorrecte : {name}")
-        got = hashlib.sha256(pkg.read(CHECKSUMS)).hexdigest()
-        if got != man.get("integrity", {}).get("checksumsSha256"):
-            err("integrity.checksumsSha256 ne correspond pas au fichier de sommes")
+        # L'empreinte du relevé n'est pas déclarée dans le paquet : une valeur lue dans ce que
+        # l'on vérifie ne prouve rien. Elle se calcule, et c'est elle que la signature ancre.
+        if "checksumsSha256" in man.get("integrity", {}):
+            err("integrity.checksumsSha256 est obsolète : le relevé couvre le manifeste, "
+                "son empreinte se calcule sur le fichier reçu")
 
     # --- 4. intégrité référentielle des globalId
     defined, refs = set(), []
@@ -321,8 +313,18 @@ def lint(target: Path) -> int:
                 if k == "globalId" and isinstance(v, str):
                     defined.add(v)
                 elif (k.endswith("Ref") or k.endswith("Refs") or k in ("fromRef", "toRef")) and v:
-                    for gid in ([v] if isinstance(v, str) else v):
-                        refs.append((gid, origin, k))
+                    # Une référence est une chaîne, ou une liste de chaînes. Itérer une valeur
+                    # d'un autre type reviendrait à parcourir les CLÉS d'un objet et à les
+                    # dénoncer comme des identifiants introuvables — un message absurde qui
+                    # masque la vraie nature du contenu.
+                    if isinstance(v, str):
+                        refs.append((v, origin, k))
+                    elif isinstance(v, list):
+                        for gid in v:
+                            if isinstance(gid, str):
+                                refs.append((gid, origin, k))
+                    else:
+                        scan(v, origin)
                 else:
                     scan(v, origin)
         elif isinstance(obj, list):
@@ -331,7 +333,7 @@ def lint(target: Path) -> int:
 
     for n in pkg.names:
         if n.endswith(".json") and "/content/" not in n and not n.startswith(SCHEMA_DIR_REL) \
-           and n not in ("identifiers.json", "oeip-manifest.json"):
+           and n not in ("identifiers.json", "oeip-manifest.json", SIGNATURE):
             scan(pkg.json(n) or {}, n)
 
     for gid, origin, field in refs:

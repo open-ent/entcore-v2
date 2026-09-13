@@ -40,9 +40,20 @@ public class OeipPackageWriter {
     }
 
     private final Path stagingDir;
+    private java.util.function.Function<String, JsonObject> signer;
 
     public OeipPackageWriter(Path stagingDir) {
         this.stagingDir = stagingDir;
+    }
+
+    /**
+     * Signataire appliqué au scellement, ou {@code null} si la plateforme n'en a pas.
+     *
+     * Un paquet non signé reste parfaitement recevable : son intégrité est établie sans clé.
+     */
+    public OeipPackageWriter signedBy(java.util.function.Function<String, JsonObject> signer) {
+        this.signer = signer;
+        return this;
     }
 
     public Path getStagingDir() {
@@ -93,14 +104,24 @@ public class OeipPackageWriter {
      * le relevé doit donc être écrit AVANT que le manifeste soit finalisé.
      */
     public Path seal(JsonObject manifest, Path targetZip) throws IOException {
-        OeipChecksums.write(stagingDir);
-
-        String checksumsSha = OeipChecksums.sha256(stagingDir.resolve(OeipFormat.CHECKSUMS));
+        // Le manifeste est écrit AVANT le relevé, pour que le relevé le couvre. L'ordre inverse —
+        // épingler l'empreinte du relevé DANS le manifeste — interdisait de l'y inclure, par
+        // circularité : les déclarations de fidélité, de niveaux et de minorité restaient alors
+        // réécrivables sans casser quoi que ce soit.
         manifest.put("integrity", new JsonObject()
                 .put("algorithm", "sha256")
-                .put("checksumsFile", OeipFormat.CHECKSUMS)
-                .put("checksumsSha256", checksumsSha));
+                .put("checksumsFile", OeipFormat.CHECKSUMS));
         putJson(OeipFormat.MANIFEST, manifest);
+
+        OeipChecksums.write(stagingDir);
+
+        // La signature ancre le relevé, et le relevé couvre tout le reste. Le vérificateur
+        // CALCULE cette empreinte sur le fichier reçu : aucune valeur déclarée dans le paquet
+        // n'est crue sur parole — une valeur qu'on lit dans ce qu'on vérifie ne prouve rien.
+        if (signer != null) {
+            putJson(OeipFormat.SIGNATURE,
+                    signer.apply(OeipChecksums.sha256(stagingDir.resolve(OeipFormat.CHECKSUMS))));
+        }
 
         return zip(targetZip);
     }

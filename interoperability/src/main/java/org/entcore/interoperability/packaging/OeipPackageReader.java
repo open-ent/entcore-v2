@@ -95,6 +95,16 @@ public class OeipPackageReader {
     public Path getRoot() { return root; }
     public JsonObject getManifest() { return manifest; }
 
+    /**
+     * Empreinte du relevé reçu, <b>calculée</b> et non lue dans le paquet.
+     *
+     * C'est ce que la signature ancre. La déduire du paquet plutôt que d'y faire confiance est
+     * l'essentiel : une valeur déclarée à l'intérieur de ce qu'on vérifie ne prouve rien.
+     */
+    public String checksumsSha256() throws IOException {
+        return OeipChecksums.sha256(root.resolve(org.entcore.interoperability.OeipFormat.CHECKSUMS));
+    }
+
     public List<String> verifyIntegrity() throws IOException {
         return OeipChecksums.verify(root);
     }

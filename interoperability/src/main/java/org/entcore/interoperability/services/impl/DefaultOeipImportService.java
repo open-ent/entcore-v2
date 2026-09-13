@@ -40,16 +40,27 @@ public class DefaultOeipImportService {
     private final Path workDir;
     private final Path archiveImportPath;
     private final org.entcore.interoperability.spi.OeipProviderRegistry providers;
+    private final java.util.Map<String, java.security.PublicKey> trustedKeys;
 
     public DefaultOeipImportService(Vertx vertx, MongoOeipJobStore jobs, JsonObject config,
                                     Path workDir, Path archiveImportPath,
                                     org.entcore.interoperability.spi.OeipProviderRegistry providers) {
+        this(vertx, jobs, config, workDir, archiveImportPath, providers,
+                new java.util.LinkedHashMap<String, java.security.PublicKey>());
+    }
+
+    public DefaultOeipImportService(Vertx vertx, MongoOeipJobStore jobs, JsonObject config,
+                                    Path workDir, Path archiveImportPath,
+                                    org.entcore.interoperability.spi.OeipProviderRegistry providers,
+                                    java.util.Map<String, java.security.PublicKey> trustedKeys) {
         this.vertx = vertx;
         this.jobs = jobs;
         this.config = config;
         this.workDir = workDir;
         this.archiveImportPath = archiveImportPath;
         this.providers = providers;
+        this.trustedKeys = trustedKeys == null
+                ? new java.util.LinkedHashMap<String, java.security.PublicKey>() : trustedKeys;
     }
 
     public String newJobId() {
@@ -88,7 +99,23 @@ public class DefaultOeipImportService {
                 }
 
                 JsonObject manifest = reader.getManifest();
+
+                // La signature est qualifiée, jamais bloquante : l'intégrité vient d'être
+                // établie sans clé, et refuser un paquet parce qu'on ne connaît pas son émetteur
+                // interdirait tout premier échange.
+                JsonObject signature = reader.getJson(OeipFormat.SIGNATURE);
+                org.entcore.interoperability.packaging.OeipSignature.Verdict verdict =
+                        org.entcore.interoperability.packaging.OeipSignature.verify(signature,
+                                reader.checksumsSha256(), trustedKeys);
+                String issuer = org.entcore.interoperability.packaging.OeipSignature
+                        .issuerOf(signature);
+
                 JsonObject analysis = new JsonObject()
+                        .put("signature", new JsonObject()
+                                .put("verdict", verdict.name().toLowerCase())
+                                .put("issuer", issuer)
+                                .put("notice", org.entcore.interoperability.packaging.OeipSignature
+                                        .describe(verdict, issuer)))
                         .put("oeipVersion", manifest.getString("oeipVersion"))
                         .put("sourceSystem", manifest.getJsonObject("source", new JsonObject())
                                 .getString("sourceSystem"))

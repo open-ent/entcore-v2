@@ -51,6 +51,15 @@ else
 fi
 
 echo "== les paquets fautifs doivent être rejetés =="
+# Le manifeste est le document NORMATIF du paquet : il déclare la fidélité par service, les
+# niveaux présents et la présence de personnes mineures. Tant qu'il était exclu du relevé — par
+# circularité, puisqu'il en épinglait l'empreinte — un intermédiaire pouvait le réécrire sans
+# casser ni l'intégrité ni la signature : un paquet « vérifié » pouvait alors mentir sur tout
+# ce qu'il promet. Ce cas garde la correction.
+expect_reject "fidélité réécrite dans le manifeste, contenu intact" \
+  "python3 -c \"import json;d=json.load(open('oeip-manifest.json'));[s.update(fidelity='full') or s.pop('notice',None) for s in d['services']];json.dump(d,open('oeip-manifest.json','w'))\""
+expect_reject "empreinte du relevé réintroduite dans le manifeste" \
+  "python3 -c \"import json;d=json.load(open('oeip-manifest.json'));d['integrity']['checksumsSha256']='0'*64;json.dump(d,open('oeip-manifest.json','w'))\""
 expect_reject "binaire altéré" \
   "printf 'x' >> resources/blog/content/fi/file-0001/squelette.png"
 expect_reject "objet absent de l'index d'identifiants" \

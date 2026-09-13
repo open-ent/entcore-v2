@@ -92,12 +92,11 @@
   ],
   "integrity": {
     "algorithm": "sha256",
-    "checksumsFile": "checksums.sha256",
-    "checksumsSha256": "2b772a857a92c0cad3622735952ad9625e442328a0037ba4256c408a9687f5f7"
+    "checksumsFile": "checksums.sha256"
   },
   "schemaBundle": {
     "path": "schemas/1.0",
-    "sha256": "44badcc823d0601daf4ba929c557e01b859e185e2d11ad0619f62d29de05c56e"
+    "sha256": "ca2b58b24ce74130ba7fe0f9ab308e66e6b317c75bc3c5c6b6e7344618e36167"
   },
   "ccMapping": [
     {

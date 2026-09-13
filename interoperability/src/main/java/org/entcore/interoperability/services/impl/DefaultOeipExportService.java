@@ -47,10 +47,18 @@ public class DefaultOeipExportService {
     private final OeipProviderRegistry providers;
     private final JsonObject config;
     private final Path workDir;
+    private final java.security.PrivateKey signingKey;
 
     public DefaultOeipExportService(Vertx vertx, MongoOeipJobStore jobs, ArchiveExportSource archiveSource,
                                     OeipSchemaRegistry schemas, OeipProviderRegistry providers,
                                     JsonObject config, Path workDir) {
+        this(vertx, jobs, archiveSource, schemas, providers, config, workDir, null);
+    }
+
+    public DefaultOeipExportService(Vertx vertx, MongoOeipJobStore jobs, ArchiveExportSource archiveSource,
+                                    OeipSchemaRegistry schemas, OeipProviderRegistry providers,
+                                    JsonObject config, Path workDir,
+                                    java.security.PrivateKey signingKey) {
         this.vertx = vertx;
         this.jobs = jobs;
         this.archiveSource = archiveSource;
@@ -58,6 +66,7 @@ public class DefaultOeipExportService {
         this.providers = providers;
         this.config = config;
         this.workDir = workDir;
+        this.signingKey = signingKey;
     }
 
     public Future<String> start(UserInfos user, String locale, String host, List<String> serviceIds,
@@ -175,6 +184,22 @@ public class DefaultOeipExportService {
                 Path staging = workDir.resolve(jobId).resolve("package");
                 Files.createDirectories(staging);
                 OeipPackageWriter writer = new OeipPackageWriter(staging);
+                if (signingKey != null) {
+                    final String issuer = oeip.getString("source-system", "localhost");
+                    final String keyId = oeip.getJsonObject("signature", new JsonObject())
+                            .getString("keyId");
+                    writer.signedBy(sha -> {
+                        try {
+                            return org.entcore.interoperability.packaging.OeipSignature.sign(
+                                    sha, issuer, keyId, signingKey);
+                        } catch (Exception e) {
+                            // Une signature impossible ne doit pas faire échouer l'export : le
+                            // paquet reste intègre et exploitable, simplement non signé.
+                            log.error("[OEIP] signature impossible", e);
+                            return null;
+                        }
+                    });
+                }
 
                 String sourceSystem = oeip.getString("source-system", "localhost");
                 OeipManifestBuilder builder = new OeipManifestBuilder(sourceSystem,

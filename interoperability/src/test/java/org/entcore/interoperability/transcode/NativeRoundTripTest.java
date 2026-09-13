@@ -21,6 +21,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -213,7 +214,11 @@ public class NativeRoundTripTest {
         assertEquals(OeipFormat.FORMAT_ID, sealed.getString("format"));
         assertTrue(sealed.getJsonObject("levels").getBoolean("native"));
         assertNotNull(sealed.getJsonObject("nativeFormat"));
-        assertEquals(64, sealed.getJsonObject("integrity").getString("checksumsSha256").length());
+        // L'empreinte du relevé n'est PAS déclarée dans le manifeste : elle se calcule sur le
+        // fichier reçu. La déclarer obligeait à exclure le manifeste du relevé, par circularité.
+        assertNull(sealed.getJsonObject("integrity").getString("checksumsSha256"));
+        assertEquals("checksums.sha256",
+                sealed.getJsonObject("integrity").getString("checksumsFile"));
 
         // La fidélité est déclarée service par service, et justifiée.
         JsonObject blog = sealed.getJsonArray("services").getJsonObject(0);

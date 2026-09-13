@@ -88,13 +88,12 @@
 
     "integrity": {
       "type": "object",
-      "description": "Intégrité vérifiable SANS aucune clé. Distincte de la signature, qui est optionnelle et séparée.",
+      "description": "Intégrité vérifiable SANS aucune clé. Le relevé couvre TOUS les fichiers du paquet, y compris ce manifeste ; seuls s'en excluent le relevé lui-même et la signature, qui ne peuvent s'y contenir. L'empreinte du relevé n'est pas déclarée ici : elle se calcule sur le fichier reçu, car une valeur lue dans ce que l'on vérifie ne prouve rien.",
       "properties": {
         "algorithm": { "type": "string", "const": "sha256" },
-        "checksumsFile": { "type": "string", "const": "checksums.sha256" },
-        "checksumsSha256": { "$ref": "common-1.0.schema.json#/definitions/sha256" }
+        "checksumsFile": { "type": "string", "const": "checksums.sha256" }
       },
-      "required": ["algorithm", "checksumsFile", "checksumsSha256"],
+      "required": ["algorithm", "checksumsFile"],
       "additionalProperties": false
     },
 

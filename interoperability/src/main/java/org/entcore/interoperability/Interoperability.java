@@ -88,10 +88,36 @@ public class Interoperability extends BaseServer {
                 config.getLong("export-timeout-ms", 1800000L),
                 config.getLong("max-package-size", 2147483648L));
 
+        // Clé de signature : facultative. Sans elle, les paquets ne sont pas signés — leur
+        // intégrité reste vérifiable sans aucune clé, ce qui est l'essentiel.
+        java.security.PrivateKey signingKey = null;
+        String keyPath = oeipConfig.getJsonObject("signature", new JsonObject())
+                .getString("private-key");
+        if (keyPath != null && !keyPath.trim().isEmpty()) {
+            if (!vertx.fileSystem().existsBlocking(keyPath)) {
+                // Une option non installée n'est pas une panne : le dire en une ligne, sans pile
+                // d'appels, et sans laisser croire que la plateforme est en défaut.
+                log.warn("[OEIP] clé de signature absente (" + keyPath + ") : les paquets ne "
+                        + "seront pas signés. Leur intégrité reste vérifiable sans clé. Pour "
+                        + "signer : openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 "
+                        + "-out " + keyPath);
+            } else {
+                try {
+                    signingKey = fr.wseduc.webutils.security.RSA.loadPrivateKey(vertx, keyPath);
+                } catch (Exception e) {
+                    log.error("[OEIP] clé de signature illisible (" + keyPath + ") : les paquets "
+                            + "ne seront pas signés. Une clé privée PKCS#8 est attendue.", e);
+                }
+            }
+        }
+        final java.util.Map<String, java.security.PublicKey> trustedKeys =
+                org.entcore.interoperability.packaging.OeipSignature.loadTrustedKeys(
+                        vertx, oeipConfig.getJsonArray("trusted-issuers"));
+
         final DefaultOeipExportService exportService = new DefaultOeipExportService(
-                vertx, jobs, archiveSource, schemas, registry, config, workDir);
+                vertx, jobs, archiveSource, schemas, registry, config, workDir, signingKey);
         final DefaultOeipImportService importService = new DefaultOeipImportService(
-                vertx, jobs, config, workDir, archiveImportPath, registry);
+                vertx, jobs, config, workDir, archiveImportPath, registry, trustedKeys);
 
         final EventStore eventStore = EventStoreFactory.getFactory().getEventStore(Interoperability.class.getSimpleName());
 
@@ -109,6 +135,8 @@ public class Interoperability extends BaseServer {
 
         log.info("[OEIP] Module d'interopérabilité démarré — format " + OeipFormat.VERSION
                 + ", lot de schémas " + schemas.getBundleSha256().substring(0, 12)
-                + ", " + registry.size() + " mapper(s) sémantique(s), niveau Native actif");
+                + ", " + registry.size() + " mapper(s) sémantique(s), niveau Native actif"
+                + ", signature " + (signingKey == null ? "absente" : "active")
+                + ", " + trustedKeys.size() + " émetteur(s) de confiance");
     }
 }

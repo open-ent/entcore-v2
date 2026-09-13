@@ -31,10 +31,18 @@ public final class OeipChecksums {
      * donc postérieure ; et le manifeste épingle l'empreinte du relevé, ce qui ferme la chaîne
      * — l'y inclure créerait une dépendance circulaire.
      */
+    /**
+     * Seuls deux fichiers échappent au relevé, et pour la seule raison qu'ils ne peuvent pas s'y
+     * contenir : le relevé lui-même, et la signature, produite après lui.
+     *
+     * <p>Le manifeste, lui, <b>est couvert</b>. C'est le document normatif du paquet — il déclare
+     * la fidélité service par service, les niveaux présents et la présence de personnes mineures.
+     * L'en exclure le rendait réécrivable sans casser ni l'intégrité ni la signature : un paquet
+     * « vérifié » pouvait alors mentir sur tout ce qu'il promet.
+     */
     public static boolean isExcluded(String packagePath) {
         return org.entcore.interoperability.OeipFormat.CHECKSUMS.equals(packagePath)
-                || org.entcore.interoperability.OeipFormat.SIGNATURE.equals(packagePath)
-                || org.entcore.interoperability.OeipFormat.MANIFEST.equals(packagePath);
+                || org.entcore.interoperability.OeipFormat.SIGNATURE.equals(packagePath);
     }
 
     /** Relevé de tous les fichiers du dossier, trié, prêt à être écrit. */
