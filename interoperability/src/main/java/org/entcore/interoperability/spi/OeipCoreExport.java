@@ -25,6 +25,7 @@ public class OeipCoreExport {
     private final JsonArray warnings = new JsonArray();
     private final JsonArray unresolved = new JsonArray();
     private final JsonArray rewrites = new JsonArray();
+    private final Map<String, String> linkTargets = new LinkedHashMap<String, String>();
     private final JsonObject counts = new JsonObject();
     private String fidelity;
     private String notice;
@@ -81,6 +82,20 @@ public class OeipCoreExport {
         return this;
     }
 
+    /**
+     * Cible de lien : identifiant tel qu'il apparaît dans les contenus -> identifiant d'échange.
+     *
+     * Cette table reste INTERNE au temps de l'export. La publier reviendrait à rendre les
+     * identifiants d'origine, ce qui viderait la pseudonymisation de son sens ; s'en passer
+     * rendrait toute résolution impossible dès qu'ils sont masqués.
+     */
+    public OeipCoreExport linkTarget(String rawId, String globalId) {
+        if (rawId != null && globalId != null) {
+            linkTargets.put(rawId, globalId);
+        }
+        return this;
+    }
+
     public OeipCoreExport count(String key, int value) {
         counts.put(key, value);
         return this;
@@ -103,6 +118,7 @@ public class OeipCoreExport {
     public JsonArray getWarnings() { return warnings; }
     public JsonArray getUnresolvedReferences() { return unresolved; }
     public JsonArray getRewrites() { return rewrites; }
+    public Map<String, String> getLinkTargets() { return linkTargets; }
     public JsonObject getCounts() { return counts; }
     public String getFidelity() { return fidelity; }
     public String getNotice() { return notice; }

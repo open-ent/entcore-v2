@@ -18,15 +18,23 @@ public class OeipExportContext {
     private final Path nativeFolder;
     private final String nativeFolderName;
     private final boolean includeBinaries;
+    private final boolean pseudonymize;
 
     public OeipExportContext(String scopeUserId, String locale, String sourceSystem,
                              Path nativeFolder, String nativeFolderName, boolean includeBinaries) {
+        this(scopeUserId, locale, sourceSystem, nativeFolder, nativeFolderName, includeBinaries, false);
+    }
+
+    public OeipExportContext(String scopeUserId, String locale, String sourceSystem,
+                             Path nativeFolder, String nativeFolderName, boolean includeBinaries,
+                             boolean pseudonymize) {
         this.scopeUserId = scopeUserId;
         this.locale = locale;
         this.sourceSystem = sourceSystem;
         this.nativeFolder = nativeFolder;
         this.nativeFolderName = nativeFolderName;
         this.includeBinaries = includeBinaries;
+        this.pseudonymize = pseudonymize;
     }
 
     public String getScopeUserId() { return scopeUserId; }
@@ -40,4 +48,12 @@ public class OeipExportContext {
     public String getNativeFolderName() { return nativeFolderName; }
 
     public boolean isIncludeBinaries() { return includeBinaries; }
+
+    /**
+     * Retire les éléments directement identifiants et rend les identifiants opaques.
+     *
+     * Incompatible avec la charge utile d'origine, qui n'est filtrée par rien : les deux options
+     * s'excluent, et le schéma du format le vérifie aussi.
+     */
+    public boolean isPseudonymize() { return pseudonymize; }
 }

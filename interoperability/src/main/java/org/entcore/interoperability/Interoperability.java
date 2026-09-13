@@ -99,8 +99,7 @@ public class Interoperability extends BaseServer {
         // sort en « interne seulement », et le manifeste le déclare — jamais un dossier vide.
         registry.register(new DirectoryOeipProvider(
                 org.entcore.common.neo4j.Neo4j.getInstance(),
-                oeipConfig.getString("source-system", "localhost"),
-                false));
+                oeipConfig.getString("source-system", "localhost")));
         registry.register(new BlogOeipMapper());
         registry.register(new WorkspaceOeipMapper(storage));
 

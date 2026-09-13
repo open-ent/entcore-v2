@@ -89,9 +89,14 @@ public class WorkspaceOeipMapperTest {
     }
 
     private static OeipCoreExport run(Path folder, boolean includeBinaries) throws IOException {
+        return run(folder, includeBinaries, false);
+    }
+
+    private static OeipCoreExport run(Path folder, boolean includeBinaries, boolean pseudonymize)
+            throws IOException {
         return new WorkspaceOeipMapper(null).transcode(
                 new OeipExportContext("ec847027-d5c6-455f-a599-43753924dff2", "fr", SS,
-                        folder, INDEX, includeBinaries));
+                        folder, INDEX, includeBinaries, pseudonymize));
     }
 
     private static String render(List<OeipValidationError> errors) {
@@ -193,6 +198,26 @@ public class WorkspaceOeipMapperTest {
             assertFalse("l'identifiant du binaire ne doit pas servir de clé",
                     items.getJsonObject(i).getString("sourceId").startsWith("f"));
         }
+    }
+
+    /**
+     * Un paquet annoncé pseudonymisé ne doit trahir AUCUN identifiant d'origine — ni dans les
+     * identifiants d'échange, ni dans les champs, ni dans l'index. Annoncer l'anonymat en
+     * conservant les identifiants serait pire que ne rien annoncer.
+     */
+    @Test
+    public void unPaquetPseudonymiseNeTrahitAucunIdentifiantDOrigine() throws IOException {
+        OeipCoreExport out = run(payload("pseudonyme", 2, false), true, true);
+
+        String tout = out.getDocuments().toString() + out.getIdentifierEntries().encode()
+                + out.getRelations().encode();
+        for (String raw : new String[] { "doc-1", "doc-2", "dossier-1",
+                "ec847027-d5c6-455f-a599-43753924dff2" }) {
+            assertFalse("l'identifiant « " + raw + " » ne doit pas survivre", tout.contains(raw));
+        }
+        // Mais la table interne de résolution, elle, doit rester exploitable à l'export.
+        assertTrue("sans elle, aucun lien ne pourrait être réécrit",
+                out.getLinkTargets().containsKey("doc-1"));
     }
 
     // ------------------------------------------------------------------ robustesse

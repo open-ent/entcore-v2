@@ -81,12 +81,10 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
 
     private final Neo4j neo4j;
     private final String sourceSystem;
-    private final boolean pseudonymize;
 
-    public DirectoryOeipProvider(Neo4j neo4j, String sourceSystem, boolean pseudonymize) {
+    public DirectoryOeipProvider(Neo4j neo4j, String sourceSystem) {
         this.neo4j = neo4j;
         this.sourceSystem = sourceSystem;
-        this.pseudonymize = pseudonymize;
     }
 
     @Override
@@ -111,29 +109,35 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
     @Override
     public Future<OeipCoreExport> exportCore(final org.entcore.interoperability.spi.OeipExportContext context) {
         final String scopeUserId = context.getScopeUserId();
+        final boolean pseudonymize = context.isPseudonymize();
         final JsonObject params = new JsonObject().put("id", scopeUserId);
         return query(Q_PERSON, params)
                 .compose(persons -> query(Q_ORGS, params)
                 .compose(orgs -> query(Q_GROUPS, params)
-                .map(groups -> assemble(scopeUserId, persons, orgs, groups))));
+                .map(groups -> assemble(scopeUserId, persons, orgs, groups, pseudonymize))));
     }
 
-    /* visible pour les tests */ OeipCoreExport assemble(String scopeUserId, JsonArray persons, JsonArray orgs, JsonArray groups) {
+    /* visible pour les tests */ OeipCoreExport assemble(String scopeUserId, JsonArray persons,
+                                                        JsonArray orgs, JsonArray groups,
+                                                        boolean pseudonymize) {
         final OeipCoreExport out = new OeipCoreExport();
 
         JsonArray orgItems = new JsonArray();
         for (int i = 0; i < orgs.size(); i++) {
             JsonObject row = orgs.getJsonObject(i);
-            String gid = OeipUrn.org(sourceSystem, row.getString("id"));
+            String gid = OeipUrn.of("org", sourceSystem,
+                    OeipUrn.localPart(row.getString("id"), sourceSystem, pseudonymize));
             JsonObject org = new JsonObject()
                     .put("globalId", gid)
                     .put("sourceSystem", sourceSystem)
                     .put("name", nonEmpty(row.getString("name"), "Établissement"))
                     .put("type", "School");
-            putIfPresent(org, "sourceId", pseudonymize ? null : row.getString("id"));
-            putIfPresent(org, "externalId", row.getString("externalId"));
+            if (!pseudonymize) {
+                putIfPresent(org, "sourceId", row.getString("id"));
+                putIfPresent(org, "externalId", row.getString("externalId"));
+            }
             String uai = row.getString("uai");
-            if (isUai(uai)) {
+            if (isUai(uai) && !pseudonymize) {
                 org.put("uai", uai);
                 // L'ancre nationale est ce qui permet à une plateforme tierce d'apparier
                 // l'établissement sans rien connaître de nos identifiants.
@@ -141,7 +145,7 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
                         .put("sameAs", new JsonArray().add(OeipUrn.uaiAlias(uai))));
             }
             orgItems.add(org);
-            out.identifier(entry(gid, "org", row.getString("id"),
+            out.identifier(entry(gid, "org", pseudonymize ? null : row.getString("id"),
                     "directory/organizations.json#/items/" + i));
         }
 
@@ -151,7 +155,8 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
 
         for (int i = 0; i < persons.size(); i++) {
             JsonObject row = persons.getJsonObject(i);
-            personGid = OeipUrn.person(sourceSystem, row.getString("id"));
+            personGid = OeipUrn.of("person", sourceSystem,
+                    OeipUrn.localPart(row.getString("id"), sourceSystem, pseudonymize));
             String profile = normalizeProfile(row.getString("profile"));
 
             JsonObject person = new JsonObject()
@@ -161,9 +166,11 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
                     .put("deleted", row.getValue("deleteDate") != null)
                     .put("sensitivity", sensitivity(profile, row.getString("birthDate")));
 
-            putIfPresent(person, "sourceId", pseudonymize ? null : row.getString("id"));
-            putIfPresent(person, "externalId", row.getString("externalId"));
             if (!pseudonymize) {
+                putIfPresent(person, "sourceId", row.getString("id"));
+                // L'identifiant d'alimentation permet de retrouver la personne par simple
+                // rapprochement avec un extrait d'annuaire : il est identifiant en lui-même.
+                putIfPresent(person, "externalId", row.getString("externalId"));
                 putIfPresent(person, "login", row.getString("login"));
                 putIfPresent(person, "birthDate", isDate(row.getString("birthDate"))
                         ? row.getString("birthDate") : null);
@@ -171,10 +178,12 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
                 if (email != null && email.indexOf('@') > 0) {
                     person.put("emails", new JsonArray().add(email));
                 }
+                // Un nom est la donnée la plus directement identifiante qui soit : le conserver
+                // viderait la pseudonymisation de tout sens.
+                putIfPresent(person, "firstName", row.getString("firstName"));
+                putIfPresent(person, "lastName", row.getString("lastName"));
+                putIfPresent(person, "displayName", row.getString("displayName"));
             }
-            putIfPresent(person, "firstName", row.getString("firstName"));
-            putIfPresent(person, "lastName", row.getString("lastName"));
-            putIfPresent(person, "displayName", row.getString("displayName"));
 
             JsonArray orgRefs = new JsonArray();
             for (int j = 0; j < orgItems.size(); j++) {
@@ -184,7 +193,7 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
                 person.put("orgRefs", orgRefs);
             }
             personItems.add(person);
-            out.identifier(entry(personGid, "person", row.getString("id"),
+            out.identifier(entry(personGid, "person", pseudonymize ? null : row.getString("id"),
                     "directory/persons.json#/items/" + i));
 
             String externalId = row.getString("externalId");
@@ -198,32 +207,38 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
             for (int j = 0; j < orgItems.size(); j++) {
                 addMembership(out, membershipItems, personGid, row.getString("id"),
                         orgItems.getJsonObject(j).getString("globalId"),
-                        orgRefsSourceId(orgs, j), roleForProfile(profile));
+                        orgRefsSourceId(orgs, j), roleForProfile(profile), pseudonymize);
             }
         }
 
         JsonArray groupItems = new JsonArray();
         for (int i = 0; i < groups.size(); i++) {
             JsonObject row = groups.getJsonObject(i);
-            String gid = OeipUrn.group(sourceSystem, row.getString("id"));
+            String gid = OeipUrn.of("group", sourceSystem,
+                    OeipUrn.localPart(row.getString("id"), sourceSystem, pseudonymize));
             JsonObject group = new JsonObject()
                     .put("globalId", gid)
                     .put("sourceSystem", sourceSystem)
                     .put("name", nonEmpty(row.getString("name"), "Groupe"))
                     .put("groupType", groupType(row.getJsonArray("labels")));
-            putIfPresent(group, "sourceId", pseudonymize ? null : row.getString("id"));
-            putIfPresent(group, "externalId", row.getString("externalId"));
+            if (!pseudonymize) {
+                putIfPresent(group, "sourceId", row.getString("id"));
+                // L'identifiant d'alimentation d'un groupe porte celui de son établissement.
+                putIfPresent(group, "externalId", row.getString("externalId"));
+            }
             String orgId = row.getString("orgId");
             if (orgId != null) {
-                group.put("orgRef", OeipUrn.org(sourceSystem, orgId));
+                group.put("orgRef", OeipUrn.of("org", sourceSystem,
+                        OeipUrn.localPart(orgId, sourceSystem, pseudonymize)));
             }
             groupItems.add(group);
-            out.identifier(entry(gid, "group", row.getString("id"),
+            out.identifier(entry(gid, "group", pseudonymize ? null : row.getString("id"),
                     "directory/groups.json#/items/" + i));
 
             if (personGid != null) {
                 addMembership(out, membershipItems, personGid,
-                        persons.getJsonObject(0).getString("id"), gid, row.getString("id"), "member");
+                        persons.getJsonObject(0).getString("id"), gid, row.getString("id"),
+                        "member", pseudonymize);
                 out.relation(new JsonObject().put("type", "memberOf")
                         .put("fromRef", personGid).put("toRef", gid));
             }
@@ -246,9 +261,11 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
 
     private void addMembership(OeipCoreExport out, JsonArray items, String personGid,
                                String personSourceId, String containerGid, String containerSourceId,
-                               String role) {
-        String local = OeipUrn.membershipLocalPart(personSourceId, containerSourceId);
-        String gid = OeipUrn.membership(sourceSystem, local);
+                               String role, boolean pseudonymize) {
+        String local = OeipUrn.membershipLocalPart(
+                OeipUrn.localPart(personSourceId, sourceSystem, pseudonymize),
+                OeipUrn.localPart(containerSourceId, sourceSystem, pseudonymize));
+        String gid = OeipUrn.of("membership", sourceSystem, local);
         items.add(new JsonObject()
                 .put("globalId", gid)
                 .put("sourceSystem", sourceSystem)
@@ -268,13 +285,14 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
     }
 
     private JsonObject entry(String globalId, String kind, String sourceId, String href) {
+        // sourceId nul = pseudonymisé : rien ne doit permettre de remonter à l'objet d'origine.
         JsonObject e = new JsonObject()
                 .put("globalId", globalId)
                 .put("kind", kind)
                 .put("level", OeipFormat.LEVEL_CORE)
                 .put("sourceSystem", sourceSystem)
                 .put("href", href);
-        if (sourceId != null && !pseudonymize) {
+        if (sourceId != null) {
             e.put("sourceId", sourceId);
         }
         return e;

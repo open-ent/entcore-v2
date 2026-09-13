@@ -400,6 +400,10 @@ def lint(target: Path) -> int:
     for n in pkg.names:
         if n.endswith((".html", ".htm")):
             txt = pkg.read(n).decode("utf-8", "replace")
+            # Une référence d'échange bien formée CONTIENT l'identifiant d'origine dans sa partie
+            # locale : la retirer d'abord, sinon on prendrait une réécriture réussie pour un
+            # oubli.
+            txt = re.sub(r"oeip:(?:file|resource|person)/urn:oeip:[^\"'\s<>)]+", "", txt)
             for u in set(UUID_RE.findall(txt)):
                 if u in declared_raw:
                     warn(f"{n} : lien non résolu {u} — déclaré dans unresolvedReferences")

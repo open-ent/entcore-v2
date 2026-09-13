@@ -62,6 +62,12 @@ public class DefaultOeipExportService {
 
     public Future<String> start(UserInfos user, String locale, String host, List<String> serviceIds,
                                 boolean includeBinaries, boolean includeSharedResources) {
+        return start(user, locale, host, serviceIds, includeBinaries, includeSharedResources, false);
+    }
+
+    public Future<String> start(UserInfos user, String locale, String host, List<String> serviceIds,
+                                boolean includeBinaries, boolean includeSharedResources,
+                                boolean pseudonymize) {
         final String jobId = UUID.randomUUID().toString();
         final JsonArray services = new JsonArray();
         for (String s : serviceIds) {
@@ -72,22 +78,38 @@ public class DefaultOeipExportService {
 
         return jobs.save(job).compose(saved -> {
             // On rend la main tout de suite : un export mobilise tous les modules et peut durer.
-            produce(jobId, user, locale, serviceIds, includeBinaries, includeSharedResources);
+            produce(jobId, user, locale, serviceIds, includeBinaries, includeSharedResources,
+                    pseudonymize);
             return Future.succeededFuture(jobId);
         });
     }
 
     private void produce(final String jobId, final UserInfos user, final String locale,
                          final List<String> serviceIds, final boolean includeBinaries,
-                         final boolean includeSharedResources) {
+                         final boolean includeSharedResources, final boolean pseudonymize) {
 
         // Un service passe par l'export d'archive s'il n'a pas de mapper, ou si son mapper
         // travaille justement à partir de cette charge utile.
         final List<String> archiveIds = new ArrayList<String>();
         for (String id : serviceIds) {
             OeipServiceMapper mapper = providers.get(id);
-            if (mapper == null || !mapper.supportsCore() || mapper.transcodesNativePayload()) {
+            boolean hasCore = mapper != null && mapper.supportsCore();
+            if (pseudonymize && hasCore && !mapper.transcodesNativePayload()) {
+                continue;
+            }
+            if (!hasCore || mapper.transcodesNativePayload()) {
                 archiveIds.add(id);
+            }
+        }
+        if (pseudonymize) {
+            // Les services sans description commune n'ont aucune façon d'être pseudonymisés :
+            // les emporter quand même reviendrait à livrer des données brutes sous une étiquette
+            // trompeuse.
+            for (java.util.Iterator<String> it = archiveIds.iterator(); it.hasNext(); ) {
+                OeipServiceMapper m = providers.get(it.next());
+                if (m == null || !m.supportsCore()) {
+                    it.remove();
+                }
             }
         }
 
@@ -96,8 +118,9 @@ public class DefaultOeipExportService {
                     ? Future.<ArchiveBundle>succeededFuture(null)
                     : archiveSource.export(user.getUserId(), locale, archiveIds,
                             includeBinaries, includeSharedResources))
-            .compose(bundle -> runMappers(serviceIds, user.getUserId(), locale, bundle, includeBinaries)
-                    .compose(core -> pack(jobId, user, bundle, core)))
+            .compose(bundle -> runMappers(serviceIds, user.getUserId(), locale, bundle,
+                    includeBinaries, pseudonymize)
+                    .compose(core -> pack(jobId, user, bundle, core, pseudonymize)))
             .onSuccess(v -> log.info("[OEIP] paquet prêt pour le travail " + jobId))
             .onFailure(err -> {
                 log.error("[OEIP] export " + jobId + " en échec", err);
@@ -108,7 +131,8 @@ public class DefaultOeipExportService {
     /** Exécute les mappers en séquence, pour ne pas saturer les bases. */
     private Future<Map<String, OeipCoreExport>> runMappers(List<String> serviceIds, String scopeUserId,
                                                            String locale, ArchiveBundle bundle,
-                                                           boolean includeBinaries) {
+                                                           boolean includeBinaries,
+                                                           boolean pseudonymize) {
         final Map<String, OeipCoreExport> results = new LinkedHashMap<String, OeipCoreExport>();
         final String sourceSystem = config.getJsonObject("oeip", new JsonObject())
                 .getString("source-system", "localhost");
@@ -126,7 +150,8 @@ public class DefaultOeipExportService {
                 continue;
             }
             final OeipExportContext context = new OeipExportContext(scopeUserId, locale, sourceSystem,
-                    folder, folder == null ? null : folder.getFileName().toString(), includeBinaries);
+                    folder, folder == null ? null : folder.getFileName().toString(),
+                    includeBinaries, pseudonymize);
 
             chain = chain.compose(v -> mapper.exportCore(context)
                     .map(export -> { results.put(id, export); return (Void) null; })
@@ -141,7 +166,7 @@ public class DefaultOeipExportService {
     }
 
     private Future<Void> pack(final String jobId, final UserInfos user, final ArchiveBundle bundle,
-                              final Map<String, OeipCoreExport> core) {
+                              final Map<String, OeipCoreExport> core, final boolean pseudonymize) {
         final Promise<Void> promise = Promise.promise();
         final JsonObject oeip = config.getJsonObject("oeip", new JsonObject());
 
@@ -154,10 +179,14 @@ public class DefaultOeipExportService {
                 String sourceSystem = oeip.getString("source-system", "localhost");
                 OeipManifestBuilder builder = new OeipManifestBuilder(sourceSystem,
                         oeip.getString("archive-version"), oeip.getString("archive-version"))
-                        .emitNative(bundle != null)
+                        .emitNative(bundle != null && !pseudonymize)
                         .schemaBundleSha256(schemas.getBundleSha256())
-                        .scope("person", "urn:oeip:" + OeipFormat.VERSION + ":person:"
-                                + sourceSystem + ":" + user.getUserId());
+                        .scope("person", "urn:oeip:" + OeipFormat.VERSION + ":person:" + sourceSystem
+                                + ":" + org.entcore.interoperability.providers.OeipUrn.localPart(
+                                        user.getUserId(), sourceSystem, pseudonymize));
+                if (pseudonymize) {
+                    builder.pseudonymized(true);
+                }
 
                 JsonArray identifiers = new JsonArray();
                 JsonArray aliases = new JsonArray();
@@ -166,6 +195,7 @@ public class DefaultOeipExportService {
                 JsonArray unresolved = new JsonArray();
                 Map<String, JsonArray> ccResources = new LinkedHashMap<String, JsonArray>();
                 Map<String, JsonArray> ccAttachments = new LinkedHashMap<String, JsonArray>();
+                Map<String, String> linkTargets = new LinkedHashMap<String, String>();
 
                 // 1. Ce que les mappers ont su décrire.
                 for (Map.Entry<String, OeipCoreExport> e : core.entrySet()) {
@@ -187,9 +217,11 @@ public class DefaultOeipExportService {
                     aliases.addAll(ex.getAliases());
                     relations.addAll(ex.getRelations());
                     rewrites.addAll(ex.getRewrites());
+                    linkTargets.putAll(ex.getLinkTargets());
                     unresolved.addAll(ex.getUnresolvedReferences());
 
-                    Path nativeFolder = bundle == null ? null : bundle.folderFor(serviceId);
+                    Path nativeFolder = bundle == null || pseudonymize
+                            ? null : bundle.folderFor(serviceId);
                     boolean alsoNative = nativeFolder != null;
                     if (alsoNative) {
                         // La charge utile d'origine est conservée à côté de la description : elle
@@ -208,7 +240,7 @@ public class DefaultOeipExportService {
                 }
 
                 // 2. Ce qui n'a pas de mapper : repris tel quel, et déclaré comme tel.
-                List<String> nativeOnly = bundle == null
+                List<String> nativeOnly = bundle == null || pseudonymize
                         ? Collections.<String>emptyList() : bundle.getServiceIds();
                 for (String serviceId : nativeOnly) {
                     if (core.containsKey(serviceId)) {
@@ -230,13 +262,17 @@ public class DefaultOeipExportService {
                 // Résolution des liens internes, une fois TOUS les services décrits. Un billet
                 // peut citer un document de l'espace documentaire : aucun mapper pris isolément
                 // ne dispose de la table complète, la réécriture ne peut donc avoir lieu qu'ici.
-                resolveReferences(writer, staging, ccResources, ccAttachments, rewrites, unresolved);
+                resolveReferences(writer, staging, ccResources, ccAttachments, linkTargets,
+                        rewrites, unresolved);
 
                 // Projection pédagogique, si la plateforme l'émet et qu'il y a de quoi projeter.
                 if (oeip.getJsonObject("cc", new JsonObject()).getBoolean("emit", true)) {
+                    // Le titre du cartouche est du texte libre destiné à être affiché : il ne
+                    // doit pas nommer la personne quand le paquet est annoncé pseudonymisé.
                     org.entcore.interoperability.packaging.ImsManifestWriter cc =
                             new org.entcore.interoperability.packaging.ImsManifestWriter(
-                                    "Export Open ENT — " + user.getUsername(), "fr");
+                                    pseudonymize ? "Export Open ENT"
+                                                 : "Export Open ENT — " + user.getUsername(), "fr");
                     String xml = cc.build(ccResources, ccAttachments);
                     if (xml != null) {
                         writer.putText(OeipFormat.IMS_MANIFEST, xml);
@@ -296,16 +332,11 @@ public class DefaultOeipExportService {
     private void resolveReferences(OeipPackageWriter writer, Path staging,
                                    Map<String, JsonArray> resourcesByService,
                                    Map<String, JsonArray> attachmentsByService,
+                                   Map<String, String> linkTargets,
                                    JsonArray rewrites, JsonArray unresolved) throws java.io.IOException {
-        Map<String, String> globalBySourceId = new LinkedHashMap<String, String>();
-        for (JsonArray items : attachmentsByService.values()) {
-            for (int i = 0; i < items.size(); i++) {
-                JsonObject a = items.getJsonObject(i);
-                if (a.getString("sourceId") != null) {
-                    globalBySourceId.put(a.getString("sourceId"), a.getString("globalId"));
-                }
-            }
-        }
+        // La table vient des mappers, pas des documents publiés : en mode pseudonymisé, ceux-ci
+        // ne portent plus l'identifiant d'origine, et la résolution serait impossible.
+        Map<String, String> globalBySourceId = new LinkedHashMap<String, String>(linkTargets);
 
         org.entcore.interoperability.transcode.HtmlReferenceRewriter rewriter =
                 new org.entcore.interoperability.transcode.HtmlReferenceRewriter(globalBySourceId);

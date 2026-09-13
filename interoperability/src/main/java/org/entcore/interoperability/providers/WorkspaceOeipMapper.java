@@ -111,6 +111,7 @@ public class WorkspaceOeipMapper implements OeipServiceMapper {
             return out;
         }
 
+        final boolean pseudonymize = context.isPseudonymize();
         final boolean binariesOmitted = Files.isRegularFile(folder.resolve(SKIP_DOCS))
                 || !context.isIncludeBinaries();
 
@@ -125,7 +126,7 @@ public class WorkspaceOeipMapper implements OeipServiceMapper {
                 continue;
             }
             if ("folder".equals(doc.getString("eType"))) {
-                folders.add(toFolder(doc, ss, folders.size(), out));
+                folders.add(toFolder(doc, ss, folders.size(), out, pseudonymize));
                 continue;
             }
             announced++;
@@ -142,7 +143,7 @@ public class WorkspaceOeipMapper implements OeipServiceMapper {
                 }
                 continue;
             }
-            attachments.add(toAttachment(doc, binary, ss, attachments.size(), out));
+            attachments.add(toAttachment(doc, binary, ss, attachments.size(), out, pseudonymize));
         }
 
         out.document("resources/" + SERVICE_ID + "/folders.json", envelope(ss, "folders", folders));
@@ -170,38 +171,43 @@ public class WorkspaceOeipMapper implements OeipServiceMapper {
         return out;
     }
 
-    private JsonObject toFolder(JsonObject doc, String ss, int position, OeipCoreExport out) {
+    private JsonObject toFolder(JsonObject doc, String ss, int position, OeipCoreExport out,
+                                boolean pseudonymize) {
         String sourceId = doc.getString("_id");
-        String globalId = OeipUrn.of("folder", ss, sourceId);
+        String globalId = OeipUrn.of("folder", ss, OeipUrn.localPart(sourceId, ss, pseudonymize));
         JsonObject f = new JsonObject()
                 .put("globalId", globalId)
                 .put("sourceSystem", ss)
                 .put("serviceId", SERVICE_ID)
-                .put("sourceId", sourceId)
                 .put("name", nonEmpty(doc.getString("name"), "Dossier"));
+        if (!pseudonymize) {
+            f.put("sourceId", sourceId);
+        }
         MapperSupport.putIfText(f, "createdAt", MapperSupport.isoDate(doc.getValue("created")));
         if (doc.getString("eParent") != null) {
-            f.put("parentFolderRef", OeipUrn.of("folder", ss, doc.getString("eParent")));
+            f.put("parentFolderRef", OeipUrn.of("folder", ss,
+                    OeipUrn.localPart(doc.getString("eParent"), ss, pseudonymize)));
         }
         if (doc.getString("owner") != null) {
-            f.put("ownerRef", OeipUrn.person(ss, doc.getString("owner")));
+            f.put("ownerRef", OeipUrn.of("person", ss,
+                    OeipUrn.localPart(doc.getString("owner"), ss, pseudonymize)));
         }
         if (Boolean.TRUE.equals(doc.getBoolean("trashed"))) {
             f.put("trashed", true);
         }
-        out.identifier(entry(globalId, "folder", sourceId, ss,
+        out.identifier(entry(globalId, "folder", pseudonymize ? null : sourceId, ss,
                 "resources/" + SERVICE_ID + "/folders.json#/items/" + position));
         return f;
     }
 
     private JsonObject toAttachment(JsonObject doc, Path binary, String ss, int position,
-                                    OeipCoreExport out) throws IOException {
+                                    OeipCoreExport out, boolean pseudonymize) throws IOException {
         // L'identifiant retenu est celui du DOCUMENT, pas celui du binaire : c'est le document
         // que désignent les liens « /workspace/document/… » — la route résout par findById. Se
         // fonder sur le champ « file » ferait échouer la résolution de toutes les images.
         String sourceId = MapperSupport.identifierOr(doc.getString("_id"), doc.getString("file"));
-        String localPart = OeipUrn.sanitize(sourceId);
-        String globalId = OeipUrn.of("file", ss, sourceId);
+        String localPart = OeipUrn.localPart(sourceId, ss, pseudonymize);
+        String globalId = OeipUrn.of("file", ss, localPart);
         String name = nonEmpty(doc.getString("name"), binary.getFileName().toString());
         String packagePath = "resources/" + SERVICE_ID + "/content/"
                 + MapperSupport.shard(localPart) + "/" + localPart + "/" + OeipUrn.sanitize(name);
@@ -210,41 +216,52 @@ public class WorkspaceOeipMapper implements OeipServiceMapper {
                 .put("globalId", globalId)
                 .put("sourceSystem", ss)
                 .put("serviceId", SERVICE_ID)
-                .put("sourceId", sourceId)
                 .put("fileName", name)
                 .put("mediaType", MapperSupport.mediaType(doc.getJsonObject("metadata"), name))
                 .put("size", (int) Files.size(binary))
                 .put("sha256", OeipChecksums.sha256(binary))
                 .put("path", packagePath);
+        if (!pseudonymize) {
+            a.put("sourceId", sourceId);
+        }
         MapperSupport.putIfText(a, "createdAt", MapperSupport.isoDate(doc.getValue("created")));
         if (doc.getString("owner") != null) {
-            a.put("ownerRef", OeipUrn.person(ss, doc.getString("owner")));
+            String ownerRef = OeipUrn.of("person", ss,
+                    OeipUrn.localPart(doc.getString("owner"), ss, pseudonymize));
+            a.put("ownerRef", ownerRef);
             out.relation(new JsonObject().put("type", "ownedBy")
-                    .put("fromRef", globalId)
-                    .put("toRef", OeipUrn.person(ss, doc.getString("owner"))));
+                    .put("fromRef", globalId).put("toRef", ownerRef));
         }
         if (doc.getString("eParent") != null) {
-            String parent = OeipUrn.of("folder", ss, doc.getString("eParent"));
+            String parent = OeipUrn.of("folder", ss,
+                    OeipUrn.localPart(doc.getString("eParent"), ss, pseudonymize));
             a.put("folderRef", parent);
             out.relation(new JsonObject().put("type", "containedIn")
                     .put("fromRef", globalId).put("toRef", parent));
         }
 
         out.file(packagePath, binary);
-        out.identifier(entry(globalId, "file", sourceId, ss, packagePath)
+        // Table interne : c'est cet identifiant que portent les liens des contenus.
+        out.linkTarget(sourceId, globalId);
+        out.identifier(entry(globalId, "file", pseudonymize ? null : sourceId, ss, packagePath)
                 .put("sha256", a.getString("sha256")));
         return a;
     }
 
     private JsonObject entry(String globalId, String kind, String sourceId, String ss, String href) {
-        return new JsonObject()
+        JsonObject e = new JsonObject()
                 .put("globalId", globalId)
                 .put("kind", kind)
                 .put("level", OeipFormat.LEVEL_CORE)
                 .put("sourceSystem", ss)
                 .put("serviceId", SERVICE_ID)
-                .put("sourceId", sourceId)
                 .put("href", href);
+        // Un champ absent et un champ nul ne sont pas la même chose : le schéma attend une
+        // chaîne ou rien du tout.
+        if (sourceId != null) {
+            e.put("sourceId", sourceId);
+        }
+        return e;
     }
 
     /**

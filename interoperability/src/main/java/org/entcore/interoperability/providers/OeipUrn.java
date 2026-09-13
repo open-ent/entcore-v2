@@ -19,15 +19,46 @@ public final class OeipUrn {
 
     private OeipUrn() {}
 
+    /**
+     * Partie locale d'un identifiant, pseudonymisée ou non.
+     *
+     * Le calcul doit être IDENTIQUE pour tous les services : l'auteur d'un billet et la personne
+     * décrite dans l'annuaire sont le même objet, et une divergence de calcul romprait la
+     * référence sans que rien ne le signale.
+     */
+    public static String localPart(String rawId, String sourceSystem, boolean pseudonymize) {
+        if (!pseudonymize) {
+            return sanitize(rawId);
+        }
+        return "p" + sha256Prefix(sourceSystem + "|" + (rawId == null ? "" : rawId));
+    }
+
+    static String sha256Prefix(String value) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 16; i++) {
+                sb.append(Character.forDigit((d[i] >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(d[i] & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("SHA-256 indisponible", e);
+        }
+    }
+
     public static String of(String kind, String authority, String localPart) {
         return "urn:oeip:" + OeipFormat.VERSION + ":" + kind + ":" + authority + ":"
                 + sanitize(localPart);
     }
 
-    public static String org(String sourceSystem, String id)        { return of("org", sourceSystem, id); }
-    public static String person(String sourceSystem, String id)     { return of("person", sourceSystem, id); }
-    public static String group(String sourceSystem, String id)      { return of("group", sourceSystem, id); }
-    public static String membership(String sourceSystem, String id) { return of("membership", sourceSystem, id); }
+    /*
+     * Il n'existe volontairement pas de raccourci « org(ss, id) » : un tel raccourci contourne
+     * localPart() et produit, en mode pseudonymisé, une référence qui ne désigne plus rien.
+     * Le défaut est silencieux — le paquet reste bien formé, seules les références se brisent.
+     * Toute construction passe donc par of(kind, authority, localPart(...)).
+     */
 
     public static String uaiAlias(String uai)          { return of("org", AUTHORITY_UAI, uai); }
     public static String aafPersonAlias(String extId)  { return of("person", AUTHORITY_AAF, extId); }

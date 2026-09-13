@@ -58,9 +58,13 @@ public class OeipExportController extends BaseController {
                 final String locale = I18n.acceptLanguage(request);
                 final String host = getHost(request);
 
+                // La pseudonymisation exclut la charge utile d'origine, qui n'est filtrée par
+                // rien : demander les deux serait contradictoire, et le refus vaut mieux qu'un
+                // paquet qui prétendrait être anonyme sans l'être.
                 exportService.start(user, locale, host, services,
                                 body.getBoolean("includeBinaries", true),
-                                body.getBoolean("includeSharedResources", true))
+                                body.getBoolean("includeSharedResources", true),
+                                body.getBoolean("pseudonymize", false))
                         .onSuccess(jobId -> {
                             eventStore.createAndStoreEvent("OEIP_EXPORT", request,
                                     new JsonObject().put("jobId", jobId));

@@ -31,8 +31,8 @@ public class DirectoryOeipProviderTest {
         validator = new OeipValidator(new OeipSchemaRegistry());
     }
 
-    private static DirectoryOeipProvider provider(boolean pseudonymize) {
-        return new DirectoryOeipProvider(null, SS, pseudonymize);
+    private static DirectoryOeipProvider provider() {
+        return new DirectoryOeipProvider(null, SS);
     }
 
     private static JsonArray persons() {
@@ -68,8 +68,8 @@ public class DirectoryOeipProviderTest {
     }
 
     private static OeipCoreExport export(boolean pseudonymize) {
-        return provider(pseudonymize).assemble("ec847027-d5c6-455f-a599-43753924dff2",
-                persons(), orgs(), groups());
+        return provider().assemble("ec847027-d5c6-455f-a599-43753924dff2",
+                persons(), orgs(), groups(), pseudonymize);
     }
 
     private static String render(List<OeipValidationError> errors) {
@@ -136,7 +136,7 @@ public class DirectoryOeipProviderTest {
     public void nInventePasDAncreQuandLUaiEstAbsentOuInvalide() {
         JsonArray sansUai = new JsonArray().add(new JsonObject()
                 .put("id", "org-x").put("name", "Structure sans UAI").put("uai", "PAS-UN-UAI"));
-        OeipCoreExport out = provider(false).assemble("u1", persons(), sansUai, new JsonArray());
+        OeipCoreExport out = provider().assemble("u1", persons(), sansUai, new JsonArray(), false);
         assertFalse("un UAI mal formé ne doit pas produire d'ancre",
                 out.getAliases().encode().contains("fr.men.uai"));
         assertNull(out.getDocuments().get("directory/organizations.json")
@@ -153,6 +153,12 @@ public class DirectoryOeipProviderTest {
         assertNull("la date de naissance est directement identifiante", person.getString("birthDate"));
         assertNull("l'identifiant d'origine permet de remonter à la personne", person.getString("sourceId"));
         assertNull(person.getJsonArray("emails"));
+        assertNull("un nom est directement identifiant", person.getString("firstName"));
+        assertNull("un nom est directement identifiant", person.getString("lastName"));
+        assertNull(person.getString("displayName"));
+        // L'identifiant d'alimentation permet de retrouver la personne par rapprochement avec un
+        // extrait d'annuaire : il est identifiant en lui-même.
+        assertNull(person.getString("externalId"));
         // Le profil et le rattachement restent : sans eux le paquet n'aurait plus d'utilité.
         assertEquals("Personnel", person.getString("profile"));
         assertNotNull(person.getJsonArray("orgRefs"));
@@ -167,6 +173,58 @@ public class DirectoryOeipProviderTest {
         assertEquals("standard", DirectoryOeipProvider.sensitivity("Teacher", null));
         // Un élève majeur ne doit pas être signalé à tort.
         assertEquals("standard", DirectoryOeipProvider.sensitivity("Student", "1990-01-01"));
+    }
+
+    @Test
+    public void laPseudonymisationRendLesIdentifiantsOpaques() {
+        String clair = export(false).getDocuments().get("directory/persons.json")
+                .getJsonArray("items").getJsonObject(0).getString("globalId");
+        String opaque = export(true).getDocuments().get("directory/persons.json")
+                .getJsonArray("items").getJsonObject(0).getString("globalId");
+
+        assertTrue("en clair, l'identifiant d'origine est lisible",
+                clair.endsWith("ec847027-d5c6-455f-a599-43753924dff2"));
+        assertFalse("pseudonymisé, il ne doit plus l'être",
+                opaque.contains("ec847027-d5c6-455f-a599-43753924dff2"));
+        assertTrue(opaque, opaque.matches("^urn:oeip:1\\.0:person:[^:]+:p[a-f0-9]{32}$"));
+        // Déterministe : deux exports du même compte doivent produire la même identité, sans
+        // quoi rien ne pourrait être rapproché d'un envoi à l'autre.
+        assertEquals(opaque, export(true).getDocuments().get("directory/persons.json")
+                .getJsonArray("items").getJsonObject(0).getString("globalId"));
+    }
+
+    @Test
+    public void lesReferencesCroiseesSurviventALaPseudonymisation() {
+        OeipCoreExport out = export(true);
+        String personGid = out.getDocuments().get("directory/persons.json")
+                .getJsonArray("items").getJsonObject(0).getString("globalId");
+        JsonArray memberships = out.getDocuments().get("directory/memberships.json")
+                .getJsonArray("items");
+
+        // Le calcul doit être identique partout : une divergence romprait la référence sans que
+        // rien ne le signale.
+        for (int i = 0; i < memberships.size(); i++) {
+            assertEquals("l'adhésion doit désigner la personne pseudonymisée",
+                    personGid, memberships.getJsonObject(i).getString("personRef"));
+        }
+        String orgGid = out.getDocuments().get("directory/organizations.json")
+                .getJsonArray("items").getJsonObject(0).getString("globalId");
+        assertTrue(out.getDocuments().get("directory/persons.json").getJsonArray("items")
+                .getJsonObject(0).getJsonArray("orgRefs").contains(orgGid));
+    }
+
+    @Test
+    public void aucuneAncreNationaleNEstPublieeEnPseudonymise() {
+        OeipCoreExport out = export(true);
+        String aliases = out.getAliases().encode();
+        // L'UAI et l'identifiant d'alimentation sont par nature identifiants : les publier
+        // viderait la pseudonymisation de son sens.
+        assertFalse("aucune ancre d'établissement", aliases.contains("fr.men.uai"));
+        assertFalse("aucune ancre de personne", aliases.contains("fr.men.aaf"));
+        assertNull(out.getDocuments().get("directory/organizations.json")
+                .getJsonArray("items").getJsonObject(0).getString("uai"));
+        // Et l'index ne doit pas conserver l'identifiant d'origine.
+        assertFalse(out.getIdentifierEntries().encode().contains("\"sourceId\""));
     }
 
     // ------------------------------------------------------------------ correspondances
@@ -196,7 +254,7 @@ public class DirectoryOeipProviderTest {
     public void assainitLesIdentifiantsExotiques() {
         // La partie locale d'une URN n'admet qu'un jeu restreint : un identifiant exotique est
         // transformé, pas rejeté — sinon un seul objet ferait échouer tout l'export.
-        String urn = OeipUrn.person(SS, "id avec espace/et#slash");
+        String urn = OeipUrn.of("person", SS, OeipUrn.localPart("id avec espace/et#slash", SS, false));
         assertTrue(urn, urn.matches(
                 "^urn:oeip:1\\.0:person:[A-Za-z0-9][A-Za-z0-9.-]*:[A-Za-z0-9._~-]+$"));
         assertEquals("inconnu", OeipUrn.sanitize(null));

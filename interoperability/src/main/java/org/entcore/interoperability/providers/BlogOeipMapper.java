@@ -95,6 +95,7 @@ public class BlogOeipMapper implements OeipServiceMapper {
 
     OeipCoreExport transcode(OeipExportContext context) throws IOException {
         final String ss = context.getSourceSystem();
+        final boolean pseudonymize = context.isPseudonymize();
         final OeipCoreExport out = new OeipCoreExport();
         final Path folder = context.getNativeFolder();
 
@@ -107,8 +108,8 @@ public class BlogOeipMapper implements OeipServiceMapper {
             for (Path file : OeipChecksums.listFiles(attachmentsDir)) {
                 String fileName = file.getFileName().toString();
                 String sourceId = MapperSupport.extractFileId(fileName);
-                String localPart = OeipUrn.sanitize(
-                        sourceId != null ? sourceId : fileName);
+                String rawId = sourceId != null ? sourceId : fileName;
+                String localPart = OeipUrn.localPart(rawId, ss, pseudonymize);
                 String globalId = OeipUrn.of("file", ss, localPart);
                 String cleanName = MapperSupport.cleanAttachmentName(fileName, sourceId);
                 String packagePath = "resources/" + SERVICE_ID + "/content/"
@@ -118,13 +119,17 @@ public class BlogOeipMapper implements OeipServiceMapper {
                         .put("globalId", globalId)
                         .put("sourceSystem", ss)
                         .put("serviceId", SERVICE_ID)
-                        .put("sourceId", sourceId == null ? fileName : sourceId)
                         .put("fileName", cleanName)
                         .put("mediaType", MapperSupport.mediaType(cleanName))
                         .put("size", (int) Files.size(file))
                         .put("sha256", OeipChecksums.sha256(file))
                         .put("path", packagePath));
+                if (!pseudonymize) {
+                    attachments.getJsonObject(attachments.size() - 1)
+                            .put("sourceId", sourceId == null ? fileName : sourceId);
+                }
                 out.file(packagePath, file);
+                out.linkTarget(rawId, globalId);
                 out.identifier(new JsonObject()
                         .put("globalId", globalId).put("kind", "file")
                         .put("level", OeipFormat.LEVEL_CORE).put("sourceSystem", ss)
@@ -157,16 +162,20 @@ public class BlogOeipMapper implements OeipServiceMapper {
                 continue;
             }
             boolean isPost = doc.containsKey("blog") || rawTitle(doc).startsWith(POST_PREFIX);
-            JsonObject resource = toResource(doc, isPost, ss, rewriter, bodies);
+            JsonObject resource = toResource(doc, isPost, ss, rewriter, bodies, pseudonymize);
             resources.add(resource);
-            out.identifier(new JsonObject()
+            JsonObject entry = new JsonObject()
                     .put("globalId", resource.getString("globalId")).put("kind", "resource")
                     .put("level", OeipFormat.LEVEL_CORE).put("sourceSystem", ss)
                     .put("serviceId", SERVICE_ID)
                     .put("oeipType", resource.getString("resourceType"))
-                    .put("sourceId", resource.getString("sourceId"))
                     .put("href", "resources/" + SERVICE_ID + "/resources.json#/items/"
-                            + (resources.size() - 1)));
+                            + (resources.size() - 1));
+            // Absent n'est pas nul : en mode pseudonymisé, le champ ne doit simplement pas être là.
+            if (resource.getString("sourceId") != null) {
+                entry.put("sourceId", resource.getString("sourceId"));
+            }
+            out.identifier(entry);
             if (resource.getString("authorRef") != null) {
                 out.relation(new JsonObject().put("type", "authoredBy")
                         .put("fromRef", resource.getString("globalId"))
@@ -239,16 +248,17 @@ public class BlogOeipMapper implements OeipServiceMapper {
 
     private JsonObject toResource(JsonObject doc, boolean isPost, String ss,
                                   HtmlReferenceRewriter rewriter,
-                                  java.util.Map<String, String> bodies) {
+                                  java.util.Map<String, String> bodies, boolean pseudonymize) {
         String sourceId = doc.getString("_id");
-        String globalId = OeipUrn.of("resource", ss, sourceId == null ? "inconnu" : sourceId);
+        String globalId = OeipUrn.of("resource", ss,
+                OeipUrn.localPart(sourceId == null ? "inconnu" : sourceId, ss, pseudonymize));
 
         JsonObject resource = new JsonObject()
                 .put("globalId", globalId)
                 .put("sourceSystem", ss)
                 .put("serviceId", SERVICE_ID)
                 .put("resourceType", "urn:oeip:restype:blog." + (isPost ? "post" : "blog"));
-        if (sourceId != null) {
+        if (sourceId != null && !pseudonymize) {
             resource.put("sourceId", sourceId);
         }
 
@@ -260,8 +270,10 @@ public class BlogOeipMapper implements OeipServiceMapper {
 
         JsonObject author = doc.getJsonObject("author");
         if (author != null && author.getString("userId") != null) {
-            resource.put("authorRef", OeipUrn.person(ss, author.getString("userId")));
-            resource.put("ownerRef", OeipUrn.person(ss, author.getString("userId")));
+            String personRef = OeipUrn.of("person", ss,
+                    OeipUrn.localPart(author.getString("userId"), ss, pseudonymize));
+            resource.put("authorRef", personRef);
+            resource.put("ownerRef", personRef);
         }
         MapperSupport.putIfText(resource, "createdAt", MapperSupport.isoDate(doc.getValue("created")));
         MapperSupport.putIfText(resource, "modifiedAt", MapperSupport.isoDate(doc.getValue("modified")));
@@ -279,7 +291,8 @@ public class BlogOeipMapper implements OeipServiceMapper {
             JsonObject blogRef = doc.getJsonObject("blog");
             String parentId = blogRef == null ? null : blogRef.getString("$id");
             if (parentId != null) {
-                resource.put("parentResourceRef", OeipUrn.of("resource", ss, parentId));
+                resource.put("parentResourceRef", OeipUrn.of("resource", ss,
+                        OeipUrn.localPart(parentId, ss, pseudonymize)));
             }
             String content = doc.getString("content");
             if (content != null && !content.isEmpty()) {
