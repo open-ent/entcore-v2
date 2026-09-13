@@ -71,6 +71,12 @@ public class BlogOeipMapper implements OeipServiceMapper {
         return true;
     }
 
+    /** Après l'espace documentaire : un billet cite des fichiers qui doivent déjà exister. */
+    @Override
+    public int importOrder() {
+        return 30;
+    }
+
     @Override
     public Future<JsonObject> importCore(org.entcore.interoperability.spi.OeipImportContext context) {
         // MongoDb n'est câblé qu'après le démarrage du verticle : on l'obtient à l'appel, pas à

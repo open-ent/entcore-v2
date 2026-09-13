@@ -57,6 +57,18 @@ public interface OeipServiceMapper {
     }
 
     /**
+     * Rang de passage à la reprise, du plus petit au plus grand.
+     *
+     * L'ordre n'est pas cosmétique : un contenu ne peut rétablir ses liens que vers des fichiers
+     * DÉJÀ recréés. Les services qui produisent des fichiers passent donc avant ceux qui les
+     * citent. Un paquet n'étant pas tenu de présenter ses services dans cet ordre, c'est ici que
+     * la garantie se joue.
+     */
+    default int importOrder() {
+        return 100;
+    }
+
+    /**
      * true si ce mapper a besoin de la charge utile d'archive pour travailler.
      *
      * <p>Un mapper qui transcode n'extrait rien lui-même : il reprend ce que le module a déjà

@@ -263,17 +263,31 @@ public class DefaultOeipImportService {
                         user.getLogin(), user.getUsername(), dryRun, manifest);
 
         JsonArray services = manifest.getJsonArray("services", new JsonArray());
-        Future<Void> chain = Future.succeededFuture();
+        java.util.List<org.entcore.interoperability.spi.OeipServiceMapper> ordered =
+                new java.util.ArrayList<org.entcore.interoperability.spi.OeipServiceMapper>();
         for (int i = 0; i < services.size(); i++) {
             JsonObject svc = services.getJsonObject(i);
             if (!Boolean.TRUE.equals(svc.getBoolean("normalized"))) {
                 continue;
             }
-            final org.entcore.interoperability.spi.OeipServiceMapper mapper =
-                    providers.get(svc.getString("id"));
-            if (mapper == null || !mapper.supportsCoreImport()) {
-                continue;
+            org.entcore.interoperability.spi.OeipServiceMapper m = providers.get(svc.getString("id"));
+            if (m != null && m.supportsCoreImport()) {
+                ordered.add(m);
             }
+        }
+        // Un paquet n'ordonne pas ses services : c'est ici qu'on garantit que les fichiers sont
+        // recréés avant les contenus qui les citent.
+        java.util.Collections.sort(ordered,
+                new java.util.Comparator<org.entcore.interoperability.spi.OeipServiceMapper>() {
+            @Override
+            public int compare(org.entcore.interoperability.spi.OeipServiceMapper a,
+                               org.entcore.interoperability.spi.OeipServiceMapper b) {
+                return Integer.compare(a.importOrder(), b.importOrder());
+            }
+        });
+
+        Future<Void> chain = Future.succeededFuture();
+        for (final org.entcore.interoperability.spi.OeipServiceMapper mapper : ordered) {
             chain = chain.compose(v -> mapper.importCore(context)
                     .map(report -> { reports.add(report); return (Void) null; })
                     .otherwise(err -> {

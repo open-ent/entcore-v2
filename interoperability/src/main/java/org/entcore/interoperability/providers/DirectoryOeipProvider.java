@@ -285,6 +285,12 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
         return true;
     }
 
+    /** L'appariement d'identité d'abord : il conditionne le rattachement des contenus. */
+    @Override
+    public int importOrder() {
+        return 20;
+    }
+
     @Override
     public Future<JsonObject> importCore(final org.entcore.interoperability.spi.OeipImportContext context) {
         final JsonArray persons = readItems(context, "directory/persons.json");

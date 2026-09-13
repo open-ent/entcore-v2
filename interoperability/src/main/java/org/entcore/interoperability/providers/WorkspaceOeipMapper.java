@@ -34,6 +34,12 @@ public class WorkspaceOeipMapper implements OeipServiceMapper {
     /** Sentinelle écrite par l'export d'archive quand les binaires ont été volontairement omis. */
     private static final String SKIP_DOCS = "skipDocs";
 
+    private final org.entcore.common.storage.Storage storage;
+
+    public WorkspaceOeipMapper(org.entcore.common.storage.Storage storage) {
+        this.storage = storage;
+    }
+
     @Override
     public String serviceId() {
         return SERVICE_ID;
@@ -52,11 +58,28 @@ public class WorkspaceOeipMapper implements OeipServiceMapper {
     @Override
     public OeipCapability capability() {
         return new OeipCapability(SERVICE_ID, "Espace documentaire", "Workspace", null,
-                true, true, false, true,
+                true, true, true, true,
                 OeipFormat.FIDELITY_PARTIAL,
                 "Les partages sont décrits mais devront être rétablis à l'arrivée : les groupes "
                 + "de la plateforme de départ n'y existent pas. L'historique des versions et la "
                 + "corbeille ne sont pas modélisés en 1.0.");
+    }
+
+    @Override
+    public boolean supportsCoreImport() {
+        return true;
+    }
+
+    /** Les fichiers d'abord : les contenus qui les citent en dépendent. */
+    @Override
+    public int importOrder() {
+        return 10;
+    }
+
+    @Override
+    public Future<JsonObject> importCore(org.entcore.interoperability.spi.OeipImportContext context) {
+        return new WorkspaceOeipImporter(fr.wseduc.mongodb.MongoDb.getInstance(), storage)
+                .importCore(context);
     }
 
     @Override
@@ -173,7 +196,10 @@ public class WorkspaceOeipMapper implements OeipServiceMapper {
 
     private JsonObject toAttachment(JsonObject doc, Path binary, String ss, int position,
                                     OeipCoreExport out) throws IOException {
-        String sourceId = MapperSupport.identifierOr(doc.getString("file"), doc.getString("_id"));
+        // L'identifiant retenu est celui du DOCUMENT, pas celui du binaire : c'est le document
+        // que désignent les liens « /workspace/document/… » — la route résout par findById. Se
+        // fonder sur le champ « file » ferait échouer la résolution de toutes les images.
+        String sourceId = MapperSupport.identifierOr(doc.getString("_id"), doc.getString("file"));
         String localPart = OeipUrn.sanitize(sourceId);
         String globalId = OeipUrn.of("file", ss, sourceId);
         String name = nonEmpty(doc.getString("name"), binary.getFileName().toString());

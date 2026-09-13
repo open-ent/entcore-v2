@@ -89,7 +89,7 @@ public class WorkspaceOeipMapperTest {
     }
 
     private static OeipCoreExport run(Path folder, boolean includeBinaries) throws IOException {
-        return new WorkspaceOeipMapper().transcode(
+        return new WorkspaceOeipMapper(null).transcode(
                 new OeipExportContext("ec847027-d5c6-455f-a599-43753924dff2", "fr", SS,
                         folder, INDEX, includeBinaries));
     }
@@ -177,13 +177,31 @@ public class WorkspaceOeipMapperTest {
         assertTrue(items.getJsonObject(0).getString("path").startsWith("resources/workspace/content/"));
     }
 
+    /**
+     * Un lien « /workspace/document/… » désigne le DOCUMENT, la route le résolvant par findById.
+     * Indexer les pièces jointes sur l'identifiant du binaire ferait échouer la résolution de
+     * toutes les images — sans erreur visible, juste des liens morts à l'arrivée.
+     */
+    @Test
+    public void lesPiecesJointesSontIdentifieesParLeDocumentEtNonParLeBinaire() throws IOException {
+        JsonArray items = run(payload("cle-de-resolution", 2, false), true)
+                .getDocuments().get("resources/workspace/attachments.json").getJsonArray("items");
+
+        assertEquals("doc-1", items.getJsonObject(0).getString("sourceId"));
+        assertEquals("doc-2", items.getJsonObject(1).getString("sourceId"));
+        for (int i = 0; i < items.size(); i++) {
+            assertFalse("l'identifiant du binaire ne doit pas servir de clé",
+                    items.getJsonObject(i).getString("sourceId").startsWith("f"));
+        }
+    }
+
     // ------------------------------------------------------------------ robustesse
 
     @Test
     public void unIndexIntrouvableEstAvoueEtNonDevine() throws IOException {
         Path folder = work.resolve("sans-index");
         Files.createDirectories(folder);
-        OeipCoreExport out = new WorkspaceOeipMapper().transcode(
+        OeipCoreExport out = new WorkspaceOeipMapper(null).transcode(
                 new OeipExportContext("u1", "fr", SS, folder, INDEX, true));
         assertTrue(out.getWarnings().encode().contains("payload.index.missing"));
         assertEquals(0, (int) out.getCounts().getInteger("attachments"));
@@ -195,7 +213,7 @@ public class WorkspaceOeipMapperTest {
         // nommé autrement. Le repli cherche le seul fichier sans extension à la racine.
         Path folder = payload("autre-libelle", 2, false);
         Files.move(folder.resolve(INDEX), folder.resolve("Workspace"));
-        OeipCoreExport out = new WorkspaceOeipMapper().transcode(
+        OeipCoreExport out = new WorkspaceOeipMapper(null).transcode(
                 new OeipExportContext("u1", "fr", SS, folder, INDEX, true));
         assertFalse(out.getWarnings().encode().contains("payload.index.missing"));
         assertEquals(2, (int) out.getCounts().getInteger("attachments"));
@@ -217,7 +235,7 @@ public class WorkspaceOeipMapperTest {
         write(folder.resolve(INDEX), index.encodePrettily());
         write(folder.resolve("Documents personnels/signature.png"), "binaire");
 
-        OeipCoreExport out = new WorkspaceOeipMapper().transcode(
+        OeipCoreExport out = new WorkspaceOeipMapper(null).transcode(
                 new OeipExportContext("u1", "fr", SS, folder, INDEX, true));
 
         JsonObject a = out.getDocuments().get("resources/workspace/attachments.json")

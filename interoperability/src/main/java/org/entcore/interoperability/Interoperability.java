@@ -102,7 +102,7 @@ public class Interoperability extends BaseServer {
                 oeipConfig.getString("source-system", "localhost"),
                 false));
         registry.register(new BlogOeipMapper());
-        registry.register(new WorkspaceOeipMapper());
+        registry.register(new WorkspaceOeipMapper(storage));
 
         addController(new OeipDiscoveryController(registry, schemas, oeipConfig));
         addController(new OeipExportController(exportService, eventStore));
