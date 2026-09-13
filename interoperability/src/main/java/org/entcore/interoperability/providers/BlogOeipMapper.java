@@ -88,12 +88,13 @@ public class BlogOeipMapper implements OeipServiceMapper {
         if (Files.isDirectory(attachmentsDir) && context.isIncludeBinaries()) {
             for (Path file : OeipChecksums.listFiles(attachmentsDir)) {
                 String fileName = file.getFileName().toString();
-                String sourceId = extractFileId(fileName);
-                String localPart = sourceId != null ? sourceId : OeipUrn.sanitize(fileName);
+                String sourceId = MapperSupport.extractFileId(fileName);
+                String localPart = OeipUrn.sanitize(
+                        sourceId != null ? sourceId : fileName);
                 String globalId = OeipUrn.of("file", ss, localPart);
-                String cleanName = cleanAttachmentName(fileName, sourceId);
+                String cleanName = MapperSupport.cleanAttachmentName(fileName, sourceId);
                 String packagePath = "resources/" + SERVICE_ID + "/content/"
-                        + shard(localPart) + "/" + localPart + "/" + OeipUrn.sanitize(cleanName);
+                        + MapperSupport.shard(localPart) + "/" + localPart + "/" + OeipUrn.sanitize(cleanName);
 
                 attachments.add(new JsonObject()
                         .put("globalId", globalId)
@@ -101,7 +102,7 @@ public class BlogOeipMapper implements OeipServiceMapper {
                         .put("serviceId", SERVICE_ID)
                         .put("sourceId", sourceId == null ? fileName : sourceId)
                         .put("fileName", cleanName)
-                        .put("mediaType", mediaType(cleanName))
+                        .put("mediaType", MapperSupport.mediaType(cleanName))
                         .put("size", (int) Files.size(file))
                         .put("sha256", OeipChecksums.sha256(file))
                         .put("path", packagePath));
@@ -211,15 +212,15 @@ public class BlogOeipMapper implements OeipServiceMapper {
         if (!title.isEmpty()) {
             resource.put("title", title);
         }
-        putIfText(resource, "description", doc.getString("description"));
+        MapperSupport.putIfText(resource, "description", doc.getString("description"));
 
         JsonObject author = doc.getJsonObject("author");
         if (author != null && author.getString("userId") != null) {
             resource.put("authorRef", OeipUrn.person(ss, author.getString("userId")));
             resource.put("ownerRef", OeipUrn.person(ss, author.getString("userId")));
         }
-        putIfText(resource, "createdAt", isoDate(doc.getValue("created")));
-        putIfText(resource, "modifiedAt", isoDate(doc.getValue("modified")));
+        MapperSupport.putIfText(resource, "createdAt", MapperSupport.isoDate(doc.getValue("created")));
+        MapperSupport.putIfText(resource, "modifiedAt", MapperSupport.isoDate(doc.getValue("modified")));
 
         String visibility = doc.getString("visibility");
         if ("PUBLIC".equalsIgnoreCase(visibility)) {
@@ -272,74 +273,6 @@ public class BlogOeipMapper implements OeipServiceMapper {
         return title;
     }
 
-    /** Les pièces jointes sont nommées « nom_identifiant.ext » par l'export d'archive. */
-    static String extractFileId(String fileName) {
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
-                .matcher(fileName);
-        return m.find() ? m.group(1) : null;
-    }
-
-    static String cleanAttachmentName(String fileName, String fileId) {
-        if (fileId == null) {
-            return fileName;
-        }
-        String cleaned = fileName.replace("_" + fileId, "").replace(fileId + "_", "");
-        return cleaned.isEmpty() ? fileName : cleaned;
-    }
-
-    /** Évite un répertoire à dizaines de milliers d'entrées. */
-    static String shard(String localPart) {
-        return localPart.length() >= 2 ? localPart.substring(0, 2) : "00";
-    }
-
-    static String mediaType(String fileName) {
-        String n = fileName.toLowerCase();
-        if (n.endsWith(".png")) return "image/png";
-        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
-        if (n.endsWith(".gif")) return "image/gif";
-        if (n.endsWith(".svg")) return "image/svg+xml";
-        if (n.endsWith(".webp")) return "image/webp";
-        if (n.endsWith(".pdf")) return "application/pdf";
-        if (n.endsWith(".txt")) return "text/plain";
-        if (n.endsWith(".html") || n.endsWith(".htm")) return "text/html";
-        if (n.endsWith(".mp4")) return "video/mp4";
-        if (n.endsWith(".mp3")) return "audio/mpeg";
-        if (n.endsWith(".docx")) {
-            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        }
-        if (n.endsWith(".xlsx")) {
-            return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        }
-        return "application/octet-stream";
-    }
-
-    /**
-     * Les dates d'archive prennent deux formes : l'objet date de la base, ou une chaîne. Une
-     * date illisible est omise plutôt que transmise telle quelle : le schéma exige un
-     * horodatage avec fuseau explicite.
-     */
-    static String isoDate(Object raw) {
-        if (raw instanceof JsonObject) {
-            // getValue et non getString : sur un nombre, getString ne lève rien et rend sa
-            // représentation décimale, qu'on tenterait alors de lire comme une date ISO — et la
-            // date serait perdue en silence.
-            return isoDate(((JsonObject) raw).getValue("$date"));
-        }
-        if (raw instanceof Number) {
-            return java.time.Instant.ofEpochMilli(((Number) raw).longValue()).toString();
-        }
-        return raw instanceof String ? normalizeIso((String) raw) : null;
-    }
-
-    private static String normalizeIso(String value) {
-        try {
-            return java.time.Instant.parse(value).toString();
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
     private static JsonObject envelope(String ss, String dataset, JsonArray items) {
         return new JsonObject()
                 .put("oeipVersion", OeipFormat.VERSION)
@@ -347,12 +280,6 @@ public class BlogOeipMapper implements OeipServiceMapper {
                 .put("serviceId", SERVICE_ID)
                 .put("dataset", dataset)
                 .put("items", items);
-    }
-
-    private static void putIfText(JsonObject target, String key, String value) {
-        if (value != null && !value.isEmpty()) {
-            target.put(key, value);
-        }
     }
 
     private static JsonObject readJson(Path p) {

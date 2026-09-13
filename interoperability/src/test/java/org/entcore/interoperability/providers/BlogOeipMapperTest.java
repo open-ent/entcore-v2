@@ -214,24 +214,24 @@ public class BlogOeipMapperTest {
 
     @Test
     public void normaliseLesDatesEtOmetCellesQuiSontIllisibles() {
-        assertEquals("2026-08-26T09:51:59.671Z", BlogOeipMapper.isoDate(
+        assertEquals("2026-08-26T09:51:59.671Z", MapperSupport.isoDate(
                 new JsonObject().put("$date", "2026-08-26T09:51:59.671Z")));
         // Certaines archives portent la date en millisecondes depuis l'époque.
         long epochMillis = java.time.Instant.parse("2026-08-26T09:51:59.671Z").toEpochMilli();
-        assertEquals("2026-08-26T09:51:59.671Z", BlogOeipMapper.isoDate(epochMillis));
-        assertEquals("2026-08-26T09:51:59.671Z", BlogOeipMapper.isoDate(
+        assertEquals("2026-08-26T09:51:59.671Z", MapperSupport.isoDate(epochMillis));
+        assertEquals("2026-08-26T09:51:59.671Z", MapperSupport.isoDate(
                 new JsonObject().put("$date", epochMillis)));
         // Le schéma exige un fuseau explicite : plutôt omettre que transmettre une date bancale.
-        assertNull(BlogOeipMapper.isoDate("2026-08-11 13:57.49.854"));
-        assertNull(BlogOeipMapper.isoDate(null));
+        assertNull(MapperSupport.isoDate("2026-08-11 13:57.49.854"));
+        assertNull(MapperSupport.isoDate(null));
     }
 
     @Test
     public void extraitLIdentifiantDUnePieceJointe() {
-        assertEquals(FILE_ID, BlogOeipMapper.extractFileId("squelette_" + FILE_ID + ".png"));
-        assertNull(BlogOeipMapper.extractFileId("squelette.png"));
+        assertEquals(FILE_ID, MapperSupport.extractFileId("squelette_" + FILE_ID + ".png"));
+        assertNull(MapperSupport.extractFileId("squelette.png"));
         assertEquals("squelette.png",
-                BlogOeipMapper.cleanAttachmentName("squelette_" + FILE_ID + ".png", FILE_ID));
+                MapperSupport.cleanAttachmentName("squelette_" + FILE_ID + ".png", FILE_ID));
     }
 
     // ------------------------------------------------------------------ utilitaires

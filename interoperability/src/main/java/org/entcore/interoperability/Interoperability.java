@@ -12,6 +12,7 @@ import org.entcore.interoperability.controllers.OeipExportController;
 import org.entcore.interoperability.controllers.OeipImportController;
 import org.entcore.interoperability.providers.BlogOeipMapper;
 import org.entcore.interoperability.providers.DirectoryOeipProvider;
+import org.entcore.interoperability.providers.WorkspaceOeipMapper;
 import org.entcore.interoperability.schema.OeipSchemaRegistry;
 import org.entcore.interoperability.services.impl.DefaultOeipExportService;
 import org.entcore.interoperability.services.impl.DefaultOeipImportService;
@@ -101,6 +102,7 @@ public class Interoperability extends BaseServer {
                 oeipConfig.getString("source-system", "localhost"),
                 false));
         registry.register(new BlogOeipMapper());
+        registry.register(new WorkspaceOeipMapper());
 
         addController(new OeipDiscoveryController(registry, schemas, oeipConfig));
         addController(new OeipExportController(exportService, eventStore));
