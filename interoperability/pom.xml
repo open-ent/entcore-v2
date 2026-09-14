@@ -24,6 +24,13 @@
 
     <dependencies>
         <dependency>
+            <!-- Purge des paquets périmés : même artefact et même version que le module archive. -->
+            <groupId>fr.wseduc</groupId>
+            <artifactId>vertx-cron-timer</artifactId>
+            <version>${vertxCronTimerVersion}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
             <groupId>org.entcore</groupId>
             <artifactId>common</artifactId>
             <version>${revision}</version>

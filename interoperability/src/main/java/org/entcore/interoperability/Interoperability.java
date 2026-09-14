@@ -129,6 +129,25 @@ public class Interoperability extends BaseServer {
         registry.register(new BlogOeipMapper());
         registry.register(new WorkspaceOeipMapper(storage));
 
+        // Destruction des paquets périmés. Chaque paquet demande au destinataire de le détruire
+        // une fois l'import fait : cette plateforme ne peut pas exiger des autres ce qu'elle
+        // n'applique pas à elle-même.
+        final long ttlHours = config.getLong("package-ttl-hours", 48L);
+        final String purgeCron = config.getString("purge-cron");
+        if (purgeCron != null && !purgeCron.trim().isEmpty()) {
+            try {
+                new fr.wseduc.cron.CronTrigger(vertx, purgeCron).schedule(
+                        new org.entcore.interoperability.services.impl.OeipPurge(
+                                vertx, jobs, workDir, ttlHours));
+            } catch (Exception e) {
+                log.error("[OEIP] expression de purge invalide (" + purgeCron + ") : les paquets "
+                        + "périmés ne seront PAS détruits automatiquement.", e);
+            }
+        } else {
+            log.warn("[OEIP] aucune purge configurée : les paquets produits, qui contiennent des "
+                    + "données personnelles, resteront sur disque indéfiniment.");
+        }
+
         addController(new OeipDiscoveryController(registry, schemas, oeipConfig));
         addController(new OeipExportController(exportService, eventStore));
         addController(new OeipImportController(importService, eventStore));
@@ -137,6 +156,8 @@ public class Interoperability extends BaseServer {
                 + ", lot de schémas " + schemas.getBundleSha256().substring(0, 12)
                 + ", " + registry.size() + " mapper(s) sémantique(s), niveau Native actif"
                 + ", signature " + (signingKey == null ? "absente" : "active")
-                + ", " + trustedKeys.size() + " émetteur(s) de confiance");
+                + ", " + trustedKeys.size() + " émetteur(s) de confiance"
+                + ", purge " + (purgeCron == null || purgeCron.trim().isEmpty()
+                        ? "INACTIVE" : purgeCron + " (conservation " + ttlHours + " h)"));
     }
 }
