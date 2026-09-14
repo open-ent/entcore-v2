@@ -19,10 +19,34 @@
 
 package org.entcore.registry.filters;
 
-public class ApplicationFilter extends AbstractFilter {
+import java.util.Map;
 
-	public ApplicationFilter() {
-		super("Application");
+import org.entcore.common.http.filter.ResourcesProvider;
+import org.entcore.common.user.DefaultFunctions;
+import org.entcore.common.user.UserInfos;
+import io.vertx.core.Handler;
+import io.vertx.core.http.HttpServerRequest;
+
+import fr.wseduc.webutils.http.Binding;
+
+/**
+ * Le registre d'applications est commun à la plateforme (effet global, non scopé par
+ * établissement) : réservé au super-administrateur et au référent collectivité.
+ */
+public class SuperAdminOrCollectiviteFilter implements ResourcesProvider {
+
+	@Override
+	public void authorize(HttpServerRequest resourceRequest, Binding binding,
+			UserInfos user, Handler<Boolean> handler) {
+		Map<String, UserInfos.Function> functions = user.getFunctions();
+		if (functions == null || functions.isEmpty()) {
+			handler.handle(false);
+			return;
+		}
+		handler.handle(
+				functions.containsKey(DefaultFunctions.SUPER_ADMIN) ||
+				functions.containsKey(DefaultFunctions.ADMIN_COLLECTIVITE)
+		);
 	}
 
 }

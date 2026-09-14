@@ -51,7 +51,7 @@ import org.entcore.registry.filters.ApplicationFilter;
 import org.entcore.registry.filters.LinkRoleGroupFilter;
 import org.entcore.registry.filters.RoleFilter;
 import org.entcore.registry.filters.RoleGroupFilter;
-import org.entcore.registry.filters.SuperAdminFilter;
+import org.entcore.registry.filters.SuperAdminOrCollectiviteFilter;
 import org.entcore.registry.services.AppRegistryService;
 import org.entcore.registry.services.impl.DefaultAppRegistryService;
 import io.vertx.core.Handler;
@@ -166,6 +166,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 
 	@Post("/role")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(RoleFilter.class)
 	@MfaProtected()
 	public void createRole(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
@@ -224,7 +225,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 
 	@Put("/role/:roleId/distributions")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
-	@ResourceFilter(SuperAdminFilter.class)
+	@ResourceFilter(SuperAdminOrCollectiviteFilter.class)
 	@MfaProtected()
 	public void setRoleDistributions(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
@@ -327,7 +328,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 
 	@Post("/application")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
-	@ResourceFilter(SuperAdminFilter.class)
+	@ResourceFilter(SuperAdminOrCollectiviteFilter.class)
 	@MfaProtected()
 	public void createApplication(final HttpServerRequest request){
 		bodyToJson(request, pathPrefix + "createApplication", new Handler<JsonObject>() {
@@ -459,7 +460,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 
 	@Get("/cas-types")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
-	@ResourceFilter(AdminFilter.class)
+	@ResourceFilter(SuperAdminOrCollectiviteFilter.class)
 	@MfaProtected()
 	public void listCasTypes(final HttpServerRequest request) {
 		Server.getEventBus(vertx).request("cas.configuration", new JsonObject().put("action", "list-services"),
@@ -517,7 +518,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 
 	@Put("/application/:applicationId/levels-of-education")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
-	@ResourceFilter(SuperAdminFilter.class)
+	@ResourceFilter(SuperAdminOrCollectiviteFilter.class)
 	@MfaProtected()
 	public void setLevelsOfEducation(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
