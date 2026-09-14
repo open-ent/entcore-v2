@@ -57,6 +57,8 @@ import org.entcore.directory.listeners.DirectoryBrokerListenerImpl;
 import org.entcore.directory.security.DirectoryResourcesProvider;
 import org.entcore.directory.security.UserbookCsrfFilter;
 import org.entcore.directory.services.*;
+import org.entcore.common.neo4j.Neo4j;
+import org.entcore.directory.services.StructureBrandingService;
 import org.entcore.directory.services.impl.*;
 
 public class Directory extends BaseServer {
@@ -171,10 +173,18 @@ public class Directory extends BaseServer {
 		final String assetPath = config.getString("assetPath") != null
 				? config.getString("assetPath")
 				: (String) serverMap.get("assetPath");
+		// Branding par établissement (logo, entête, cachet, signature, couleurs) porté par le
+		// node Structure. Déjà écrit par PUT /structure/:id/branding, mais jusqu'ici lu par le
+		// seul WorkflowHub : ce service le rend disponible aux publipostages, au portail et aux
+		// notifications, via l'event bus pour les modules qui ne partagent pas ce verticle.
+		final StructureBrandingService structureBrandingService =
+				new DefaultStructureBrandingService(Neo4j.getInstance());
+
 		StructureController structureController = new StructureController(
 				(JsonObject) serverMap.get("skins"), assetPath);
 		structureController.setStructureService(schoolService);
 		structureController.setNotifHelper(emailSender);
+		structureController.setStructureBrandingService(structureBrandingService);
 		structureController.setMassMailService(new DefaultMassMailService(
 				vertx,eb,emailSender,config, (String) serverMap.get("node")));
 		addController(structureController);
@@ -239,7 +249,15 @@ public class Directory extends BaseServer {
 		MessageConsumer<JsonObject> consumer = eb.consumer(DIRECTORY_ADDRESS);
 		consumer.handler(message -> {
 			String action = message.body().getString("action", "action.not.specified");
-			if (action.equals("get-users-displayNames")) {
+			if (action.equals("get-structure-branding")) {
+				structureBrandingService.getForStructure(message.body().getString("structureId"))
+						.onSuccess(message::reply)
+						.onFailure(th -> message.fail(500, th.getMessage()));
+			} else if (action.equals("get-user-branding")) {
+				structureBrandingService.getForUser(message.body().getString("userId"))
+						.onSuccess(message::reply)
+						.onFailure(th -> message.fail(500, th.getMessage()));
+			} else if (action.equals("get-users-displayNames")) {
 				JsonArray userIds = message.body().getJsonArray("userIds");
 				userService.getUsersDisplayNames(userIds)
 						.onSuccess(message::reply)

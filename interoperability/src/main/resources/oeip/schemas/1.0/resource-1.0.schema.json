@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://open-ent.fr/oeip/1.0/resource-1.0.schema.json",
+  "title": "OEIP 1.0 — resources/<serviceId>/*.json",
+  "description": "Modèle de contenu : dossiers, ressources, pièces jointes. Le lien entre une ressource et son binaire est TOUJOURS un chemin explicite accompagné d'une empreinte — jamais un identifiant deviné dans un nom de fichier.",
+  "type": "object",
+
+  "properties": {
+    "oeipVersion": { "type": "string", "const": "1.0" },
+    "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+    "generatedAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+    "serviceId": { "$ref": "common-1.0.schema.json#/definitions/serviceId" },
+    "dataset": { "type": "string", "enum": ["resources", "folders", "attachments"] },
+    "items": { "type": "array" }
+  },
+
+  "required": ["oeipVersion", "sourceSystem", "serviceId", "dataset", "items"],
+  "additionalProperties": false,
+
+  "allOf": [
+    {
+      "if": { "properties": { "dataset": { "const": "resources" } }, "required": ["dataset"] },
+      "then": { "properties": { "items": { "items": { "$ref": "#/definitions/resource" } } } }
+    },
+    {
+      "if": { "properties": { "dataset": { "const": "folders" } }, "required": ["dataset"] },
+      "then": { "properties": { "items": { "items": { "$ref": "#/definitions/folder" } } } }
+    },
+    {
+      "if": { "properties": { "dataset": { "const": "attachments" } }, "required": ["dataset"] },
+      "then": { "properties": { "items": { "items": { "$ref": "#/definitions/attachment" } } } }
+    }
+  ],
+
+  "definitions": {
+
+    "folder": {
+      "type": "object",
+      "description": "L'arborescence est explicite. Elle n'est jamais déduite d'un chemin de fichier.",
+      "properties": {
+        "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "sourceId": { "$ref": "common-1.0.schema.json#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+        "serviceId": { "$ref": "common-1.0.schema.json#/definitions/serviceId" },
+        "name": { "type": "string", "minLength": 1 },
+        "parentFolderRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "ownerRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "createdAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+        "modifiedAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+        "trashed": { "type": "boolean" },
+        "acl": { "type": "array", "items": { "$ref": "common-1.0.schema.json#/definitions/aclEntry" } },
+        "extensions": { "$ref": "common-1.0.schema.json#/definitions/extensions" }
+      },
+      "required": ["globalId", "sourceSystem", "serviceId", "name"],
+      "additionalProperties": false
+    },
+
+    "resource": {
+      "type": "object",
+      "properties": {
+        "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "sourceId": { "$ref": "common-1.0.schema.json#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+        "serviceId": { "$ref": "common-1.0.schema.json#/definitions/serviceId" },
+
+        "resourceType": {
+          "type": "string",
+          "description": "Type métier sous forme d'URN : urn:oeip:restype:<serviceId>.<type>.",
+          "pattern": "^urn:oeip:restype:[a-z][a-z0-9-]*\\.[a-z][a-zA-Z0-9-]*$"
+        },
+
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+
+        "authorRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "ownerRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+
+        "createdAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+        "modifiedAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+        "publishedAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+
+        "folderRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "parentResourceRef": {
+          "description": "Ressource conteneur, ex. le blog d'un billet.",
+          "$ref": "common-1.0.schema.json#/definitions/globalId"
+        },
+
+        "visibility": { "type": "string", "enum": ["owner", "shared", "public"] },
+        "state": { "type": "string", "enum": ["draft", "submitted", "published", "trashed"] },
+        "language": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+
+        "body": {
+          "type": "object",
+          "description": "Contenu de la ressource : soit en ligne, soit dans un fichier du paquet. Les références internes d'un corps HTML sont réécrites sous la forme oeip:file/<globalId> et journalisées dans identifiers.rewrites.",
+          "properties": {
+            "mediaType": { "$ref": "common-1.0.schema.json#/definitions/mediaType" },
+            "content": { "type": "string" },
+            "href": { "$ref": "common-1.0.schema.json#/definitions/packagePath" },
+            "sha256": { "$ref": "common-1.0.schema.json#/definitions/sha256" }
+          },
+          "required": ["mediaType"],
+          "additionalProperties": false,
+          "oneOf": [
+            { "required": ["content"] },
+            { "required": ["href"] }
+          ]
+        },
+
+        "attachmentRefs": { "$ref": "common-1.0.schema.json#/definitions/globalIdList" },
+        "acl": { "type": "array", "items": { "$ref": "common-1.0.schema.json#/definitions/aclEntry" } },
+        "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "extensions": { "$ref": "common-1.0.schema.json#/definitions/extensions" }
+      },
+
+      "required": ["globalId", "sourceSystem", "serviceId", "resourceType"],
+      "additionalProperties": false
+    },
+
+    "attachment": {
+      "type": "object",
+      "description": "Un fichier binaire du paquet. « path » et « sha256 » sont obligatoires : c'est ce qui supprime la reconstitution d'identifiant à partir du nom de fichier.",
+      "properties": {
+        "globalId": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "sourceId": { "$ref": "common-1.0.schema.json#/definitions/sourceId" },
+        "sourceSystem": { "$ref": "common-1.0.schema.json#/definitions/sourceSystem" },
+        "serviceId": { "$ref": "common-1.0.schema.json#/definitions/serviceId" },
+        "fileName": {
+          "type": "string",
+          "description": "Nom d'origine, à restituer à l'utilisateur. Sans valeur structurante : il peut différer du nom réel dans le paquet.",
+          "minLength": 1
+        },
+        "mediaType": { "$ref": "common-1.0.schema.json#/definitions/mediaType" },
+        "size": { "type": "integer", "minimum": 0 },
+        "sha256": { "$ref": "common-1.0.schema.json#/definitions/sha256" },
+        "path": { "$ref": "common-1.0.schema.json#/definitions/packagePath" },
+        "ownerRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "folderRef": { "$ref": "common-1.0.schema.json#/definitions/globalId" },
+        "createdAt": { "$ref": "common-1.0.schema.json#/definitions/dateTime" },
+        "extensions": { "$ref": "common-1.0.schema.json#/definitions/extensions" }
+      },
+      "required": ["globalId", "sourceSystem", "serviceId", "fileName", "mediaType", "size", "sha256", "path"],
+      "additionalProperties": false
+    }
+  }
+}

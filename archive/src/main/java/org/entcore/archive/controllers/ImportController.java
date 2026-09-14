@@ -142,8 +142,75 @@ public class ImportController extends BaseController {
 
                 importService.imported(importId, app, rapport);
                 break;
+            case "import-file" :
+                importFromFile(message);
+                break;
             default: log.error("Archive : invalid action " + action);
         }
+    }
+
+
+    /**
+     * Lance un import à partir d'une archive DÉJÀ déposée dans le répertoire d'import, au nom
+     * du compte indiqué, et répond quand l'import est terminé.
+     *
+     * <p>Ce point d'entrée existe pour le module d'interopérabilité : un paquet d'échange
+     * provenant d'un autre Open ENT est reconverti en archive, puis réinjecté ici. Il n'y avait
+     * jusqu'ici aucun moyen de déclencher {@link ImportService#importFromFile} depuis le bus,
+     * alors que la restauration groupée et la reprise de plate-forme s'en servent déjà en
+     * interne : la seule alternative aurait été de réécrire le chemin d'import, c'est-à-dire de
+     * dupliquer la logique de remappage d'identifiants de chaque module.
+     *
+     * <p>Corps attendu : {@code {importId, userId, userLogin, userName, locale, host}}.
+     * {@code importId} est le nom du fichier dans le répertoire d'import, de la forme
+     * {@code <millis>_<userId>} — forme imposée par la purge des archives.
+     */
+    private void importFromFile(Message<JsonObject> message) {
+        final JsonObject body = message.body();
+        final String importId = body.getString("importId");
+        final String userId = body.getString("userId");
+        if (importId == null || userId == null) {
+            message.reply(new JsonObject().put("status", "error")
+                    .put("message", "missing.importId.or.userId"));
+            return;
+        }
+        final String userLogin = body.getString("userLogin", userId);
+        final String userName = body.getString("userName", userLogin);
+        final String locale = body.getString("locale", "fr");
+        final String host = body.getString("host");
+        final long timeout = body.getLong("timeout", 1800000L);
+
+        // L'abonnement DOIT précéder l'appel : c'est cet événement, et lui seul, qui signale la
+        // fin de l'import. Et le minuteur est la seule garantie de terminaison — un module muet
+        // laisserait autrement l'appelant en attente indéfinie.
+        final MessageConsumer<JsonObject> consumer =
+                eb.consumer(importService.getImportBusAddress(importId));
+        final java.util.concurrent.atomic.AtomicBoolean settled =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        final long timer = vertx.setTimer(timeout, id -> {
+            if (settled.compareAndSet(false, true)) {
+                consumer.unregister();
+                log.error("Archive : no import result for " + importId + " after " + timeout + "ms");
+                message.reply(new JsonObject().put("status", "error")
+                        .put("message", "import.timeout").put("importId", importId));
+            }
+        });
+
+        consumer.handler(reply -> {
+            reply.reply(new JsonObject().put("status", "ok"));
+            if (!settled.compareAndSet(false, true)) {
+                return; // le minuteur a déjà tranché
+            }
+            vertx.cancelTimer(timer);
+            consumer.unregister();
+            message.reply(new JsonObject()
+                    .put("status", reply.body().getString("status", "error"))
+                    .put("importId", importId)
+                    .put("result", reply.body().getJsonObject("result", new JsonObject())));
+        });
+
+        importService.importFromFile(importId, userId, userLogin, userName, locale, host, config);
     }
 
 }

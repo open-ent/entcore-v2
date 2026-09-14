@@ -47,6 +47,7 @@
         <module>directory</module>
         <module>feeder</module>
         <module>infra</module>
+        <module>interoperability</module>
         <module>portal/backend</module>
         <module>session</module>
         <module>test</module>

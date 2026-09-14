@@ -1,0 +1,19 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "serviceId": "workspace",
+  "dataset": "folders",
+  "items": [
+    {
+      "globalId": "urn:oeip:1.0:folder:ent.exemple-a.fr:folder-0001",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000301",
+      "sourceSystem": "ent.exemple-a.fr",
+      "serviceId": "workspace",
+      "name": "Sorties scolaires",
+      "ownerRef": "urn:oeip:1.0:person:ent.exemple-a.fr:person-0001",
+      "createdAt": "2026-09-01T08:05:00Z",
+      "trashed": false
+    }
+  ]
+}

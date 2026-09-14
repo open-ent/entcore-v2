@@ -1,0 +1,17 @@
+{
+  "oeipVersion": "1.0",
+  "sourceSystem": "ent.exemple-a.fr",
+  "generatedAt": "2026-09-12T09:00:00Z",
+  "dataset": "groups",
+  "items": [
+    {
+      "globalId": "urn:oeip:1.0:group:ent.exemple-a.fr:group-0001",
+      "sourceId": "6f2b1a44-0000-4000-8000-000000000021",
+      "sourceSystem": "ent.exemple-a.fr",
+      "externalId": "0310000A$5A",
+      "name": "5e A",
+      "groupType": "ClassGroup",
+      "orgRef": "urn:oeip:1.0:org:ent.exemple-a.fr:org-0001"
+    }
+  ]
+}
