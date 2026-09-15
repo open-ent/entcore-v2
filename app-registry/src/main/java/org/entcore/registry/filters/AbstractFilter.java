@@ -19,30 +19,19 @@
 
 package org.entcore.registry.filters;
 
-import fr.wseduc.webutils.http.Binding;
 import org.entcore.common.http.filter.ResourcesProvider;
-import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.user.DefaultFunctions;
 import org.entcore.common.user.UserInfos;
 import io.vertx.core.Handler;
-import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.HttpServerRequest;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
+
+import fr.wseduc.webutils.http.Binding;
 
 import java.util.Map;
 
 public abstract class AbstractFilter implements ResourcesProvider {
 
-	private final String label;
-	private final Neo4j neo4j = Neo4j.getInstance();
-
 	protected AbstractFilter(String label) {
-		this.label = label;
-	}
-
-	protected String getRoleId(HttpServerRequest resourceRequest){
-		return resourceRequest.params().get("id");
 	}
 
 	@Override
@@ -53,44 +42,13 @@ public abstract class AbstractFilter implements ResourcesProvider {
 			handler.handle(false);
 			return;
 		}
-		if (functions.containsKey(DefaultFunctions.SUPER_ADMIN)) {
-			handler.handle(true);
-			return;
-		}
-		UserInfos.Function adminLocal = functions.get(DefaultFunctions.ADMIN_LOCAL);
-		if (adminLocal == null || adminLocal.getScope() == null) {
-			handler.handle(false);
-			return;
-		}
-		final String roleId = getRoleId(resourceRequest);
-		JsonObject params = new JsonObject();
-		params.put("structures", new JsonArray(adminLocal.getScope()));
-		if (roleId != null && !roleId.trim().isEmpty()) {
-			String query =
-					"MATCH (r:" + label + " {id : {id}}) " +
-					"WHERE HAS(r.structureId) AND r.structureId IN {structures} " +
-					"RETURN count(*) > 0 as exists ";
-			params.put("id", roleId);
-			check(resourceRequest, query, params, handler);
-		} else {
-			handler.handle(false);
-		}
-	}
-
-	private void check(final HttpServerRequest request, String query, JsonObject params, final Handler<Boolean> handler) {
-		request.pause();
-		neo4j.execute(query, params, new Handler<Message<JsonObject>>() {
-			@Override
-			public void handle(Message<JsonObject> event) {
-				request.resume();
-				JsonArray r = event.body().getJsonArray("result");
-				handler.handle(
-						"ok".equals(event.body().getString("status")) &&
-								r != null && r.size() == 1 &&
-								r.getJsonObject(0).getBoolean("exists", false)
-				);
-			}
-		});
+		// Le registre d'applications (ApplicationFilter) et ses rôles (RoleFilter) sont communs
+		// à la plateforme — un effet global, non scopé par établissement — donc réservés au
+		// super-administrateur et au référent collectivité. ADMIN_LOCAL n'y a plus accès.
+		handler.handle(
+				functions.containsKey(DefaultFunctions.SUPER_ADMIN) ||
+				functions.containsKey(DefaultFunctions.ADMIN_COLLECTIVITE)
+		);
 	}
 
 }
