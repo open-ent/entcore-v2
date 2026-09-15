@@ -38,7 +38,9 @@ public class AddFunctionFilter extends AdmlOfUser {
 			@Override
 			public void handle(JsonObject event) {
 				String function = event.getString("functionCode", "").trim();
-				if(!function.isEmpty() && !"SUPER_ADMIN".equals(function)) {
+				// Territorial administration must not be granted by a local administrator.
+				if(!function.isEmpty() && !"SUPER_ADMIN".equals(function)
+						&& !"ADMIN_COLLECTIVITE".equals(function)) {
 					checkScope(event, adminLocal)
 							.onSuccess(handler)
 							.onFailure(th -> handler.handle(false));
