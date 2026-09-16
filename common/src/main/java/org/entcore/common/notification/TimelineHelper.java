@@ -20,7 +20,6 @@
 package org.entcore.common.notification;
 
 import fr.wseduc.webutils.Utils;
-import fr.wseduc.webutils.collections.SharedDataHelper;
 import fr.wseduc.webutils.data.FileResolver;
 import fr.wseduc.webutils.http.Renders;
 
@@ -52,7 +51,8 @@ import static fr.wseduc.webutils.Utils.handlerToAsyncHandler;
 
 public class TimelineHelper {
 
-	private static final long EVENTS_I18N_LOCK_TIMEOUT = 5000L;
+	private static final long EVENTS_I18N_LOCK_TIMEOUT = 30000L;
+	private static final int EVENTS_I18N_MAX_RETRY = 10;
 	private static final String TIMELINE_ADDRESS = "wse.timeline";
 	private final static String messagesDir = FileResolver.absolutePath("i18n/timeline");
 	private final EventBus eb;
@@ -310,29 +310,37 @@ public class TimelineHelper {
 	}
 
 	/*
-	 * At boot, every module's TimelineHelper races to append its own i18n block onto the
-	 * (small) set of language keys of the cluster-wide "timelineEventsI18n" map. A lock per
-	 * key serializes those writers instead of racing them via CAS, so no update is ever dropped
-	 * regardless of how many modules start concurrently.
+	 * At boot, every module's TimelineHelper appends its own i18n block onto the (small) set of
+	 * language keys of the cluster-wide "timelineEventsI18n" map. Writers of the same JVM are
+	 * serialized by a local lock, which waits on the event loop : a cluster lock would instead
+	 * borrow a worker thread for the whole wait, and those waiters starve the holder - whose
+	 * Hazelcast get/put also need a worker thread - until everyone times out. Across nodes the
+	 * bounded compare-and-set below keeps concurrent appends from dropping each other.
 	 */
 	private void appendEventsI18n(AsyncMap<String, String> eventsI18n, String key, String append) {
-		SharedDataHelper.getInstance().getLock("timelineEventsI18n:" + key, EVENTS_I18N_LOCK_TIMEOUT)
-			.onSuccess(lock -> eventsI18n.get(key).onComplete(ar -> {
+		vertx.sharedData().getLocalLockWithTimeout("timelineEventsI18n:" + key, EVENTS_I18N_LOCK_TIMEOUT)
+			.onSuccess(lock -> appendEventsI18n(eventsI18n, key, append, 0).onComplete(ar -> {
+				lock.release();
 				if (ar.failed()) {
-					lock.release();
-					log.error("Error when get eventsI18n on key " + key, ar.cause());
-					return;
+					log.error("Error when update eventsI18n on key " + key, ar.cause());
 				}
-				final String old = ar.result();
-				final String newValue = (old == null) ? append : old + append;
-				eventsI18n.put(key, newValue).onComplete(pr -> {
-					lock.release();
-					if (pr.failed()) {
-						log.error("Error when update eventsI18n on key " + key, pr.cause());
-					}
-				});
 			}))
 			.onFailure(ex -> log.error("Error when acquire lock for eventsI18n on key " + key, ex));
 	}
 
+	private Future<Void> appendEventsI18n(AsyncMap<String, String> eventsI18n, String key, String append, int retry) {
+		if (retry > EVENTS_I18N_MAX_RETRY) {
+			return Future.failedFuture("eventsI18n not updated on key " + key + " after " + retry + " retries");
+		}
+		return eventsI18n.get(key).compose(old -> {
+			if (old == null) {
+				return eventsI18n.putIfAbsent(key, append).compose(concurrent -> (concurrent == null)
+					? Future.<Void>succeededFuture()
+					: appendEventsI18n(eventsI18n, key, append, retry + 1));
+			}
+			return eventsI18n.replaceIfPresent(key, old, old + append).compose(updated -> updated
+				? Future.<Void>succeededFuture()
+				: appendEventsI18n(eventsI18n, key, append, retry + 1));
+		});
+	}
 }
