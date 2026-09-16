@@ -54,9 +54,9 @@
 				</p>
 			</div>
 			<h1><i18n>auth.header</i18n></h1>
-			<p class="warning zero-mobile" ng-if="error">[[error]]</p>
+			<p class="warning zero-mobile" ng-if="error" role="alert">[[error]]</p>
             <div class="rigid-grid panels-container">
-				<p class="warning zero-desktop" ng-if="error">[[error]]</p>
+				<p class="warning zero-desktop" ng-if="error" role="alert">[[error]]</p>
                 <div class="welcome-text" ng-if="!welcome.hideContent">
                     <div class="row">
                         <div class="twelve cell" bind-html="welcome.content"></div>
@@ -65,25 +65,25 @@
                 <form method="post" action="/auth/login">
                     <p>
                         <label for="email"><i18n>auth.email</i18n></label>
-                        <input type="text" ng-model="user.email" ng-keydown="noSpace($event)" ng-change="noUpperCase()" name="email" id="email" autofocus tabindex=1 />
+                        <input type="text" ng-model="user.email" ng-keydown="noSpace($event)" ng-change="noUpperCase()" name="email" id="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" autofocus tabindex=1 />
                     </p>
                     <p>
                         <label for="password"><i18n>auth.password</i18n></label>
-                        <input-password type="password" ng-model="user.password" name="password" id="password" tabindex=2></input-password>
+                        <input-password type="password" ng-model="user.password" name="password" id="password" autocomplete="current-password" tabindex=2></input-password>
                     </p>
-						<label>
-							<input type="checkbox" ng-model="user.rememberMe" name="rememberMe" id="rememberMe" value="true">&nbsp;&nbsp;<small translate content="auth.remember.me"></small>
-						</label>
-                    </p>
+                    <label for="rememberMe">
+                        <input type="checkbox" ng-model="user.rememberMe" name="rememberMe" id="rememberMe" value="true">
+                        <small translate content="auth.remember.me"></small>
+                    </label>
                     <input type="hidden" name="callBack" ng-value="callBack" />
                     <input type="hidden" name="details" ng-value="details" />
                     <div class="flex-magnet-container">
                         <div class="cell">
-													<a class="forgot-link" ng-if="!is1D" href="/auth/forgot#/id"><small><i18n>missing.id</i18n></small></a>
-													<a class="forgot-link" ng-if="!is1D" href="/auth/forgot#/password"><small><i18n>missing.password</i18n></small></a>
-													<a class="forgot-link" ng-if="is1D" href="/auth/forgot#/teacher-request"><small><i18n>auth.forgot.1d.teacherRequest.link</i18n></small></a>
-												</div>
-                        <button tabindex="3" class="flex-magnet-bottom-right"><i18n>auth.login</i18n></button>
+									<a class="forgot-link" ng-if="!is1D" href="/auth/forgot#/id"><small><i18n>missing.id</i18n></small></a>
+									<a class="forgot-link" ng-if="!is1D" href="/auth/forgot#/password"><small><i18n>missing.password</i18n></small></a>
+									<a class="forgot-link" ng-if="is1D" href="/auth/forgot#/teacher-request"><small><i18n>auth.forgot.1d.teacherRequest.link</i18n></small></a>
+								</div>
+                        <button type="submit" tabindex="3" class="flex-magnet-bottom-right"><i18n>auth.login</i18n></button>
                     </div>
                 </form>
             </div>

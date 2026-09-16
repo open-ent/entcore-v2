@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" id="favicon" href="" />
+    <!-- Application installable (PWA) : manifest servi par le dashboard (résolu par
+         thème), scope "/" donc couvrant tout l'ENT. Sans crossorigin — le manifest ne
+         dépend jamais de la session. -->
+    <link rel="manifest" href="/dashboard/manifest.webmanifest" />
+    <script>window.__entBIP=null;addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__entBIP=e;dispatchEvent(new Event('ent:installable'))});addEventListener('appinstalled',function(){try{localStorage.setItem('ent.pwa.installed','1')}catch(_){}});</script>
+    <script defer src="/dashboard/pwa/install.js"></script>
   </head>
   <body>
     <div id="root"></div>

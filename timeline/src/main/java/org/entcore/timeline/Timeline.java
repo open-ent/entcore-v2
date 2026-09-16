@@ -236,6 +236,12 @@ public class Timeline extends BaseServer {
 			final boolean logPushNotifs,
 			final boolean removeTokenIf404
 		) {
+		// Aiguillage par type de backend. Absent = "fcm", pour que toutes les
+		// configurations existantes continuent d'être lues à l'identique.
+		if ("webpush".equalsIgnoreCase(pushNotif.getString("type", "fcm"))) {
+			return webPushNotifServiceFactory(pushNotif, configService);
+		}
+
 		try {
 			OAuth2Client googleOAuth2SSO = new OAuth2Client(URI.create(pushNotif.getString("uri")),
 					null, null, null,
@@ -256,5 +262,51 @@ public class Timeline extends BaseServer {
 			log.error("[timeline] Invalid \"push-notif\" JSON configuration.", e);
 		}
 		return null;
+	}
+
+	/**
+	 * Backend Web Push : navigateurs et application installable (PWA).
+	 *
+	 * Ce service ne chiffre rien et ne parle à aucun service de push. Il applique
+	 * les filtres de la timeline puis délègue au dashboard, qui détient la clé
+	 * privée VAPID et la bibliothèque implémentant les RFC 8291/8292 — cette
+	 * cryptographie n'existant nulle part dans entcore.
+	 *
+	 * Configuration attendue :
+	 * <code>
+	 *	{
+	 *		"type": "webpush",
+	 *		"url": "http://&lt;release&gt;-dashboard:3000/dashboard/api/push/send",
+	 *		"secret": "&lt;secret partagé&gt;"
+	 *	}
+	 * </code>
+	 */
+	protected TimelinePushNotifService webPushNotifServiceFactory(
+			final JsonObject pushNotif,
+			final TimelineConfigService configService
+		) {
+		final String url = pushNotif.getString("url");
+		final String secret = pushNotif.getString("secret");
+
+		// Sans secret, le dashboard refuserait chaque envoi (401) : mieux vaut ne pas
+		// démarrer le service que de remplir les journaux d'échecs silencieux.
+		//
+		// Le secret absent est le cas NORMAL d'une instance où le push n'est pas encore
+		// provisionné (la configuration porte ${PUSH_INTERNAL_SECRET:-}, qui se résout à
+		// vide) : on le signale en info. Une URL manquante, elle, est une vraie erreur
+		// de configuration.
+		if (secret == null || secret.isEmpty()) {
+			log.info("[timeline] web-push non configuré (secret absent) : canal inactif.");
+			return null;
+		}
+		if (url == null || url.isEmpty()) {
+			log.error("[timeline] Configuration \"webpush\" invalide : \"url\" est requis.");
+			return null;
+		}
+
+		final WebPushNotifService service = new WebPushNotifService(vertx, config, url, secret);
+		service.setConfigService(configService);
+		log.info("[timeline] will web-push to " + url);
+		return service;
 	}
 }
