@@ -11,7 +11,7 @@
     {{/notLoggedIn}}
 </head>
 
-<body class="login" ng-controller="TermsRevalidationController">
+<body class="login auth-page auth-terms" ng-controller="TermsRevalidationController">
     <default-styles>
         <div class="row">
             <section class="center-component">
@@ -22,11 +22,13 @@
                             <p><i18n>terms.revalidate.body</i18n></p>
                             <p><i18n>terms.revalidate.chartAndCguLinks</i18n></p>
 
-                            <input id="revalidate" type="checkbox" ng-model="checked">
-                            <label for="revalidate" style="display: inline; float: none; line-height: 30px;"><i18n>terms.revalidate.checkbox</i18n></label>
-                            
-                            <div class="flex-row justify-end">
-                                <button ng-click="validate()" ng-disabled="!checked" class="vertical-spacing-four">
+                            <p class="auth-cgu">
+                                <input id="revalidate" type="checkbox" ng-model="checked">
+                                <label for="revalidate"><i18n>terms.revalidate.checkbox</i18n></label>
+                            </p>
+
+                            <div class="auth-actions">
+                                <button ng-click="validate()" ng-disabled="!checked">
                                     <i18n>cgu.revalidate.action</i18n>
                                 </button>
                             </div>

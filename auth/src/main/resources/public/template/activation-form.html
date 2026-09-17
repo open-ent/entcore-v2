@@ -6,9 +6,9 @@
 			<p class="warning" translate content="[[error]]" ng-if="error"></p>
 
 			<form method="post" ng-submit="activate()" name="activationForm" novalidate>
-				<p>
-					<h2 translate content="auth.email"></h2>
-					<em><h2>[[user.login]]</h2></em>
+				<p class="auth-identity">
+					<label translate content="auth.email"></label>
+					<strong>[[user.login]]</strong>
 				</p>
 				<p>
 					<label translate content="auth.activation.password"></label>
@@ -27,7 +27,7 @@
 						<i18n>password.identical</i18n>
 					</p>
 				</p>
-				<div class="complexity>">
+				<div class="complexity">
 					<small><i18n>complexity</i18n> : [[ translateComplexity(activationForm['password'].$viewValue) ]]</small>
 					<div class="fill-bar">
 						<div style="width: [[ (passwordComplexity(activationForm['password'].$viewValue) / 20) * 100 ]]%"
@@ -65,10 +65,10 @@
 						</span>
 					</span>
 				</p>
-				<p ng-if="cgu">
-					<input type="checkbox" ng-model="user.acceptCGU" value="true" tabindex="5" required>
-					&nbsp;&nbsp;
-					<i18n>label.accept.cgu.1</i18n>
+				<p class="auth-cgu" ng-if="cgu">
+					<input type="checkbox" id="acceptCGU" ng-model="user.acceptCGU" value="true" tabindex="5" required>
+					<span class="auth-cgu__text">
+					<label for="acceptCGU" translate content="label.accept.cgu.1"></label>
 					<a 
 						href="[[lang.translate('auth.charter')]]" 
 						target="_blank" 
@@ -86,11 +86,13 @@
 						class="medium-text"
 					>
 					</a>
+					</span>
 				</p>
 				<input type="text" name="username" id="username" ng-model="user.login" hidden readonly />
-				<input type="submit" translate attr="value" value="auth.activate" ng-disabled="activationForm.$invalid" tabindex="6"/>
-				<a href="/auth/login" target="_self" class="right cell" translate content="auth.cancel"></a>
-				<div class="clear"></div>
+				<div class="auth-actions">
+					<input type="submit" translate attr="value" value="auth.activate" ng-disabled="activationForm.$invalid" tabindex="6"/>
+					<a href="/auth/login" target="_self" translate content="auth.cancel"></a>
+				</div>
 			</form>
 		</div>
 	</section>
