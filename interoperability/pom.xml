@@ -33,7 +33,11 @@
         <dependency>
             <groupId>org.entcore</groupId>
             <artifactId>common</artifactId>
-            <version>${revision}</version>
+            <!-- Depuis la 6.16, common n'est plus un module du reactor entcore : il vit dans
+                 edifice-entcore-libs et se versionne donc avec entCoreLibsVersion, pas avec la
+                 revision d'entcore. Le commit d'extraction amont a converti ses propres modules,
+                 mais pas interoperability, qui n'existe que dans notre fork. -->
+            <version>${entCoreLibsVersion}</version>
             <scope>compile</scope>
             <exclusions>
                 <!--
