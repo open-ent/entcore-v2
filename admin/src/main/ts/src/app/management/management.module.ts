@@ -23,6 +23,7 @@ import {BlockProfilesComponent} from './block-profile/block-profiles.component';
 import {BlockProfilesService} from './block-profile/block-profiles.service';
 import {ZimbraComponent} from './zimbra/zimbra.component';
 import {ImportEDTComponent} from './import-edt/import-edt.component';
+import {NotificationSchedulesComponent} from './notification-schedules/notification-schedules.component';
 import {SubjectsComponent} from './subjects/subjects.component';
 import { MatPaginatorIntlService } from './block-profile/MatPaginatorIntl.service';
 import { NgxTrumbowygModule } from 'ngx-trumbowyg';
@@ -39,6 +40,7 @@ import {ZimbraService} from './zimbra/zimbra.service';
 import {CalendarService} from './calendar/calendar.service';
 import {ImportEDTReportsService} from './import-edt/import-edt-reports.service';
 import {SubjectsGuardService} from './subjects/subjects-guard.service';
+import { AuthModeComponent } from './structure-informations/auth-mode/auth-mode.component';
 import { StructureAttachmentComponent } from './structure-attachment/structure-attachment.component';
 import {StructureGarComponent} from './structure-gar/structure-gar.component';
 import { StructureUserPositionComponent } from './structure-user-positions/structure-user-position/structure-user-position.component';
@@ -46,6 +48,7 @@ import { MatDialogModule } from '@angular/material/dialog';
 import { StructureUserPositionsComponent } from './structure-user-positions/structure-user-positions.component';
 import { SharedModule } from '../_shared/shared.module';
 import { ConfigResolver } from '../core/resolvers/config.resolver';
+import {CommunicationRulesService} from "../communication/communication-rules.service";
 
 @NgModule({
     imports: [
@@ -80,6 +83,7 @@ import { ConfigResolver } from '../core/resolvers/config.resolver';
         ZimbraComponent,
         ManagementRootComponent,
         StructureInformationsComponent,
+        AuthModeComponent,
         MessageFlashComponent,
         MessageFlashListComponent,
         EditMessageFlashComponent,
@@ -89,6 +93,7 @@ import { ConfigResolver } from '../core/resolvers/config.resolver';
         MessageFlashPreviewComponent,
         BlockProfilesComponent,
         ImportEDTComponent,
+        NotificationSchedulesComponent,
         SubjectsComponent,
         SubjectCreate,
         SubjectDetails,
@@ -117,7 +122,8 @@ import { ConfigResolver } from '../core/resolvers/config.resolver';
         SubjectsService,
         CalendarService,
         ImportEDTReportsService,
-        SubjectsGuardService
+        SubjectsGuardService,
+        CommunicationRulesService
     ]
 })
 export class ManagementModule {}

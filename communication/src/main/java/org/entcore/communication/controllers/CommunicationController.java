@@ -37,19 +37,19 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import org.entcore.common.communication.CommunicationUtils;
 import org.entcore.common.http.filter.AdminFilter;
 import org.entcore.common.http.filter.ResourceFilter;
+import org.entcore.common.http.filter.SuperAdminFilter;
 import org.entcore.common.user.DefaultFunctions;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
+import org.entcore.common.utils.StringUtils;
 import org.entcore.common.validation.StringValidation;
 import org.entcore.communication.filters.CommunicationDiscoverVisibleFilter;
 import org.entcore.communication.services.CommunicationService;
 import org.entcore.communication.services.impl.DefaultCommunicationService;
 
 import java.util.List;
-import java.util.Map;
 
 import static fr.wseduc.webutils.Utils.isNotEmpty;
 import static org.entcore.common.http.response.DefaultResponseHandler.*;
@@ -69,6 +69,7 @@ public class CommunicationController extends BaseController {
 	@Post("/group/:startGroupId/communique/:endGroupId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Deprecated
 	public void addLink(HttpServerRequest request) {
 		Params params = new Params(request).validate();
 		if (params.isInvalid()) return;
@@ -76,19 +77,40 @@ public class CommunicationController extends BaseController {
 				notEmptyResponseHandler(request));
 	}
 
+	@Put("/api/admin/users/:startUser/communiqueDirect/:endUser")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	public void setDirectCommunication(HttpServerRequest request) {
+		String startUser = request.getParam("startUser");
+		String endUser = request.getParam("endUser");
+		String direction = request.getParam("direction");
+
+		if(StringUtils.isEmpty(startUser) || StringUtils.isEmpty(endUser) || StringUtils.isEmpty(direction)) {
+			renderError(request);
+			return;
+		}
+		CommunicationService.Direction directionEnum = getDirection(direction);
+		communicationService.setDirectCommunication(startUser, endUser, directionEnum, defaultResponseHandler(request));
+	}
+
 	@Delete("/group/:startGroupId/communique/:endGroupId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Deprecated
 	public void removeLink(HttpServerRequest request) {
 		Params params = new Params(request).validate();
 		if (params.isInvalid()) return;
 		communicationService.removeLink(params.getStartGroupId(), params.getEndGroupId(),
 				notEmptyResponseHandler(request));
 	}
-
+	/**
+	 *  For test only
+	 * @param request
+	 */
 	@Post("/group/:groupId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Deprecated
 	public void addLinksWithUsers(HttpServerRequest request) {
 		String groupId = getGroupId(request);
 		if (groupId == null) return;
@@ -96,9 +118,14 @@ public class CommunicationController extends BaseController {
 		communicationService.addLinkWithUsers(groupId, direction, notEmptyResponseHandler(request));
 	}
 
+	/**
+	 * For test only
+	 * @param request
+	 */
 	@Delete("/group/:groupId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Deprecated
 	public void removeLinksWithUsers(HttpServerRequest request) {
 		String groupId = getGroupId(request);
 		if (groupId == null) return;
@@ -408,6 +435,15 @@ public class CommunicationController extends BaseController {
 				}
 			}
 		});
+	}
+
+	@Post("/rules/:structureId/reset")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	@MfaProtected()
+	public void resetRules(final HttpServerRequest request) {
+		String structureId = request.params().get("structureId");
+		communicationService.resetRules(structureId, defaultResponseHandler(request));
 	}
 
 	/**
@@ -955,7 +991,8 @@ public class CommunicationController extends BaseController {
 		.onSuccess(userInfos -> {
 			final String query = request.params().get("query");
 			final String mode = request.params().get("mode");
-			communicationService.searchVisibles(userInfos, query, mode, I18n.acceptLanguage(request))
+			final boolean includeHidden = "true".equalsIgnoreCase(request.params().get("includeHidden"));
+			communicationService.searchVisibles(userInfos, query, mode, I18n.acceptLanguage(request), includeHidden)
 				.onSuccess(visibles -> renderJson(request, visibles))
 				.onFailure(th -> renderError(request, new JsonObject().put("error", th.getMessage())));
 		});

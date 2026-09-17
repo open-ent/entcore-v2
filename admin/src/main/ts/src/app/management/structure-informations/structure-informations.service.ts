@@ -1,9 +1,11 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
 import { SpinnerService } from 'ngx-ode-ui';
+import { Observable } from 'rxjs';
 import { StructureModel } from 'src/app/core/store/models/structure.model';
 import { DuplicationSettings } from './structure-informations.component';
+
+
 
 @Injectable({
   providedIn: 'root',
@@ -46,7 +48,9 @@ export class StructureInformationsService
         setWidgets: options.widgets,
         setDistribution: options.distribution,
         setEducation: options.education,
-        setHasApp: options.mobileapp
+        setHasApp: options.mobileapp,
+        setDefaultAuth: options.defaultAuth,
+        setQuietHoursSetting: options.quietHours
       },
       infos: {
         structure: structure.name,

@@ -28,8 +28,9 @@ esac
 # build options
 NO_DOCKER=""
 SPRINGBOARD="recette"
-MODULE=""
-MVN_OPTS="-Duser.home=/var/maven"
+# Initialize MODULE from env; --module=/-m= overrides it.
+MODULE="${MODULE:-}"
+MVN_OPTS="-Duser.home=/var/maven -T 4"
 for i in "$@"
 do
 case $i in
@@ -88,6 +89,25 @@ echo "======================"
 init() {
   me=`id -u`:`id -g`
   echo "DEFAULT_DOCKER_USER=$me" > .env
+
+    # If CLI_VERSION is empty set $cli_version to latest
+  	if [ -z "$CLI_VERSION" ]; then
+  		CLI_VERSION="latest"
+  	fi
+  	# Create a build.compose.yaml file from following template
+  	cat <<EOF > build.compose.yaml
+services:
+  edifice-cli:
+    image: opendigitaleducation/edifice-cli:$CLI_VERSION
+    user: "$DEFAULT_DOCKER_USER"
+EOF
+  	# Copy /root/edifice from edifice-cli container to host machine
+  	docker compose -f build.compose.yaml create edifice-cli
+  	docker compose -f build.compose.yaml cp edifice-cli:/root/edifice ./edifice
+  	docker compose -f build.compose.yaml rm -fsv edifice-cli
+  	rm -f build.compose.yaml
+  	chmod +x edifice
+  	./edifice version $EDIFICE_CLI_DEBUG_OPTION
 }
 
 clean () {
@@ -98,25 +118,32 @@ clean () {
   fi
 }
 
-buildFrontend () {
-  # --- Build angularJS-based frontends
-  if [ "$MODULE" = "" ] || [ ! "$MODULE" = "admin" ] && [ ! -e ./"$MODULE"/frontend ]; then
-    #try jenkins branch name => then local git branch name => then jenkins params
-    echo "[buildNode] Get branch name from jenkins env..."
-    BRANCH_NAME=`echo $GIT_BRANCH | sed -e "s|origin/||g"`
-    if [ "$BRANCH_NAME" = "" ]; then
-      echo "[buildNode] Get branch name from git..."
-      BRANCH_NAME=`git branch | sed -n -e "s/^\* \(.*\)/\1/p"`
-    fi
-    if [ ! -z "$FRONT_TAG" ]; then
-      echo "[buildNode] Get tag name from jenkins param... $FRONT_TAG"
-      BRANCH_NAME="$FRONT_TAG"
-    fi
-    if [ "$BRANCH_NAME" = "" ]; then
-      echo "[buildNode] Branch name should not be empty!"
-      exit -1
-    fi
+syncReactFrontendBuildToResources() {
+  sync_target_root="$1"
+  sync_resources_dir="$sync_target_root/src/main/resources"
+  sync_public_dir="$sync_resources_dir/public"
+  sync_view_dir="$sync_resources_dir/view"
 
+  # Move dist to resources dir
+  cp -R ./dist/* "$sync_resources_dir/"
+
+  # Create resources/view directory if needed
+  mkdir -p "$sync_view_dir"
+
+  # Move generated HTML entrypoints into the view directory when present.
+  for html_file in "$sync_resources_dir"/*.html; do
+    [ -f "$html_file" ] || continue
+    echo "...moving HTML file $html_file to $sync_view_dir/"
+    mv "$html_file" "$sync_view_dir/"
+  done
+
+  unset sync_target_root sync_resources_dir sync_public_dir sync_view_dir file file_name html_file
+}
+
+buildFrontend () {
+
+  # --- Build angularJS-based frontends
+  if [ "$MODULE" = "" ] || [ ! "$MODULE" = "admin" ] && [ ! -e ./"$MODULE"/frontend ] || [ "$MODULE" = "timeline" ] || [ "$MODULE" = "auth" ]; then
     if [ "$BRANCH_NAME" = 'master' ] || [ "$BRANCH_NAME" = 'fix' ]  || [ "$BRANCH_NAME" = 'release' ]; then
         echo "[buildNode] Use entcore version from package.json ($BRANCH_NAME)"
         case `uname -s` in
@@ -161,16 +188,31 @@ buildFrontend () {
         exit 1
       fi
 
-      # Create directory structure and copy frontend build files to backend
-      rm -rf ../backend/src/main/resources/public/*.js
-      rm -rf ../backend/src/main/resources/public/*.css
-      cp -R ./dist/* ../backend/src/main/resources/
-
-      # Create view directory and copy HTML files
-      mkdir -p ../backend/src/main/resources/view
-      mv ../backend/src/main/resources/*.html ../backend/src/main/resources/view
+      # Create directory structure and copy frontend build files.
+      if [ "$module" = "timeline" ] || [ "$module" = "auth" ]; then
+        # compatibility mode : preserve legacy frontends files in ../src
+        syncReactFrontendBuildToResources ".."
+      else
+        syncReactFrontendBuildToResources "../backend"
+      fi
 
       # Clean up
+      rm -rf ./dist
+      cd ../..
+    fi
+    if [ -e ./"$module"/frontend-crna ]; then
+      echo -e "[Build React] Build react frontend-crna for module $module"
+      cd ./"$module"/frontend-crna
+      if [ "$NO_DOCKER" = "true" ] ; then
+        ./build.sh --no-docker clean init build
+      else
+        ./build.sh clean init build
+      fi
+      if [ $? -ne 0 ]; then
+        echo "Error while building React frontend-crna for module $module"
+        exit 1
+      fi
+      syncReactFrontendBuildToResources ".."
       rm -rf ./dist
       cd ../..
     fi
@@ -192,21 +234,15 @@ buildBackend () {
   if [ "$NO_DOCKER" = "true" ] ; then
     mvn $MVN_OPTS install -DskipTests
   else
-    docker compose run --rm $USER_OPTION maven mvn $MVN_OPTS install -DskipTests
+    docker compose run --rm $USER_OPTION maven mvn $MVN_OPTS install -DskipTests -U
   fi
 }
 
 install () {
-  docker compose run $CI_OPTION --rm maven mvn $MVN_OPTS clean install -DskipTests
+  docker compose run $CI_OPTION --rm maven mvn $MVN_OPTS clean install -DskipTests -U
   cd broker-parent/broker-client/quarkus
   ./build.sh install
   cd -
-}
-
-buildBroker () {
-  edifice install --all=false --clients=false --client-nest=true
-  #./build.sh install
-  #cd -
 }
 
 test () {
@@ -232,17 +268,18 @@ localDep () {
 }
 
 watch () {
+  docker compose run --rm maven sh -c "mvn $MVN_OPTS help:evaluate -Dexpression=project.groupId -q -DforceStdout -pl $MODULE && echo -n '~$MODULE~' &&  mvn $MVN_OPTS help:evaluate -Dexpression=project.version -pl $MODULE -q -DforceStdout" > .version.properties  
   docker compose run --rm \
-    -u "$USER_UID:$GROUP_GID" $CI_OPTION \
+    $USER_OPTION \
     -v $PWD/../$SPRINGBOARD:/home/node/$SPRINGBOARD \
-    node sh -c "npx gulp watch-$MODULE $NODE_OPTION --springboard=../$SPRINGBOARD 2>/dev/null"
+    node sh -c "npx gulp watch-$MODULE $NODE_OPTION --springboard=../$SPRINGBOARD "
   rm -f .version.properties
 }
 
 # ex: ./build.sh -m=workspace -s=paris watch
 
 ngWatch () {
-  docker compose run --rm -u "$USER_UID:$GROUP_GID" $CI_OPTION --publish 4200:4200 node16 sh -c "npm run start"
+  docker compose run --rm -u "$USER_UID:$GROUP_GID" $CI_OPTION --publish 4200:4200 node16 sh -c "npm run dev"
 }
 
 infra () {
@@ -258,41 +295,10 @@ publish() {
   esac
 
   docker compose run --rm  maven mvn $MVN_OPTS -DrepositoryId=ode-$nexusRepository -DskipTests --settings /var/maven/.m2/settings.xml deploy
-  #cd broker-parent/broker-client/quarkus
-  #./build.sh publish
-  #cd -
-  publishBrokerNpmLib
 }
 
-publishBrokerNpmLib() {
-  # Set GIT_BRANCH to the current branch if not set
-  if [ -z "$GIT_BRANCH" ]; then
-    GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-  fi
-  echo "[publish] Publish packages..."
-  # Récupération de la branche locale
-  LOCAL_BRANCH=`echo $GIT_BRANCH | sed -e "s|origin/||g"`
-  # Récupération de la date et du timestamp
-  # Récupération du dernier tag stable
-  LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0")
-  LATEST_TAG=${LATEST_TAG#v}
-
-  # Définition du tag de la branche
-  if [ "$LOCAL_BRANCH" = "main" ]; then
-    TAG_BRANCH="latest"
-  else
-    TAG_BRANCH=$LOCAL_BRANCH
-  fi
-
-  # Publier avec le tag de la branche
-  echo "[publish] Publish with the branch tag"
-  # Default to dry run if not specified
-  DRY_RUN=${DRY_RUN:-true}
-  if [ "$DRY_RUN" = "true" ]; then
-    docker compose run -e NPM_TOKEN=$NPM_TOKEN --rm -u "$USER_UID:$GROUP_GID" node22 sh -c "pnpm publish -r --no-git-checks --tag $TAG_BRANCH --dry-run"
-  else
-    docker compose run -e NPM_TOKEN=$NPM_TOKEN --rm -u "$USER_UID:$GROUP_GID" node22 sh -c "pnpm publish -r --no-git-checks --tag $TAG_BRANCH"
-  fi
+image() {
+  ./edifice image --project-type=entcore --rebuild=false $EDIFICE_CLI_DEBUG_OPTION
 }
 
 check_prefix_sh_file() {
@@ -389,7 +395,7 @@ do
       install
       ;;
     install)
-      buildFrontend && buildBackend  && buildBroker
+      buildFrontend && buildBackend
       ;;
     buildBack)
       install
@@ -414,6 +420,9 @@ do
       ;;
     publish)
       publish
+      ;;
+    image)
+      image
       ;;
     *)
       echo "Invalid argument : $param"

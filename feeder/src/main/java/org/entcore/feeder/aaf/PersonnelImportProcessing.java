@@ -212,12 +212,14 @@ public class PersonnelImportProcessing extends BaseImportProcessing {
 						} else if (!"-".equals(g[1])) {
 							groupExternalId = s.getExternalId() + "$" + g[1];
 							s.createFunctionGroupIfAbsent(groupExternalId, g[2], "Func");
-
-							if(DIRECTION_FONCTIONS.contains(g[4]) == true)
-								createDirectionGroups(new JsonArray().add(g[0]), linkStructureGroups);
 						} else {
 							continue;
 						}
+
+						if(DIRECTION_FONCTIONS.contains(g[4]) == true) {
+							createDirectionGroups(new JsonArray().add(g[0]), linkStructureGroups);
+						}
+
 						if (linkStructureGroups != null) {
 							final String[] group = new String[3];
 							group[0] = s.getExternalId();
@@ -240,6 +242,7 @@ public class PersonnelImportProcessing extends BaseImportProcessing {
 					if (s != null) {
 						String classGroupExternalId = s.getExternalId() + "$" + g[1];
 						String[] structureGroupExternalId = s.createHeadTeacherGroupIfAbsent(classGroupExternalId, g[1]);
+						if (structureGroupExternalId == null) continue;
 						if (linkStructureGroups != null) {
 							final String[] structureGroup = new String[2];
 							structureGroup[0] = s.getExternalId();

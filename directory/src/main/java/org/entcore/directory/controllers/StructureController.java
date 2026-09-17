@@ -19,6 +19,7 @@
 
 package org.entcore.directory.controllers;
 
+import fr.wseduc.bus.BusAddress;
 import fr.wseduc.rs.ApiDoc;
 import fr.wseduc.rs.Delete;
 import fr.wseduc.rs.Get;
@@ -28,18 +29,23 @@ import fr.wseduc.security.ActionType;
 import fr.wseduc.security.MfaProtected;
 import fr.wseduc.security.SecuredAction;
 import fr.wseduc.webutils.Either;
-import fr.wseduc.webutils.data.FileResolver;
 import fr.wseduc.webutils.email.EmailSender;
 import fr.wseduc.webutils.http.BaseController;
 import fr.wseduc.webutils.http.Renders;
-
 import fr.wseduc.webutils.request.RequestUtils;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Handler;
+import io.vertx.core.Vertx;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.file.FileSystem;
+import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.entcore.common.appregistry.ApplicationUtils;
-import org.entcore.common.http.filter.AdmlOfStructure;
 import org.entcore.common.http.filter.AdminFilter;
+import org.entcore.common.http.filter.AdmlOfStructure;
 import org.entcore.common.http.filter.ResourceFilter;
 import org.entcore.common.http.filter.SuperAdminFilter;
 import org.entcore.common.neo4j.Neo4j;
@@ -50,36 +56,25 @@ import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.common.utils.StringUtils;
 import org.entcore.directory.pojo.Ent;
+import org.entcore.directory.pojo.structure.DefaultAuthModeConfig;
 import org.entcore.directory.security.AdminStructureFilter;
 import org.entcore.directory.security.AnyAdminOfUser;
 import org.entcore.directory.services.StructureBrandingService;
 import org.entcore.directory.services.MassMailService;
 import org.entcore.directory.services.SchoolService;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Handler;
-import io.vertx.core.Vertx;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.eventbus.Message;
-import io.vertx.core.http.HttpServerRequest;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import org.vertx.java.core.http.RouteMatcher;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
-
-import java.io.IOException;
-import java.io.StringReader;
 import java.io.StringWriter;
-import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static fr.wseduc.webutils.Utils.handlerToAsyncHandler;
 import static fr.wseduc.webutils.Utils.isEmpty;
+import static fr.wseduc.webutils.request.RequestUtils.bodyToClass;
 import static fr.wseduc.webutils.request.RequestUtils.bodyToJson;
 import static org.entcore.common.http.response.DefaultResponseHandler.*;
 
@@ -156,6 +151,31 @@ public class StructureController extends BaseController {
 				});
 			}
 		});
+	}
+
+	@Put("/structure/:structureId/default-auth-config")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@MfaProtected()
+	@ResourceFilter(SuperAdminFilter.class)
+	public void updateDefaultAuth(final HttpServerRequest request) {
+		bodyToClass(request, DefaultAuthModeConfig.class)
+				.onSuccess(	body -> UserUtils.getUserInfos(eb, request, user -> {
+            String structureId = request.params().get("structureId");
+			log.info(String.format("Updating default auth config by %s for structure %s", user.getUserId(), structureId));
+            structureService.updateDefaultAuth(user, structureId, body)
+					.onSuccess( v -> ok(request))
+					.onFailure( th -> new JsonObject().put("error", th.getMessage()));
+        })).onFailure(th -> badRequest(request));
+	}
+
+	@Get("/structure/:structureId/default-auth-config")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	@MfaProtected()
+	public void getDefaultAuth(final HttpServerRequest request) {
+		String structureId = request.params().get("structureId");
+		structureService.getDefaultAuth(structureId)
+				.onSuccess( (defaultAuth) -> renderJson(request, JsonObject.mapFrom(defaultAuth)))
+				.onFailure( th -> new JsonObject().put("error", th.getMessage()));
 	}
 
 	// D9 (AO ENT ÉCLAT-BFC, personnalisation graphique par Entité/MOA/groupe d'ES) : logo + 2-3
@@ -479,48 +499,41 @@ public class StructureController extends BaseController {
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
 	public void getMassmailUsers(final HttpServerRequest request){
-		UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
-			@Override
-			public void handle(UserInfos infos) {
-				final JsonObject filter = new JsonObject();
-				final String structureId = request.params().get("structureId");
-				final List<String> sorts = request.params().getAll("s");
-				final Boolean filterMail = request.params().contains("mail") ?
-						new Boolean(request.params().get("mail")) :
-						null;
+		UserUtils.getUserInfos(eb, request, infos -> {
+            final JsonObject filter = new JsonObject();
+            final String structureId = request.params().get("structureId");
+            final List<String> sorts = request.params().getAll("s");
+            final Boolean filterMail = request.params().contains("mail") ?
+                    new Boolean(request.params().get("mail")) :
+                    null;
 
-				filter
-					.put("profiles", new JsonArray(request.params().getAll("p")))
-					.put("levels", new JsonArray(request.params().getAll("l")))
-					.put("classes", new JsonArray(request.params().getAll("c")))
-					.put("sort", new JsonArray(sorts));
+            filter
+                .put("profiles", new JsonArray(request.params().getAll("p")))
+                .put("levels", new JsonArray(request.params().getAll("l")))
+                .put("classes", new JsonArray(request.params().getAll("c")))
+                .put("sort", new JsonArray(sorts));
 
-				if(request.params().contains("a")){
-					filter.put("activated", request.params().get("a"));
-				}
+            if(request.params().contains("a")){
+                filter.put("activated", request.params().get("a"));
+            }
 
-				if(request.params().contains("dateFilter") && request.params().contains("date")) {
-				    filter.put("dateFilter", request.params().get("dateFilter"));
-				    filter.put("date", request.params().get("date"));
-                }
+            if(request.params().contains("dateFilter") && request.params().contains("date")) {
+                filter.put("dateFilter", request.params().get("dateFilter"));
+                filter.put("date", request.params().get("date"));
+}
 
-				massMailService.massmailUsers(structureId, filter, filterMail, true, infos, arrayResponseHandler(request));
-			}
-		});
+            massMailService.massmailUsers(structureId, filter, filterMail, true, infos, arrayResponseHandler(request));
+        });
 	}
 
 	@Get("/structure/:structureId/massMail/allUsers")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
 	public void getMassMailUsersList(final HttpServerRequest request){
-		UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
-			@Override
-			public void handle(UserInfos infos) {
-				final String structureId = request.params().get("structureId");
-
-				massMailService.massMailAllUsersByStructure(structureId, infos, arrayResponseHandler(request));
-			}
-		});
+		UserUtils.getUserInfos(eb, request, infos -> {
+            final String structureId = request.params().get("structureId");
+            massMailService.massMailAllUsersByStructure(structureId, infos, arrayResponseHandler(request));
+        });
 	}
 
 	@Get("/structure/massmessaging/template")
@@ -645,6 +658,10 @@ public class StructureController extends BaseController {
 
 		if(request.params().contains("a")){
 			filter.put("activated", request.params().get("a"));
+		}
+
+		if (request.params().contains("includeFederated") && Boolean.parseBoolean(request.params().get("includeFederated"))) {
+			filter.put("includeFederated", true);
 		}
 
         if(request.params().contains("adml")){
@@ -912,7 +929,7 @@ public class StructureController extends BaseController {
 									if (block) {
 										NotificationUtils.deleteFcmTokens(usersId, ar -> {
 											if (ar.isLeft()) {
-												log.error("Failed to delete FCM tokens when block structure : " + structureId, ar.left().getValue());
+												log.error("Failed to delete FCM tokens when block structure : " + structureId + " " + ar.left().getValue());
 											}
 										});
 									}
@@ -1118,5 +1135,70 @@ public class StructureController extends BaseController {
 		});
 	}
 
-}
+	@BusAddress("directory.structure.quiethours.preferences")
+	public void structureQuietHoursPreferences(final Message<JsonObject> message) {
+		final String action = message.body().getString("action", "");
+		final String structureId = message.body().getString("structureId");
 
+		switch (action) {
+			case "get":
+				structureService.getQuietHoursPreferences(structureId)
+						.onSuccess(prefs -> message.reply(new JsonObject()
+								.put("status", "ok")
+								.put("message", toQuietHoursPreferencesResponse(prefs, structureId))))
+						.onFailure(error -> message.reply(new JsonObject()
+								.put("status", "error")
+								.put("message", error.getMessage())));
+				break;
+			case "set":
+				final JsonObject preferences = message.body().getJsonObject("preferences", new JsonObject());
+				structureService.setQuietHoursPreferences(structureId, preferences)
+						.onSuccess(prefs -> message.reply(new JsonObject()
+								.put("status", "ok")
+								.put("message", toQuietHoursPreferencesResponse(prefs, structureId))))
+						.onFailure(error -> message.reply(new JsonObject()
+								.put("status", "error")
+								.put("message", error.getMessage())));
+				break;
+			default:
+				message.reply(new JsonObject()
+						.put("status", "error")
+						.put("message", "Invalid action: " + action));
+		}
+	}
+
+	private JsonObject toQuietHoursPreferencesResponse(JsonObject data, String structureId) {
+		final JsonObject output = new JsonObject();
+
+		if (data == null) {
+			return output;
+		}
+
+		final String timezoneStr = data.getString("notificationTimezone");
+		if (timezoneStr != null) {
+			try {
+				final JsonObject parsedTimezone = new JsonObject(timezoneStr);
+				final String timezone = parsedTimezone.getString("timezone");
+				if (timezone != null) {
+					output.put("timezone", timezone);
+				}
+			} catch (Exception decodeException) {
+				log.error("Failed to decode timezone preference for structure " + structureId, decodeException);
+			}
+		}
+
+		final String quietHoursStr = data.getString("notificationQuietHours");
+		if (quietHoursStr != null) {
+			try {
+				final JsonObject quietHours = new JsonObject(quietHoursStr);
+				quietHours.remove("managedBy");
+				output.put("quietHours", quietHours);
+			} catch (Exception decodeException) {
+				log.error("Failed to decode quietHours preference for structure " + structureId, decodeException);
+			}
+		}
+
+		return output;
+	}
+
+}

@@ -1,3 +1,4 @@
+import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -6,22 +7,21 @@ import {
   OnInit,
   ViewChild,
 } from "@angular/core";
-import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
 import { AbstractControl, NgForm } from "@angular/forms";
-import { Observable, Subscription } from "rxjs";
 import { BundlesService } from "ngx-ode-sijil";
+import { Observable, Subscription } from "rxjs";
 
-import { AbstractSection } from "../abstract.section";
-import { UserInfoService } from "../info/user-info.service";
-import { Config } from "../../../../core/resolvers/Config";
+import { SpinnerService } from "ngx-ode-ui";
+import { catchError, tap } from "rxjs/operators";
+import { NotifyService } from "src/app/core/services/notify.service";
+import { PlatformInfoService } from "src/app/core/services/platform-info.service";
+import { Session } from "src/app/core/store/mappings/session";
+import { SessionModel } from "src/app/core/store/models/session.model";
 import { StructureModel } from "src/app/core/store/models/structure.model";
 import { UserModel } from "src/app/core/store/models/user.model";
-import { NotifyService } from "src/app/core/services/notify.service";
-import { SpinnerService } from "ngx-ode-ui";
-import { PlatformInfoService } from "src/app/core/services/platform-info.service";
-import { SessionModel } from "src/app/core/store/models/session.model";
-import { Session } from "src/app/core/store/mappings/session";
-import { catchError, tap } from "rxjs/operators";
+import { Config } from "../../../../core/resolvers/Config";
+import { AbstractSection } from "../abstract.section";
+import { UserInfoService } from "../info/user-info.service";
 
 @Component({
   selector: "ode-user-connection-section",
@@ -55,6 +55,17 @@ export class UserConnectionSectionComponent
   isUpdateMailSaved: boolean = false;
   isHomePhoneSaved: boolean = false;
   isMobileSaved: boolean = false;
+  isTotpSaved: boolean = false;
+  showTotpInput: boolean = false;
+  tempTotp: string = "";
+  showTotpVerify: boolean = false;
+  tempTotpCode: string = "";
+  isFederatedUserFieldsUnlocked = false;
+  showUnlockConfirmModal: boolean = false;
+  // Base32 alphabet: A-Z and 2-7, with optional padding
+  readonly totpBase32Pattern = /^[A-Za-z2-7]+(={0,6})?$/;
+  // TOTP code: exactly 6 digits
+  readonly totpCodePattern = /^[0-9]{6}$/;
 
   @Input() structure: StructureModel;
   
@@ -65,6 +76,7 @@ export class UserConnectionSectionComponent
   @Input() set inUser(user: UserModel) {
       this._inUser = user;
       this.user = user;
+      this.showUnlockConfirmModal = false;
   }
 
   @Input() config: Config;
@@ -97,6 +109,41 @@ export class UserConnectionSectionComponent
     super();
   }
 
+  
+  get isInactiveFederatedUser(): boolean {
+    const isUserActive = !(
+      this.details.activationCode && this.details.activationCode.length > 0
+    );
+    return this.details?.hasFederatedIdentity && !isUserActive;
+  }
+
+  onFederatedUnlockChange() {
+    this.showUnlockConfirmModal = true;
+  }
+
+  confirmFederatedUnlock() {
+    this.isFederatedUserFieldsUnlocked = true;
+    this.showUnlockConfirmModal = false;
+  }
+
+  get isFederatedIdentityFieldsLocked(): boolean {
+    return this.isInactiveFederatedUser && !this.isFederatedUserFieldsUnlocked;
+  }
+
+  get federatedDisabledTitle(): string {
+    return this.isFederatedIdentityFieldsLocked
+      ? this.bundles.translate('users.details.section.connection.field.title.disabled.federatedUser')
+      : '';
+  }
+
+  get shouldShowTotpField(): boolean {
+    // Show TOTP field if at least one structure does not ignore MFA
+    if (!this.details || !this.details.structureNodes || this.details.structureNodes.length === 0) {
+      return false;
+    }
+    return this.details.structureNodes.some(structure => !structure.ignoreMFA);
+  }
+
   async ngOnInit() {
     this.email = this.details.email;
     this.passwordResetMail = this.details.email;
@@ -124,7 +171,10 @@ export class UserConnectionSectionComponent
       this.passwordResetMobile = this.details.mobile;
     }
     this.renewalCode = undefined;
+    this.isFederatedUserFieldsUnlocked = false;
   }
+
+
 
   sendResetPasswordMail(email: string) {
     if( this.isForbidden )
@@ -393,6 +443,104 @@ export class UserConnectionSectionComponent
     });
   }
 
+  openTotpInput() {
+    this.tempTotp = "";
+    this.showTotpInput = true;
+  }
+
+  /** Converts a Base32-encoded TOTP secret to Base64 for storage in the backend. */
+  private base32ToBase64(base32: string): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const input = base32.toUpperCase().replace(/\s/g, '').replace(/=+$/, '');
+    let bits = 0;
+    let value = 0;
+    const bytes: number[] = [];
+    for (const char of input) {
+      const idx = alphabet.indexOf(char);
+      if (idx === -1) throw new Error(`Invalid Base32 character: ${char}`);
+      value = (value << 5) | idx;
+      bits += 5;
+      if (bits >= 8) {
+        bytes.push((value >>> (bits - 8)) & 0xff);
+        bits -= 8;
+      }
+    }
+    return btoa(bytes.map(b => String.fromCharCode(b)).join(''));
+  }
+
+  saveAndCloseTotpInput() {
+    if (!this.tempTotp) return;
+    try {
+      this.details.totp = this.base32ToBase64(this.tempTotp);
+    } catch (e) {
+      this.ns.error('totp.format.error');
+      return;
+    }
+    this.spinner.perform('portal-content', this.details.updateTotp())
+    .then(() => {
+      this.details.hasTotp = true;
+      this.showTotpInput = false;
+      this.tempTotp = "";
+      this.ns.success('totp.saved');
+      this.userInfoService.setState(this.details);
+      this.isTotpSaved = true;
+      this.cdRef.markForCheck();
+    })
+    .catch(err => {
+      const errMsg: string = (err?.response?.data?.error) || (err?.error?.error) || '';
+      if (errMsg.startsWith('totp.already.used:')) {
+        const userName = errMsg.substring('totp.already.used:'.length);
+        this.ns.error({
+          key: 'totp.already.used',
+          parameters: { user: userName }
+        }, 'totp.error.title');
+      } else {
+        this.ns.error('totp.error', '', err);
+      }
+    });
+  }
+
+  removeTotpSecret() {
+    this.details.totp = null;
+    this.spinner.perform('portal-content', this.details.updateTotp())
+    .then(() => {
+      this.details.hasTotp = false;
+      this.showTotpInput = false;
+      this.showTotpVerify = false;
+      this.ns.success('totp.removed');
+      this.userInfoService.setState(this.details);
+      this.cdRef.markForCheck();
+    })
+    .catch(err => {
+      this.ns.error('totp.error', '', err);
+    });
+  }
+
+  openTotpVerify() {
+    this.tempTotpCode = "";
+    this.showTotpVerify = true;
+  }
+
+  verifyTotpCode() {
+    if (!this.tempTotpCode) return;
+    this.spinner.perform('portal-content',
+      this.http.post('/auth/user/totp/verify', { userId: this.details.id, code: this.tempTotpCode }).toPromise()
+    ).then((result: any) => {
+      if (result && result.state === 'valid') {
+        this.ns.success('totp.verify.success');
+      } else if (result && result.state === 'not.enrolled') {
+        this.ns.error('totp.verify.not.enrolled');
+      } else {
+        this.ns.error('totp.verify.failure');
+      }
+      this.showTotpVerify = false;
+      this.tempTotpCode = "";
+      this.cdRef.markForCheck();
+    }).catch(err => {
+      this.ns.error('totp.verify.error', '', err);
+    });
+  }
+
   updateLoginAlias() {
     this.spinner.perform(
       "portal-content",
@@ -503,9 +651,14 @@ export class UserConnectionSectionComponent
   clickOnGenerateRenewalCode() {
     if( this.isForbidden )
       return;
-    this.generateRenewalCode(this.user.login).subscribe(data => {
-      this.renewalCode = data.renewalCode;
-      this.cdRef.markForCheck();
+    this.generateRenewalCode(this.user.login).subscribe({
+      next: (data) => {
+        this.renewalCode = data.renewalCode;
+        this.cdRef.markForCheck();
+      },
+      error: (err) => {
+        this.ns.error('notify.user.renewal.error.content', 'notify.user.renewal.error.title', { message: err?.error?.error ?? err?.message });
+      },
     });
   }
 

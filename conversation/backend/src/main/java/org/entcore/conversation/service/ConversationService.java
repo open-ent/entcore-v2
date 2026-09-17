@@ -49,17 +49,35 @@ public interface ConversationService {
 	 * 
 	 * For example, listing folders with a depth of 2 => returning MAX_FOLDER_NUMBER^2 =2500 folders at once in the worst case.
 	 */
-	public static final int MAX_FOLDERS_LEVEL = 3;
+	int MAX_FOLDERS_LEVEL = 3;
 
-	enum State { DRAFT, SENT, RECALL, SCHEDULED }
+	/**
+	 * ATTENTION — deux états de programmation coexistent après la montée en 6.16.
+	 *
+	 * <p>{@code SCHEDULED} est le nôtre (fork 6.14.9-patched, migration
+	 * 023-conversation-scheduled.sql, colonne {@code scheduled_at}, envoi par
+	 * {@link org.entcore.conversation.service.impl.ScheduledMessageSender}). Des messages sont
+	 * déjà persistés avec cette valeur en production : le retirer les rendrait inenvoyables.</p>
+	 *
+	 * <p>{@code SCHEDULE} est celui de l'amont, qui a implémenté la même fonctionnalité de son
+	 * côté en 6.16 (migration 023-conversation-add-schedule-at-message.sql, champ
+	 * {@code scheduleAt}).</p>
+	 *
+	 * <p>Les deux chemins ne sont PAS interopérables : un message programmé par l'un n'est pas vu
+	 * par l'autre. Les deux constantes sont conservées ici uniquement pour que la montée de
+	 * version ne perde ni code ni données. La convergence sur l'implémentation amont, avec la
+	 * migration de données SCHEDULED -> SCHEDULE qui va avec, reste à faire.</p>
+	 */
+	enum State { DRAFT, SENT, RECALL, SCHEDULED, SCHEDULE }
 
-	static final String[] SYSTEM_FOLDER_NAMES = {"INBOX", "OUTBOX", "DRAFT", "TRASH"};
-	static public boolean isSystemFolder(final String folder) {
-		return folder!=null && Stream.of(SYSTEM_FOLDER_NAMES).anyMatch(sysFolder -> folder.equalsIgnoreCase(sysFolder));
+	String[] SYSTEM_FOLDER_NAMES = {"INBOX", "OUTBOX", "DRAFT", "TRASH", "SCHEDULE"};
+
+	static boolean isSystemFolder(final String folder) {
+		return folder!=null && Stream.of(SYSTEM_FOLDER_NAMES).anyMatch(folder::equalsIgnoreCase);
 	}
 
 	List<String> MESSAGE_FIELDS = Arrays.asList("id", "subject", "body", "from", "to", "cc", "date", "state",
-            "displayNames", "noReply");
+            "displayNames", "noReply", "scheduleAt");
 
 	List<String> DRAFT_REQUIRED_FIELDS = Arrays.asList("id", "from", "date", "state");
 

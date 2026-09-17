@@ -5,12 +5,17 @@
     "auto-redeploy": false,
     "ssl": true,
     "app-type" : "SYSTEM",
+    "app-address": "/communication",
     "xp-com-rules": true,
     "csrf-token": {{ csrfToken | default('true') }},
     "discoverVisibleExpectedProfile": {{ communicationDiscoverVisibleExpectedProfile | default('[]') }},
     "mode": "prod",
     "port": 8015,
-    "initDefaultCommunicationRules": {{ communicationDefaultComRules }},
+    "probes": [
+      "org.entcore.common.http.health.Neo4jProbe",
+      "org.entcore.common.http.health.RedisProbe"
+    ],
+    "initDefaultCommunicationRules": {{ communicationDefaultComRules | default('{}') }},
     "visibles-search-type": "{{ communicationVisiblesSearchType | default('light') }}"
   }
 }

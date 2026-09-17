@@ -70,6 +70,7 @@ export class User extends Model {
     originalLogin: string;
     lastLogin: string;
     blocked: boolean;
+    hasFederatedIdentity: boolean;
     type: UserTypes;
     profile: UserTypes;
     resetCode: string;
@@ -89,6 +90,8 @@ export class User extends Model {
     email: string;
     homePhone: string;
     mobile: string;
+    totp: string;
+    hasTotp: boolean;
     displayName: string;
     _hobbies: Hobby[] = [];
     relatives: User[] = [];

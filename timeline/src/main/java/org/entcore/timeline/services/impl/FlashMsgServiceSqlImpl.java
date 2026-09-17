@@ -140,7 +140,7 @@ public class FlashMsgServiceSqlImpl extends SqlCrudService implements FlashMsgSe
 	}
 
 	@Override
-	public void listForUser(UserInfos user, String lang, String domain, Handler<Either<String, JsonArray>> handler) {
+	public void listForUser(UserInfos user, String lang, String domain, boolean includeRead, Handler<Either<String, JsonArray>> handler) {
 		getUserPositions(user.getUserId()).onSuccess(myPositions -> {
 			String myStructuresIds;
 			String myADMLStructuresId;
@@ -171,7 +171,8 @@ public class FlashMsgServiceSqlImpl extends SqlCrudService implements FlashMsgSe
 			// we don't need to check if the message is in the user's language he has to see it
 			// A distinction is made on structureId to disambiguate V1 and V2 and apply domain filter only on V1
 			// `title` remonté avec le contenu : sans lui, un message flash s'affiche amputé de
-			// son titre chez l'utilisateur alors qu'il est saisi et stocké.
+			// son titre chez l'utilisateur alors qu'il est saisi et stocké. L'amont a corrigé le
+			// même oubli de son côté en 6.16, au même endroit.
 			String query = "SELECT id, title, contents, color, \"customColor\", signature, \"signatureColor\" FROM " + resourceTable + " m " +
 					"WHERE (" +
 					// Profiles is set and user matches
@@ -190,7 +191,7 @@ public class FlashMsgServiceSqlImpl extends SqlCrudService implements FlashMsgSe
 					"AND (\"structureId\" IS NULL " +
 					"OR (\"structureId\" IN (" + myStructuresIds + ")) " +
 					"OR EXISTS (SELECT * FROM " + STRUCT_JOIN_TABLE + " WHERE message_id = m.id AND structure_id IN (" + myStructuresIds + "))) " +
-					"AND NOT EXISTS (SELECT * FROM " + JOIN_TABLE + " WHERE message_id = m.id AND user_id = '" + user.getUserId() + "') " +
+					(includeRead ? "" : "AND NOT EXISTS (SELECT * FROM " + JOIN_TABLE + " WHERE message_id = m.id AND user_id = '" + user.getUserId() + "') ") +
 					"ORDER BY modified DESC";
 
 			sql.raw(query, validResultHandler(handler, "contents"));

@@ -17,7 +17,7 @@ pipeline {
       steps {
         script {
           sh './build.sh $BUILD_SH_EXTRA_PARAM init'
-          def version = sh(returnStdout: true, script: 'docker-compose run --rm maven mvn $MVN_OPTS help:evaluate -Dexpression=project.version -q -DforceStdout')
+          def version = sh(returnStdout: true, script: 'docker run --rm -u `id -u`:`id -g` --env MAVEN_CONFIG=/var/maven/.m2 -w /usr/src/maven -v ./:/usr/src/maven -v ~/.m2:/var/maven/.m2  opendigitaleducation/mvn-java8-node20:latest mvn -Duser.home=/var/maven help:evaluate -Dexpression=project.version -DforceStdout -q')
           buildName "${env.GIT_BRANCH.replace("origin/", "")}@${version}"
         }
       }
@@ -44,13 +44,12 @@ pipeline {
         sh "NPM_TOKEN=$NPM_PUBLIC_TOKEN DRY_RUN=false ./build.sh \$BUILD_SH_EXTRA_PARAM publish"
       }
     }
-    /*
-      stage('Build image') {
-          steps {
-              sh 'edifice image'
-          }
+    stage('Build image') {
+      steps {
+          sh './edifice image --archs=linux/amd64 --project-type=entcore --rebuild=false -- -workspace'
+          sh './edifice image --archs=linux/amd64 --project-type=entcore --rebuild=false --external-programs="shared-mime-info lame libmp3lame-dev libmp3lame0" workspace'
       }
-      */
+    }
   }
   post {
     cleanup {

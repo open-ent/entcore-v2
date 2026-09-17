@@ -34,6 +34,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import org.apache.commons.lang3.tuple.Pair;
+import org.entcore.broker.api.dto.directory.ClassIncludeField;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.neo4j.Neo4jResult;
 import org.entcore.common.user.DefaultFunctions;
@@ -52,7 +54,9 @@ import com.google.common.collect.Sets;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static fr.wseduc.webutils.Utils.*;
+import static org.apache.commons.lang3.tuple.Pair.of;
 import static org.entcore.common.neo4j.Neo4jResult.*;
 import static org.entcore.common.user.DefaultFunctions.*;
 
@@ -66,6 +70,14 @@ public class DefaultUserService implements UserService {
 	private final EventBus eb;
 	private final JsonObject userBookData;
 	private Logger logger = LoggerFactory.getLogger(DefaultUserService.class);
+
+
+	private static final List<Pair<ClassIncludeField, String>> NEO4J_STRUCTURE_INCLUDE_FIELD_MAPPING = newArrayList(
+			of(ClassIncludeField.STRUCTURE_ACADEMY, "academy"),
+			of(ClassIncludeField.STRUCTURE_ADDRESS, "address"),
+			of(ClassIncludeField.STRUCTURE_CITY, "city"),
+			of(ClassIncludeField.STRUCTURE_ZIP_CODE, "zipCode")
+	);
 
 
 	public DefaultUserService(EmailSender notification, EventBus eb, JsonObject aUserBookData) {
@@ -100,12 +112,64 @@ public class DefaultUserService implements UserService {
 
 	@Override
 	public void update(final String id, final JsonObject user, final UserInfos caller, final Handler<Either<String, JsonObject>> result) {
-		JsonObject action = new JsonObject()
-				.put("action", "manual-update-user")
-				.put("userId", id)
-				.put("data", user)
-				.put("callerId", caller == null ? null : caller.getUserId());
-		eb.request(Directory.FEEDER, action, handlerToAsyncHandler(validUniqueResultHandler(result)));
+		if (user.containsKey("totp")) {
+			final String totpSecret = user.getString("totp");
+			user.remove("totp");
+			updateTotp(id, totpSecret, ar -> {
+				if (ar.isLeft()) {
+					result.handle(new Either.Left<>(ar.left().getValue()));
+					return;
+				}
+				if (user.isEmpty()) {
+					result.handle(new Either.Right<>(new JsonObject().put("status", "ok")));
+					return;
+				}
+				JsonObject action = new JsonObject()
+						.put("action", "manual-update-user")
+						.put("userId", id)
+						.put("data", user)
+						.put("callerId", caller == null ? null : caller.getUserId());
+				eb.request(Directory.FEEDER, action, handlerToAsyncHandler(validUniqueResultHandler(result)));
+			});
+		} else {
+			JsonObject action = new JsonObject()
+					.put("action", "manual-update-user")
+					.put("userId", id)
+					.put("data", user)
+					.put("callerId", caller == null ? null : caller.getUserId());
+			eb.request(Directory.FEEDER, action, handlerToAsyncHandler(validUniqueResultHandler(result)));
+		}
+	}
+
+	public void updateTotp(final String id, final String totpSecret, final Handler<Either<String, JsonObject>> result) {
+		if (totpSecret != null && !totpSecret.isEmpty()) {
+			// Before enrolling, check if another user already has this TOTP secret
+			final String checkQuery = "MATCH (other:User) WHERE other.totp = {totp} AND other.id <> {id} " +
+					"RETURN other.displayName as displayName LIMIT 1";
+			final JsonObject checkParams = new JsonObject().put("id", id).put("totp", totpSecret);
+			neo.execute(checkQuery, checkParams, checkMsg -> {
+				final Either<String, JsonArray> checkResult = Neo4jResult.validResult(checkMsg);
+				if (checkResult.isLeft()) {
+					result.handle(new Either.Left<>(checkResult.left().getValue()));
+					return;
+				}
+				final JsonArray rows = checkResult.right().getValue();
+				if (rows != null && !rows.isEmpty()) {
+					final String displayName = rows.getJsonObject(0).getString("displayName", "");
+					result.handle(new Either.Left<>("totp.already.used:" + displayName));
+					return;
+				}
+				// No conflict — proceed with enrollment
+				neo.execute("MATCH (u:User {id: {id}}) SET u.totp = {totp}",
+						new JsonObject().put("id", id).put("totp", totpSecret),
+						m -> result.handle(Neo4jResult.validEmpty(m)));
+			});
+		} else {
+			// null or empty => unenroll (remove the property)
+			neo.execute("MATCH (u:User {id: {id}}) REMOVE u.totp",
+					new JsonObject().put("id", id),
+					m -> result.handle(Neo4jResult.validEmpty(m)));
+		}
 	}
 
 	@Override
@@ -204,7 +268,7 @@ public class DefaultUserService implements UserService {
 				.add("lastDomain").add("displayName").add("source").add("login").add("teaches").add("headTeacher")
 				.add("externalId").add("joinKey").add("birthDate").add("modules").add("lastScheme").add("addressDiffusion")
 				.add("isTeacher").add("structures").add("type").add("children").add("parents").add("functionalGroups")
-				.add("administrativeStructures").add("subjectCodes").add("fieldOfStudyLabels").add("startDateClasses")
+				.add("administrativeStructures").add("subjectCodes").add("fieldOfStudyLabels").add("startDateClasses").add("endDateClasses")
 				.add("scholarshipHolder").add("attachmentId").add("fieldOfStudy").add("module").add("transport")
 				.add("accommodation").add("status").add("relative").add("moduleName").add("sector").add("level")
 				.add("relativeAddress").add("classCategories").add("subjectTaught").add("needRevalidateTerms")
@@ -325,16 +389,17 @@ public class DefaultUserService implements UserService {
 		String query =
 				"MATCH (u:`User` { id : {id}}) " +
 				"OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, u " +
-				"OPTIONAL MATCH u-[rf:HAS_FUNCTION]->(f:Function) WITH COLLECT(distinct [f.externalId, rf.scope]) as functions, u, structureNodes " +
-				"OPTIONAL MATCH u<-[:RELATED]-(child: User) WITH COLLECT(distinct {id: child.id, displayName: child.displayName, externalId: child.externalId}) as children, functions, u, structureNodes " +
-				"OPTIONAL MATCH u-[:RELATED]->(parent: User) WITH COLLECT(distinct {id: parent.id, displayName: parent.displayName, externalId: parent.externalId}) as parents, children, functions, u, structureNodes " +
-				"OPTIONAL MATCH u-[:IN]->(fgroup: FunctionalGroup) WITH COLLECT(distinct {id: fgroup.id, name: fgroup.name}) as admGroups, parents, children, functions, u, structureNodes " +
-				"OPTIONAL MATCH u-[:ADMINISTRATIVE_ATTACHMENT]->(admStruct: Structure) WITH COLLECT(distinct {id: admStruct.id}) as admStruct, admGroups, parents, children, functions, u, structureNodes " +
-				"OPTIONAL MATCH u-[r:TEACHES]->(s:Subject) WITH COLLECT(distinct s.code) as subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes " +
-				"OPTIONAL MATCH u-[h:HAS_POSITION]->(p:UserPosition)-[:IN]->(struct:Structure) WITH CASE WHEN p IS NOT NULL THEN COLLECT(distinct {id: p.id, name: p.name, source: p.source, structureId: struct.id}) ELSE [] END as userPositions, subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes ";
+				"OPTIONAL MATCH (sAuth:Structure)-[:HAS_AUTH_DEFAULT]->(auths:AuthDefault { profile: HEAD(u.profiles), auth: 'FEDERATED' }) WHERE sAuth IN structureNodes WITH structureNodes, u, COLLECT(auths) as auths " +
+				"OPTIONAL MATCH u-[rf:HAS_FUNCTION]->(f:Function) WITH COLLECT(distinct [f.externalId, rf.scope]) as functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH u<-[:RELATED]-(child: User) WITH COLLECT(distinct {id: child.id, displayName: child.displayName, externalId: child.externalId}) as children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH u-[:RELATED]->(parent: User) WITH COLLECT(distinct {id: parent.id, displayName: parent.displayName, externalId: parent.externalId}) as parents, children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH u-[:IN]->(fgroup: FunctionalGroup) WITH COLLECT(distinct {id: fgroup.id, name: fgroup.name}) as admGroups, parents, children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH u-[:ADMINISTRATIVE_ATTACHMENT]->(admStruct: Structure) WITH COLLECT(distinct {id: admStruct.id}) as admStruct, admGroups, parents, children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH u-[r:TEACHES]->(s:Subject) WITH COLLECT(distinct s.code) as subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH u-[h:HAS_POSITION]->(p:UserPosition)-[:IN]->(struct:Structure) WITH CASE WHEN p IS NOT NULL THEN COLLECT(distinct {id: p.id, name: p.name, source: p.source, structureId: struct.id}) ELSE [] END as userPositions, subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths ";
 
 		if (getManualGroups)
-			query += "OPTIONAL MATCH u-[:IN]->(mgroup: ManualGroup)-[:DEPENDS]->(mStruct:Structure) WITH COLLECT(distinct {id: mgroup.id, name: mgroup.name, structureId: mStruct.id, structureUai: mStruct.UAI}) as manualGroups, userPositions, subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes ";
+			query += "OPTIONAL MATCH u-[:IN]->(mgroup: ManualGroup)-[:DEPENDS]->(mStruct:Structure) WITH COLLECT(distinct {id: mgroup.id, name: mgroup.name, structureId: mStruct.id, structureUai: mStruct.UAI}) as manualGroups, userPositions, subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths ";
 
 		if(withClasses)
 			query += "OPTIONAL MATCH s<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u) WHERE u.classes IS NOT NULL ";
@@ -358,6 +423,9 @@ public class DefaultUserService implements UserService {
 					"CASE WHEN userPositions IS NULL THEN [] ELSE userPositions END as userPositions, ";
 		}
 
+		query += " (HAS(u.federatedIDP) AND NOT(u.federatedIDP IS NULL) AND HAS(u.federated) AND u.federated = true) OR " +
+				"  (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) as hasFederatedIdentity, ";
+
 		if (getManualGroups)
 			query += "CASE WHEN manualGroups IS NULL THEN [] ELSE manualGroups END as manualGroups, ";
 
@@ -376,6 +444,9 @@ public class DefaultUserService implements UserService {
 				for (Object o : filterAttributes) {
 					r.remove((String) o);
 				}
+				// Replace raw TOTP secret with a boolean to avoid exposing the secret
+				r.put("hasTotp", r.getString("totp") != null && !r.getString("totp").isEmpty());
+				r.remove("totp");
 
 				//put administrative attachment first in structureNodes
 				final JsonArray jaAdm = r.getJsonArray("administrativeStructures");
@@ -790,9 +861,10 @@ public class DefaultUserService implements UserService {
 				"u.lastName as lastName, u.displayName as displayName, u.source as source, u.attachmentId as attachmentId, " +
 				"u.birthDate as birthDate, u.blocked as blocked, u.created as creationDate, u.lastLogin as lastLogin, " +
 				"u.email as email, u.homePhone as phone, u.mobile as mobile, u.zipCode as zipCode, u.address as address, " +
-				"u.city as city, u.country as country, " +
+				"u.city as city, u.country as country, u.level as level, u.title as title, u.startDateClasses as startDateClasses," +
+				" u.endDateClasses as endDateClasses," +
 				"extract(function IN u.functions | last(split(function, \"$\"))) as aafFunctions, " +
-				"CASE WHEN s IS NULL THEN [] ELSE collect(distinct {id: s.id, name: s.name}) END as structures, " +
+				"CASE WHEN s IS NULL THEN [] ELSE collect(distinct {id: s.id, uai: s.UAI, name: s.name}) END as structures, " +
 				"collect(distinct {id: class.id, name: class.name}) as allClasses, " +
 				"collect(distinct [f.externalId, rf.scope]) as functions, " +
 				"CASE WHEN parent IS NULL THEN [] ELSE collect(distinct {id: parent.id, firstName: parent.firstName, lastName: parent.lastName}) END as parents, " +
@@ -1147,7 +1219,7 @@ public class DefaultUserService implements UserService {
 				"MATCH (n:User {id : {id}})<-[:RELATED]-(child:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
 				"OPTIONAL MATCH (child)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 				"WITH COLLECT(distinct c.name) as classesNames, s, child " +
-				"RETURN s.name as structureName, COLLECT(distinct {id: child.id, displayName: child.displayName, externalId: child.externalId, classesNames : classesNames}) as children ";
+				"RETURN s.name as structureName, COLLECT(distinct {id: child.id, firstName: child.firstName, displayName: child.displayName, externalId: child.externalId, classesNames : classesNames}) as children ";
 		final JsonObject params = new JsonObject().put("id", userId);
 		neo.execute(query, params, validResultHandler(handler));
 	}
@@ -1202,19 +1274,63 @@ public class DefaultUserService implements UserService {
 		neo.execute(query, params, validResultHandler(handler));
 	}
 
+	/**
+	 * This function is tailored to be used exclusively in the getUserInfos function to add
+	 * extra fields to the structures part of the query if needed.
+	 * @param fields the fields to add to the query if needed
+	 * @return the part of the query to add to the return statement with the extra fields for schools
+	 */
+	private String getSchoolsExtraFields(Set<ClassIncludeField> fields) {
+		if (fields == null) {
+			return "";
+		}
+		final StringBuffer sbuffer = new StringBuffer();
+		 NEO4J_STRUCTURE_INCLUDE_FIELD_MAPPING.stream()
+			 .filter(e -> fields.contains(e.getKey()))
+			 .map(Pair::getValue)
+			 .forEach(field -> sbuffer.append(", ").append(field).append(": s.").append(field));
+		return sbuffer.toString();
+	}
+
+	/**
+	 * This function is tailored to be used exclusively in the getUserInfos function to add
+	 * extra fields to the classes part of the query if needed.
+	 * @param fields the fields to add to the query if needed
+	 * @return the part of the query to add to the return statement with the extra fields for classes
+	 */
+	private String getClasssExtraFields(Set<ClassIncludeField> fields) {
+		if (fields == null) {
+			return "";
+		}
+		final StringBuffer sbuffer = new StringBuffer();
+		if(fields.contains(ClassIncludeField.INC)) {
+			sbuffer.append(", inc: split(c.externalId, '$')[1]");
+		}
+		return sbuffer.toString();
+	}
+
 	@Override
-	public void getUserInfos(String userId, final Handler<Either<String,JsonObject>> handler) {
+	public void getUserInfos(String userId, final Set<ClassIncludeField> fields, final Handler<Either<String,JsonObject>> handler) {
+		final String schoolsExtraFields = getSchoolsExtraFields(fields);
+		final String classsExtraFields = getClasssExtraFields(fields);
 		String query;
 		try {
 			query = "MATCH (u:`User` { id : {userId}}) " +
 				"OPTIONAL MATCH u-[:USERBOOK]->(ub: UserBook) WITH ub.motto as motto, ub.health as health, ub.mood as mood, u,  "+
 				UserBookService.selectHobbies(userBookData, "ub")+
-				"OPTIONAL MATCH s<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(Profile), cpg<-[:IN]-u-[:IN]->spg WITH s, COLLECT(distinct {name: c.name, id: c.id}) as c, motto, health, mood, hobbies, u " +
-				"WITH COLLECT(distinct {name: s.name, id: s.id, classes: c, source: s.source}) as schools, motto, health, mood, hobbies, u " +
+				"OPTIONAL MATCH s<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(Profile)," +
+					" cpg<-[:IN]-u-[:IN]->spg WITH s, " +
+					" COLLECT(distinct {name: c.name, id: c.id" + classsExtraFields + "}) as c, motto, health, mood, hobbies, u " +
+				"WITH COLLECT(distinct {name: s.name, id: s.id, classes: c, source: s.source " + schoolsExtraFields + "}) as schools, motto, health, mood, hobbies, u " +
 				"OPTIONAL MATCH u-[:RELATED]-(u2: User) WITH COLLECT(distinct {relatedName: u2.displayName, relatedId: u2.id, relatedType: u2.profiles}) as relativeList, schools, motto, health, mood, hobbies, u " +
+				"OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, relativeList, schools, motto, health, mood, hobbies, u " +
+				"OPTIONAL MATCH (sAuth:Structure)-[:HAS_AUTH_DEFAULT]->(auths:AuthDefault { profile: HEAD(u.profiles), auth: 'FEDERATED' }) WHERE sAuth IN structureNodes " +
+				" WITH COLLECT(auths) as auths, schools, motto, health, mood, hobbies, u, relativeList "	+
 				"RETURN DISTINCT u.profiles as profiles, u.id as id, u.firstName as firstName, u.lastName as lastName, u.displayName as displayName, "+
 				"u.email as email, u.homePhone as homePhone, u.mobile as mobile, u.birthDate as birthDate, u.login as originalLogin, relativeList, " +
 				"motto, health, mood, hobbies, " +
+				" (HAS(u.federatedIDP) AND NOT(u.federatedIDP IS NULL) AND HAS(u.federated) AND u.federated = true) OR (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) as hasFederatedIdentity, " +
+				"CASE WHEN u.totp IS NOT NULL AND u.totp <> '' THEN true ELSE false END as hasTotp, " +
 				"CASE WHEN schools IS NULL THEN [] ELSE schools END as schools ";
 		} catch (ValidationException exception) {
 			logger.error("Select hobbies exception", exception);

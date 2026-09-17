@@ -51,6 +51,24 @@ public interface CommunicationService {
 	 */
 	void visibleUsersForShare(String userId, String search, JsonArray userIds, Handler<Either<String, JsonArray>> responseHandler);
 
+	/**
+	 * Reset all communication rules on a structure and apply the default one configured
+	 * in console or configuration
+	 * @param structureId The target structure to reset
+	 * @param eitherHandler handler for the response to the client
+	 */
+    void resetRules(String structureId, Handler<Either<String, JsonObject>> eitherHandler);
+
+	/**
+	 * Modify direct communication between two users INCOMING s <= e, OUTGOING s => e
+	 *
+	 * @param startUser
+	 * @param endUser
+	 * @param directionEnum
+	 * @param eitherHandler
+	 */
+	void setDirectCommunication(String startUser, String endUser, Direction directionEnum, Handler<Either<String, JsonObject>> eitherHandler);
+
 	//enum VisibleType { USERS, GROUPS, BOTH }
 	enum Direction { 
 		INCOMING 	(0x01),
@@ -201,7 +219,11 @@ public interface CommunicationService {
 	 * @param search Keyword to filter the search results
 	 * @param language User's language
 	 */
-	Future<JsonArray> searchVisibles(UserInfos user, String search, String mode, String language);
+	default Future<JsonArray> searchVisibles(UserInfos user, String search, String mode, String language) {
+		return searchVisibles(user, search, mode, language, false);
+	}
+
+	Future<JsonArray> searchVisibles(UserInfos user, String search, String mode, String language, boolean includeHidden);
 
 }
 

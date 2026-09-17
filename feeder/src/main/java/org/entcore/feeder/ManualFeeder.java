@@ -20,8 +20,10 @@
 package org.entcore.feeder;
 
 import fr.wseduc.webutils.I18n;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
@@ -42,6 +44,7 @@ import org.entcore.common.user.position.UserPositionService;
 import org.entcore.common.user.position.impl.DefaultUserPositionService;
 import org.entcore.common.utils.StringUtils;
 import org.entcore.common.utils.Id;
+import org.entcore.feeder.aaf.AAFFilesUploadRequest;
 import org.entcore.feeder.dictionary.structures.*;
 import org.entcore.feeder.dictionary.structures.User.DeleteTask;
 import org.entcore.feeder.exceptions.TransactionException;
@@ -49,6 +52,7 @@ import org.entcore.feeder.exceptions.ValidationException;
 import org.entcore.feeder.utils.*;
 import org.vertx.java.busmods.BusModBase;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -56,6 +60,8 @@ import java.util.stream.Collectors;
 
 import static fr.wseduc.webutils.Utils.getOrElse;
 import static fr.wseduc.webutils.Utils.isNotEmpty;
+import static io.vertx.core.Future.failedFuture;
+import static java.io.File.separator;
 
 
 public class ManualFeeder extends BusModBase {
@@ -325,7 +331,7 @@ public class ManualFeeder extends BusModBase {
 			JsonArray classesNames, JsonArray userPositionIds) {
 		final Integer transactionId = message.body().getInteger("transactionId");
 		final Boolean commit = message.body().getBoolean("commit", true);
-		StatementsBuilder statementsBuilder = new StatementsBuilder();
+		final TransactionHelper tx = new TransactionHelper(neo4j, Source.MANUAL, transactionId);
 		String related = "";
 		JsonObject params = new JsonObject()
 				.put("structureId", structureId)
@@ -347,7 +353,8 @@ public class ManualFeeder extends BusModBase {
 				"SET u.structures = [s.externalId] " +
 				related +
 				"RETURN DISTINCT u.id as id, u.login AS login";
-		statementsBuilder.add(query, params);
+		tx.add(query, params);
+		org.entcore.common.schema.structures.Structure.applyStructureManagedPreferences(tx, user.getString("id"), structureId);
 		if (classesNames != null && !classesNames.isEmpty()) {
 			final String classesQuery =
 					"MATCH (s:Structure {id:{structureId}})<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(cpg:ProfileGroup {filter: {profile}}), " +
@@ -360,7 +367,7 @@ public class ManualFeeder extends BusModBase {
 					.put("userId", user.getString("id"))
 					.put("classesNames", classesNames)
 					.put("source", user.getString("source"));
-			statementsBuilder.add(classesQuery, classesParams);
+			tx.add(classesQuery, classesParams);
 		}
 		final Promise<Void> promise = Promise.promise();
 		if (userPositionIds == null) {
@@ -371,27 +378,29 @@ public class ManualFeeder extends BusModBase {
 				user.getString("id"),
 				message.body().getString("callerId"))
 			.onSuccess(queryAndParams -> {
-				statementsBuilder.add(queryAndParams.getQuery(), queryAndParams.getParams());
+				tx.add(queryAndParams.getQuery(), queryAndParams.getParams());
 				promise.complete();
 			})
 			.onFailure(promise::fail);
 		}
 		promise.future().onSuccess(e -> {
-			neo4j.executeTransaction(statementsBuilder.build(), transactionId, commit, new Handler<Message<JsonObject>>() {
-				@Override
-				public void handle(Message<JsonObject> event) {
-					final JsonArray results = event.body().getJsonArray("results");
-					if ("ok".equals(event.body().getString("status")) && results != null && results.size() > 0) {
-						message.reply(event.body().put("result", results.getJsonArray(0)));
-						if (commit) {
-							eventStore.createAndStoreEvent(Feeder.FeederEvent.CREATE_USER.name(),
-								(UserInfos) null, new JsonObject().put("new-user", user.getString("id")));
-						}
-					} else {
-						message.reply(event.body());
+			final Handler<Message<JsonObject>> replyHandler = event -> {
+				final JsonArray results = event.body().getJsonArray("results");
+				if ("ok".equals(event.body().getString("status")) && results != null && results.size() > 0) {
+					message.reply(event.body().put("result", results.getJsonArray(0)));
+					if (commit) {
+						eventStore.createAndStoreEvent(Feeder.FeederEvent.CREATE_USER.name(),
+							(UserInfos) null, new JsonObject().put("new-user", user.getString("id")));
 					}
+				} else {
+					message.reply(event.body());
 				}
-			});
+			};
+			if (Boolean.TRUE.equals(commit)) {
+				tx.commit(replyHandler);
+			} else {
+				tx.flush(replyHandler);
+			}
 		}).onFailure(th -> {
 			logger.warn("An error occurred when trying to create user positions update metho", th);
 			message.reply("Unknown error");
@@ -611,7 +620,6 @@ public class ManualFeeder extends BusModBase {
 		final Boolean commit = message.body().getBoolean("commit", true);
 		// Retrieve user position ids and remove them from user properties before creating user node
 		final JsonArray userPositionIds = (JsonArray) user.remove("userPositionIds");
-		StatementsBuilder statementsBuilder = new StatementsBuilder();
 		String related = "";
 		JsonObject params = new JsonObject()
 				.put("classId", classId)
@@ -633,24 +641,31 @@ public class ManualFeeder extends BusModBase {
 				"SET u.classes = [s.externalId], u.structures = [struct.externalId] " +
 				related +
 				"RETURN DISTINCT u.id as id, u.login AS login";
-		statementsBuilder.add(query, params);
-		final Promise<Void> promise = Promise.promise();
-		if(userPositionIds == null) {
-			promise.complete();
-		} else {
-			userPositionService.getUserPositionSettingQueryAndParam(
-				userPositionIds.stream().map(id -> (String) id).collect(Collectors.toSet()),
-				user.getString("id"),
-				message.body().getString("callerId"))
-			.onSuccess(queryAndParams -> {
-				statementsBuilder.add(queryAndParams.getQuery(), queryAndParams.getParams());
+		final String structureQuery = "MATCH (c:Class {id:{classId}})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
+		neo4j.execute(structureQuery, new JsonObject().put("classId", classId), structRes -> {
+			final JsonArray sr = structRes.body().getJsonArray("result");
+			final String structureId = ("ok".equals(structRes.body().getString("status")) && sr != null && sr.size() > 0)
+					? sr.getJsonObject(0).getString("structureId") : null;
+			final TransactionHelper tx = new TransactionHelper(neo4j, Source.MANUAL, transactionId);
+			tx.add(query, params);
+			if (structureId != null) {
+				org.entcore.common.schema.structures.Structure.applyStructureManagedPreferences(tx, user.getString("id"), structureId);
+			}
+			final Promise<Void> promise = Promise.promise();
+			if (userPositionIds == null) {
 				promise.complete();
-			}).onFailure(promise::fail);
-		}
-		promise.future().onSuccess(e -> {
-			neo4j.executeTransaction(statementsBuilder.build(), transactionId, commit.booleanValue(), new Handler<Message<JsonObject>>() {
-				@Override
-				public void handle(Message<JsonObject> event) {
+			} else {
+				userPositionService.getUserPositionSettingQueryAndParam(
+					userPositionIds.stream().map(id -> (String) id).collect(Collectors.toSet()),
+					user.getString("id"),
+					message.body().getString("callerId"))
+				.onSuccess(queryAndParams -> {
+					tx.add(queryAndParams.getQuery(), queryAndParams.getParams());
+					promise.complete();
+				}).onFailure(promise::fail);
+			}
+			promise.future().onSuccess(e -> {
+				final Handler<Message<JsonObject>> replyHandler = event -> {
 					final JsonArray results = event.body().getJsonArray("results");
 					if ("ok".equals(event.body().getString("status")) && results != null && results.size() > 0) {
 						message.reply(event.body().put("result", results.getJsonArray(0)));
@@ -661,73 +676,89 @@ public class ManualFeeder extends BusModBase {
 					} else {
 						message.reply(event.body());
 					}
+				};
+				if (Boolean.TRUE.equals(commit)) {
+					tx.commit(replyHandler);
+				} else {
+					tx.flush(replyHandler);
 				}
-			});
 			}).onFailure(th -> {
 				logger.warn("An error occurred while creating user position update query", th);
 				sendError(message, "Unknown error");
 			});
-
+		});
 	}
 
 	private void addUserInClass(final Message<JsonObject> message,
 								String userId, String classId) {
 		final Integer transactionId = message.body().getInteger("transactionId");
 		final Boolean commit = message.body().getBoolean("commit", true);
-		StatementsBuilder statementsBuilder = new StatementsBuilder();
-		JsonObject params = new JsonObject()
+		final JsonObject params = new JsonObject()
 				.put("classId", classId)
 				.put("userId", userId);
-		String query =
+		final String query =
 				"MATCH (u:User { id : {userId}})-[:IN]->(opg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 						"WITH u, p " +
 						"MATCH (s:Class { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
-						"(pg:ProfileGroup)-[:HAS_PROFILE]->p, s-[:BELONGS]->(struct:Structure) " +
-						"MERGE (pg)<-[inProfileGroup:IN]-(u) " +
+						"(pg:ProfileGroup)-[:HAS_PROFILE]->p " +
 						"CREATE UNIQUE (cpg)<-[:IN {source:'MANUAL'}]-(u) " +
 						"SET u.classes = CASE WHEN s.externalId IN u.classes THEN " +
-						"u.classes ELSE coalesce(u.classes, []) + s.externalId END, " +
-						"u.structures = CASE WHEN struct.externalId IN u.structures THEN " +
-						"u.structures ELSE coalesce(u.structures, []) + struct.externalId END, " +
-						"inProfileGroup.source = CASE WHEN inProfileGroup.source = 'MANUAL' THEN 'MANUAL' ELSE null END " +
+						"u.classes ELSE coalesce(u.classes, []) + s.externalId END " +
 						"RETURN DISTINCT u.id as id";
-		statementsBuilder.add(query, params);
-		neo4j.executeTransaction(statementsBuilder.build(), transactionId, commit.booleanValue(), new Handler<Message<JsonObject>>() {
-			@Override
-			public void handle(Message<JsonObject> event) {
+		final String structureQuery = "MATCH (c:Class {id:{classId}})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
+		neo4j.execute(structureQuery, new JsonObject().put("classId", classId), structRes -> {
+			final JsonArray sr = structRes.body().getJsonArray("result");
+			final String structureId = ("ok".equals(structRes.body().getString("status")) && sr != null && sr.size() > 0)
+					? sr.getJsonObject(0).getString("structureId") : null;
+			final TransactionHelper tx = new TransactionHelper(neo4j, Source.MANUAL, transactionId);
+			tx.add(query, params);
+			if (structureId != null) {
+				org.entcore.common.schema.structures.Structure.attach(tx, userId, structureId);
+			}
+			final Handler<Message<JsonObject>> replyHandler = event -> {
 				final JsonArray results = event.body().getJsonArray("results");
 				if ("ok".equals(event.body().getString("status")) && results != null && results.size() > 0) {
 					message.reply(event.body().put("result", results.getJsonArray(0)));
 				} else {
 					message.reply(event.body());
 				}
+			};
+			if (Boolean.TRUE.equals(commit)) {
+				tx.commit(replyHandler);
+			} else {
+				tx.flush(replyHandler);
 			}
 		});
 	}
 
 	private void addUsersInClass(final Message<JsonObject> message,
 								JsonArray userIds, String classId) {
-		StatementsBuilder statementsBuilder = new StatementsBuilder();
-		for(Object userId : userIds.getList()) {
-			JsonObject params = new JsonObject()
-					.put("classId", classId)
-					.put("userId", userId);
-			String query =
-					"MATCH (u:User { id : {userId}})-[:IN]->(opg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-							"WITH u, p " +
-							"MATCH (s:Class { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
-							"(pg:ProfileGroup)-[:HAS_PROFILE]->(p), (s)-[:BELONGS]->(struct:Structure) " +
-							"MERGE pg<-[:IN {source:'MANUAL'}]-u " +
-							"MERGE cpg<-[:IN {source:'MANUAL'}]-u " +
-							"SET u.classes = CASE WHEN s.externalId IN u.classes THEN " +
-							"u.classes ELSE coalesce(u.classes, []) + s.externalId END, " +
-							"u.structures = CASE WHEN struct.externalId IN u.structures THEN " +
-							"u.structures ELSE coalesce(u.structures, []) + struct.externalId END " +
-							"RETURN DISTINCT u.id as id";
-			statementsBuilder.add(query, params);
-		}
-		neo4j.executeTransaction(statementsBuilder.build(), null,true, res-> {
-				message.reply(res.body());
+		final String structureQuery = "MATCH (c:Class {id:{classId}})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
+		neo4j.execute(structureQuery, new JsonObject().put("classId", classId), structRes -> {
+			final JsonArray sr = structRes.body().getJsonArray("result");
+			final String structureId = ("ok".equals(structRes.body().getString("status")) && sr != null && sr.size() > 0)
+					? sr.getJsonObject(0).getString("structureId") : null;
+			final TransactionHelper tx = new TransactionHelper(neo4j, Source.MANUAL);
+			for (Object userId : userIds.getList()) {
+				String uid = userId.toString();
+				JsonObject params = new JsonObject()
+						.put("classId", classId)
+						.put("userId", uid);
+				String query =
+						"MATCH (u:User { id : {userId}})-[:IN]->(opg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+								"WITH u, p " +
+								"MATCH (s:Class { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
+								"(pg:ProfileGroup)-[:HAS_PROFILE]->(p) " +
+								"MERGE cpg<-[:IN {source:'MANUAL'}]-u " +
+								"SET u.classes = CASE WHEN s.externalId IN u.classes THEN " +
+								"u.classes ELSE coalesce(u.classes, []) + s.externalId END " +
+								"RETURN DISTINCT u.id as id";
+				tx.add(query, params);
+				if (structureId != null) {
+					org.entcore.common.schema.structures.Structure.attach(tx, uid, structureId);
+				}
+			}
+			tx.commit(res -> message.reply(res.body()));
 		});
 	}
 
@@ -1233,7 +1264,12 @@ public class ManualFeeder extends BusModBase {
 				@Override
 				public void handle(Structure struct)
 				{
-						struct.createHeadTeacherGroupIfAbsent(classExternalId);
+						if (struct.createHeadTeacherGroupIfAbsent(classExternalId) == null) {
+							// null in case we use an unauthorized source, as AAF1D
+							tx.rollback();
+							sendError(message, "head.teacher.unsupported.source");
+							return;
+						}
 						User.addHeadTeacherManual(userId, structureExternalId,classExternalId, tx);
 
 						tx.commit(new Handler<Message<JsonObject>>()
@@ -1266,7 +1302,12 @@ public class ManualFeeder extends BusModBase {
 				@Override
 				public void handle(Structure struct)
 				{
-						struct.createHeadTeacherGroupIfAbsent(classExternalId);
+						if (struct.createHeadTeacherGroupIfAbsent(classExternalId) == null) {
+							// null in case we use an unauthorized source, as AAF1D
+							tx.rollback();
+							sendError(message, "head.teacher.unsupported.source");
+							return;
+						}
 						User.updateHeadTeacherManual(userId, structureExternalId,classExternalId, tx);
 
 						tx.commit(new Handler<Message<JsonObject>>()
@@ -1596,4 +1637,5 @@ public class ManualFeeder extends BusModBase {
 
         executeTransaction(message, tx -> Group.updateManualGroupsByUserPositions(userPosition, tx));
     }
+
 }

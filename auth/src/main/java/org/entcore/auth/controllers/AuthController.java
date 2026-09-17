@@ -686,6 +686,7 @@ public class AuthController extends BaseController {
 		final JsonArray mfaConfig = new JsonArray();
 		if( Mfa.withSms() ) mfaConfig.add(Mfa.TYPE_SMS);
 		if( Mfa.withEmail() ) mfaConfig.add(Mfa.TYPE_EMAIL);
+		if( Mfa.withTotp() ) mfaConfig.add(Mfa.TYPE_TOTP);
 		context.put("mfaConfig", mfaConfig);
 
 		renderJson(request, context);
@@ -1780,6 +1781,8 @@ public class AuthController extends BaseController {
 		userAuthAccount.generateResetCode(login, checkFederatedLogin, (Either<String, JsonObject> either) -> {
 			if (either.isRight()) {
 				renderJson(request, new JsonObject().put("renewalCode", either.right().getValue().getString("code")));
+			} else if ("federated.user.reset.code.error".equals(either.left().getValue())) {
+				conflict(request, either.left().getValue());
 			} else {
 				renderError(request);
 			}
@@ -2507,8 +2510,11 @@ public class AuthController extends BaseController {
 					}
 				}*/
 				mfaState.remove("valid");
+				final String mfaType = mfaState.containsKey("type")
+					? mfaState.getString("type")
+					: (Mfa.withSms() ? Mfa.TYPE_SMS : Mfa.TYPE_EMAIL);
 				renderJson(request, new JsonObject()
-					.put("type", Mfa.withSms() ? Mfa.TYPE_SMS : Mfa.TYPE_EMAIL)
+					.put("type", mfaType)
 					.put("waitInSeconds", UserValidation.getDefaultWaitInSeconds())
 					.put("state", mfaState)
 				);
@@ -2700,5 +2706,27 @@ public class AuthController extends BaseController {
 			}
 		});
 
+	}
+
+	/**
+	 * Allows an admin to verify a TOTP code against a user's enrolled secret.
+	 * POST body: { "userId": "...", "code": "123456" }
+	 * Response: { "state": "valid" | "invalid" | "not.enrolled" }
+	 */
+	@Post("/user/totp/verify")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(AdminFilter.class)
+	public void verifyUserTotp(final HttpServerRequest request) {
+		RequestUtils.bodyToJson(request, payload -> {
+			final String userId = payload.getString("userId");
+			final String code = payload.getString("code");
+			if (userId == null || userId.trim().isEmpty() || code == null || code.trim().isEmpty()) {
+				badRequest(request);
+				return;
+			}
+			mfaSvc.verifyTotpForUser(userId, code)
+				.onSuccess(result -> renderJson(request, result))
+				.onFailure(e -> renderError(request, new JsonObject().put("error", e.getMessage())));
+		});
 	}
 }

@@ -9,12 +9,17 @@
     "ssl": true,
     "app-type" : "END_USER",
     "host": "https://{{ host }}",
-    "neo4jPlugin": true,
+    "neo4jPlugin": {{workspaceNeo4jPlugin | default('true')}},
     "userbook-host": "https://{{ host }}",
     "app-name": "Espace documentaire",
     "app-address": "/workspace/workspace",
     "app-icon": "workspace-large",
     "port": 8011,
+    "probes": [
+      "org.entcore.common.http.health.Neo4jProbe",
+      "org.entcore.common.http.health.MongoProbe",
+      "org.entcore.common.http.health.RedisProbe"
+    ],
     "old-query": {{ workspaceUseOldQuery | default('false') }},
     "fileAnalyzer": {
       "enabled": {{ fileAnalyzerOn | default('true') }},
@@ -36,14 +41,25 @@
     {% if scratchUrl is defined %} "enable-scratch": true,{% endif %}
     {% if loolProvider is defined or loolProviders is defined %}"enable-lool": true,{% endif %}
     {% if workspaceEnableGeogebra is defined and workspaceEnableGeogebra %}"enable-geogebra": true,{% endif %}
-    {% if nextcloudHost is defined or nextcloudProviders is defined %}
+    {% if workspaceEnableNextCloud is defined and workspaceEnableNextCloud %}
       "enable-nextcloud": true,
       "use-nextcloud-sniplet": {{ nextcloudSniplet | default('false') }},
     {% endif %}
+      {% if googleVersion is defined and (googleDomain is defined or googleProviders is defined) %}"enable-google-drive": true,{% endif %}
     "searching-event": {{ workspaceSearchingEvent | default('true') }},
+    {% if s3 is defined and 'storage' in s3 and s3['storage'] %}
+      "export-path": "{{ archiveExportPath | default('/srv/vertx/tmp_storage/export') }}",
+    {% else %}
+      "export-path": "{{ archiveExportPath | default('/srv/storage/exports') }}",
+    {% endif %}
     "publicConf": {
       "lazy-mode": {{ workspaceLazyMode | default('true') }},
-      {% if nextcloudHost is defined or nextcloudProviders is defined %}"folder-service": ["nextcloud"],{% endif %}
+      {% if nextcloudVersion is defined and (nextcloudHost is defined or nextcloudProviders is defined) and googleVersion is defined and (googleDomain is defined or googleProviders is defined) %}
+        "folder-service": ["nextcloud","google-drive"],
+      {% else %}
+        {% if nextcloudVersion is defined and (nextcloudHost is defined or nextcloudProviders is defined) %}"folder-service": ["nextcloud"],{% endif %}
+        {% if googleVersion is defined and (googleDomain is defined or googleProviders is defined) %}"folder-service": ["google-drive"],{% endif %}
+      {% endif %}
       "ttl-documents":{{ workspaceTtlDoc | default('180') }},
       "ttl-folders":{{ workspaceTtlFolder | default('600') }}
     }

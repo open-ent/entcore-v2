@@ -510,7 +510,7 @@ public class WorkspaceController extends BaseController {
 										// Add push notification for folder contribution
 										final JsonObject pushNotif = new JsonObject();
 										pushNotif.put("title", "push.notif.folder.contrib");
-										final String translation = I18n.getInstance().translate(
+										final String translation = I18n.getInstance().translate("timeline." +
 											WorkspaceService.WORKSPACE_NAME.toLowerCase() + ".contrib.folder",
 											getHost(request), I18n.acceptLanguage(request));
 										final String i18nPushNotifBody = user.getUsername() + " " + translation + " : " + resourceName;
@@ -1908,6 +1908,7 @@ public class WorkspaceController extends BaseController {
 		context.put("enableScratch", config.getBoolean("enable-scratch", false));
 		context.put("enableGeogebra", config.getBoolean("enable-geogebra", false));
 		context.put("enableNextcloud", config.getBoolean("enable-nextcloud", false));
+		context.put("useNextcloudSniplet", config.getBoolean("use-nextcloud-sniplet", true));
 		context.put("lazyMode", config.getJsonObject("publicConf", new JsonObject()).getBoolean("lazy-mode", false));
 		context.put("cacheDocTTl", config.getJsonObject("publicConf", new JsonObject()).getInteger("ttl-documents", -1));
 		context.put("cacheFolderTtl", config.getJsonObject("publicConf", new JsonObject()).getInteger("ttl-folders", -1));

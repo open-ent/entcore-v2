@@ -38,6 +38,14 @@ jobs:
           server-password: GITHUB_TOKEN
 
       - name: Configure Maven pour GitHub Packages
+        # Deux dépôts de dépendances sont nécessaires depuis la 6.16 :
+        #   - github     : fr.openent:app-parent (le parent du pom, publié depuis ce dépôt) ;
+        #   - pt-releases: org.entcore:common / session / broker, qui ne font plus partie
+        #                  d'entcore depuis que l'amont les a extraits (6.16, #SRE-5075). Notre
+        #                  fork patché de ces libs (open-ent/edifice-entcore-libs) publie sur
+        #                  rct-nexus et NON sur GitHub Packages : ces noms de packages y sont
+        #                  déjà réservés par entcore-v2 pour la 6.14.9-patched, et GitHub
+        #                  Packages n'autorise qu'un seul dépôt propriétaire par package.
         run: |
           mkdir -p ~/.m2
           cat > ~/.m2/settings.xml << EOF
@@ -47,6 +55,11 @@ jobs:
                 <id>github</id>
                 <username>$GITHUB_ACTOR</username>
                 <password>$GITHUB_TOKEN</password>
+              </server>
+              <server>
+                <id>pt-releases</id>
+                <username>$NEXUS_USER</username>
+                <password>$NEXUS_PASSWORD</password>
               </server>
             </servers>
             <profiles>
@@ -60,6 +73,13 @@ jobs:
                     <releases><enabled>true</enabled></releases>
                     <snapshots><enabled>true</enabled></snapshots>
                   </repository>
+                  <repository>
+                    <id>pt-releases</id>
+                    <name>rct-nexus maven-releases (entcore-libs patchées)</name>
+                    <url>https://rct-nexus.tech.fr/repository/maven-releases/</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>false</enabled></snapshots>
+                  </repository>
                 </repositories>
               </profile>
             </profiles>
@@ -71,6 +91,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
+          NEXUS_USER: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
       - name: Resolve revision
         run: |

@@ -9,12 +9,18 @@
     "auto-redeploy": false,
     "app-type" : "END_USER",
     "host": "https://{{ host }}",
+    "probes": [
+      "org.entcore.common.http.health.Neo4jProbe",
+      "org.entcore.common.http.health.MongoProbe",
+      "org.entcore.common.http.health.RedisProbe"
+    ],
     "mass-messaging-enabled": {{ adminMassMessagingEnabled | default('false') }},
-    {% if hotjarId is defined %}
-      "publicConf": {
-        "hotjarId": {{ hotjarId }}
-      },
-    {% endif %}
+    "publicConf": {
+      {% if hotjarId is defined %}
+        "hotjarId": {{ hotjarId }},
+      {% endif %}
+      "screeb-app-id": "{{ screebAppId | default('') }}"
+    },
     {% if adminDistributions is defined %}
       "distributions": {{ adminDistributions }},
     {% endif %}

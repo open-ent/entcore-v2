@@ -1,0 +1,12 @@
+/*
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ This is a starter file and can be deleted.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+
+.pagelayout-sidebar-close-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}

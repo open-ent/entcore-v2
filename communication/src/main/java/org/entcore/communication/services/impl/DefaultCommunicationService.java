@@ -26,10 +26,10 @@ import io.vertx.core.*;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.impl.logging.Logger;
+import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.logging.Logger;
-import io.vertx.core.logging.LoggerFactory;
 import org.entcore.common.conversation.LegacySearchVisibleRequest;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.neo4j.StatementsBuilder;
@@ -60,12 +60,98 @@ public class DefaultCommunicationService implements CommunicationService {
 	final JsonArray discoverVisibleExpectedProfile = new JsonArray();
 	private final String visiblesSearchType;
 	private final EventBus eventBus;
+	private final JsonObject defaultRules;
 
 	public DefaultCommunicationService(final Vertx vertx, final TimelineHelper notifyTimeline, final JsonObject config) {
 		this.notifyTimeline = notifyTimeline;
 		this.discoverVisibleExpectedProfile.addAll(config.getJsonArray("discoverVisibleExpectedProfile", new JsonArray()));
 		this.visiblesSearchType = config.getString("visibles-search-type", "light");
 		this.eventBus = vertx.eventBus();
+		this.defaultRules = config.getJsonObject("initDefaultCommunicationRules");
+	}
+
+	@Override
+	public void resetRules(String structureId, Handler<Either<String, JsonObject>> eitherHandler) {
+		log.warn("Reset communication rules for structure " + structureId);
+
+		List<StatementsBuilder> statements = Lists.newLinkedList();
+		StatementsBuilder builder = new StatementsBuilder();
+		JsonObject params = new JsonObject();
+
+		params.put("structureId", structureId);
+		//remove communiqueWith to apply default configuration
+		String query =  " MATCH(s:Structure {id: {structureId}})<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(pg:Group) " +
+							"	WHERE NOT(pg:ManualGroup) and has(pg.communiqueWith) " +
+							"  REMOVE pg.communiqueWith ";
+		builder.add(query, params);
+
+		query = " MATCH(s:Structure {id: {structureId}})<-[:DEPENDS]-(pg:Group) " +
+						" WHERE NOT(pg:ManualGroup) AND has(pg.communiqueWith) " +
+					    " REMOVE pg.communiqueWith ";
+		builder.add(query, params);
+		//remove link between group
+		query = "MATCH(s:Structure {id: {structureId}})<-[:BELONGS]-(:Class)<-[:DEPENDS]-(g:Group)-[c:COMMUNIQUE]->(g2:Group) "
+				+ " WHERE NOT(g:ManualGroup) " +
+				" DELETE c";
+		builder.add(query, params);
+		query = "MATCH(s:Structure {id: {structureId}})<-[:DEPENDS]-(g:Group)-[c:COMMUNIQUE]->(g2:Group) "
+				+ " WHERE NOT(g:ManualGroup) " +
+				" DELETE c";
+		builder.add(query, params);
+		//remove incoming communication from an external group
+		query = "MATCH (s:Structure  {id: {structureId}})<-[:BELONGS]-(cla:Class)<-[:DEPENDS]-(g:Group)<-[c:COMMUNIQUE]-(g2:Group) where NOT(g:ManualGroup) " +
+				"    AND g.id IN g2.communiqueWith SET g2.communiqueWith = [x IN g2.communiqueWith WHERE x <> g.id] DELETE c";
+		builder.add(query, params);
+
+		query = "MATCH (s:Structure  {id: {structureId}})<-[:DEPENDS]-(g:Group)<-[c:COMMUNIQUE]-(g2:Group) where NOT(g:ManualGroup) " +
+				"    AND g.id IN g2.communiqueWith SET g2.communiqueWith = [x IN g2.communiqueWith WHERE x <> g.id] DELETE c";
+		builder.add(query, params);
+
+		statements.add(builder);
+
+		JsonArray structureIds = new JsonArray(Lists.newArrayList(structureId));
+		//apply default communiqueWith
+		statements.addAll(getStatementsForDefaultRules(structureIds, defaultRules));
+		//apply communique relation
+		statements.add(getApplyDefaultRulesStatements(structureIds));
+
+		StatementsBuilder allStatements = statements.stream().reduce(new StatementsBuilder(), StatementsBuilder::add);
+		neo4j.executeTransaction(allStatements.build(), null, true, validUniqueResultHandler(eitherHandler) );
+	}
+
+	@Override
+	public void setDirectCommunication(String startUser, String endUser, Direction directionEnum, Handler<Either<String, JsonObject>> eitherHandler) {
+		log.warn(String.format("Set direct communication between %s and %s ", startUser, endUser));
+
+		List<StatementsBuilder> statements = Lists.newLinkedList();
+		StatementsBuilder builder = new StatementsBuilder();
+		JsonObject params = new JsonObject();
+
+		params.put("startUser", startUser);
+		params.put("endUser", endUser);
+
+		//remove communiqueWith to apply default configuration
+		String query =  " MATCH (startUser:User {id: {startUser}})-[r:COMMUNIQUE_DIRECT]-(endUser:User {id: {endUser}}) " +
+						" DELETE r ";
+		builder.add(query, params);
+
+		String createRelationship;
+		switch (directionEnum) {
+			case INCOMING:
+				createRelationship = " startUser<-[:COMMUNIQUE_DIRECT]-endUser ";
+				break;
+			case OUTGOING:
+				createRelationship = " startUser-[:COMMUNIQUE_DIRECT]->endUser ";
+				break;
+			default:
+				createRelationship = " startUser<-[:COMMUNIQUE_DIRECT]-endUser, startUser-[:COMMUNIQUE_DIRECT]->endUser ";
+		}
+
+		query = " MATCH (startUser:User {id: {startUser}}), (endUser:User {id: {endUser}}) " +
+				" CREATE UNIQUE " + createRelationship;
+		builder.add(query, params);
+
+		neo4j.executeTransaction(builder.build(), null, true, validUniqueResultHandler(eitherHandler) );
 	}
 
 	@Override
@@ -348,9 +434,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		neo4j.execute(query, params, validUniqueResultHandler(handler));
 	}
 
-	@Override
-	public void initDefaultRules(JsonArray structureIds, JsonObject defaultRules, final Integer transactionId,
-								 final Boolean commit, final Handler<Either<String, JsonObject>> handler) {
+	private List<StatementsBuilder> getStatementsForDefaultRules(JsonArray structureIds, JsonObject defaultRules) {
 		final StatementsBuilder s1 = new StatementsBuilder();
 		final StatementsBuilder s2 = new StatementsBuilder();
 		final StatementsBuilder s3 = new StatementsBuilder();
@@ -379,19 +463,27 @@ public class DefaultCommunicationService implements CommunicationService {
 						"SET ag.users = 'BOTH' "
 		);
 		for (String attr : defaultRules.fieldNames()) {
-			initDefaultRules(structureIds, attr, defaultRules.getJsonObject(attr), s1, s2);
+			getStatementsForDefaultRules(structureIds, attr, defaultRules.getJsonObject(attr), s1, s2);
 		}
-		neo4j.executeTransaction(s1.build(), transactionId, false, new Handler<Message<JsonObject>>() {
+		return Lists.newArrayList(s1, s2, s3);
+	}
+
+	@Override
+	public void initDefaultRules(JsonArray structureIds, JsonObject defaultRules, final Integer transactionId,
+								 final Boolean commit, final Handler<Either<String, JsonObject>> handler) {
+		List<StatementsBuilder> statementsBuilderList = getStatementsForDefaultRules(structureIds, defaultRules);
+
+		neo4j.executeTransaction(statementsBuilderList.get(0).build(), transactionId, false, new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> event) {
 				if ("ok".equals(event.body().getString("status"))) {
 					Integer transactionId = event.body().getInteger("transactionId");
-					neo4j.executeTransaction(s2.build(), transactionId, false, new Handler<Message<JsonObject>>() {
+					neo4j.executeTransaction(statementsBuilderList.get(1).build(), transactionId, false, new Handler<Message<JsonObject>>() {
 						@Override
 						public void handle(Message<JsonObject> event) {
 							if ("ok".equals(event.body().getString("status"))) {
 								Integer transactionId = event.body().getInteger("transactionId");
-								neo4j.executeTransaction(s3.build(), transactionId, commit.booleanValue(),
+								neo4j.executeTransaction(statementsBuilderList.get(2).build(), transactionId, commit.booleanValue(),
 										new Handler<Message<JsonObject>>() {
 											@Override
 											public void handle(Message<JsonObject> message) {
@@ -426,8 +518,8 @@ public class DefaultCommunicationService implements CommunicationService {
 		initDefaultRules(structureIds, defaultRules, null, true, handler);
 	}
 
-	private void initDefaultRules(JsonArray structureIds, String attr, JsonObject defaultRules,
-								  final StatementsBuilder existingGroups, final StatementsBuilder newGroups) {
+	private void getStatementsForDefaultRules(JsonArray structureIds, String attr, JsonObject defaultRules,
+											  final StatementsBuilder existingGroups, final StatementsBuilder newGroups) {
 		final String[] a = attr.split("\\-");
 		final String c = "Class".equals(a[0]) ? "*2" : "";
 		String relativeStudent = defaultRules.getString("Relative-Student"); // TODO check type in enum
@@ -477,11 +569,17 @@ public class DefaultCommunicationService implements CommunicationService {
 					groupLabelSB.append(" OR g:HTGroup");
 				} else if ("Direction".equals(s[1])) {
 					groupLabelSB.append(" OR g:DirectionGroup");
+				} else if ("Functional".equals(s[1])) {
+					groupLabelSB.append(" OR g:FunctionalGroup");
 				}
 				structures.add(s[1]);
 			}
 		}
 		final String groupLabel = groupLabelSB.toString();
+		// FunctionalGroup can only be filtered on their label
+		final String structureGroups = groupLabel.contains("g:FunctionalGroup")
+				? "(g.name =~ {%s} OR g:FunctionalGroup)"
+				: "g.name =~ {%s}";
 		JsonObject params = new JsonObject()
 				.put("structures", structureIds)
 				.put("profile", "^.*?" + a[1] + "$");
@@ -504,7 +602,7 @@ public class DefaultCommunicationService implements CommunicationService {
 				query2 +=
 						"WITH DISTINCT s, cg " +
 								"MATCH s<-[:DEPENDS]-(g) " +
-								"WHERE (" + groupLabel + ") AND g.name =~ {structureProfile} " +
+								"WHERE (" + groupLabel + ") AND " + String.format(structureGroups, "structureProfile") + " " +
 								"SET cg.communiqueWith = coalesce(cg.communiqueWith, []) + g.id ";
 			}
 			JsonObject p = params.copy();
@@ -514,15 +612,16 @@ public class DefaultCommunicationService implements CommunicationService {
 			newGroups.add(query2, p);
 		}
 		if (!structures.isEmpty() && "Structure".equals(a[0])) {
+			final String groupsFilter = String.format(structureGroups, "otherProfile");
 			String query =
 					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup), s<-[:DEPENDS]-(g) " +
 					"WHERE s.id IN {structures} AND HAS(cg.communiqueWith) AND cg.name =~ {profile} " +
-					"AND  (" + groupLabel + ") AND NOT(HAS(g.communiqueWith)) AND g.name =~ {otherProfile} " +
+					"AND  (" + groupLabel + ") AND NOT(HAS(g.communiqueWith)) AND " + groupsFilter + " " +
 					"SET cg.communiqueWith = FILTER(gId IN cg.communiqueWith WHERE gId <> g.id) + g.id ";
 			String query2 =
 					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup), s<-[:DEPENDS]-(g) " +
 							"WHERE s.id IN {structures} AND NOT(HAS(cg.communiqueWith)) AND cg.name =~ {profile} " +
-							"AND (" + groupLabel + ") AND g.name =~ {otherProfile} " +
+							"AND (" + groupLabel + ") AND " + groupsFilter + " " +
 							"SET cg.communiqueWith = coalesce(cg.communiqueWith, []) + g.id ";
 			params.put("otherProfile", "^.*?(" + Joiner.on("|").join(structures) + ")$");
 			existingGroups.add(query, params);
@@ -530,9 +629,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		}
 	}
 
-	@Override
-	public void applyDefaultRules(JsonArray structureIds, final Integer transactionId, final Boolean commit,
-								  Handler<Either<String, JsonObject>> handler) {
+	private StatementsBuilder getApplyDefaultRulesStatements(JsonArray structureIds) {
 		StatementsBuilder s = new StatementsBuilder();
 		JsonObject params = new JsonObject().put("structures", structureIds);
 		String query =
@@ -579,6 +676,13 @@ public class DefaultCommunicationService implements CommunicationService {
 						"WITH DISTINCT v " +
 						"SET v:Visible ";
 		s.add(setVisible2, params);
+		return s;
+	}
+
+	@Override
+	public void applyDefaultRules(JsonArray structureIds, final Integer transactionId, final Boolean commit,
+								  Handler<Either<String, JsonObject>> handler) {
+		StatementsBuilder s = getApplyDefaultRulesStatements(structureIds);
 		neo4j.executeTransaction(s.build(), transactionId, commit.booleanValue(), event -> {
 			if ("ok".equals(event.body().getString("status"))) {
 				handler.handle(new Either.Right<>(event.body()));
@@ -1653,7 +1757,7 @@ public class DefaultCommunicationService implements CommunicationService {
 	}
 
 	@Override
-	public Future<JsonArray> searchVisibles(UserInfos user, String search, String mode, String language) {
+	public Future<JsonArray> searchVisibles(UserInfos user, String search, String mode, String language, boolean includeHidden) {
 		final Future<JsonArray> visibles;
 		final String modeType = !StringUtils.isEmpty(mode) ? mode : this.visiblesSearchType;
 
@@ -1662,16 +1766,16 @@ public class DefaultCommunicationService implements CommunicationService {
 				visibles = legacySearchVisible(user, search, language);
 				break;
 			case "complete":
-				visibles = searchVisibleContacts(user, search, language);
+				visibles = searchVisibleContacts(user, search, language, includeHidden);
 				break;
 			case "optimized":
-				visibles = searchVisibleContactsOptimized(user, search, language);
+				visibles = searchVisibleContactsOptimized(user, search, language, includeHidden);
 				break;
 			case "excludeFamily":
-				visibles = searchVisibleContactsExcludeFamily(user, search, language);
+				visibles = searchVisibleContactsExcludeFamily(user, search, language, includeHidden);
 				break;
 			default:
-				visibles = searchVisibleContactsLight(user, search, language);
+				visibles = searchVisibleContactsLight(user, search, language, includeHidden);
 		}
 		return visibles;
 	}
@@ -1753,6 +1857,10 @@ public class DefaultCommunicationService implements CommunicationService {
 	}
 
 	public Future<JsonArray> searchVisibleContacts(UserInfos user, String search, String language) {
+		return searchVisibleContacts(user, search, language, false);
+	}
+
+	public Future<JsonArray> searchVisibleContacts(UserInfos user, String search, String language, boolean includeHidden) {
 		final Promise<JsonArray> promise = Promise.promise();
 		String match = "MATCH (visibles) " +
 
@@ -1784,6 +1892,9 @@ public class DefaultCommunicationService implements CommunicationService {
 
 		String preFilter = "";
 		JsonObject params = new JsonObject();
+		if (includeHidden) {
+			params.put("includeHidden", true);
+		}
 
 		if (!StringUtils.isEmpty(search)) {
 			preFilter = "AND (m:Group OR m.displayNameSearchField CONTAINS {search}) ";
@@ -1875,6 +1986,10 @@ public class DefaultCommunicationService implements CommunicationService {
 	}
 
 	public Future<JsonArray> searchVisibleContactsLight(UserInfos user, String search, String language) {
+		return searchVisibleContactsLight(user, search, language, false);
+	}
+
+	public Future<JsonArray> searchVisibleContactsLight(UserInfos user, String search, String language, boolean includeHidden) {
 		final Promise<JsonArray> promise = Promise.promise();
 		String match = "MATCH (visibles) " +
 
@@ -1889,6 +2004,9 @@ public class DefaultCommunicationService implements CommunicationService {
 
 		String preFilter = "";
 		JsonObject params = new JsonObject();
+		if (includeHidden) {
+			params.put("includeHidden", true);
+		}
 
 		if (!StringUtils.isEmpty(search)) {
 			preFilter = "AND (m:Group OR m.displayNameSearchField CONTAINS {search}) ";
@@ -1959,6 +2077,10 @@ public class DefaultCommunicationService implements CommunicationService {
 	}
 
 	public Future<JsonArray> searchVisibleContactsExcludeFamily(UserInfos user, String search, String language) {
+		return searchVisibleContactsExcludeFamily(user, search, language, false);
+	}
+
+	public Future<JsonArray> searchVisibleContactsExcludeFamily(UserInfos user, String search, String language, boolean includeHidden) {
 		final Promise<JsonArray> promise = Promise.promise();
 		String match = "MATCH (visibles) " +
 				"WITH visibles ";
@@ -1966,6 +2088,9 @@ public class DefaultCommunicationService implements CommunicationService {
 		String preFilter = "";
 
 		JsonObject params = new JsonObject();
+		if (includeHidden) {
+			params.put("includeHidden", true);
+		}
 		if (!StringUtils.isEmpty(search)) {
 			preFilter += "AND (m:Group OR m.displayNameSearchField CONTAINS {search}) ";
 			String sanitizedSearch = StringValidation.sanitize(search);
@@ -2042,6 +2167,10 @@ public class DefaultCommunicationService implements CommunicationService {
 
 
 	public Future<JsonArray> searchVisibleContactsOptimized(UserInfos user, String search, String language) {
+		return searchVisibleContactsOptimized(user, search, language, false);
+	}
+
+	public Future<JsonArray> searchVisibleContactsOptimized(UserInfos user, String search, String language, boolean includeHidden) {
 		final Promise<JsonArray> promise = Promise.promise();
 		String match = "MATCH (visibles) " +
 			"WITH visibles, HEAD(visibles.profiles) AS primaryProfile " +
@@ -2074,6 +2203,9 @@ public class DefaultCommunicationService implements CommunicationService {
 
 		String preFilter = "";
 		JsonObject params = new JsonObject();
+		if (includeHidden) {
+			params.put("includeHidden", true);
+		}
 
 		if (!StringUtils.isEmpty(search)) {
 			preFilter = "AND (m:Group OR m.displayNameSearchField CONTAINS {search}) ";

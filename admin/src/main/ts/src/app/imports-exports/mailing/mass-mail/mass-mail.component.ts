@@ -8,6 +8,7 @@ import { UserModel } from 'src/app/core/store/models/user.model';
 import { NotifyService } from '../../../core/services/notify.service';
 import { routing } from '../../../core/services/routing.service';
 import { UserlistFiltersService } from '../../../core/services/userlist.filters.service';
+import { Profile } from '../../import/user.model';
 import { MassMailService } from '../mass-mail.service';
 
 @Component({
@@ -30,6 +31,8 @@ export class MassMailComponent extends OdeComponent implements OnInit, OnDestroy
     inputFilters = {lastName: '', firstName: '', classesStr: ''};
     countUsers = 0;
     countUsersWithoutMail = 0;
+    countUsersInactiveAndFederated = 0;
+    federatedProfilesLabel = '';
     userOrder: string;
     structureId: string;
     show = false;
@@ -60,18 +63,26 @@ export class MassMailComponent extends OdeComponent implements OnInit, OnDestroy
         super(injector);
     }
 
+    get countUsersWithMail(): number {
+        return this.countUsers - this.countUsersWithoutMail;
+    }
+
     ngOnInit(): void {
         super.ngOnInit();
         this.subscriptions.add(routing.observe(this.route, 'data').subscribe(async (data: Data) => {
             if (data.structure) {
                 const structure: StructureModel = data.structure;
-                this.spinner.perform('portal-content', MassMailService.getUsers(structure._id)
-                    .then((data) => {
-                        this.users = data;
+                this.spinner.perform('portal-content', Promise.all([
+                        MassMailService.getUsers(structure._id),
+                        structure.syncAuthMode()
+                    ])
+                    .then(([users]) => {
+                        this.users = users;
                         this.structureId = structure._id;
                         this.dateFormat = Intl.DateTimeFormat(this.bundles.currentLanguage);
                         this.initFilters(structure);
                         this.filters = this.userlistFiltersService.getFormattedFilters();
+                        this.federatedProfilesLabel = this.getFederatedProfilesLabel(structure);
                         this.getFilteredUsers();
                         this.changeDetector.detectChanges();
                     }).catch(err => {
@@ -88,7 +99,13 @@ export class MassMailComponent extends OdeComponent implements OnInit, OnDestroy
         }));
     }
 
-
+    private getFederatedProfilesLabel(structure: StructureModel): string {
+        const authModes = structure.getAuthConfig().defaultAuthModes;
+        return (Object.keys(authModes) as Profile[])
+            .filter(profile => authModes[profile] === 'FEDERATED')
+            .map(profile => this.translate(profile))
+            .join(', ');
+    }
 
     private initFilters(structure: StructureModel): void {
         this.userlistFiltersService.resetFilters();
@@ -96,18 +113,26 @@ export class MassMailComponent extends OdeComponent implements OnInit, OnDestroy
         this.userlistFiltersService.setClassesComboModel(structure.classes);
         this.userlistFiltersService.setProfilesComboModel(structure.profiles.map(p => p.name));
     }
-
+    
     getFilteredUsers(): UserModel[] {
         const users = FilterPipe.prototype.transform(this.users, this.filters) || [];
         this.countUsers = 0;
         this.countUsersWithoutMail = 0;
+        this.countUsersInactiveAndFederated = 0;
+        const visibleUsers: UserModel[] = [];
         users.forEach(user => {
+            const isUserInactive = !(!user.code || user.code.length === 0);
+            if (user.hasFederatedIdentity && isUserInactive) {
+                this.countUsersInactiveAndFederated++;
+                return;
+            }
+            visibleUsers.push(user);
             this.countUsers++;
             if (!user.email) {
                 this.countUsersWithoutMail++;
             }
         });
-        return users;
+        return visibleUsers;
     }
 
     async processMassMail(type: string): Promise<void> {

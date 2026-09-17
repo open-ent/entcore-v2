@@ -1,5 +1,5 @@
-import {Model} from 'entcore-toolkit';
-import {GroupModel} from '../../store/models/group.model';
+import { Model } from 'entcore-toolkit';
+import { GroupModel } from '../../store/models/group.model';
 import { StructureModel } from './structure.model';
 import { UserPosition } from './userPosition.model';
 
@@ -41,6 +41,9 @@ export class UserDetailsModel extends Model<UserDetailsModel> {
     address: string;
     homePhone: string;
     mobile?: string;
+    totp?: string;
+    hasTotp?: boolean;
+    hasFederatedIdentity: boolean = false;
     profiles: Array<String> = [];
     type?: Array<string>;
     functions?: Array<[string, Array<string>]>;
@@ -304,6 +307,10 @@ export class UserDetailsModel extends Model<UserDetailsModel> {
 
     updateMobile() {
         return this.http.put(`/directory/user/${this.id}`, {mobile: this.mobile});
+    }
+
+    updateTotp() {
+        return this.http.put(`/directory/user/${this.id}`, {totp: this.totp});
     }
 
     updateLogin() {

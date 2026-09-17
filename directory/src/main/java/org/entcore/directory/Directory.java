@@ -29,11 +29,6 @@ import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Map;
-
 import org.apache.commons.lang3.tuple.Pair;
 import org.entcore.broker.api.utils.BrokerProxyUtils;
 import org.entcore.common.bus.WorkspaceHelper;
@@ -60,6 +55,10 @@ import org.entcore.directory.services.*;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.directory.services.StructureBrandingService;
 import org.entcore.directory.services.impl.*;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Map;
 
 public class Directory extends BaseServer {
 
@@ -168,6 +167,7 @@ public class Directory extends BaseServer {
 		userBookController.setUserBookService(userBookService);
 		userBookController.setUserPositionService(userPositionService);
 		userBookController.setConversationNotification(conversationNotification);
+		userBookController.setPreferenceService(new DefaultPreferenceService(new DefaultPreferenceCacheService(eb)));
 		addController(userBookController);
 
 		final String assetPath = config.getString("assetPath") != null
@@ -243,6 +243,9 @@ public class Directory extends BaseServer {
 		UserPositionController userPositionController = new UserPositionController(userPositionService);
 		addController(userPositionController);
 
+		// TaskController is used by directory to expose specific tasks from the feeder to be triggered, like pre-delete users, import tasks...
+		addController(new TaskController());
+
         vertx.eventBus().consumer("user.repository",
                 new RepositoryHandler(new UserbookRepositoryEvents(userBookService), eb, storageFactory.getStorage()));
 
@@ -285,7 +288,7 @@ public class Directory extends BaseServer {
 			addController(remoteUserController);
 		}
 		// add the directory broker listener
-		BrokerProxyUtils.addBrokerProxy(new DirectoryBrokerListenerImpl(vertx, userService), vertx);
+		BrokerProxyUtils.addBrokerProxy(new DirectoryBrokerListenerImpl(vertx, userService, schoolService, classService), vertx);
 		BrokerProxyUtils.addBrokerProxy(new LoadTestProxyImpl(vertx), vertx);
 		return Future.succeededFuture();
 	}

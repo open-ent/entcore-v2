@@ -7,7 +7,7 @@
     <parent>
         <groupId>fr.openent</groupId>
         <artifactId>app-parent</artifactId>
-        <version>1.2.0</version>
+        <version>1.2.1</version>
     </parent>
 
     <groupId>org.entcore</groupId>
@@ -41,7 +41,6 @@
         <module>audience</module>
         <module>auth</module>
         <module>cas</module>
-        <module>common</module>
         <module>communication</module>
         <module>conversation/backend</module>
         <module>directory</module>
@@ -49,21 +48,25 @@
         <module>infra</module>
         <module>interoperability</module>
         <module>portal/backend</module>
-        <module>session</module>
-        <module>test</module>
         <module>timeline</module>
         <module>workspace</module>
-        <module>broker-parent</module>
         <module>tests</module>
     </modules>
 
     <properties>
-        <revision>6.14.9-patched</revision>
+        <revision>6.16.10-patched</revision>
+        <!-- Fork patché des libs extraites d'entcore en 6.16 (open-ent/edifice-entcore-libs) :
+             il porte nos correctifs de common/, session/ et broker-parent/ (antivirus à
+             l'upload, seuil d'alerte de quota, horaires d'utilisation, suivi des sessions),
+             que la version amont 6.16.3 ne contient pas. -->
+        <entCoreLibsVersion>6.16.3-patched</entCoreLibsVersion>
         <junitVersion>4.13.2</junitVersion>
         <testContainerVersion>1.19.3</testContainerVersion>
-        <modPostgresVersion>2.1.1</modPostgresVersion>
-        <modMongoVersion>4.1.1</modMongoVersion>
-        <webUtilsVersion>3.3.2</webUtilsVersion>
+        <modPostgresVersion>2.2.1</modPostgresVersion>
+        <modMongoVersion>4.2.0</modMongoVersion>
+        <modSmsProxyVersion>2.2.0</modSmsProxyVersion>
+        <webUtilsVersion>3.4.3</webUtilsVersion>
+        <imageResizerVersion>3.3.1</imageResizerVersion>
         <mongodbHelperVersion>3.1.1</mongodbHelperVersion>
         <jodaTimeVersion>2.9.4</jodaTimeVersion>
         <scramVersion>2.1</scramVersion>
@@ -84,10 +87,17 @@
 
     <dependencies>
         <dependency>
-            <groupId>fr.wseduc</groupId>
-            <artifactId>web-utils</artifactId>
-            <version>${webUtilsVersion}</version>
+            <groupId>org.entcore</groupId>
+            <artifactId>common</artifactId>
+            <version>${entCoreLibsVersion}</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.entcore</groupId>
+            <artifactId>session</artifactId>
+            <version>${entCoreLibsVersion}</version>
+            <scope>runtime</scope>
+            <classifier>fat</classifier>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

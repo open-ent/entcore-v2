@@ -34,6 +34,8 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.file.FileSystem;
 import io.vertx.core.http.HttpServerResponse;
 
+import io.vertx.core.impl.logging.Logger;
+import io.vertx.core.impl.logging.LoggerFactory;
 import org.entcore.common.events.EventHelper;
 import org.entcore.common.events.EventStore;
 import org.entcore.common.events.EventStoreFactory;
@@ -96,8 +98,8 @@ import org.entcore.conversation.util.StudentMessagingExclusions;
 import fr.wseduc.security.ActionType;
 
 public class ConversationController extends BaseController {
+	
 	public static final String RESOURCE_NAME = "message";
-
 	private final static String QUOTA_BUS_ADDRESS = "org.entcore.workspace.quota";
 
 	private final Storage storage;
@@ -112,6 +114,8 @@ public class ConversationController extends BaseController {
 	private enum ConversationEvent {GET_RESOURCE, ACCESS }
 	private final String exportPath;
 	private MailToExercizer mailToExercizer;
+	
+	private static final Logger LOGGER =  LoggerFactory.getLogger(ConversationController.class);
 
 	public ConversationController(Storage storage, String exportPath) {
 		this.storage = storage;
@@ -467,18 +471,16 @@ public class ConversationController extends BaseController {
 							public void handle(JsonObject userDetails) {
 								message.mergeIn(userDetails);
 
-								conversationService.send(parentMessageId, id, message, user, new Handler<Either<String,JsonObject>>() {
-									public void handle(Either<String, JsonObject> event) {
-										if(event.isRight()){
-											for(Object recipient : message.getJsonArray("allUsers", new fr.wseduc.webutils.collections.JsonArray())){
-												if(recipient.toString().equals(user.getUserId()))
-													continue;
-												updateUserQuota(recipient.toString(), size.get());
-											}
-										}
-										result.handle(event);
-									}
-								});
+								conversationService.send(parentMessageId, id, message, user, event1 -> {
+                                    if(event1.isRight() && StringUtils.isEmpty(message.getString("scheduleAt"))){
+                                        for(Object recipient : message.getJsonArray("allUsers", new JsonArray())){
+                                            if(recipient.toString().equals(user.getUserId()))
+                                                continue;
+                                            updateUserQuota(recipient.toString(), size.get());
+                                        }
+                                    }
+                                    result.handle(event1);
+                                });
 							}
 						});
 					}
@@ -562,18 +564,24 @@ public class ConversationController extends BaseController {
 													if (event.isRight()) {
 														eventHelper.onCreateResource(request, RESOURCE_NAME);
 														JsonObject result = event.right().getValue();
-														JsonObject timelineParams = new JsonObject()
-															.put("subject", result.getString("subject"))
-															.put("body", StringUtils.stripHtmlTag(result.getString("body")))
-															.put("id", result.getString("id"))
-															.put("thread_id", result.getString("thread_id"))
-															.put("sentIds", message.getJsonArray("allUsers", new fr.wseduc.webutils.collections.JsonArray()));
-														timelineNotification(request, timelineParams, user);
+														// Garde reprise de l'amont 6.16 : pas de notification timeline pour un
+														// message porteur de scheduleAt (programmation côté amont), sinon le
+														// destinataire serait notifié avant la date d'envoi.
+														if (StringUtils.isEmpty(message.getString("scheduleAt"))) {
+															JsonObject timelineParams = new JsonObject()
+																.put("subject", result.getString("subject"))
+																.put("body", StringUtils.stripHtmlTag(result.getString("body")))
+																.put("id", result.getString("id"))
+																.put("thread_id", result.getString("thread_id"))
+																.put("sentIds", message.getJsonArray("allUsers", new fr.wseduc.webutils.collections.JsonArray()));
+															timelineNotification(request, timelineParams, user);
+														}
 														JsonArray inactive = message.getJsonArray("inactives", new JsonArray());
 														message.put("inactivesCount", inactive.size());
 														if (inactive.size() > inactiveUserThreshold) {
 															message.put("inactives", new JsonArray(inactive.stream().limit(inactiveUserThreshold).collect(Collectors.toList())));
 														}
+														LOGGER.info(String.format("[Conversation][send] User %s has successfully send message of id %s ", user.getUserId(), result.getString("id")));
 														renderJson(request, result
 															.put("inactive", message.getJsonArray("inactives", new fr.wseduc.webutils.collections.JsonArray()))
 															.put("undelivered", message.getJsonArray("undelivered", new fr.wseduc.webutils.collections.JsonArray()))
@@ -731,7 +739,7 @@ public class ConversationController extends BaseController {
 	}
 
 	private void timelineNotification(HttpServerRequest request, JsonObject sentMessage, UserInfos user) {
-		log.debug(sentMessage.encode());
+		LOGGER.debug(sentMessage.encode());
 		JsonArray r = sentMessage.getJsonArray("sentIds");
 		String id = sentMessage.getString("id");
 		String subject = sentMessage.getString("subject");
@@ -751,6 +759,9 @@ public class ConversationController extends BaseController {
 				.put("messageUri", pathPrefix + "/conversation#/read-mail/" + id);
 		params.put("resourceUri", params.getString("messageUri"));
 		params.put("pushNotif", new JsonObject().put("title", user.getUsername()).put("body", subject + "\n" + sentMessage.getString("body")));
+		if (sentMessage.getBoolean("disableAntiFlood", false)) {
+			params.put("disableAntiFlood", true);
+		}
 		List<String> recipients = new ArrayList<>();
 		String idTmp;
 		for (Object o : r) {
@@ -1772,7 +1783,7 @@ public class ConversationController extends BaseController {
 					@Override
 					public void handle(AsyncResult<Void> event) {
 						if (event.failed())
-							log.error("[Conversation] Error deleting  : " + path, event.cause());
+							LOGGER.error("[Conversation] Error deleting  : " + path, event.cause());
 					}
 				});
 			}
@@ -1786,7 +1797,7 @@ public class ConversationController extends BaseController {
 						@Override
 						public void handle(JsonObject event) {
 							if (!"ok".equals(event.getString("status"))) {
-								log.error("[Conversation] Can't write to zip directory : " + event.getString("message"));
+								LOGGER.error("[Conversation] Can't write to zip directory : " + event.getString("message"));
 								delete(zipDirectory);
 								badRequest(request);
 
@@ -1795,7 +1806,7 @@ public class ConversationController extends BaseController {
 									@Override
 									public void handle(Message<JsonObject> event) {
 										if (!"ok".equals(event.body().getString("status"))) {
-											log.error("[Conversation] Zip folder " + zipDirectory + " error : " + event.body().getString("message"));
+											LOGGER.error("[Conversation] Zip folder " + zipDirectory + " error : " + event.body().getString("message"));
 											delete(zipDirectory);
 											badRequest(request);
 										}else {
@@ -1805,7 +1816,7 @@ public class ConversationController extends BaseController {
 											resp.sendFile(zipfile, new Handler<AsyncResult<Void>>() {
 												public void handle(AsyncResult<Void> event) {
 													if(event.failed())
-														log.error("Error can't send  the file: ", event.cause());
+														LOGGER.error("Error can't send  the file: ", event.cause());
 													delete(zipfile);
 												}
 											});
@@ -2145,12 +2156,6 @@ public class ConversationController extends BaseController {
 						.put("cci", new JsonArray())
 						.put("noReply", true);
 
-				JsonObject action = new JsonObject()
-						.put("action", "send")
-						.put("userId", from)
-						.put("username", username)
-						.put("message", message);
-
 
 				final UserInfos user = new UserInfos();
 				user.setUserId(from);
@@ -2169,7 +2174,8 @@ public class ConversationController extends BaseController {
 													.put("subject", result.getString("subject"))
 													.put("id", result.getString("id"))
 													.put("thread_id", result.getString("thread_id"))
-													.put("sentIds", m.getJsonArray("allUsers", new fr.wseduc.webutils.collections.JsonArray()));
+													.put("sentIds", m.getJsonArray("allUsers", new fr.wseduc.webutils.collections.JsonArray()))
+													.put("disableAntiFlood", true);
 											timelineNotification(request, timelineParams, user);
 											JsonObject s = new JsonObject().put("status", "ok")
 													.put("result", new fr.wseduc.webutils.collections.JsonArray().add(new JsonObject()));

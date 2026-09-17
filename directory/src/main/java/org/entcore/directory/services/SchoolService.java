@@ -20,13 +20,12 @@
 package org.entcore.directory.services;
 
 import fr.wseduc.webutils.Either;
-
-import org.entcore.common.user.UserInfos;
-
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import org.entcore.common.user.UserInfos;
+import org.entcore.directory.pojo.structure.DefaultAuthModeConfig;
 
 import java.util.List;
 
@@ -101,7 +100,7 @@ public interface SchoolService {
 	void getStructureNameByUAI(JsonArray uais, Handler<Either<String, JsonArray>> handler);
 
 	void duplicateStructureSettings(String structureId, JsonArray targetUAIs, JsonObject options,
-									Handler<Either<String, JsonObject>> handler);
+	                                Handler<Either<String, JsonObject>> handler);
 
 	void checkGAR(JsonArray uais, Handler<Either<String, JsonArray>> handler);
 
@@ -109,4 +108,35 @@ public interface SchoolService {
 
     Future<JsonArray> listContacts(String structureId);
 
+    /**
+     * Retrieve structure quiet hours preferences (notificationTimezone + notificationQuietHours).
+     */
+    Future<JsonObject> getQuietHoursPreferences(String structureId);
+
+    /**
+     * Save structure-level quiet hours/timezone preferences.
+     */
+    Future<JsonObject> setQuietHoursPreferences(String structureId, JsonObject body);
+
+    /**
+     * Cascade structure quiet hours/timezone preferences to all users in the structure.
+     * Only updates users whose preferences are not managed by the user themselves (managedBy=USER).
+     */
+    Future<JsonObject> cascadeQuietHoursPreferences(String structureId);
+
+	/**
+	 * Add default autheentication method of the structure
+	 * @param user Current user
+	 * @param structureId target structure
+	 * @param config List of authentication method by profile
+	 * @return
+	 */
+    Future<Void> updateDefaultAuth(UserInfos user, String structureId, DefaultAuthModeConfig config);
+
+	/**
+	 * Get current authentication default method by structure
+	 * @param structureId
+	 * @return
+	 */
+	Future<DefaultAuthModeConfig> getDefaultAuth(String structureId);
 }

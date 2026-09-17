@@ -104,7 +104,9 @@ public class AudioRecorderHandler implements Handler<ServerWebSocket> {
 				final String id = path.replaceFirst("/audio/", "");
 				log.info("[Dictaphone] - Pausing n°: " + id+" / "+queries.getOrDefault("sampleRate", "44100"));
 				eb.request(AudioRecorderWorker.class.getSimpleName(),
-						new JsonObject().put("action", "open").put("id", id).put("sampleRate", queries.getOrDefault("sampleRate", "44100")), handlerToAsyncHandler(new Handler<Message<JsonObject>>() {
+						new JsonObject().put("action", "open").put("id", id).put("sampleRate", queries.getOrDefault("sampleRate", "44100")),
+						new DeliveryOptions().setLocalOnly(true),
+						handlerToAsyncHandler(new Handler<Message<JsonObject>>() {
 					@Override
 					public void handle(Message<JsonObject> m) {
 						if ("ok".equals(m.body().getString("status"))) {
@@ -115,7 +117,7 @@ public class AudioRecorderHandler implements Handler<ServerWebSocket> {
 										log.debug("frame handler");
 										eb.request(AudioRecorderWorker.class.getSimpleName() + id,
 												frame.binaryData().getBytes(),
-												new DeliveryOptions().setSendTimeout(TIMEOUT),
+												new DeliveryOptions().setSendTimeout(TIMEOUT).setLocalOnly(true),
 												new Handler<AsyncResult<Message<JsonObject>>>() {
 													@Override
 													public void handle(AsyncResult<Message<JsonObject>> ar) {
@@ -162,6 +164,7 @@ public class AudioRecorderHandler implements Handler<ServerWebSocket> {
 			message.put("name", name);
 		}
 		eb.request(AudioRecorderWorker.class.getSimpleName(), message,
+				new DeliveryOptions().setLocalOnly(true),
 				handlerToAsyncHandler(new Handler<Message<JsonObject>>() {
 
 					@Override
@@ -184,6 +187,7 @@ public class AudioRecorderHandler implements Handler<ServerWebSocket> {
 	private void cancel(String id, final ServerWebSocket ws) {
 		eb.request(AudioRecorderWorker.class.getSimpleName(),
 				new JsonObject().put("action", "cancel").put("id", id),
+				new DeliveryOptions().setLocalOnly(true),
 				handlerToAsyncHandler(new Handler<Message<JsonObject>>() {
 
 					@Override
@@ -205,6 +209,7 @@ public class AudioRecorderHandler implements Handler<ServerWebSocket> {
 	private void disableCompression(String id, final ServerWebSocket ws) {
 		eb.request(AudioRecorderWorker.class.getSimpleName(),
 				new JsonObject().put("action", "rawdata").put("id", id),
+				new DeliveryOptions().setLocalOnly(true),
 				handlerToAsyncHandler(new Handler<Message<JsonObject>>() {
 
 					@Override

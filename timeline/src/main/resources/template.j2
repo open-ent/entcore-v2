@@ -15,6 +15,12 @@
     "db-schema": "flashmsg",
     "auto-redeploy": false,
     "ssl": true,
+    "probes": [
+      "org.entcore.common.http.health.Neo4jProbe",
+      "org.entcore.common.http.health.MongoProbe",
+      "org.entcore.common.http.health.PostgresProbe",
+      "org.entcore.common.http.health.RedisProbe"
+    ],
     "maxRecipientLength": {{ timelineMaxRecipientLength | default(1000) }},
     {% if pushNotif is defined %}
       "push-notif": {{ pushNotif }},
@@ -28,7 +34,9 @@
       "weekly-mailing-cron": "{{ timelineWeeklyCron | default('0 30 7 ? * 1 *') }}",
     {% endif %}
     "mode": "prod",
+    "use-optimized" : {{ timelineUseOptimizedPeriodicMailer|default('true') }},
     "log-push-notifs": {{ timelineLogPushNotifs | default('false') }},
-    "remove-push-notifs-404-tokens": {{ timelinePushNotifs404 | default('true') }}
+    "remove-push-notifs-404-tokens": {{ timelinePushNotifs404 | default('true') }},
+    "specific-homepages-host": {{ timelineSpecificHomepagesHost | default('[]') }}
   }
 }

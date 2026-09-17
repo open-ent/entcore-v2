@@ -27,7 +27,9 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Promise;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.Message;
+import io.vertx.core.file.FileSystem;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.lang3.tuple.Pair;
@@ -40,6 +42,7 @@ import org.entcore.common.storage.Storage;
 import org.entcore.common.storage.StorageFactory;
 import org.entcore.common.user.position.impl.DefaultUserPositionService;
 import org.entcore.common.utils.StringUtils;
+import org.entcore.feeder.aaf.AAFFilesUploadRequest;
 import org.entcore.feeder.aaf.AafFeeder;
 import org.entcore.feeder.aaf1d.Aaf1dFeeder;
 import org.entcore.feeder.csv.CsvFeeder;
@@ -51,6 +54,7 @@ import org.entcore.feeder.dictionary.structures.Group;
 import org.entcore.feeder.dictionary.structures.Importer;
 import org.entcore.feeder.dictionary.structures.ImporterTask;
 import org.entcore.feeder.dictionary.structures.PostImport;
+import org.entcore.feeder.dictionary.structures.Structure;
 import org.entcore.feeder.dictionary.structures.Transition;
 import org.entcore.feeder.dictionary.structures.User;
 import org.entcore.feeder.export.Exporter;
@@ -78,11 +82,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
 
 import static fr.wseduc.webutils.Utils.*;
+import static io.vertx.core.Future.failedFuture;
+import static java.io.File.separator;
 import static org.entcore.common.utils.Config.defaultDeleteUserDelay;
 import static org.entcore.common.utils.Config.defaultPreDeleteUserDelay;
 import static org.entcore.feeder.csv.CsvReport.MAPPINGS;
+import static org.entcore.feeder.utils.Report.log;
 
 public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 
@@ -100,6 +108,10 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 	private PostImport postImport;
 	private final ConcurrentLinkedQueue<MessageReplyNotifier<JsonObject>> eventQueue = new ConcurrentLinkedQueue<>();
 	private Storage storage;
+	private TimelineHelper timeline;
+
+	private User.DeleteTask userDeleteTask;
+	private TimetableReport.EraseTask timetableReportEraseTask;
 
 	public enum FeederEvent {
 		IMPORT, DELETE_USER, CREATE_USER, MERGE_USER
@@ -135,6 +147,10 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		MongoDb.getInstance().init(vertx.eventBus(), node + "wse.mongodb.persistor");
 		TransactionManager.getInstance().setNeo4j(neo4j);
 		EventStoreFactory.getFactory().setVertx(vertx);
+		Structure.initHeadTeacherGroupPolicy(config.getJsonArray("no-head-teacher-group-sources",
+				Structure.DEFAULT_NO_HEAD_TEACHER_GROUP_SOURCES));
+		Importer.initExcludedStructureNamePolicy(config.getJsonArray("excluded-structure-name-prefixes",
+				Importer.DEFAULT_EXCLUDED_STRUCTURE_NAME_PREFIXES));
 		defaultFeed = config.getString("feeder", "AAF");
 		feeds.put("AAF", new AafFeeder(vertx, getFilesDirectory("AAF")));
 		feeds.put("AAF1D", new Aaf1dFeeder(vertx, getFilesDirectory("AAF1D")));
@@ -151,9 +167,15 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		final JsonObject imports = config.getJsonObject("imports");
 		final JsonObject preDelete = config.getJsonObject("pre-delete");
 		final Long deleteDelay = config.getLong("delete-delay", 240l); // To small platform default value to 300 and to big platform put value 900 in config
-		final TimelineHelper timeline = new TimelineHelper(vertx, eb, config);
+		timeline = new TimelineHelper(vertx, eb, config);
+
+		userDeleteTask = new User.DeleteTask(deleteUserDelay, eb, vertx, deleteDelay);
+		timetableReportEraseTask = new TimetableReport.EraseTask(storage, timetableReportEraseAfterSeconds);
+
 		try {
-			new CronTrigger(vertx, deleteCron).schedule(new User.DeleteTask(deleteUserDelay, eb, vertx, deleteDelay));
+			// Schedule pre-deleted user deletion task from cron expression
+			new CronTrigger(vertx, deleteCron).schedule(userDeleteTask);
+			// Pre-deletion
 			if (preDelete != null) {
 				if (preDelete.size() == ManualFeeder.profiles.size() &&
 						ManualFeeder.profiles.keySet().containsAll(preDelete.fieldNames())) {
@@ -168,6 +190,7 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 			} else {
 				new CronTrigger(vertx, preDeleteCron).schedule(new User.PreDeleteTask(preDeleteUserDelay, timeline));
 			}
+			// Imports
 			if (imports != null) {
 				if (feeds.keySet().containsAll(imports.fieldNames())) {
 					for (String f : imports.fieldNames()) {
@@ -185,34 +208,26 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 				new CronTrigger(vertx, importCron).schedule(new ImporterTask(vertx, defaultFeed,
 						config.getBoolean("auto-export", false), config.getLong("auto-export-delay", 1800000l)));
 			}
-
-			new CronTrigger(vertx, timetableReportEraseCron).schedule(new TimetableReport.EraseTask(storage, timetableReportEraseAfterSeconds));
+			// Erase timetable reports
+			new CronTrigger(vertx, timetableReportEraseCron).schedule(timetableReportEraseTask);
 		} catch (ParseException e) {
 			logger.fatal(e.getMessage(), e);
 			vertx.close();
 			return Future.failedFuture(e);
 		}
+		// Reinit login
 		final String reinitLoginCron = config.getString("reinit-login-cron", null);
 		Validator.initLogin(neo4j, vertx);
-		if(reinitLoginCron != null)
-		{
-			try
-			{
-				new CronTrigger(vertx, reinitLoginCron).schedule(new Handler<Long>()
-				{
-					@Override
-					public void handle(Long l)
-					{
-						if(Importer.getInstance().isReady())
-						{
-							logger.info("Reinit login cron");
-							Validator.initLogin(neo4j, vertx);
-						}
+		if(reinitLoginCron != null) {
+			try {
+				new CronTrigger(vertx, reinitLoginCron).schedule((Handler<Long>) l -> {
+					if(Importer.getInstance().isReady()) {
+						logger.info("Reinit login cron");
+						Validator.initLogin(neo4j, vertx);
 					}
 				});
 			}
-			catch (ParseException e)
-			{
+			catch (ParseException e) {
 				logger.fatal(e.getMessage(), e);
 			}
 		}
@@ -241,13 +256,10 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 						config.getString("pronote-partner-name", "NEO-Open"));
 
 				feeds.put("PRONOTE", new EDTFeederLauncher(edtUtils, config.getString("mode", "prod")));
-				setupImportCron(edt, new ImportsLauncher(vertx, storage, null, postImport, edtUtils, config.getBoolean("edt-user-creation", false), false));
 			}
 		}
 		final JsonObject udt = config.getJsonObject("udt");
 		if (udt != null) {
-			setupImportCron(udt, new ImportsLauncher(vertx, storage, null, postImport, edtUtils, config.getBoolean("udt-user-creation", false), false));
-
 			final JsonObject udtWebdav = udt.getJsonObject("webdav");
 			setupImportCron(udtWebdav, new UDTWebDAVImportsLauncher(vertx, storage, null, postImport, null, false, false));
 
@@ -268,6 +280,17 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		}
 		I18n.getInstance().init(vertx);
 		validatorFactory = new ValidatorFactory(vertx, storage);
+		if("true".equals(System.getenv("ALLOW_UPLOAD_AAF_FILES"))) {
+			log.warn("Starting upload aaf files ");
+			eb.localConsumer("feeder.upload-aaf", m -> {
+				final AAFFilesUploadRequest request = ((JsonObject) m.body()).mapTo(AAFFilesUploadRequest.class);
+				uploadAAFFiles(request)
+				.onSuccess(e -> m.reply(new JsonObject().put("success", true)))
+				.onFailure(th -> m.fail(500, th.getMessage()));
+			});
+		} else {
+			log.debug("No aaf files uploading is possible");
+		}
 		return Future.succeededFuture();
 	}
 
@@ -462,6 +485,12 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 				break;
 			case "import" : launchImport(message);
 				break;
+			case "import-with-auto-export" :
+				launchImportWithAutoExport(message);
+				break;
+			case "import-csv" :
+				launchImportCsv(message);
+				break;
 			case "importWithId" : importWithId(message);
 				break;
 			case "export" : launchExport(message);
@@ -473,6 +502,13 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 			case "columnsMapping" : csvColumnMapping(message);
 				break;
 			case "classesMapping" : csvClassesMapping(message);
+				break;
+			case "delete-users" :
+				userDeleteTask.handle(0L);
+				message.reply(new JsonObject().put("status", "ok"));
+				break;
+			case "pre-delete-users" :
+				preDeleteUsers(message);
 				break;
 			case "ignore-duplicate" :
 				duplicateUsers.ignoreDuplicate(message);
@@ -503,6 +539,10 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 				break;
 			case "check-duplicates" :
 				duplicateUsers.checkDuplicatesIntegrity(message);
+				break;
+			case "erase-timetable-reports" :
+				timetableReportEraseTask.handle(0L);
+				message.reply(new JsonObject().put("status", "ok"));
 				break;
 			case "manual-init-timetable-structure" :
 				AbstractTimetableImporter.initStructure(eb, message);
@@ -544,13 +584,11 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		v.classesMapping(path, new Handler<JsonObject>() {
 			@Override
 			public void handle(JsonObject event) {
+				JsonObject result = new JsonObject().put("result", v.getResult());
 				if (!v.containsErrors()) {
-					JsonObject result = new JsonObject().put("result", v.getResult());
 					result.getJsonObject("result").remove("errors");
-					sendOK(message, result);
-				} else {
-					sendError(message, "classes.mapping.error");
 				}
+				sendOK(message, result);
 			}
 		});
 	}
@@ -810,6 +848,37 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		}
 	}
 
+	private void launchImportWithAutoExport(final Message<JsonObject> message) {
+		String feederType = message.body().getString("feeder");
+		Boolean autoExport = message.body().getBoolean("auto-export", false);
+		Long autoExportDelay = message.body().getLong("auto-export-delay", 1800000l);
+		if (feeds.containsKey(feederType)) {
+			ImporterTask importerTask = new ImporterTask(vertx, feederType, autoExport, autoExportDelay);
+			importerTask.handle(0L);
+			message.reply(new JsonObject().put("status", "ok"));
+		} else {
+			String errorMessage = "Invalid feeder type: " + feederType;
+			logger.error(errorMessage);
+			message.fail(400, errorMessage);
+		}
+	}
+
+	private void launchImportCsv(final Message<JsonObject> message) {
+		String csvPath = message.body().getString("path");
+		JsonObject config = message.body().getJsonObject("config");
+		CsvImportsLauncher csvImportsLauncher = new CsvImportsLauncher(vertx, csvPath, config, postImport);
+		csvImportsLauncher.handle(0L);
+		message.reply(new JsonObject().put("status", "ok"));
+	}
+
+	private void preDeleteUsers(final Message<JsonObject> message) {
+		String profile = message.body().getString("profile");
+		Long delay = message.body().getLong("delay", defaultPreDeleteUserDelay);
+		User.PreDeleteTask preDeleteTask = new User.PreDeleteTask(delay, profile, timeline);
+		preDeleteTask.handle(0L);
+		message.reply(new JsonObject().put("status", "ok"));
+	}
+
 	private void validateAndImport(final Message<JsonObject> message, final Feed feed, final boolean preDelete,
 			final String structureExternalId, final String source) {
 		final FeederLogger logger = new FeederLogger(e -> "Feeder.validateAndImport", e-> String.format("preDelete: %s | source: %s | structure: %s", preDelete, source, structureExternalId));
@@ -948,6 +1017,54 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		if (event != null) {
 			handle(event);
 		}
+	}
+
+	public Future<Void> uploadAAFFiles(final AAFFilesUploadRequest request) {
+		final String importFiles = this.config.getString("import-files");
+		final String subPath = request.getSubPath();
+		if(!checkPathIsStraightForward(subPath)) {
+			logger.warn(subPath + " is not an acceptable path");
+			return failedFuture("subPath.not.acceptable");
+		}
+		for (String key : request.getFiles().keySet()) {
+			if(!checkPathIsStraightForward(key)) {
+				logger.warn(key + " is not an acceptable path");
+				return failedFuture("filename.not.acceptable");
+			}
+		}
+		final FileSystem fs = vertx.fileSystem();
+		final String parentDir = importFiles + separator + subPath;
+		return fs.mkdirs(parentDir)
+		.compose(e -> {
+			final List<Future<Void>> futures = request.getFiles().entrySet().stream().map(fileEntry -> {
+				final String fileName = fileEntry.getKey();
+				final String fileContent = fileEntry.getValue();
+				final String filePath = parentDir + separator + fileName;
+				return vertx.fileSystem().writeFile(filePath, Buffer.buffer().appendString(fileContent))
+						.onSuccess(h -> logger.info("Successfully written file " + filePath))
+						.onFailure(th -> logger.warn("Error while writing file " + filePath, th));
+			}).collect(Collectors.toList());
+			return Future.all(futures).mapEmpty();
+		});
+	}
+
+	/**
+	 * @param path The path to check
+	 * @return {@code true} iff the supplied path is :
+	 * <ul>
+	 *     <li>empty string</li>
+	 *     <li>a path containing only a forward path (i.e. no .. and ~ allowed)</li>
+	 *     <li>no special characters</li>
+	 * </ul>
+	 */
+	public static boolean checkPathIsStraightForward(final String path) {
+		if("".equals(path)) {
+			return true;
+		}
+		if(path.matches("^[A-Za-z0-9_\\-\\./]+$")) {
+			return !path.contains("..");
+		}
+		return false;
 	}
 
 }

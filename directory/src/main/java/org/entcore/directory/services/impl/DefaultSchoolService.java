@@ -34,14 +34,19 @@ import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.neo4j.Neo4jResult;
 import org.entcore.common.neo4j.StatementsBuilder;
 import org.entcore.common.user.UserInfos;
+import org.entcore.common.user.dto.ManagedBy;
+import org.entcore.common.user.dto.QuietHoursPreference;
+import org.entcore.common.user.dto.TimezonePreference;
 import org.entcore.common.utils.StringUtils;
 import org.entcore.common.validation.StringValidation;
 import org.entcore.directory.Directory;
+import org.entcore.directory.pojo.structure.DefaultAuthModeConfig;
 import org.entcore.directory.services.SchoolService;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -84,13 +89,16 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void get(String id, Handler<Either<String, JsonObject>> result) {
 		String query =
-				"match (s:`Structure`) where s.id = {id} " +
-				"return s.id as id, s.externalId as externalId, s.UAI as UAI, s.name as name, " +
-				"s.zipCode as zipCode, s.codeDepartement as codeDepartement, " +
-				"s.codeAcademie as codeAcademie, coalesce(s.structureType, 'ETABLISSEMENT') as structureType";
+				// L'amont 6.16 élargit la recherche à l'UAI et renvoie l'adresse postale ; nos champs
+				// de collectivité (codeDepartement, codeAcademie, structureType) sont conservés.
+				// L'espace avant "return" manque dans la version amont ({id}return -> Cypher invalide).
+				"match (s:`Structure`) where s.id = {id} or s.UAI = {id} " +
+				"return s.id as id, s.externalId as externalId, s.UAI as UAI, s.name as name, s.city as city, s.address, " +
+						"s.phone as phone , s.email as email, s.zipCode as zipCode, s.type as type, " +
+						"s.codeDepartement as codeDepartement, s.codeAcademie as codeAcademie, " +
+						"coalesce(s.structureType, 'ETABLISSEMENT') as structureType";
 		neo.execute(query, new JsonObject().put("id", id), validUniqueResultHandler(result));
 	}
-
 	@Override
 	public void getByClassId(String classId, Handler<Either<String, JsonObject>> result) {
 		String query =
@@ -635,7 +643,9 @@ public class DefaultSchoolService implements SchoolService {
 				setWidget = options.getBoolean("setWidgets", true),
 				setDistribution = options.getBoolean("setDistribution", true),
 				setEducation = options.getBoolean("setEducation", true),
-				setHasApp = options.getBoolean("setHasApp", true);
+				setHasApp = options.getBoolean("setHasApp", true),
+				setDefaultAuth = options.getBoolean("setDefaultAuth", false),
+				setQuietHoursSetting = options.getBoolean("setQuietHoursSetting", false);
 		if (setApplications) {
 			buildDuplicateQuery(structureId, targetUAIs, builder, "Role", "ProfileGroup");
 			buildDuplicateQuery(structureId, targetUAIs, builder, "Role", "FunctionGroup");
@@ -644,7 +654,10 @@ public class DefaultSchoolService implements SchoolService {
 			buildDuplicateQuery(structureId, targetUAIs, builder, "Widget", "ProfileGroup");
 			buildDuplicateQuery(structureId, targetUAIs, builder, "Widget", "FunctionGroup");
 		}
-		if (setDistribution || setEducation || setHasApp) {
+		if (setDefaultAuth) {
+			buildDuplicateDefaultAuthQuery(structureId, targetUAIs, builder);
+		}
+		if (setDistribution || setEducation || setHasApp || setQuietHoursSetting) {
 			String structureUpdateQuery = "MATCH (s:Structure {id:{structureId}}), (s2:Structure) " +
 					"WHERE s2.UAI IN {uais} SET ";
 			if (setDistribution) {
@@ -656,11 +669,33 @@ public class DefaultSchoolService implements SchoolService {
 			if (setHasApp) {
 				structureUpdateQuery += "s2.hasApp = s.hasApp,";
 			}
+			if (setQuietHoursSetting) {
+				structureUpdateQuery += " s2.notificationTimezone =  s.notificationTimezone, s2.notificationQuietHours = s.notificationQuietHours,";
+			}
 			// removing lastComma
 			structureUpdateQuery = structureUpdateQuery.substring(0, structureUpdateQuery.length()-1);
 
 			final JsonObject params = new JsonObject().put("structureId", structureId).put("uais", targetUAIs);
 			builder.add(structureUpdateQuery, params);
+		}
+		if (setQuietHoursSetting) {
+			final String updateQuery =
+					"MATCH (s:Structure) " +
+					"WHERE s.UAI in {uais} AND (s.notificationTimezone IS NOT NULL OR s.notificationQuietHours IS NOT NULL) " +
+					"WITH s " +
+					"MATCH (s)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+					"WITH s, collect(DISTINCT u) AS allUsers " +
+					"UNWIND allUsers AS u " +
+					"OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
+					"WITH s, u, uac, " +
+					"  (s.notificationTimezone IS NOT NULL AND (uac IS NULL OR uac.timezone IS NULL OR NOT uac.timezone CONTAINS {userManagedMarker})) AS shouldUpdateTimezone, " +
+					"  (s.notificationQuietHours IS NOT NULL AND (uac IS NULL OR uac.quietHours IS NULL OR NOT uac.quietHours CONTAINS {userManagedMarker})) AS shouldUpdateQuietHours " +
+					"WHERE shouldUpdateTimezone OR shouldUpdateQuietHours " +
+					"MERGE (u)-[:PREFERS]->(uac2:UserAppConf) " +
+					"FOREACH (_ IN CASE WHEN shouldUpdateTimezone THEN [1] ELSE [] END | SET uac2.timezone = s.notificationTimezone) " +
+					"FOREACH (_ IN CASE WHEN shouldUpdateQuietHours THEN [1] ELSE [] END | SET uac2.quietHours = s.notificationQuietHours) ";
+			final JsonObject params = new JsonObject().put("uais", targetUAIs).put("userManagedMarker", USER_MANAGED_MARKER);;
+			builder.add(updateQuery, params);
 		}
 	}
 
@@ -677,6 +712,18 @@ public class DefaultSchoolService implements SchoolService {
 				"AND s2.UAI IN {uais} AND g2.name ENDS WITH LAST(SPLIT(g1.name, '-')) AND g1.id <> g2.id " +
 				"MERGE (g2)-[a2:AUTHORIZED]->(r)" +
 				"ON CREATE SET a2.mandatory = a.mandatory";
+		builder.add(duplicateQuery, params);
+	}
+
+	private void buildDuplicateDefaultAuthQuery(String structureId, JsonArray targetUAIs, StatementsBuilder builder) {
+		final JsonObject params = new JsonObject().put("structureId", structureId).put("uais", targetUAIs);
+		final String deleteExistingQuery = "MATCH (s2:Structure)-[:HAS_AUTH_DEFAULT]->(d:AuthDefault) " +
+				"WHERE s2.UAI IN {uais} " +
+				"DETACH DELETE d";
+		builder.add(deleteExistingQuery, params);
+		final String duplicateQuery = "MATCH (s:Structure {id:{structureId}})-[:HAS_AUTH_DEFAULT]->(d:AuthDefault), (s2:Structure) " +
+				"WHERE s2.UAI IN {uais} " +
+				"MERGE (s2)-[:HAS_AUTH_DEFAULT]->(:AuthDefault { profile: d.profile, auth: d.auth })";
 		builder.add(duplicateQuery, params);
 	}
 
@@ -795,6 +842,253 @@ public class DefaultSchoolService implements SchoolService {
 		neo.execute(query, params, validResultHandler(results -> {
 			if (results.isRight()) {
 				promise.complete(results.right().getValue());
+			} else {
+				promise.fail(results.left().getValue());
+			}
+		}));
+		return promise.future();
+	}
+
+	@Override
+	public Future<JsonObject> getQuietHoursPreferences(String structureId) {
+		Promise<JsonObject> promise = Promise.promise();
+		String query = "MATCH (s:Structure {id: {structureId}}) RETURN s.notificationTimezone as notificationTimezone, s.notificationQuietHours as notificationQuietHours";
+		JsonObject params = new JsonObject().put("structureId", structureId);
+		neo.execute(query, params, validUniqueResultHandler(either -> {
+			if (either.isRight()) {
+				promise.complete(either.right().getValue());
+			} else {
+				promise.fail(either.left().getValue());
+			}
+		}));
+		return promise.future();
+	}
+
+	@Override
+	public Future<JsonObject> setQuietHoursPreferences(String structureId, JsonObject body) {
+		Promise<JsonObject> promise = Promise.promise();
+
+		final QuietHoursPreference quietHours = buildQuietHoursPreference(body);
+		if (quietHours == null) {
+			promise.fail("invalid.preference.data");
+			return promise.future();
+		}
+
+		final boolean overwriteTimezone = hasExplicitTimezone(body);
+		final TimezonePreference timezonePreference = overwriteTimezone ? buildTimezonePreferenceFromBody(body) : null;
+
+		if (timezonePreference != null && !timezonePreference.validate()) {
+			promise.fail("invalid.preference.data");
+			return promise.future();
+		}
+		
+		if (!quietHours.validate()) {
+			promise.fail("invalid.preference.data");
+			return promise.future();
+		}
+
+		doUpdate(structureId, timezonePreference, quietHours, either -> {
+			if (either.isRight()) {
+				promise.complete(either.right().getValue());
+			} else {
+				promise.fail(either.left().getValue());
+			}
+		});
+		return promise.future();
+	}
+
+	private static boolean hasExplicitTimezone(JsonObject body) {
+		final String value = body.getString("timezone");
+		return !StringUtils.isEmpty(value);
+	}
+
+	private static TimezonePreference buildTimezonePreferenceFromBody(JsonObject body) {
+		final TimezonePreference timezone = new TimezonePreference();
+		final String value = body.getString("timezone");
+		if (!StringUtils.isEmpty(value)) {
+			timezone.setTimezone(value);
+		}
+		timezone.setManagedBy(ManagedBy.STRUCTURE);
+		return timezone;
+	}
+
+	private QuietHoursPreference buildQuietHoursPreference(JsonObject body) {
+		final JsonObject quietHoursBody = body.getJsonObject("quietHours", new JsonObject());
+		final JsonArray schedule = quietHoursBody.getJsonArray("schedule", new JsonArray());
+		if (schedule.size() > 7) return null;
+
+		final Boolean enabled = quietHoursBody.getBoolean("enabled");
+		if (enabled == null) return null;
+
+		final int[][] converted;
+		try {
+			converted = convertSchedule(schedule);
+		} catch (IllegalArgumentException parsingError) {
+			return null;
+		}
+
+		final QuietHoursPreference quietHours = new QuietHoursPreference();
+		quietHours.setSchedule(converted);
+		quietHours.setEnabled(enabled);
+		quietHours.setManagedBy(ManagedBy.STRUCTURE);
+		
+		return quietHours;
+	}
+
+	private void doUpdate(String structureId, TimezonePreference timezonePreference,
+			QuietHoursPreference quietHoursPreference, Handler<Either<String, JsonObject>> handler) {
+
+		final JsonObject params = new JsonObject()
+				.put("structureId", structureId)
+				.put("notificationQuietHours", quietHoursPreference.encode());
+
+		final StringBuilder setClauses = new StringBuilder("s.notificationQuietHours = {notificationQuietHours}");
+		if (timezonePreference != null) {
+			setClauses.append(", s.notificationTimezone = {notificationTimezone}");
+			params.put("notificationTimezone", timezonePreference.encode());
+		}
+
+		final String query = "MATCH (s:Structure {id: {structureId}}) SET " + setClauses + " RETURN s.notificationTimezone as notificationTimezone, s.notificationQuietHours as notificationQuietHours";
+		neo.execute(query, params, validUniqueResultHandler(handler));
+	}
+
+	// CONTAINS is supported since Neo4j 2.3, safe for our target version
+	private static final String USER_MANAGED_MARKER = "\"managedBy\":\"USER\"";
+
+	@Override
+	public Future<JsonObject> cascadeQuietHoursPreferences(String structureId) {
+		Promise<JsonObject> promise = Promise.promise();
+
+		// Step 1: count total users in the structure
+		final String countQuery =
+			"MATCH (s:Structure {id: {structureId}}) " +
+			"WHERE s.notificationTimezone IS NOT NULL OR s.notificationQuietHours IS NOT NULL " +
+			"WITH s " +
+			"MATCH (s)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+			"RETURN count(DISTINCT u) AS totalUsers";
+
+		// Step 2: cascade update (only users not managed by themselves)
+		final String updateQuery =
+			"MATCH (s:Structure {id: {structureId}}) " +
+			"WHERE s.notificationTimezone IS NOT NULL OR s.notificationQuietHours IS NOT NULL " +
+			"WITH s " +
+			"MATCH (s)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+			"WITH s, collect(DISTINCT u) AS allUsers " +
+			"UNWIND allUsers AS u " +
+			"OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
+			"WITH s, u, uac, " +
+			"  (s.notificationTimezone IS NOT NULL AND (uac IS NULL OR uac.timezone IS NULL OR NOT uac.timezone CONTAINS {userManagedMarker})) AS shouldUpdateTimezone, " +
+			"  (s.notificationQuietHours IS NOT NULL AND (uac IS NULL OR uac.quietHours IS NULL OR NOT uac.quietHours CONTAINS {userManagedMarker})) AS shouldUpdateQuietHours " +
+			"WHERE shouldUpdateTimezone OR shouldUpdateQuietHours " +
+			"MERGE (u)-[:PREFERS]->(uac2:UserAppConf) " +
+			"FOREACH (_ IN CASE WHEN shouldUpdateTimezone THEN [1] ELSE [] END | SET uac2.timezone = s.notificationTimezone) " +
+			"FOREACH (_ IN CASE WHEN shouldUpdateQuietHours THEN [1] ELSE [] END | SET uac2.quietHours = s.notificationQuietHours) " +
+			"RETURN count(DISTINCT u) AS updatedUsers";
+
+		final JsonObject params = new JsonObject()
+				.put("structureId", structureId)
+				.put("userManagedMarker", USER_MANAGED_MARKER);
+
+		// Count first, then cascade
+		neo.execute(countQuery, params, validUniqueResultHandler(countEvent -> {
+			final int totalUsers;
+			if (countEvent.isRight() && countEvent.right().getValue() != null) {
+				totalUsers = countEvent.right().getValue().getInteger("totalUsers", 0);
+			} else {
+				totalUsers = 0;
+			}
+
+			neo.execute(updateQuery, params, validUniqueResultHandler(updateEvent -> {
+				final int updatedUsers;
+				if (updateEvent.isRight() && updateEvent.right().getValue() != null) {
+					updatedUsers = updateEvent.right().getValue().getInteger("updatedUsers", 0);
+				} else {
+					updatedUsers = 0;
+				}
+
+				promise.complete(new JsonObject()
+						.put("updatedUsers", updatedUsers)
+						.put("skippedUsers", totalUsers - updatedUsers));
+			}));
+		}));
+
+		return promise.future();
+	}
+
+	private static int[][] convertSchedule(JsonArray schedule) {
+		if (schedule == null || schedule.isEmpty()) {
+			return new int[0][];
+		}
+		
+		int[][] result = new int[schedule.size()][];
+		for (int dayIndex = 0; dayIndex < result.length; dayIndex++) {
+			final Object dayValue = schedule.getValue(dayIndex);
+			if (!(dayValue instanceof JsonArray)) {
+				throw new IllegalArgumentException("Each day must be an array");
+			}
+
+			JsonArray day = (JsonArray) dayValue;
+			result[dayIndex] = new int[day.size()];
+			
+			for (int hourIndex = 0; hourIndex < day.size(); hourIndex++) {
+				final Object hourValue = day.getValue(hourIndex);
+				if (!(hourValue instanceof Integer)) {
+					throw new IllegalArgumentException("Schedule must contain integers only");
+				}
+				result[dayIndex][hourIndex] = (Integer) hourValue;
+			}
+		}
+		
+		return result;
+	}
+
+	public Future<DefaultAuthModeConfig> getDefaultAuth(String structureId) {
+		final Promise<DefaultAuthModeConfig> promise = Promise.promise();
+		final StringBuilder query = new StringBuilder(
+				"MATCH (s:Structure {id: {structureId}})-[:HAS_AUTH_DEFAULT]->(d:AuthDefault) ")
+				.append(" WITH collect({ profile: d.profile, auth: d.auth }) as defaultAuthConfig ")
+				.append("RETURN defaultAuthConfig ");
+		final JsonObject params = new JsonObject().put("structureId", structureId);
+
+		neo.execute(query.toString(), params, validUniqueResultHandler( results -> {
+			if (results.isRight()) {
+				JsonArray data = results.right().getValue().getJsonArray("defaultAuthConfig");
+				DefaultAuthModeConfig config = new DefaultAuthModeConfig();
+				for (Object o : data) {
+					JsonObject json = (JsonObject) o;
+					config.getDefaultAuthModes().put(
+							DefaultAuthModeConfig.Profile.fromNeo4j(json.getString("profile")),
+							DefaultAuthModeConfig.DefaultAuthMode.valueOf(json.getString("auth")));
+				}
+				for (DefaultAuthModeConfig.Profile profile : DefaultAuthModeConfig.Profile.values()){
+					if (!config.getDefaultAuthModes().containsKey(profile)){
+						config.getDefaultAuthModes().put(profile, DefaultAuthModeConfig.DefaultAuthMode.ENT);
+					}
+				}
+				promise.complete(config);
+			} else {
+				promise.fail(results.left().getValue());
+			}
+		}));
+		return promise.future();
+	}
+
+	public Future<Void> updateDefaultAuth(UserInfos user, String structureId, DefaultAuthModeConfig body) {
+		final Promise<Void> promise = Promise.promise();
+		final StringBuilder query = new StringBuilder(
+				"MATCH (s:Structure {id: {structureId}}) ")
+				.append("OPTIONAL MATCH (s)-[:HAS_AUTH_DEFAULT]->(d:AuthDefault) ")
+				.append("DETACH DELETE d ");
+		for (Map.Entry<DefaultAuthModeConfig.Profile, DefaultAuthModeConfig.DefaultAuthMode> entry : body.getDefaultAuthModes().entrySet()) {
+			query.append(String.format(" MERGE (s)-[:HAS_AUTH_DEFAULT]->(:AuthDefault { profile: '%s', auth: '%s' }) ",
+					entry.getKey().getNeo4jName(),
+					entry.getValue().name()));
+		}
+		final JsonObject params = new JsonObject().put("structureId", structureId);
+
+		neo.execute(query.toString(), params, validResultHandler(results -> {
+			if (results.isRight()) {
+				promise.complete();
 			} else {
 				promise.fail(results.left().getValue());
 			}

@@ -344,8 +344,9 @@ public class UserController extends BaseController {
 					.add("city").add("otherNames").add("title").add("surname").add("functions").add("headTeacher")
 					.add("relativeAddress").add("classCategories").add("subjectTaught").add("needRevalidateTerms")
 					.add("joinKey").add("isTeacher").add("structures").add("type").add("children").add("parents")
-					.add("functionalGroups").add("startDateStruct").add("endDateStruct")
+					.add("functionalGroups").add("startDateStruct").add("endDateStruct").add("login")
 					.add("administrativeStructures").add("subjectCodes").add("fieldOfStudyLabels").add("startDateClasses")
+					.add("endDateClasses")
 					.add("scholarshipHolder").add("attachmentId").add("fieldOfStudy").add("module").add("transport")
 					.add("accommodation").add("status").add("relative").add("moduleName").add("sector").add("level");
 			if (!config.getBoolean("enable-birthdate-in-get-user", false)) {
@@ -749,7 +750,32 @@ public class UserController extends BaseController {
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	public void listChildren(final HttpServerRequest request) {
 		final String userId = request.params().get("userId");
-		userService.listChildren(userId, arrayResponseHandler(request));
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null) {
+				unauthorized(request);
+				return;
+			}
+			final boolean removeFirstName = !userId.equals(user.getUserId());
+			userService.listChildren(userId, event -> {
+				if (event.isRight() && removeFirstName) {
+					removeChildrenFirstName(event.right().getValue());
+				}
+				arrayResponseHandler(request).handle(event);
+			});
+		});
+	}
+
+	private void removeChildrenFirstName(JsonArray structures) {
+		for (Object structureObj : structures) {
+			if (!(structureObj instanceof JsonObject)) continue;
+			final JsonArray children = ((JsonObject) structureObj).getJsonArray("children");
+			if (children == null) continue;
+			for (Object childObj : children) {
+				if (childObj instanceof JsonObject) {
+					((JsonObject) childObj).remove("firstName");
+				}
+			}
+		}
 	}
 
 	@Post("/user/group/:userId/:groupId")

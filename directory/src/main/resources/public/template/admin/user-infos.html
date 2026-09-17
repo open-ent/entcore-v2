@@ -110,6 +110,26 @@
 				<label ng-if="showMobileInput && isMobileWellFormatted()"><a ng-click="saveAndCloseMobileInput()" href="#"><i18n>classAdmin.save</i18n></a></label>
 			</div>
 			<div class="row">
+				<label class="four cell"><i18n>directory.totp.secret</i18n></label>
+				<label class="six cell">
+					<span ng-if="selectedUser.hasTotp"><i18n>directory.totp.enrolled</i18n></span>
+					<span ng-if="!selectedUser.hasTotp"><i18n>directory.totp.not.enrolled</i18n></span>
+				</label>
+				<input type="text" class="eight cell inline-editing" name="totpSecret"
+					   ng-if="showTotpInput"
+					   ng-model="temp.totp"
+					   placeholder="Base32 secret" />
+				<label ng-if="!showTotpInput">
+					<a ng-click="openTotpInput()" href="#"><i18n>directory.totp.enroll</i18n></a>
+					<span ng-if="selectedUser.hasTotp"> | <a ng-click="removeTotpSecret()" href="#"><i18n>directory.totp.remove</i18n></a></span>
+				</label>
+				<label ng-if="showTotpInput">
+					<a ng-if="temp.totp" ng-click="saveAndCloseTotpInput()" href="#"><i18n>classAdmin.save</i18n></a>
+					<span> | </span>
+					<a ng-click="showTotpInput = false" href="#"><i18n>cancel</i18n></a>
+				</label>
+			</div>
+			<div class="row">
 				<label translate content="userBook.profile.birthdate" class="four cell"></label>
 				<em>
 					<div class="eight text-flow">
@@ -125,7 +145,10 @@
 	<div class="row twelve bottom-spacing-three" ng-if="!isForbidden()">
 		<a workflow="directory.allowClassAdminResetPassword" ng-if="!selectedUser.activationCode && is1D && selectedUser.type === 'Student'" class="button" ng-click="resetStudentPasswordOnScreen(selectedUser)" translate content="classAdmin.passwordRequest.reset"></a>
 		<a workflow="directory.allowClassAdminResetPassword" ng-if="!selectedUser.activationCode && !(is1D && selectedUser.type === 'Student')" class="button" ng-click="resetPasswords(selectedUser)" translate content="classAdmin.userInfos.reset"></a>
-		<a class="button" ng-click="userInfoExport(selectedUser)" translate content="classAdmin.userInfos.connectInfos"></a>
+		<!-- ng-disabled repris de l'amont 6.16 : l'export des identifiants n'a pas de sens pour un
+		     compte à identité fédérée (il ne se connecte pas avec un mot de passe ENT). S'appuie sur
+		     hasFederatedIdentity, remonté par DefaultClassService. -->
+		<a class="button" ng-class="{disabled: selectedUser.hasFederatedIdentity}" ng-click="!selectedUser.hasFederatedIdentity && userInfoExport(selectedUser)" translate content="classAdmin.userInfos.connectInfos"></a>
 	</div>
 	<!--END BUTTON-->
 	<!--MOOD-->
@@ -176,7 +199,7 @@
 	<article class="row bottom-spacing-three" ng-if="userInfosDisplayRelative()">
 		<h2 content="userBook.profile.relatives"><span class="no-style" translate key="userBook.profile.relatives"></span></h2>
 		<div class="reduce-block-eight">
-			<div class="flex-row align-center top-spacing-twice">
+			<div ng-if="!selectedUser.hasFederatedIdentity" class="flex-row align-center top-spacing-twice">
 					<a class="cell-ellipsis small-text block left-text" ng-click="userInfoExportFamily(selectedUser)">
 						<i class="download-disk"></i> <i18n>classAdmin.report.family</i18n>
 					</a>

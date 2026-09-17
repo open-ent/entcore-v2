@@ -54,6 +54,7 @@ import org.entcore.common.mute.MuteHelper;
 import org.entcore.common.notification.NotificationUtils;
 import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.notification.TimelineNotificationsLoader;
+import org.entcore.common.user.PreferenceHelper;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.timeline.Timeline;
@@ -78,13 +79,16 @@ import static org.entcore.common.http.response.DefaultResponseHandler.arrayRespo
 import static org.entcore.common.http.response.DefaultResponseHandler.defaultResponseHandler;
 
 public class TimelineController extends BaseController {
-    private static final long IMMEDIATE_NOTIF_DELAY_BY_CHUNK = 30000L;
 
+	private static final long IMMEDIATE_NOTIF_DELAY_BY_CHUNK = 30000L;
+	private static final String TIMELINE_BETA_RIGHT = "org.entcore.timeline|betaActivation";
 	private static final Logger log = LoggerFactory.getLogger(TimelineController.class);
 
 	private TimelineEventStore store;
 	private TimelineConfigService configService;
 	private TimelineMailerService mailerService;
+	private PreferenceHelper preferenceService;
+
 	private Map<String, String> registeredNotifications;
 	private Map<String, String> eventsI18n;
 	private HashMap<String, JsonObject> lazyEventsI18n;
@@ -127,14 +131,14 @@ public class TimelineController extends BaseController {
 		antiFlood = new TTLSet<>(config.getLong("antiFloodDelay", 3000l),
 				vertx, config.getLong("antiFloodClear", 3600 * 1000l));
 		refreshTypesCache = config.getBoolean("refreshTypesCache", false);
-    Future<Void> future = Future.succeededFuture();
+    	Future<Void> future = Future.succeededFuture();
 		if(config.getBoolean("cache", false)){
-      final Promise<Void> promise = Promise.promise();
-			CacheService.create(vertx, config).onSuccess(cacheService -> {
-        final Integer cacheLen = config.getInteger("cache-size", PAGELIMIT);
-        store = new CachedTimelineEventStore(store, cacheService, cacheLen, configService, registeredNotifications);
-      }).onFailure(promise::fail);
-      future = promise.future();
+		  final Promise<Void> promise = Promise.promise();
+		  CacheService.create(vertx, config).onSuccess(cacheService -> {
+			final Integer cacheLen = config.getInteger("cache-size", PAGELIMIT);
+			store = new CachedTimelineEventStore(store, cacheService, cacheLen, configService, registeredNotifications);
+		  }).onFailure(promise::fail);
+		  future = promise.future();
 		}
 
 		// TEMPORARY to handle both timeline and timeline2 view
@@ -148,7 +152,7 @@ public class TimelineController extends BaseController {
 
 		final EventStore eventStore = EventStoreFactory.getFactory().getEventStore(Timeline.class.getSimpleName());
 		this.eventHelper =  new EventHelper(eventStore);
-    return future;
+    	return future;
 	}
 
 	/* Override i18n to use additional timeline translations and nested templates */
@@ -187,6 +191,10 @@ public class TimelineController extends BaseController {
 	@Get("/timeline")
 	@SecuredAction(value = "timeline.view", type = ActionType.AUTHENTICATED)
 	public void view(HttpServerRequest request) {
+		// Open ENT n'expose pas la page /timeline : le fil de nouveautés est intégré au
+		// tableau de bord. On conserve donc la redirection du fork plutôt que le rendu
+		// conditionnel par thème introduit en amont (qu'il marque lui-même TEMPORARY), qui
+		// afficherait une seconde page concurrente du dashboard.
 		redirectPermanent(request, config.getString("timeline-redirect", "/dashboard/home"));
 	}
 
@@ -194,7 +202,7 @@ public class TimelineController extends BaseController {
 	@SecuredAction(value = "timeline.view", type = ActionType.AUTHENTICATED)
 	public void view2(HttpServerRequest request) {
 		final boolean cache = config.getBoolean("cache", false);
-		renderView(request, new JsonObject().put("lightMode",isLightmode()).put("cache", cache));
+		renderTimeline2dOrBeta(request);
 		eventHelper.onAccess(request);
 	}
 
@@ -216,12 +224,11 @@ public class TimelineController extends BaseController {
 	public void i18n(HttpServerRequest request) {
 		String language = Utils.getOrElse(
 				I18n.acceptLanguage(request), "fr", false);
-		String i18n = eventsI18n.get(language.split(",")[0].split("-")[0]);
-		if (i18n == null) {
-			i18n = eventsI18n.get("fr");
+		language = I18n.getLocale(language).getLanguage();
+		if (!eventsI18n.containsKey(language)) {
+			language = "fr";
 		}
-		final JsonObject i18Notif = new JsonObject(
-			"{" + i18n.substring(0, i18n.length() - 1) + "}");
+		final JsonObject i18Notif = TimelineLambda.getTimelineI18n(language, eventsI18n, lazyEventsI18n).copy();
 		if("true".equals(request.params().get("mergeall"))){
 			final JsonObject original = this.i18n.load(request);
 			renderJson(request, i18Notif.mergeIn(original));
@@ -842,11 +849,11 @@ public class TimelineController extends BaseController {
 		switch (action) {
 		case "add":
 			final String sender = json.getString("sender");
-			final boolean disableAntiflood = json.getBoolean("disableAntiflood", false);
+			final boolean disableAntiFlood = json.getBoolean("disableAntiFlood", false);
 
 			log.info(String.format("[Timeline.add] Add new notification from sender %s with antiflood activation = %s from module %s for resources %s ",
-					sender, !disableAntiflood, json.getString("type", ""), json.getString("resource", "")));
-			final boolean mustCheckAntiflood = (sender != null && !sender.startsWith("no-reply") && !disableAntiflood);
+					sender, !disableAntiFlood, json.getString("type", ""), json.getString("resource", "")));
+			final boolean mustCheckAntiflood = (sender != null && !sender.startsWith("no-reply") && !disableAntiFlood);
 
 			if (mustCheckAntiflood && antiFlood.contains(sender)) {
 				log.info(String.format("[Timeline.add] Sender %s has activate antiflood ", sender));
@@ -855,26 +862,16 @@ public class TimelineController extends BaseController {
 				this.removeMutersFromRecipientList(json)
 				.onComplete(notificationResult -> {
 					final JsonObject notification = notificationResult.succeeded() ? notificationResult.result() : json;
-					store.add(notification, result -> {
-                        // IF call only when recipient size > maxRecipientLength (10k by default)
-                        // timer for performance (thread block) reasons
-                        if (result.containsKey(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS)) {
-                            final JsonArray chunkedNotifications = result.getJsonArray(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS);
-                            result.remove(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS);
-                            for (int i = 0; i < chunkedNotifications.size(); i++) {
-                                final JsonObject cn = chunkedNotifications.getJsonObject(i);
-                                vertx.setTimer((i* IMMEDIATE_NOTIF_DELAY_BY_CHUNK) + 1000L, t -> {
-                                    final JsonArray chunkRecipientsIds = cn.getJsonArray("recipientsIds");
-                                    log.info("Launch chunked immediate notification. Recipients :  " +
-                                        (chunkRecipientsIds != null ? chunkRecipientsIds.size():0));
-                                    notificationHelper.sendImmediateNotifications(new JsonHttpServerRequest(cn.getJsonObject("request")), cn);
-                                });
-                            }
-                        } else {
-                            notificationHelper.sendImmediateNotifications(new JsonHttpServerRequest(notification.getJsonObject("request")), notification);
-                        }
-                        handler.handle(result);
-                    });
+					final JsonArray recipientsIds = notification.getJsonArray("recipientsIds", new JsonArray());
+					if (recipientsIds.isEmpty()) {
+						store.add(notification, result -> {
+							handler.handle(result);
+						});
+					} else {
+						notificationHelper.resolveUsersAndMarkDeferredRecipients(recipientsIds, notification, userList ->
+							storeAndSendImmediate(notification, recipientsIds, userList, handler::handle)
+						);
+					}
 				});
 				if (refreshTypesCache && eventTypes != null && !eventTypes.contains(json.getString("type"))) {
 					eventTypes = null;
@@ -943,6 +940,48 @@ public class TimelineController extends BaseController {
 		});
 	}
 
+	private void storeAndSendImmediate(JsonObject notification, JsonArray recipientsIds, JsonArray resolvedUserList, Handler<JsonObject> onStored) {
+		final Set<String> deferredUserIds;
+		final JsonArray immediateUserList;
+		if (resolvedUserList == null) {
+			log.warn("[Timeline] Neo4j unavailable, deferring ALL " + recipientsIds.size() + " recipients (fail-close)");
+			notificationHelper.markAllRecipientsDeferred(notification);
+			deferredUserIds = new HashSet<>();
+			for (int i = 0; i < recipientsIds.size(); i++) {
+				String uid = recipientsIds.getString(i);
+				if (uid != null) deferredUserIds.add(uid);
+			}
+			immediateUserList = new JsonArray();
+		} else {
+			deferredUserIds = notificationHelper.extractDeferredUserIds(notification);
+			immediateUserList = resolvedUserList;
+		}
+
+		store.add(notification, result -> {
+			if (result.containsKey(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS)) {
+				final JsonArray chunkedNotifications = result.getJsonArray(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS);
+				result.remove(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS);
+				for (int i = 0; i < chunkedNotifications.size(); i++) {
+					final JsonObject chunkNotification = chunkedNotifications.getJsonObject(i);
+					vertx.setTimer((i * IMMEDIATE_NOTIF_DELAY_BY_CHUNK) + 1000L, t -> {
+						final JsonArray chunkRecipientsIds = chunkNotification.getJsonArray("recipientsIds");
+						log.info("Launch chunked immediate notification. Recipients: " + (chunkRecipientsIds != null ? chunkRecipientsIds.size() : 0));
+						notificationHelper.sendImmediateNotifications(
+								new JsonHttpServerRequest(chunkNotification.getJsonObject("request")),
+								chunkNotification, deferredUserIds, immediateUserList
+						);
+					});
+				}
+			} else {
+				notificationHelper.sendImmediateNotifications(
+						new JsonHttpServerRequest(notification.getJsonObject("request")),
+						notification, deferredUserIds, immediateUserList
+				);
+			}
+			onStored.handle(result);
+		});
+	}
+
 	private void getExternalNotifications(final Handler<Either<String, JsonObject>> handler) {
 		configService.list(new Handler<Either<String, JsonArray>>() {
 			public void handle(Either<String, JsonArray> event) {
@@ -991,6 +1030,10 @@ public class TimelineController extends BaseController {
 		this.notificationHelper = notificationHelper;
 	}
 
+	public void setPreferenceService(PreferenceHelper preferenceService) {
+		this.preferenceService = preferenceService;
+	}
+
 	public void setEventsI18n(Map<String, String> eventsI18n) {
 		this.eventsI18n = eventsI18n;
 	}
@@ -1033,6 +1076,10 @@ public class TimelineController extends BaseController {
 						if(senderId != null && !senderId.isEmpty() && !username.isEmpty()) {
 							params.put("username", username);
 							params.put("uri", "/userbook/annuaire#" + senderId + "#");
+						}
+						final String subject = json.getString("subject", "");
+						if(subject != null && !subject.isEmpty()) {
+							params.put("subject", subject);
 						}
 						if (pushMobile && !mobileTitle.isEmpty()) {
 							JsonObject pushNotif = new JsonObject()
@@ -1113,28 +1160,16 @@ public class TimelineController extends BaseController {
 		this.removeMutersFromRecipientList(event)
 			.onComplete(notificationResult -> {
 			final JsonObject notificationToAdd = notificationResult.succeeded() ? notificationResult.result() : event;
-			store.add(notificationToAdd, new Handler<JsonObject>() {
-				public void handle(JsonObject result) {
-					// IF call only when recipient size > maxRecipientLength (10k by default)
-					// timer for performance (thread block) reasons
-					if (result.containsKey(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS)) {
-						final JsonArray chunkedNotifications = result.getJsonArray(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS);
-						result.remove(SplitTimelineEventStore.CHUNKED_NOTIFICATIONS);
-						for (int i = 0; i < chunkedNotifications.size(); i++) {
-							final JsonObject cn = chunkedNotifications.getJsonObject(i);
-							vertx.setTimer((i* IMMEDIATE_NOTIF_DELAY_BY_CHUNK) + 1000L, t -> {
-								final JsonArray chunkRecipientsIds = cn.getJsonArray("recipientsIds");
-								log.info("Launch chunked immediate notification. Recipients :  " +
-									(chunkRecipientsIds != null ? chunkRecipientsIds.size():0));
-								notificationHelper.sendImmediateNotifications(new JsonHttpServerRequest(cn.getJsonObject("request")), cn);
-							});
-						}
-					} else {
-						notificationHelper.sendImmediateNotifications(new JsonHttpServerRequest(notificationToAdd.getJsonObject("request")), notificationToAdd);
-					}
+			final JsonArray recipientsIds = notificationToAdd.getJsonArray("recipientsIds", new JsonArray());
+			if (recipientsIds.isEmpty()) {
+				store.add(notificationToAdd, result -> {
 					ok(request);
-				}
-			});
+				});
+			} else {
+				notificationHelper.resolveUsersAndMarkDeferredRecipients(recipientsIds, notificationToAdd, userList ->
+					storeAndSendImmediate(notificationToAdd, recipientsIds, userList, result -> ok(request))
+				);
+			}
 		});
 		if (refreshTypesCache && eventTypes != null && !eventTypes.contains(event.getString("type"))) {
 			eventTypes = null;

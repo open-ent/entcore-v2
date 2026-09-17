@@ -39,6 +39,7 @@ import org.entcore.auth.services.impl.FederationServiceImpl;
 import org.entcore.common.http.response.DefaultPages;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
+import org.entcore.common.utils.StringUtils;
 import org.opensaml.DefaultBootstrap;
 import org.opensaml.saml2.core.Assertion;
 import org.opensaml.saml2.core.AuthnStatement;
@@ -235,12 +236,32 @@ public class SamlController extends AbstractFederateController {
 
 			final String userAgent = request.getHeader("User-Agent");
 			final String xRequestedWith = request.getHeader("X-Requested-With");
-			if ((userAgent != null && (userAgent.contains("iPhone") || userAgent.contains("Android") || userAgent.startsWith("X-APP=mobile"))) ||
+
+			// Flag the mobile-app context so the WAYF v2 front intercepts non-provider
+			// links and hands them back to the native app (ENABLING-901).
+			final boolean isMobile =
+					(userAgent != null && (userAgent.contains("iPhone") || userAgent.contains("Android") || userAgent.startsWith("X-APP=mobile"))) ||
 					(xRequestedWith != null && xRequestedWith.startsWith("com.ode")) ||
-					("true".equals(request.params().get("mobile")))) {
-				renderView(request, swmf, "wayf-mobile.html", null);
+					("true".equals(request.params().get("mobile")));
+			if (swmf != null) {
+				swmf.put("mobile", isMobile);
+			}
+
+			// Check host from vertx conf to show the new WAYF on specific platforms
+			JsonArray specificWayfV2Host = config.getJsonArray("specific-wayf-v2-host");
+			final boolean isSpecificWayfV2Host = specificWayfV2Host != null && !specificWayfV2Host.isEmpty() && host != null && !host.isEmpty() && specificWayfV2Host.contains(host);
+			// Check wayf-beta cookie to switch between old and new WAYF on all platforms
+			final String wayfBetaCookie = CookieHelper.get("wayf-beta", request);
+			final boolean isWayfBeta = wayfBetaCookie != null && ("true".equalsIgnoreCase(wayfBetaCookie) || "1".equals(wayfBetaCookie));
+
+			if(isWayfBeta || isSpecificWayfV2Host ) {
+				renderView(request, swmf, "wayfv2.html", null);
 			} else {
-				renderView(request, swmf, "wayf.html", null);
+				if (isMobile) {
+					renderView(request, swmf, "wayf-mobile.html", null);
+				} else {
+					renderView(request, swmf, "wayf.html", null);
+				}
 			}
 		} else {
 			request.response().setStatusCode(401).setStatusMessage("Unauthorized")
@@ -593,15 +614,20 @@ public class SamlController extends AbstractFederateController {
 				log.error("Error marshalling failed assertion", e);
 			}
 		}
-		if(federatedAuthenticateError) {
-			final JsonObject context = new JsonObject();
-			if (error != null && !error.trim().isEmpty()) {
-				context.put("error", new JsonObject()
-						.put("message", I18n.getInstance().translate(error, getHost(request), I18n.acceptLanguage(request))));
+		if (federatedAuthenticateError) {
+			final String externalRedirectErrorURL = config.getString("rerirect-failed-assertion-errors");
+			if (StringUtils.isEmpty(externalRedirectErrorURL)) {
+				final JsonObject context = new JsonObject();
+				if (error != null && !error.trim().isEmpty()) {
+					context.put("error", new JsonObject()
+							.put("message", I18n.getInstance().translate(error, getHost(request), I18n.acceptLanguage(request))));
+				}
+				context.put("notLoggedIn", true);
+				renderView(request, context, "login.html", null);
+			} else {
+				redirectionService.redirect(request, externalRedirectErrorURL, error);
 			}
-			context.put("notLoggedIn", true);
-			renderView(request, context, "login.html", null);
-		}else{
+		} else {
 			redirectionService.redirect(request, LOGIN_PAGE);
 		}
 	}
@@ -830,6 +856,7 @@ public class SamlController extends AbstractFederateController {
 						j.put(attr, request.formAttributes().get(attr));
 					}
 				}
+				j.put("federated", true);
 				final String nameId = j.getString("nameId", "").replaceAll("\\r", "");
 				final String sessionIndex = j.getString("sessionIndex");
 				try {

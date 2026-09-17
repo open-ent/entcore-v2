@@ -3,6 +3,12 @@
   "config": {
     "main": "org.entcore.auth.Auth",
     "port": 8009,
+    "probes": [
+      "org.entcore.common.http.health.Neo4jProbe",
+      "org.entcore.common.http.health.MongoProbe",
+      "org.entcore.common.http.health.RedisProbe"
+    ],
+    "app-address" : "/auth",
     {{ authHttpServerOptions | default('"httpServerOptions": {"maxFormAttributeSize": 2147483647},')}}
     "otp-disabled": {{ authOtpDisabled | default('true') }},
     {% if ha is defined and ha and inventory_hostname_short is defined and inventory_hostname_short != 'jobs' and authInstance is defined %}
@@ -48,13 +54,9 @@
       	"initialCountry": "{{ authPhoneInputInitialCountry|default("auto") }}"
       }
     },
-    {% if (ha is defined and not(ha)) or (inventory_hostname_short is defined and inventory_hostname_short == 'jobs') %}
+    {% if withNewDeviceWarning is defined and (withNewDeviceWarning or withNewDeviceWarning == 'true') %}
       "new-device-warning": {
-        {% if authActivateNewDeviceWarning is defined and not(authActivateNewDeviceWarning) %}
-          "cron": "0 */2 * * * ? 2099",
-        {% else %}
-          "cron": "0 */2 * * * ? *",
-        {% endif %}
+        "cron": "{{authActivateNewDeviceWarningCronExpression | default('0 */2 * * * ? 2099')}}",
         "warn-admc": true, 
         "warn-adml": true, 
         "warn-users": {{ authNewDeviceWarnUser | default('true') }},
@@ -117,6 +119,13 @@
     {% if carbonioDomainKey is defined %}
       "carbonio-domain-key": "{{ carbonioDomainKey }}",
     {% endif %}
-    "passwordRegex": "{{ authPasswordRegex }}"
+    {% if authIdruideEmail is defined %}
+      "idruide-email-domain-by-host": "{{ authIdruideEmail | default('{}') }}",
+    {% endif %}
+    {% if authGoogleEmail is defined %}
+      "google-email-domain-by-host": "{{ authGoogleEmail | default('{}') }}",
+    {% endif %}
+    "passwordRegex": "{{ authPasswordRegex | default('.{8}.*')}}",
+    "specific-wayf-v2-host": {{authSpecificWayfV2Host | default('[]')}}
   }
 }
