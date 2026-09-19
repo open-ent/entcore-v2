@@ -6378,7 +6378,13 @@ module.directive("multiCombo", function () {
 
       /* Item display */
       $scope.display = function (item) {
-        return item instanceof Object ? item.toString() : item;
+        if (item instanceof Object) {
+          if ($scope.searchOn && item[$scope.searchOn] !== undefined) {
+            return item[$scope.searchOn];
+          }
+          return item.toString();
+        }
+        return item;
       };
 
       /* Ensure that filtered elements are not obsolete */
