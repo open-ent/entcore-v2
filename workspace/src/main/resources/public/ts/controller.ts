@@ -30,6 +30,7 @@ import { models, workspaceService, DocumentCursor, Document, DocumentCursorParam
 import { DocumentActionType } from 'entcore/types/src/ts/workspace/services';
 import {ScratchDelegate, ScratchDelegateScope} from "./delegates/scratch";
 import {GeogebraDelegate, GeogebraDelegateScope} from "./delegates/geogebra";
+import {CloudDriveDelegate, CloudDriveDelegateScope} from "./delegates/cloud-drive";
 
 
 declare var ENABLE_LOOL: boolean;
@@ -37,11 +38,13 @@ declare var ENABLE_SCRATCH: boolean;
 declare var ENABLE_NEXTCLOUD: boolean;
 declare var ENABLE_GGB: boolean;
 declare var DISABLE_FULL_TEXT_SEARCH: boolean;
-export interface WorkspaceScope extends RevisionDelegateScope, NavigationDelegateScope, TreeDelegateScope, ActionDelegateScope, CommentDelegateScope, DragDelegateScope, SearchDelegateScope, KeyboardDelegateScope, LoolDelegateScope, NextcloudShareDelegateScope, ScratchDelegateScope, GeogebraDelegateScope {
+declare var ENABLE_CLOUD_DRIVE: boolean;
+export interface WorkspaceScope extends RevisionDelegateScope, NavigationDelegateScope, TreeDelegateScope, ActionDelegateScope, CommentDelegateScope, DragDelegateScope, SearchDelegateScope, KeyboardDelegateScope, LoolDelegateScope, NextcloudShareDelegateScope, ScratchDelegateScope, GeogebraDelegateScope, CloudDriveDelegateScope {
 	ENABLE_LOOL: boolean;
 	ENABLE_SCRATCH: boolean;
 	ENABLE_GGB: boolean;
 	ENABLE_NEXTCLOUD: boolean;
+	ENABLE_CLOUD_DRIVE: boolean;
 	DISABLE_FULL_TEXT_SEARCH: boolean;
 	documentList:models.DocumentsListModel;
 	documentListSorted:models.DocumentsListModel;
@@ -170,10 +173,12 @@ export let workspaceController = ng.controller('Workspace', ['$scope', '$rootSco
 	ENABLE_NEXTCLOUD && NextcloudShareDelegate($scope);
 	ENABLE_SCRATCH && ScratchDelegate($scope, $route);
 	ENABLE_GGB && GeogebraDelegate($scope, $route);
+	ENABLE_CLOUD_DRIVE && CloudDriveDelegate($scope);
 	$scope.ENABLE_LOOL = ENABLE_LOOL;
 	$scope.ENABLE_SCRATCH = ENABLE_SCRATCH;
 	$scope.ENABLE_GGB = ENABLE_GGB;
 	$scope.ENABLE_NEXTCLOUD = ENABLE_NEXTCLOUD;
+	$scope.ENABLE_CLOUD_DRIVE = ENABLE_CLOUD_DRIVE;
 	$scope.DISABLE_FULL_TEXT_SEARCH = DISABLE_FULL_TEXT_SEARCH;
 
 	/**
@@ -203,6 +208,7 @@ export let workspaceController = ng.controller('Workspace', ['$scope', '$rootSco
 			{ text: lang.translate('workspace.copy'), action: $scope.openCopyView, right: "read", allow: allowAction("copy") },
 			{ text: lang.translate('nextcloud.share.copy.action'), action: () => $scope.openNextcloudShare('copy'), right: "read", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
 			{ text: lang.translate('nextcloud.share.move.action'), action: () => $scope.openNextcloudShare('move'), right: "manager", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
+			{ text: lang.translate('workspace.cloud.drive.export.action'), action: () => $scope.exportToCloudDrive(), right: "read", allow: () => !!$scope.canExportToCloudDrive && $scope.canExportToCloudDrive() },
 			{ text: lang.translate('workspace.move.trash'), action: $scope.toTrashConfirm, right: "manager" }
 		]
 	}), new models.ElementTree(shouldCache,{
@@ -227,6 +233,7 @@ export let workspaceController = ng.controller('Workspace', ['$scope', '$rootSco
 			{ text: lang.translate('workspace.copy'), action: $scope.openCopyView, right: "read", allow: allowAction("copy") },
 			{ text: lang.translate('nextcloud.share.copy.action'), action: () => $scope.openNextcloudShare('copy'), right: "read", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
 			{ text: lang.translate('nextcloud.share.move.action'), action: () => $scope.openNextcloudShare('move'), right: "manager", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
+			{ text: lang.translate('workspace.cloud.drive.export.action'), action: () => $scope.exportToCloudDrive(), right: "read", allow: () => !!$scope.canExportToCloudDrive && $scope.canExportToCloudDrive() },
 			{ text: lang.translate('workspace.move.trash'), action: $scope.toTrashConfirm, right: "manager" }
 		]
 	}),new models.ElementTree(shouldCache,{
@@ -260,6 +267,7 @@ export let workspaceController = ng.controller('Workspace', ['$scope', '$rootSco
 			{ text: lang.translate('workspace.copy'), action: $scope.openCopyView, right: "read", allow: allowAction("copy") },
 			{ text: lang.translate('nextcloud.share.copy.action'), action: () => $scope.openNextcloudShare('copy'), right: "read", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
 			{ text: lang.translate('nextcloud.share.move.action'), action: () => $scope.openNextcloudShare('move'), right: "manager", allow: () => !!$scope.canShareToNextcloud && $scope.canShareToNextcloud() },
+			{ text: lang.translate('workspace.cloud.drive.export.action'), action: () => $scope.exportToCloudDrive(), right: "read", allow: () => !!$scope.canExportToCloudDrive && $scope.canExportToCloudDrive() },
 			{ text: lang.translate('workspace.move.trash'), action: $scope.toTrashConfirm, right: "manager" }
 		]
 	}), new models.ElementTree(shouldCache,{

@@ -1908,6 +1908,16 @@ public class WorkspaceController extends BaseController {
 		context.put("enableScratch", config.getBoolean("enable-scratch", false));
 		context.put("enableGeogebra", config.getBoolean("enable-geogebra", false));
 		context.put("enableNextcloud", config.getBoolean("enable-nextcloud", false));
+		// Lecteur externe de l'utilisateur (Google Drive) : intégration de client à client.
+		// Seules des valeurs PUBLIQUES descendent dans la vue — identifiant de client OAuth,
+		// clé d'API et numéro de projet. Aucun secret client, aucun jeton : le consentement et
+		// les transferts se font depuis le navigateur (cf. delegates/cloud-drive.ts).
+		final JsonObject cloudDrive = config.getJsonObject("cloud-drive", new JsonObject());
+		final JsonObject cloudDriveGoogle = cloudDrive.getJsonObject("google", new JsonObject());
+		context.put("enableCloudDrive", cloudDrive.getBoolean("enabled", false));
+		context.put("cloudDriveGoogleClientId", cloudDriveGoogle.getString("client-id", ""));
+		context.put("cloudDriveGoogleApiKey", cloudDriveGoogle.getString("api-key", ""));
+		context.put("cloudDriveGoogleAppId", cloudDriveGoogle.getString("app-id", ""));
 		context.put("lazyMode", config.getJsonObject("publicConf", new JsonObject()).getBoolean("lazy-mode", false));
 		context.put("cacheDocTTl", config.getJsonObject("publicConf", new JsonObject()).getInteger("ttl-documents", -1));
 		context.put("cacheFolderTtl", config.getJsonObject("publicConf", new JsonObject()).getInteger("ttl-folders", -1));
