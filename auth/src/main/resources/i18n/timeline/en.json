@@ -1,0 +1,6 @@
+{
+  "new-device.new-device": "New sign-in",
+  "timeline.new-device.message": "Your account has just been used from a device or a network we did not know about.",
+  "timeline.new-device.link": "See the devices connected to my account",
+  "push.notif.new-device": "New sign-in to your account"
+}
