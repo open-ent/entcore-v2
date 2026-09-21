@@ -292,5 +292,7 @@
   "wayf.teacher.lille": "Académie de Lille",
   "wayf.teacher.special": "Établissement spécialisé",
   "wayf.title": "Bienvenue sur votre ENT !",
-  "weak": "Faible"
+  "weak": "Faible",
+  "auth.device.on": "sur",
+  "auth.device.unknown": "Appareil inconnu"
 }

@@ -69,8 +69,11 @@ import org.entcore.auth.oauth.HttpServerRequestAdapter;
 import org.entcore.auth.oauth.JsonRequestAdapter;
 import org.entcore.auth.oauth.OAuthDataHandler;
 import org.entcore.auth.pojo.SendPasswordDestination;
+import org.entcore.auth.security.ClientDevice;
 import org.entcore.auth.security.PasswordPolicy;
+import org.entcore.auth.services.DeviceService;
 import org.entcore.auth.services.MfaService;
+import org.entcore.auth.services.NewDeviceNotifier;
 import org.entcore.auth.services.SafeRedirectionService;
 import org.entcore.auth.services.impl.OpenIdSloServiceImpl;
 import org.entcore.auth.users.UserAuthAccount;
@@ -149,6 +152,8 @@ public class AuthController extends BaseController {
 	private boolean checkFederatedLogin = false;
 	private long jwtTtlSeconds;
 	private TimelineHelper notification;
+	private DeviceService deviceService;
+	private NewDeviceNotifier newDeviceNotifier;
 	private RedisClient loginBanRedisClient;
 	private int pwMaxRetry;
 	private long pwBanDelay;
@@ -993,16 +998,23 @@ public class AuthController extends BaseController {
 	 */
 	private void createSessionForMobile(final String userId, final Response response, final HttpServerRequest request) {
 		final String token = (String) Json.decodeValue(response.getBody(), Map.class).get("access_token");
-		UserUtils.createSessionWithId(eb, userId, token, "true".equals(request.formAttributes().get("secureLocation")))
+		// L'application mobile s'authentifie par jeton et ne conserve pas nos cookies :
+		// on enregistre l'IP et le client, sans identifiant d'appareil persistant.
+		UserUtils.createSessionWithId(eb, userId, token, "true".equals(request.formAttributes().get("secureLocation")),
+				ClientDevice.infosWithoutCookie(request))
 		.onComplete(asyncResult -> {
 			renderJson(request, new JsonObject(response.getBody()), response.getCode());
 		});
 	}
 
 	private void createSession(String userId, final HttpServerRequest request, final String callBack) {
-		UserUtils.createSession(eb, userId, "true".equals(request.formAttributes().get("secureLocation")),
+		final JsonObject clientInfos = ClientDevice.infos(request);
+		UserUtils.createSession(eb, userId, "true".equals(request.formAttributes().get("secureLocation")), clientInfos,
 				sessionId -> {
 					if (sessionId != null && !sessionId.trim().isEmpty()) {
+						if (newDeviceNotifier != null) {
+							newDeviceNotifier.onSessionCreated(userId, request, clientInfos);
+						}
 						boolean rememberMe = "true".equals(request.formAttributes().get("rememberMe"));
 						long timeout = rememberMe ? 3600l * 24 * 365 : config.getLong("cookie_timeout", Long.MIN_VALUE);
 						CookieHelper.getInstance().setSigned("oneSessionId", sessionId, timeout, request);
@@ -2292,6 +2304,231 @@ public class AuthController extends BaseController {
 		return false;
 	}
 
+	/**
+	 * Appareils actuellement connectés au compte de l'appelant (self-service, cf. dashboard
+	 * /account/devices). Chaque entrée porte l'appareil ({@code ip}, {@code ua},
+	 * {@code deviceId}), l'heure de connexion, la dernière activité, et deux marqueurs :
+	 * {@code current} pour la session qui émet la requête, {@code trusted} pour un appareil
+	 * que l'utilisateur a déclaré de confiance.
+	 *
+	 * <p>À la différence de {@code /auth/admin/sessions}, cette route ne liste que les sessions
+	 * de l'appelant et n'exige aucun droit d'administration.</p>
+	 */
+	@Get("/sessions/mine")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void listMySessions(final HttpServerRequest request) {
+		withCurrentSession(request, (userId, currentSessionId) -> {
+			UserUtils.listSessionsByUserId(eb, userId, ar -> {
+				if (ar.failed()) {
+					log.error("Error listing sessions of user " + userId, ar.cause());
+					renderError(request);
+					return;
+				}
+				final JsonObject body = ar.result();
+				final JsonArray sessions = body.getJsonArray("sessions", new JsonArray());
+				devicesById(userId).onSuccess(devices -> {
+					for (Object o : sessions) {
+						if (!(o instanceof JsonObject)) continue;
+						final JsonObject session = (JsonObject) o;
+						session.put("current", currentSessionId != null
+								&& currentSessionId.equals(session.getString("sessionId")));
+						final JsonObject device = devices.getJsonObject(session.getString("deviceId", ""));
+						session.put("trusted", device != null && Boolean.TRUE.equals(device.getBoolean("trusted")));
+						if (device != null && device.getLong("firstSeen") != null) {
+							session.put("deviceFirstSeen", device.getLong("firstSeen"));
+						}
+						// L'identité est déjà connue de l'appelant, c'est son propre compte :
+						// ne pas la renvoyer évite d'exposer plus que nécessaire.
+						session.remove("login");
+						session.remove("displayName");
+						session.remove("functions");
+					}
+					renderJson(request, new JsonObject()
+							.put("sessions", sessions)
+							.put("count", sessions.size())
+							.put("sessionTimeout", body.getLong("sessionTimeout"))
+							.put("inactivityEnabled", body.getBoolean("inactivityEnabled", false)));
+				}).onFailure(e -> {
+					log.error("Error loading devices of user " + userId, e);
+					renderError(request);
+				});
+			});
+		});
+	}
+
+	/**
+	 * Ferme une session de l'appelant : déconnexion d'un appareil qu'il ne reconnaît pas.
+	 * Répond 404 si la session n'existe pas ou n'est pas la sienne — sans distinguer les deux
+	 * cas, pour ne pas faire de cette route un oracle sur les sessions des autres comptes.
+	 *
+	 * <p>Le segment {@code /session/} évite que {@code /sessions/mine/others} soit capté par
+	 * cette route comme un identifiant de session.</p>
+	 */
+	@Delete("/sessions/mine/session/:sessionId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void deleteMySession(final HttpServerRequest request) {
+		final String sessionId = request.params().get("sessionId");
+		if (StringUtils.isEmpty(sessionId)) {
+			badRequest(request);
+			return;
+		}
+		withCurrentSession(request, (userId, currentSessionId) ->
+			UserUtils.listSessionsByUserId(eb, userId, ar -> {
+				if (ar.failed()) {
+					log.error("Error listing sessions of user " + userId, ar.cause());
+					renderError(request);
+					return;
+				}
+				if (!ownsSession(ar.result(), sessionId)) {
+					notFound(request);
+					return;
+				}
+				UserUtils.deleteSessionPermanently(eb, sessionId, done -> {
+					if (Boolean.TRUE.equals(done)) {
+						trace.info(getIp(request) + " - Fermeture de la session " + sessionId
+								+ " par son propriétaire " + userId);
+						renderJson(request, new JsonObject().put("status", "ok").put("sessionId", sessionId));
+					} else {
+						renderError(request);
+					}
+				});
+			}));
+	}
+
+	/**
+	 * Ferme toutes les sessions de l'appelant sauf celle qui émet la requête : « me déconnecter
+	 * partout ailleurs ». La session courante est préservée pour ne pas éjecter l'utilisateur
+	 * de la page depuis laquelle il fait le ménage.
+	 */
+	@Delete("/sessions/mine/others")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void deleteMyOtherSessions(final HttpServerRequest request) {
+		withCurrentSession(request, (userId, currentSessionId) -> {
+			if (StringUtils.isEmpty(currentSessionId)) {
+				// Sans savoir laquelle est la session courante, « toutes sauf la mienne »
+				// déconnecterait aussi l'appelant : mieux vaut refuser que surprendre.
+				badRequest(request, "current.session.unknown");
+				return;
+			}
+			UserUtils.listSessionsByUserId(eb, userId, ar -> {
+				if (ar.failed()) {
+					log.error("Error listing sessions of user " + userId, ar.cause());
+					renderError(request);
+					return;
+				}
+				final JsonArray dropped = new JsonArray();
+				for (Object o : ar.result().getJsonArray("sessions", new JsonArray())) {
+					if (!(o instanceof JsonObject)) continue;
+					final String sessionId = ((JsonObject) o).getString("sessionId");
+					if (StringUtils.isEmpty(sessionId) || sessionId.equals(currentSessionId)) {
+						continue;
+					}
+					dropped.add(sessionId);
+					UserUtils.deleteSessionPermanently(eb, sessionId, done -> {
+						if (!Boolean.TRUE.equals(done)) {
+							log.error("Error dropping session " + sessionId + " of user " + userId);
+						}
+					});
+				}
+				trace.info(getIp(request) + " - Fermeture de " + dropped.size()
+						+ " session(s) par leur propriétaire " + userId);
+				renderJson(request, new JsonObject()
+						.put("status", "ok")
+						.put("dropped", dropped));
+			});
+		});
+	}
+
+	/**
+	 * Marque un appareil de l'appelant comme étant de confiance : il ne déclenchera plus
+	 * d'alerte de connexion inhabituelle.
+	 */
+	@Post("/sessions/mine/device/:deviceId/trust")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void trustMyDevice(final HttpServerRequest request) {
+		setDeviceTrust(request, true);
+	}
+
+	/** Retire la confiance accordée à un appareil. */
+	@Delete("/sessions/mine/device/:deviceId/trust")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void untrustMyDevice(final HttpServerRequest request) {
+		setDeviceTrust(request, false);
+	}
+
+	private void setDeviceTrust(final HttpServerRequest request, final boolean trusted) {
+		final String deviceId = request.params().get("deviceId");
+		if (StringUtils.isEmpty(deviceId)) {
+			badRequest(request);
+			return;
+		}
+		if (deviceService == null) {
+			renderError(request);
+			return;
+		}
+		withCurrentSession(request, (userId, currentSessionId) ->
+			deviceService.setTrusted(userId, deviceId, trusted)
+				.onSuccess(found -> {
+					if (Boolean.TRUE.equals(found)) {
+						renderJson(request, new JsonObject()
+								.put("status", "ok")
+								.put("deviceId", deviceId)
+								.put("trusted", trusted));
+					} else {
+						notFound(request);
+					}
+				})
+				.onFailure(e -> {
+					log.error("Error updating trust of device " + deviceId, e);
+					renderError(request);
+				}));
+	}
+
+	/**
+	 * Résout, pour une requête authentifiée, l'utilisateur et l'identifiant de sa session
+	 * courante, puis exécute {@code action}. Répond 401 si la requête n'est pas rattachée à
+	 * un utilisateur.
+	 *
+	 * <p>On lit la session plutôt que le seul cookie {@code oneSessionId} : le tableau de bord
+	 * appelle l'ENT avec un jeton Bearer quand la plateforme est adossée à Keycloak, et aucun
+	 * cookie ne circule alors — le marqueur « cet appareil » manquerait. L'identifiant de
+	 * session courante peut malgré tout être absent (identification sans session nommée) :
+	 * les appelants doivent le tolérer.</p>
+	 */
+	private void withCurrentSession(final HttpServerRequest request,
+			final java.util.function.BiConsumer<String, String> action) {
+		UserUtils.getSession(eb, request, session -> {
+			final String userId = session != null ? session.getString("userId") : null;
+			if (StringUtils.isEmpty(userId)) {
+				unauthorized(request);
+				return;
+			}
+			action.accept(userId,
+					session.getJsonObject("sessionMetadata", new JsonObject()).getString("_id"));
+		});
+	}
+
+	/**
+	 * Appareils mémorisés de l'utilisateur, indexés par {@code deviceId}. Renvoie un objet vide
+	 * plutôt qu'un échec si le service n'est pas configuré : la liste des sessions ouvertes
+	 * reste utile même sans la notion d'appareil de confiance.
+	 */
+	private Future<JsonObject> devicesById(final String userId) {
+		if (deviceService == null) {
+			return Future.succeededFuture(new JsonObject());
+		}
+		return deviceService.devicesByIdFor(userId);
+	}
+
+	private boolean ownsSession(final JsonObject body, final String sessionId) {
+		for (Object o : body.getJsonArray("sessions", new JsonArray())) {
+			if (o instanceof JsonObject && sessionId.equals(((JsonObject) o).getString("sessionId"))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	@Get("/reset/:resetCode")
 	public void resetPassword(final HttpServerRequest request) {
 		resetPasswordView(request, null);
@@ -2642,6 +2879,14 @@ public class AuthController extends BaseController {
 
 	public void setNotification(final TimelineHelper notification) {
 		this.notification = notification;
+	}
+
+	public void setDeviceService(final DeviceService deviceService) {
+		this.deviceService = deviceService;
+	}
+
+	public void setNewDeviceNotifier(final NewDeviceNotifier newDeviceNotifier) {
+		this.newDeviceNotifier = newDeviceNotifier;
 	}
 
 

@@ -39,7 +39,9 @@ import org.entcore.auth.security.AuthResourcesProvider;
 import org.entcore.auth.security.CustomTokenHelper;
 import org.entcore.auth.security.SamlHelper;
 import org.entcore.auth.security.SamlValidator;
+import org.entcore.auth.services.DeviceService;
 import org.entcore.auth.services.MfaService;
+import org.entcore.auth.services.NewDeviceNotifier;
 import org.entcore.auth.services.OpenIdConnectService;
 import org.entcore.auth.security.PasswordPolicy;
 import org.entcore.auth.services.SafeRedirectionService;
@@ -115,13 +117,21 @@ public class Auth extends BaseServer {
 				config.getJsonArray("oauth2-pw-client-enable-saml2"), eventStore,
 				config.getBoolean("otp-disabled", false), config.getInteger("oauth2-token-expiration-time-seconds", 3600));
 
+		final TimelineHelper timelineHelper = new TimelineHelper(vertx, eb, config);
+		// Mémoire des appareils du compte : sert à la page « Appareils » du profil, aux
+		// appareils de confiance, et à l'alerte de connexion depuis un appareil inconnu.
+		final DeviceService deviceService = new MongoDbDeviceService();
+		final NewDeviceNotifier newDeviceNotifier = new NewDeviceNotifier(deviceService, timelineHelper, config);
+
 		AuthController authController = new AuthController(authMap);
 		authController.setEventStore(eventStore);
 		authController.setUserAuthAccount(userAuthAccount);
 		authController.setOauthDataFactory(oauthDataFactory);
 		authController.setCheckFederatedLogin(checkFederatedLogin);
 		authController.setMfaService(mfaService);
-		authController.setNotification(new TimelineHelper(vertx, eb, config));
+		authController.setNotification(timelineHelper);
+		authController.setDeviceService(deviceService);
+		authController.setNewDeviceNotifier(newDeviceNotifier);
 		addController(authController);
 
 		final ConfigurationController configurationController = new ConfigurationController();
@@ -161,6 +171,7 @@ public class Auth extends BaseServer {
 									new DeploymentOptions().setConfig(conf).setWorker(true));
 							samlController.setEventStore(eventStore);
 							samlController.setUserAuthAccount(userAuthAccount);
+							samlController.setNewDeviceNotifier(newDeviceNotifier);
 							samlController.setSamlHelper(samlHelper);
 							samlController.setSignKey(signKey);
 							samlController.setSamlWayfParams(config.getJsonObject("saml-wayf"));
@@ -195,6 +206,7 @@ public class Auth extends BaseServer {
 		final OpenIdConnectController openIdConnectController;
 		if (openidFederate != null || openidConnect != null) {
 			openIdConnectController = new OpenIdConnectController();
+			openIdConnectController.setNewDeviceNotifier(newDeviceNotifier);
 			addController(openIdConnectController);
 		} else {
 			openIdConnectController = null;
