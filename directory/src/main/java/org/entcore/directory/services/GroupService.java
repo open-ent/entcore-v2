@@ -42,6 +42,11 @@ public interface GroupService {
 		DISPLAY_NAME(1<<0),
 		TYPE_SUBTYPE(1<<1),
 		NB_USERS(1<<2),
+		// Point F (chantier "vue consolidée EDT+RBS", calendar) : structureId de l'établissement
+		// auquel le groupe est rattaché (relation (g)-[:DEPENDS]->(:Structure), 0 ou 1 structure
+		// pour un groupe de type ProfileGroup/StructureGroup) — bit dédié pour ne pas alourdir les
+		// appels existants qui n'en ont pas besoin (jointure Neo4j supplémentaire).
+		STRUCTURE_ID(1<<3),
 		ALL(~0);
 
 		private int mask;
