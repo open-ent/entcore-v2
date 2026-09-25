@@ -93,7 +93,13 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 		neo4j.init(vertx, neo4jConfig);
 
 		cluster = vertx.isClustered();
+		// With no node declared the prefix must be empty : concatenating it as-is builds the
+		// address "nullwse.mongodb.persistor", on which no persistor listens - every session
+		// read/write then fails against a shared MongoDb singleton other verticles rely on.
 		String node = (String) sessionMap.get("node");
+		if (node == null) {
+			node = "";
+		}
 		mongo = MongoDb.getInstance();
 		mongo.init(vertx.eventBus(), node + config.getString("mongo-address", "wse.mongodb.persistor"));
 

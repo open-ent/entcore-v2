@@ -275,6 +275,13 @@ public class TransactionHelper
 			@Override
 			public void handle(Message<JsonObject> msg)
 			{
+				// Committing a transaction that holds no statement never reaches Neo4j : the
+				// handler is then called with a null message, which is a success with no result.
+				if (msg == null)
+				{
+					promise.complete(new JsonArray());
+					return;
+				}
 				JsonObject body = msg.body();
 				if("ok".equals(body.getString("status")))
 					promise.complete(body.getJsonArray("results"));
@@ -357,6 +364,11 @@ public class TransactionHelper
 			@Override
 			public void handle(Message<JsonObject> msg)
 			{
+				if (msg == null)
+				{
+					promise.complete(new JsonArray());
+					return;
+				}
 				JsonObject body = msg.body();
 				if("ok".equals(body.getString("status")))
 					promise.complete(body.getJsonArray("results"));
