@@ -20,6 +20,10 @@
 		var CACHE_DOC_TTL_SEC = {{cacheDocTTl}}
 		var CACHE_FOLDER_TTL_SEC = {{cacheFolderTtl}}
 		var DISABLE_FULL_TEXT_SEARCH = {{disableFullTextSearch}}
+		var ENABLE_CLOUD_DRIVE = {{enableCloudDrive}};
+		var CLOUD_DRIVE_GOOGLE_CLIENT_ID = "{{cloudDriveGoogleClientId}}";
+		var CLOUD_DRIVE_GOOGLE_API_KEY = "{{cloudDriveGoogleApiKey}}";
+		var CLOUD_DRIVE_GOOGLE_APP_ID = "{{cloudDriveGoogleAppId}}";
 	</script>
 	
 	<script type="text/ng-template" id="folder-content">
@@ -239,6 +243,12 @@
 							<span>[[button.text]]</span>
 						</button>
 					</div>
+					<div class="aligned document-buttons-import-wrapper" workflow="workspace.create" ng-if="ENABLE_CLOUD_DRIVE && canUseCloudDrive()">
+						<button class="document-buttons-import" ng-click="importFromCloudDrive()" ng-disabled="cloudDrive.busy">
+							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8.668 1.994A9 9 0 0 1 17.48 8H18a6.002 6.002 0 0 1 5.689 7.919 6 6 0 0 1-2.234 2.989 1 1 0 1 1-1.15-1.636A4 4 0 0 0 18 10H16.74a1 1 0 0 1-.969-.751A7 7 0 1 0 3.75 15.627a1 1 0 1 1-1.498 1.326A9 9 0 0 1 8.668 1.994M12 11a1 1 0 0 1 .707.293l4 4a1 1 0 0 1-1.414 1.414L13 14.414V21a1 1 0 1 1-2 0v-6.586l-2.293 2.293a1 1 0 1 1-1.414-1.414l4-4A1 1 0 0 1 12 11" clip-rule="evenodd"></path></svg>
+							<i18n>workspace.cloud.drive.import.action</i18n>
+						</button>
+					</div>
 					<div workflow="lool.createDocument" class="aligned document-buttons-import-wrapper" ng-if="canDropOnFolder() && !isSharedTree() && ENABLE_LOOL">
 					<button class="document-buttons-import" ng-click="openLoolModal()">
 						<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M1 4a3 3 0 0 1 3-3h16a3 3 0 0 1 3 3v16a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3zm3-1a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm1 9a1 1 0 0 1 1-1h5V6a1 1 0 1 1 2 0v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H6a1 1 0 0 1-1-1" clip-rule="evenodd"></path></svg>
@@ -280,6 +290,12 @@
 							<button ng-click="button.action(button.url)" ng-disabled="button.disabled()" workflow="[[button.workflow]]" class="document-buttons-add">
 								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M1 4a3 3 0 0 1 3-3h16a3 3 0 0 1 3 3v16a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3zm3-1a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm1 9a1 1 0 0 1 1-1h5V6a1 1 0 1 1 2 0v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H6a1 1 0 0 1-1-1" clip-rule="evenodd"></path></svg>
 								<span>[[translate(button.text)]]</span>
+							</button>
+						</div>
+						<div class="zero-desktop six-mobile document-buttons-add-mobile-wrapper" workflow="workspace.create" ng-if="ENABLE_CLOUD_DRIVE && canUseCloudDrive()">
+							<button class="document-buttons-import" ng-click="importFromCloudDrive()" ng-disabled="cloudDrive.busy">
+								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8.668 1.994A9 9 0 0 1 17.48 8H18a6.002 6.002 0 0 1 5.689 7.919 6 6 0 0 1-2.234 2.989 1 1 0 1 1-1.15-1.636A4 4 0 0 0 18 10H16.74a1 1 0 0 1-.969-.751A7 7 0 1 0 3.75 15.627a1 1 0 1 1-1.498 1.326A9 9 0 0 1 8.668 1.994M12 11a1 1 0 0 1 .707.293l4 4a1 1 0 0 1-1.414 1.414L13 14.414V21a1 1 0 1 1-2 0v-6.586l-2.293 2.293a1 1 0 1 1-1.414-1.414l4-4A1 1 0 0 1 12 11" clip-rule="evenodd"></path></svg>
+								<i18n>workspace.cloud.drive.import.action</i18n>
 							</button>
 						</div>
 						<div class="zero-desktop six-mobile document-buttons-add-mobile-wrapper" workflow="lool.createDocument" ng-if="canDropOnFolder() && !isSharedTree() && ENABLE_LOOL">

@@ -254,5 +254,7 @@
   "wayf.meta.description": "Connexion à votre espace numérique scolaire : un accès simple, sécurisé et intuitif pour toute la communauté éducative.",
   "wayf.select.profile": "Vous souhaitez vous connecter en tant que ...",
   "wayf.title": "Bienvenue sur votre ENT !",
-  "weak": "Faible"
+  "weak": "Faible",
+  "auth.device.on": "sur",
+  "auth.device.unknown": "Appareil inconnu"
 }

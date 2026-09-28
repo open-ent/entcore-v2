@@ -29,6 +29,8 @@ import fr.wseduc.webutils.request.CookieHelper;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonObject;
+import org.entcore.auth.security.ClientDevice;
+import org.entcore.auth.services.NewDeviceNotifier;
 import org.entcore.auth.services.SafeRedirectionService;
 import org.entcore.auth.users.UserAuthAccount;
 import org.entcore.common.events.EventStore;
@@ -46,6 +48,11 @@ public abstract class AbstractFederateController extends BaseController {
 	public static final String WAYF_PAGE = "/auth/saml/wayf";
 	private UserAuthAccount userAuthAccount;
 	private EventStore eventStore;
+	/**
+	 * Mémorisation de l'appareil et alerte sur connexion inhabituelle. Facultatif : une
+	 * fédération d'identité reste fonctionnelle sans, simplement sans suivi d'appareil.
+	 */
+	protected NewDeviceNotifier newDeviceNotifier;
 	protected String signKey;
 	protected final SafeRedirectionService redirectionService = SafeRedirectionService.getInstance();
 	private static final Tracer trace = TracerFactory.getTracer("auth");
@@ -80,12 +87,16 @@ public abstract class AbstractFederateController extends BaseController {
 	}
 
 	protected void createSession(String userId, String sessionIndex, String nameId, final HttpServerRequest request) {
-		UserUtils.createSession(eb, userId, sessionIndex, nameId,
+		final JsonObject clientInfos = ClientDevice.infos(request);
+		UserUtils.createSession(eb, userId, sessionIndex, nameId, clientInfos,
 				new io.vertx.core.Handler<String>() {
 
 			@Override
 			public void handle(String sessionId) {
 				if (sessionId != null && !sessionId.trim().isEmpty()) {
+					if (newDeviceNotifier != null) {
+						newDeviceNotifier.onSessionCreated(userId, request, clientInfos);
+					}
 					long timeout = config.getLong("cookie_timeout", Long.MIN_VALUE);
 					CookieHelper.getInstance().setSigned("oneSessionId", sessionId, timeout, request);
 					CookieHelper.set("authenticated", "true", timeout, request);
@@ -168,6 +179,10 @@ public abstract class AbstractFederateController extends BaseController {
 
 	public void setEventStore(EventStore eventStore) {
 		this.eventStore = eventStore;
+	}
+
+	public void setNewDeviceNotifier(NewDeviceNotifier newDeviceNotifier) {
+		this.newDeviceNotifier = newDeviceNotifier;
 	}
 
 	public void setSignKey(String signKey) {

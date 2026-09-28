@@ -56,5 +56,21 @@ public interface SessionStore {
      */
     void listSessions(Handler<AsyncResult<JsonArray>> handler);
 
+    /**
+     * Sessions ouvertes d'un utilisateur donné, sous forme d'entrées allégées — même contrat
+     * que {@link #listSessions(Handler)} : identité, appareil et horodatages, jamais les droits
+     * ni le cache de session.
+     *
+     * <p>Part de l'ensemble des sessions de l'utilisateur, déjà tenu à jour par le magasin de
+     * sessions, plutôt que d'un index de la plateforme entière : un magasin incapable
+     * d'énumérer toutes ses sessions peut malgré tout répondre ici.</p>
+     *
+     * <p>Une liste vide est une réponse valide (utilisateur sans session ouverte) : l'échec est
+     * réservé aux erreurs du backend.</p>
+     *
+     * <p>Destiné au self-service : « mes appareils » dans le profil utilisateur.</p>
+     */
+    void listSessionsByUserId(String userId, Handler<AsyncResult<JsonArray>> handler);
+
     boolean inactivityEnabled();
 }

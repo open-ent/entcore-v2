@@ -254,5 +254,7 @@
     "wayf.meta.description": "Login to your digital school space: A simple, secure and intuitive access for the entire educational community.",
     "wayf.select.profile": "Select which profile you would like to use",
     "wayf.title": "Welcome to your VLE!",
-    "weak": "Weak"
+    "weak": "Weak",
+    "auth.device.on": "on",
+    "auth.device.unknown": "Unknown device"
 }
