@@ -52,6 +52,16 @@ public interface UserAuthAccount {
 
 	void blockUsers(JsonArray ids, boolean block, Handler<Boolean> handler);
 
+	/**
+	 * Verrouille (ou déverrouille) les identifiants d'un compte : tant que le verrou est posé,
+	 * ni son mot de passe, ni son alias de connexion, ni ses moyens de récupération ne peuvent
+	 * être modifiés. Destiné aux comptes de démonstration partagés.
+	 */
+	void lockCredentials(String id, boolean lock, Handler<Boolean> handler);
+
+	/** @param login identifiant ou alias de connexion */
+	void areCredentialsLocked(String login, Handler<Boolean> handler);
+
 	void revalidateCgu(String userId, Handler<Boolean> handler);
 
 	void needToValidateCgu(String userId, Handler<Boolean> handler);

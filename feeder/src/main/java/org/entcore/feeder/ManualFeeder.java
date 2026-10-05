@@ -69,6 +69,7 @@ public class ManualFeeder extends BusModBase {
 	public static final String SOURCE = "MANUAL";
 	private final UserPositionService userPositionService;
 	private Boolean loginAliasValidatorForAD;
+	private static final String[] LOCKED_CREDENTIALS_FIELDS = { "loginAlias", "email", "mobile" };
 
 	static {
 		Map<String, Validator> p = new HashMap<>();
@@ -843,13 +844,29 @@ public class ManualFeeder extends BusModBase {
 		final Boolean useLoginAliasValidatorForAD = this.loginAliasValidatorForAD;
 		String q =
 				"MATCH (u:User { id : {userId}})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-				"RETURN DISTINCT p.name as profile, u.login as login, u.loginAlias as loginAlias ";
+				"RETURN DISTINCT p.name as profile, u.login as login, u.loginAlias as loginAlias, " +
+				"u.email as email, u.mobile as mobile, coalesce(u.lockedCredentials, false) as lockedCredentials ";
 		neo4j.execute(q, new JsonObject().put("userId", userId), new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> r) {
 				JsonArray res = r.body().getJsonArray("result");
 				if ("ok".equals(r.body().getString("status")) && res != null && res.size() > 0)
 				{
+					// Identifiants verrouillés (compte de démonstration partagé) : ni l'alias de
+					// connexion ni les moyens de récupération du mot de passe ne sont modifiables,
+					// quel que soit l'appelant. Le super-administrateur lève d'abord le verrou.
+					// Une valeur renvoyée à l'identique (formulaire de profil prérempli) n'est pas
+					// une modification : le reste de la fiche doit rester éditable.
+					final JsonObject current = res.getJsonObject(0);
+					if (Boolean.TRUE.equals(current.getBoolean("lockedCredentials"))) {
+						for (String field : LOCKED_CREDENTIALS_FIELDS) {
+							if (user.containsKey(field) && !getOrElse(user.getString(field), "")
+									.equals(getOrElse(current.getString(field), ""))) {
+								sendError(message, "user.credentials.locked");
+								return;
+							}
+						}
+					}
 					StatementsBuilder statementsBuilder = new StatementsBuilder();
 					final Integer transactionId = message.body().getInteger("transactionId");
 					final Boolean commit = message.body().getBoolean("commit", true);
@@ -958,13 +975,19 @@ public class ManualFeeder extends BusModBase {
 
 		String q =
 				"MATCH (u:User { id : {userId}})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-				"RETURN DISTINCT p.name as profile, u.login as login ";
+				"RETURN DISTINCT p.name as profile, u.login as login, " +
+				"coalesce(u.lockedCredentials, false) as lockedCredentials ";
 		neo4j.execute(q, new JsonObject().put("userId", userId), new Handler<Message<JsonObject>>()
 		{
 			@Override
 			public void handle(Message<JsonObject> r)
 			{
 				JsonArray res = r.body().getJsonArray("result");
+				if (res != null && res.size() > 0 && Boolean.TRUE.equals(res.getJsonObject(0).getBoolean("lockedCredentials")))
+				{
+					sendError(message, "user.credentials.locked");
+					return;
+				}
 				JsonArray loginChangeEvents = new JsonArray();
 				Set<String> oldLogins = new HashSet<String>();
 

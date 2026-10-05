@@ -266,4 +266,37 @@ public class UserAuthAccountTest {
             });
         });
     }
+
+    /** Identifiants verrouillés : ni mot de passe ni code de réinitialisation, jusqu'à la levée du verrou. */
+    @Test
+    public void testLockedCredentialsShouldRefusePasswordReset(TestContext context) {
+        final Async async = context.async();
+        test.directory().createActiveUser("user30", "activationCode30", "user30@test.com").onComplete(resUser -> {
+            context.assertTrue(resUser.succeeded());
+            final String id = resUser.result();
+            authAccount.lockCredentials(id, true, locked -> {
+                context.assertTrue(locked);
+                // Un code encore en circulation ne doit pas suffire.
+                test.directory().resetUser(id, "resetCode30").onComplete(resReset -> {
+                    context.assertTrue(resReset.succeeded());
+                    authAccount.areCredentialsLocked("user30", isLocked -> {
+                        context.assertTrue(isLocked);
+                        authAccount.resetPassword("user30", "resetCode30", "password30", null, refused -> {
+                            context.assertNull(refused);
+                            authAccount.generateResetCode("user30", false, code -> {
+                                context.assertTrue(code.isLeft());
+                                authAccount.lockCredentials(id, false, unlocked -> {
+                                    context.assertTrue(unlocked);
+                                    authAccount.resetPassword("user30", "resetCode30", "password30", null, accepted -> {
+                                        context.assertNotNull(accepted);
+                                        async.complete();
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    }
 }

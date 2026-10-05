@@ -1851,6 +1851,28 @@ public class AuthController extends BaseController {
 		});
 	}
 
+	/**
+	 * Verrouille ou déverrouille les identifiants d'un compte (comptes de démonstration partagés).
+	 * Corps : {@code {"lock": true|false}}. Réservé au super-administrateur.
+	 */
+	@Put("/lock-credentials/:userId")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	public void lockCredentials(final HttpServerRequest request) {
+		RequestUtils.bodyToJson(request, json -> {
+			final String userId = request.params().get("userId");
+			final boolean lock = json.getBoolean("lock", true);
+			userAuthAccount.lockCredentials(userId, lock, ok -> {
+				if (Boolean.TRUE.equals(ok)) {
+					trace.info(getIp(request) + " - Identifiants " + (lock ? "verrouillés" : "déverrouillés") + " pour l'utilisateur " + userId);
+					renderJson(request, new JsonObject().put("lockedCredentials", lock));
+				} else {
+					notFound(request);
+				}
+			});
+		});
+	}
+
 	@Put("/users/block")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	public void blockUsers(final HttpServerRequest request) {
@@ -2594,6 +2616,18 @@ public class AuthController extends BaseController {
 					}
 					renderJson(request, error);
 				} else {
+					// Compte aux identifiants verrouillés : refus explicite, avant toute vérification.
+					userAuthAccount.areCredentialsLocked(login, locked -> {
+					if (locked) {
+						trace.info(getIp(request) + " - Changement de mot de passe refusé, identifiants verrouillés pour l'utilisateur " + login);
+						JsonObject error = new JsonObject().put("error", new JsonObject().put("message", I18n.getInstance()
+								.translate("auth.credentials.locked", getHost(request), I18n.acceptLanguage(request))));
+						if (resetCode != null) {
+							error.put("resetCode", resetCode);
+						}
+						renderJson(request, error);
+						return;
+					}
 					DataHandler data = oauthDataFactory.create(new HttpServerRequestAdapter(request));
 					data.getUserId(login, oldPassword, new Handler<Try<AccessDenied, String>>() {
 
@@ -2649,6 +2683,7 @@ public class AuthController extends BaseController {
 							}
 
 						}
+					});
 					});
 				}
 			}
