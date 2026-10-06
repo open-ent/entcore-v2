@@ -64,7 +64,11 @@ public class DefaultQuotaService extends BasicQuotaService {
 			// prévenir au plus tôt — un élève rattaché à deux établissements ne doit pas se voir
 			// appliquer le seuil le plus laxiste des deux.
 			// MIN() ignore les null : sans aucune surcharge, COALESCE retombe sur le seuil global.
-			String query = "MATCH (u:UserBook { userid : {userId}}) " + "SET u.__lock__ = 1, u.storage = u.storage + {size} "
+			// Le compteur est dénormalisé et dérive : une décrémentation peut dépasser ce qu'il
+			// contient (purge des documents d'un compte, cf. UserDocumentsAdminController). Une
+			// occupation négative n'a pas de sens et offrirait du quota en plus : on borne à zéro.
+			String query = "MATCH (u:UserBook { userid : {userId}}) " + "SET u.__lock__ = 1, "
+					+ "u.storage = CASE WHEN u.storage + {size} < 0 THEN 0 ELSE u.storage + {size} END "
 					+ "WITH u, u.alertSize as oldAlert "
 					+ "OPTIONAL MATCH (:User {id: {userId}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) "
 					+ "WITH u, oldAlert, COALESCE(MIN(s.storageAlertThreshold), {threshold}) as alertThreshold "
