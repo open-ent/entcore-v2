@@ -209,9 +209,19 @@ public class DefaultGroupService implements GroupService {
 
 	@Override
 	public void getInfos(String groupId, Handler<Either<String, JsonObject>> handler) {
+		// Point F (chantier "vue consolidée EDT+RBS") : structureId de l'établissement de
+		// rattachement, via la même relation DEPENDS déjà utilisée juste en dessous pour
+		// distinguer un StructureGroup — OPTIONAL MATCH car un groupe non rattaché à une
+		// structure directe (ManualGroup, CommunityGroup...) ne doit pas faire échouer le MATCH
+		// principal ni la réponse getInfos (0 ou 1 structure par groupe, jamais plusieurs).
+		// Un ClassGroup dépend d'une Class, pas directement d'une Structure — la classe elle-même
+		// est rattachée à son établissement via (:Class)-[:BELONGS]->(:Structure) (vérifié en
+		// base), d'où le second OPTIONAL MATCH + coalesce pour couvrir les deux cas.
 		final String query =
 				"MATCH (g:Group {id:{id}}) " +
-				"RETURN g.id as id, g.name as name, g.nbUsers as nbUsers, " +
+				"OPTIONAL MATCH (g)-[:DEPENDS]->(struct:Structure) " +
+				"OPTIONAL MATCH (g)-[:DEPENDS]->(:Class)-[:BELONGS]->(classStruct:Structure) " +
+				"RETURN g.id as id, g.name as name, g.nbUsers as nbUsers, coalesce(struct.id, classStruct.id) as structureId, " +
 				"CASE WHEN (g: ProfileGroup)-[:DEPENDS]->(:Structure) THEN 'StructureGroup' " +
 				"     WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
 				"     WHEN HAS(g.subType) THEN g.subType END as type ";
@@ -224,13 +234,21 @@ public class DefaultGroupService implements GroupService {
 		final boolean withDisplayName = Field.DISPLAY_NAME.isSetIn(fieldMask);
 		final boolean withTypeSubType = Field.TYPE_SUBTYPE.isSetIn(fieldMask);
 		final boolean withNbUsers = Field.NB_USERS.isSetIn(fieldMask);
+		// Point F : bit dédié (cf. GroupService.Field.STRUCTURE_ID) pour ne pas imposer la
+		// jointure Neo4j supplémentaire aux appelants existants qui n'en ont pas besoin.
+		final boolean withStructureId = Field.STRUCTURE_ID.isSetIn(fieldMask);
 		final String query =
 			"MATCH (g:Group) WHERE g.id IN {groupIds} " +
 			"WITH g " +
 			(withTypeSubType ? ", HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type " : "") +
+			// cf. commentaire dans getInfos() : ClassGroup dépend d'une Class, pas directement
+			// d'une Structure — la classe est rattachée via (:Class)-[:BELONGS]->(:Structure).
+			(withStructureId ? "OPTIONAL MATCH (g)-[:DEPENDS]->(struct:Structure) " +
+				"OPTIONAL MATCH (g)-[:DEPENDS]->(:Class)-[:BELONGS]->(classStruct:Structure) " : "") +
 			"RETURN DISTINCT g.id as id, g.name as name " +
 			(withDisplayName ? ", g.displayName as displayName " : "") +
 			(withNbUsers ? ", coalesce(g.nbUsers,0) as nbUsers " : "") +
+			(withStructureId ? ", coalesce(struct.id, classStruct.id) as structureId " : "") +
 			(withTypeSubType ? ", type, CASE " +
 				" WHEN (g: ProfileGroup)-[:DEPENDS]-(:Structure) THEN 'StructureGroup' " +
 				" WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +

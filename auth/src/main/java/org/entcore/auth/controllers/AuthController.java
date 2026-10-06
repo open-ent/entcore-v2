@@ -1816,6 +1816,25 @@ public class AuthController extends BaseController {
 		});
 	}
 
+	/**
+	 * Un compte de démonstration verrouillé ne se bloque pas : le bloquer le rendrait
+	 * inutilisable pour tous. Le déblocage, lui, reste toujours possible.
+	 */
+	private void unlessLockedAccount(final HttpServerRequest request, final JsonArray userIds, final boolean block,
+			final Runnable action) {
+		if (!block || userIds == null) {
+			action.run();
+			return;
+		}
+		userAuthAccount.anyCredentialsLocked(userIds, locked -> {
+			if (Boolean.TRUE.equals(locked)) {
+				badRequest(request, "user.account.locked");
+			} else {
+				action.run();
+			}
+		});
+	}
+
 	@Put("/block/:userId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	public void blockUser(final HttpServerRequest request) {
@@ -1824,7 +1843,7 @@ public class AuthController extends BaseController {
 			public void handle(JsonObject json) {
 				final String userId = request.params().get("userId");
 				boolean block = json.getBoolean("block", true);
-				userAuthAccount.blockUser(userId, block, new io.vertx.core.Handler<Boolean>() {
+				unlessLockedAccount(request, new JsonArray().add(userId), block, () -> userAuthAccount.blockUser(userId, block, new io.vertx.core.Handler<Boolean>() {
 					@Override
 					public void handle(Boolean r) {
 						if (Boolean.TRUE.equals(r)) {
@@ -1849,8 +1868,30 @@ public class AuthController extends BaseController {
 							badRequest(request);
 						}
 					}
-				});
+				}));
 			}
+		});
+	}
+
+	/**
+	 * Verrouille ou déverrouille les identifiants d'un compte (comptes de démonstration partagés).
+	 * Corps : {@code {"lock": true|false}}. Réservé au super-administrateur.
+	 */
+	@Put("/lock-credentials/:userId")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	public void lockCredentials(final HttpServerRequest request) {
+		RequestUtils.bodyToJson(request, json -> {
+			final String userId = request.params().get("userId");
+			final boolean lock = json.getBoolean("lock", true);
+			userAuthAccount.lockCredentials(userId, lock, ok -> {
+				if (Boolean.TRUE.equals(ok)) {
+					trace.info(getIp(request) + " - Identifiants " + (lock ? "verrouillés" : "déverrouillés") + " pour l'utilisateur " + userId);
+					renderJson(request, new JsonObject().put("lockedCredentials", lock));
+				} else {
+					notFound(request);
+				}
+			});
 		});
 	}
 
@@ -1862,7 +1903,7 @@ public class AuthController extends BaseController {
 			public void handle(JsonObject json) {
 				JsonArray userIds = json.getJsonArray("users");
 				boolean block = json.getBoolean("block", true);
-				userAuthAccount.blockUsers(userIds, block, new io.vertx.core.Handler<Boolean>() {
+				unlessLockedAccount(request, userIds, block, () -> userAuthAccount.blockUsers(userIds, block, new io.vertx.core.Handler<Boolean>() {
 					@Override
 					public void handle(Boolean r) {
 						if (Boolean.TRUE.equals(r)) {
@@ -1890,7 +1931,7 @@ public class AuthController extends BaseController {
 							badRequest(request);
 						}
 					}
-				});
+				}));
 			}
 		});
 	}
@@ -2597,6 +2638,18 @@ public class AuthController extends BaseController {
 					}
 					renderJson(request, error);
 				} else {
+					// Compte aux identifiants verrouillés : refus explicite, avant toute vérification.
+					userAuthAccount.areCredentialsLocked(login, locked -> {
+					if (locked) {
+						trace.info(getIp(request) + " - Changement de mot de passe refusé, identifiants verrouillés pour l'utilisateur " + login);
+						JsonObject error = new JsonObject().put("error", new JsonObject().put("message", I18n.getInstance()
+								.translate("auth.credentials.locked", getHost(request), I18n.acceptLanguage(request))));
+						if (resetCode != null) {
+							error.put("resetCode", resetCode);
+						}
+						renderJson(request, error);
+						return;
+					}
 					DataHandler data = oauthDataFactory.create(new HttpServerRequestAdapter(request));
 					data.getUserId(login, oldPassword, new Handler<Try<AccessDenied, String>>() {
 
@@ -2652,6 +2705,7 @@ public class AuthController extends BaseController {
 							}
 
 						}
+					});
 					});
 				}
 			}

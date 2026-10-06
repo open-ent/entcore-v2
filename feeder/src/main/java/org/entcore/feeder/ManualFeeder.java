@@ -75,6 +75,7 @@ public class ManualFeeder extends BusModBase {
 	public static final String SOURCE = "MANUAL";
 	private final UserPositionService userPositionService;
 	private Boolean loginAliasValidatorForAD;
+	private static final String[] LOCKED_CREDENTIALS_FIELDS = { "loginAlias", "email", "mobile" };
 
 	static {
 		Map<String, Validator> p = new HashMap<>();
@@ -469,6 +470,32 @@ public class ManualFeeder extends BusModBase {
 			sendError(message, "structureId or classId must be specified");
 	}
 
+	/**
+	 * Compte de démonstration verrouillé (cf. {@code lockedCredentials}) : ce qui le rend
+	 * utilisable — son rattachement, ses groupes, ses fonctions, son existence même — ne se
+	 * retire pas tant que le super-administrateur n'a pas levé le verrou. Si l'un des comptes
+	 * visés est verrouillé, l'opération entière est refusée avec {@code errorKey}.
+	 */
+	private void unlessLocked(final Message<JsonObject> message, final JsonArray userIds, final String errorKey,
+			final Runnable action) {
+		final String q = "MATCH (u:User) WHERE u.id IN {userIds} AND u.lockedCredentials = true RETURN count(u) as locked";
+		neo4j.execute(q, new JsonObject().put("userIds", userIds), r -> {
+			final JsonArray res = r.body().getJsonArray("result");
+			if (!"ok".equals(r.body().getString("status")) || res == null || res.size() != 1) {
+				sendError(message, "Unknown error");
+			} else if (res.getJsonObject(0).getInteger("locked", 0) > 0) {
+				sendError(message, errorKey);
+			} else {
+				action.run();
+			}
+		});
+	}
+
+	private void unlessLocked(final Message<JsonObject> message, final String userId, final String errorKey,
+			final Runnable action) {
+		unlessLocked(message, new JsonArray().add(userId), errorKey, action);
+	}
+
 	public void removeUser(final Message<JsonObject> message)
 	{
 		final String userId = getMandatoryString("userId", message);
@@ -476,6 +503,7 @@ public class ManualFeeder extends BusModBase {
 
 		final String structureId = message.body().getString("structureId");
 		final String classId = message.body().getString("classId");
+		unlessLocked(message, userId, "user.account.locked", () -> {
 		if (structureId != null && !structureId.trim().isEmpty())
 		{
 			MessageUtils.replyWithResults(message,
@@ -486,6 +514,7 @@ public class ManualFeeder extends BusModBase {
 			removeUserFromClass(message, userId, classId);
 		else
 			sendError(message, "structureId or classId must be specified");
+		});
 	}
 
 	public void removeUsers(final Message<JsonObject> message) {
@@ -493,6 +522,7 @@ public class ManualFeeder extends BusModBase {
 		if (userIds.isEmpty()) return;
 
 		final String structureId = message.body().getString("structureId");
+		unlessLocked(message, userIds, "user.account.locked", () -> {
 		if (structureId != null && !structureId.trim().isEmpty()) {
 			removeUsersFromStructure(message, userIds, structureId);
 			return;
@@ -507,6 +537,7 @@ public class ManualFeeder extends BusModBase {
 			return;
 		}
 		sendError(message, "structureId or classIds must be specified");
+		});
 	}
 
 	public static void applyRemoveUserFromStructure(String userId, String userExternalId,
@@ -874,13 +905,29 @@ public class ManualFeeder extends BusModBase {
 		final Boolean useLoginAliasValidatorForAD = this.loginAliasValidatorForAD;
 		String q =
 				"MATCH (u:User { id : {userId}})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-				"RETURN DISTINCT p.name as profile, u.login as login, u.loginAlias as loginAlias ";
+				"RETURN DISTINCT p.name as profile, u.login as login, u.loginAlias as loginAlias, " +
+				"u.email as email, u.mobile as mobile, coalesce(u.lockedCredentials, false) as lockedCredentials ";
 		neo4j.execute(q, new JsonObject().put("userId", userId), new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> r) {
 				JsonArray res = r.body().getJsonArray("result");
 				if ("ok".equals(r.body().getString("status")) && res != null && res.size() > 0)
 				{
+					// Identifiants verrouillés (compte de démonstration partagé) : ni l'alias de
+					// connexion ni les moyens de récupération du mot de passe ne sont modifiables,
+					// quel que soit l'appelant. Le super-administrateur lève d'abord le verrou.
+					// Une valeur renvoyée à l'identique (formulaire de profil prérempli) n'est pas
+					// une modification : le reste de la fiche doit rester éditable.
+					final JsonObject current = res.getJsonObject(0);
+					if (Boolean.TRUE.equals(current.getBoolean("lockedCredentials"))) {
+						for (String field : LOCKED_CREDENTIALS_FIELDS) {
+							if (user.containsKey(field) && !getOrElse(user.getString(field), "")
+									.equals(getOrElse(current.getString(field), ""))) {
+								sendError(message, "user.credentials.locked");
+								return;
+							}
+						}
+					}
 					StatementsBuilder statementsBuilder = new StatementsBuilder();
 					final Integer transactionId = message.body().getInteger("transactionId");
 					final Boolean commit = message.body().getBoolean("commit", true);
@@ -989,13 +1036,19 @@ public class ManualFeeder extends BusModBase {
 
 		String q =
 				"MATCH (u:User { id : {userId}})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-				"RETURN DISTINCT p.name as profile, u.login as login ";
+				"RETURN DISTINCT p.name as profile, u.login as login, " +
+				"coalesce(u.lockedCredentials, false) as lockedCredentials ";
 		neo4j.execute(q, new JsonObject().put("userId", userId), new Handler<Message<JsonObject>>()
 		{
 			@Override
 			public void handle(Message<JsonObject> r)
 			{
 				JsonArray res = r.body().getJsonArray("result");
+				if (res != null && res.size() > 0 && Boolean.TRUE.equals(res.getJsonObject(0).getBoolean("lockedCredentials")))
+				{
+					sendError(message, "user.credentials.locked");
+					return;
+				}
 				JsonArray loginChangeEvents = new JsonArray();
 				Set<String> oldLogins = new HashSet<String>();
 
@@ -1059,6 +1112,10 @@ public class ManualFeeder extends BusModBase {
 			sendError(message, "Missing users.");
 			return;
 		}
+		unlessLocked(message, users, "user.account.locked", () -> deleteUnlockedUsers(message, users));
+	}
+
+	private void deleteUnlockedUsers(final Message<JsonObject> message, final JsonArray users) {
 		String query =
 				"MATCH (u:User)" +
 				"WHERE u.id IN {users} AND (u.source IN ['MANUAL', 'CSV', 'CLASS_PARAM', 'BE1D', 'SSO'] OR HAS(u.disappearanceDate)) " +
@@ -1394,24 +1451,28 @@ public class ManualFeeder extends BusModBase {
 		final String userId = getMandatoryString("userId", message);
 		final String structureExternalId = message.body().getString("structureExternalId");
 		if (userId == null || structureExternalId == null) return;
-		executeTransaction(message, new VoidFunction<TransactionHelper>() {
-			@Override
-			public void apply(TransactionHelper tx) {
-				User.removeDirectionManual(userId, structureExternalId, tx);
-			}
-		});
+		unlessLocked(message, userId, "user.functions.locked", () ->
+			executeTransaction(message, new VoidFunction<TransactionHelper>() {
+				@Override
+				public void apply(TransactionHelper tx) {
+					User.removeDirectionManual(userId, structureExternalId, tx);
+				}
+			}));
 	}
 
 	public void removeUserFunction(Message<JsonObject> message) {
 		final String userId = getMandatoryString("userId", message);
 		final String function = message.body().getString("function");
 		if (userId == null || function == null) return;
-		executeTransaction(message, new VoidFunction<TransactionHelper>() {
-			@Override
-			public void apply(TransactionHelper tx) {
-				User.removeFunction(userId, function, tx);
-			}
-		});
+		// Un directeur de démonstration est administrateur local : cette fonction fait partie
+		// de ce qui est montré.
+		unlessLocked(message, userId, "user.functions.locked", () ->
+			executeTransaction(message, new VoidFunction<TransactionHelper>() {
+				@Override
+				public void apply(TransactionHelper tx) {
+					User.removeFunction(userId, function, tx);
+				}
+			}));
 	}
 
 	public void addUserGroup(Message<JsonObject> message) {
@@ -1430,12 +1491,13 @@ public class ManualFeeder extends BusModBase {
 		final String userId = getMandatoryString("userId", message);
 		final String groupId = message.body().getString("groupId");
 		if (userId == null || groupId == null) return;
-		executeTransaction(message, new VoidFunction<TransactionHelper>() {
-			@Override
-			public void apply(TransactionHelper tx) {
-				User.removeGroup(userId, groupId, tx);
-			}
-		});
+		unlessLocked(message, userId, "user.account.locked", () ->
+			executeTransaction(message, new VoidFunction<TransactionHelper>() {
+				@Override
+				public void apply(TransactionHelper tx) {
+					User.removeGroup(userId, groupId, tx);
+				}
+			}));
 	}
 
 	public void createOrUpdateTenant(Message<JsonObject> message) {
@@ -1496,12 +1558,13 @@ public class ManualFeeder extends BusModBase {
 		
 		if (userIds == null || groupId == null) return;
 		
-		executeTransaction(message, new VoidFunction<TransactionHelper>() {
-			@Override
-			public void apply(TransactionHelper tx) {
-				Group.removeUsers(groupId, userIds, tx);
-			}
-		});
+		unlessLocked(message, userIds, "user.account.locked", () ->
+			executeTransaction(message, new VoidFunction<TransactionHelper>() {
+				@Override
+				public void apply(TransactionHelper tx) {
+					Group.removeUsers(groupId, userIds, tx);
+				}
+			}));
 	}
 
 	public void updateEmailGroup(Message<JsonObject> message) {

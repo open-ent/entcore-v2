@@ -91,10 +91,17 @@ public class MongoOeipJobStore {
         return promise.future();
     }
 
-    /** Identifiants de tous les travaux connus — sert à repérer les répertoires orphelins. */
+    /**
+     * Identifiants de tous les travaux connus — sert à repérer les répertoires orphelins.
+     *
+     * La projection n'est pas un détail de confort : un travail porte son manifeste et son
+     * rapport complets, et les rapatrier tous par le bus pour n'en lire que la clé coûte, sur une
+     * plateforme active, sans rien apporter.
+     */
     public Future<java.util.Set<String>> allIds() {
         final Promise<java.util.Set<String>> promise = Promise.promise();
-        mongo.find(OeipJob.COLLECTION, new JsonObject(), res -> {
+        mongo.find(OeipJob.COLLECTION, new JsonObject(), new JsonObject(),
+                new JsonObject().put("_id", 1), res -> {
             if (!"ok".equals(res.body().getString("status"))) {
                 promise.fail("[OEIP] inventaire des travaux impossible : "
                         + res.body().getString("message"));

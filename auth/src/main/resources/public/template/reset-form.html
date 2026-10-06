@@ -4,34 +4,36 @@
 			<img class="logo absolute" src="/assets/themes/[[childTheme]]/img/illustrations/logo.png" alt="Logo de l'ENT">
 			<h1 translate content="auth.reset.header"></h1>
 			<p class="warning" translate content="[[error]]" ng-if="error"></p>
-			<form method="post" ng-submit="reset()" name="resetForm">
+			<form method="post" ng-submit="reset()" name="resetForm" novalidate>
 				<p>
-					<label><i18n>auth.email</i18n></label>
-					<input type="text" class="large-input" name="login" ng-model="user.login" ng-keydown="noSpace($event)" ng-change="noUpperCase()" name="login" tabindex="1" required/>
-					<p class="input-errors" ng-if="resetForm.login.$invalid && resetForm.login.$dirty">
-						<span ng-repeat="(key, value) in resetForm.login.$error">
-							<label ng-if="value">[[lang.translate(key)]]</label>
-						</span>
-					</p>
+					<label for="login" translate content="auth.email"></label>
+					<input type="text" id="login" name="login" ng-model="user.login" ng-keydown="noSpace($event)" ng-change="noUpperCase()" tabindex="1" required/>
+				</p>
+				<p class="input-errors" ng-if="resetForm.login.$invalid && resetForm.login.$dirty">
+					<span ng-repeat="(key, value) in resetForm.login.$error">
+						<label ng-if="value">[[lang.translate(key)]]</label>
+					</span>
 				</p>
 				<p>
-					<label><i18n>auth.activation.password</i18n></label>
+					<label translate content="auth.activation.password"></label>
 					<input-password required ng-pattern="passwordRegex" ng-model="user.password"
 						ng-change="refreshInput(resetForm, 'confirmPassword')" name="password" ng-trim="false" tabindex="2"></input-password>
-					<p class="input-errors" ng-if="resetForm.password.$invalid && resetForm.password.$dirty">
-						<i18n>password.errors</i18n><br/>
-						<span ng-repeat="(key, value) in resetForm.password.$error">
-							<label ng-if="value">[[lang.translate(key)]]</label>
-						</span>
-					</p>
-					<label><i18n>auth.activation.confirm.password</i18n></label>
+				</p>
+				<p class="input-errors" ng-if="resetForm.password.$invalid && resetForm.password.$dirty">
+					<i18n>password.errors</i18n><br/>
+					<span ng-repeat="(key, value) in resetForm.password.$error">
+						<label ng-if="value">[[lang.translate(key)]]</label>
+					</span>
+				</p>
+				<p>
+					<label translate content="auth.activation.confirm.password"></label>
 					<input-password required ng-model="user.confirmPassword"
 						name="confirmPassword" ng-trim="false" tabindex="3"></input-password>
-					<p class="input-errors" ng-if="user.password !== '' && user.confirmPassword && user.confirmPassword !== '' && user.confirmPassword !== user.password">
-						<i18n>password.identical</i18n>
-					</p>
 				</p>
-				<div class="complexity>">
+				<p class="input-errors" ng-if="user.password !== '' && user.confirmPassword && user.confirmPassword !== '' && user.confirmPassword !== user.password">
+					<i18n>password.identical</i18n>
+				</p>
+				<div class="complexity">
 					<small><i18n>complexity</i18n> : [[ translateComplexity(resetForm['password'].$viewValue) ]]</small>
 					<div class="fill-bar">
 						<div style="width: [[ (passwordComplexity(resetForm['password'].$viewValue) / 20) * 100 ]]%"
@@ -45,9 +47,10 @@
 				<p class="input-errors" ng-if="passwordComplexity(user.password) < 20">
 					<i18n>password.recommandations</i18n>
 				</p>
-				<p>
+				<div class="auth-actions">
 					<input type="submit" translate attr="value" value="auth.reset" ng-disabled="resetForm.$invalid" tabindex="4"/>
-				</p>
+					<a href="/auth/login" target="_self" translate content="auth.cancel"></a>
+				</div>
 			</form>
 		</div>
 	</section>
