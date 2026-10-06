@@ -36,6 +36,7 @@ import org.entcore.auth.security.SamlUtils;
 import org.entcore.auth.services.FederationService;
 import org.entcore.auth.services.SafeRedirectionService;
 import org.entcore.auth.services.impl.FederationServiceImpl;
+import org.entcore.common.events.impl.GenericEventStore;
 import org.entcore.common.http.response.DefaultPages;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
@@ -358,13 +359,16 @@ public class SamlController extends AbstractFederateController {
 		} else {
 			switch (nameIdFormat) {
 				case NAME_ID_FORMAT_EMAIL_ADDRESS:
-					nameId = user.getEmail();
+					final String providerNameId = samlHelper.getNameId(serviceProviderId, user.getUserId(), getHost(request));
+					nameId = providerNameId != null ? providerNameId : user.getEmail();
 					break;
 				default:
 					nameId = sessionId;
 					break;
 			}
 		}
+
+		final JsonObject eventAttributes = GenericEventStore.generateEventAttributesFromRequest(request);
 
 		// Send to the bus to generate the SAMLResponse
 		JsonObject event = new JsonObject()
@@ -374,7 +378,8 @@ public class SamlController extends AbstractFederateController {
 				.put("nameId", nameId)
                 .put("host", getHost(request))
                 .put("authNRequestId", authNRequestId)
-				.put("scheme", getScheme(request));
+				.put("scheme", getScheme(request))
+				.put("eventAttributes", eventAttributes);
 
 		if (nameIdFormat != null) {
 			event.put("nameIdFormat", nameIdFormat);
@@ -681,8 +686,10 @@ public class SamlController extends AbstractFederateController {
 								loginResult(request, "auth.error.blockedProfileType", assertion);
 							else if(error.equals("blocked.user"))
 								loginResult(request, "auth.error.blockedUser", assertion);
-							else
+							else {
+								log.error(error);
 								loginResult(request, "fed.auth.error.user.not.found", assertion);
+							}
 						} else {
 							final String nameIdFromAssertion = getNameId(assertion);
 							final String sessionIndex = getSessionId(assertion);

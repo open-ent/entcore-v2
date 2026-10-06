@@ -435,12 +435,12 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	@Override
 	public void createOrUpdateAuthInfo(String clientId, String userId,
 			String scope, Handler<AuthInfo> handler) {
-		createOrUpdateAuthInfo(clientId, userId, scope, null, null, null, handler);
+		createOrUpdateAuthInfo(clientId, userId, scope, null, null, null, null, handler);
 	}
 
 	public void createOrUpdateAuthInfo(final String clientId, final String userId,
 			final String scope, final String redirectUri, String nonce, final String sessionId,
-			final Handler<AuthInfo> handler) {
+			final JsonObject eventAttributes, final Handler<AuthInfo> handler) {
 		if (clientId != null && userId != null &&
 				!clientId.trim().isEmpty() && !userId.trim().isEmpty()) {
 			if (scope != null && !scope.trim().isEmpty()) {
@@ -459,7 +459,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
                         .getList())
 													.containsAll(Arrays.asList(scope.split("\\s")))) {
 										createAuthInfo(clientId, userId, scope, redirectUri, nonce,
-												j.getString("logoutUrl"), sessionId, handler);
+												j.getString("logoutUrl"), sessionId, eventAttributes, handler);
 									} else {
 										handler.handle(null);
 									}
@@ -469,7 +469,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 							}
 						});
 			} else {
-				createAuthInfo(clientId, userId, scope, redirectUri, nonce, null, sessionId, handler);
+				createAuthInfo(clientId, userId, scope, redirectUri, nonce, null, sessionId, eventAttributes, handler);
 			}
 		} else {
 			handler.handle(null);
@@ -477,7 +477,8 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	}
 
 	private void createAuthInfo(String clientId, String userId, String scope,
-			String redirectUri, String nonce, String logoutUrl, String sessionId, final Handler<AuthInfo> handler) {
+			String redirectUri, String nonce, String logoutUrl, String sessionId,
+								final JsonObject eventAttributes, final Handler<AuthInfo> handler) {
 		final JsonObject auth = new JsonObject()
 				.put("clientId", clientId)
 				.put("userId", userId)
@@ -493,6 +494,13 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 		if (nonce != null) {
 			auth.put("nonce", nonce);
 		}
+		if (eventAttributes != null && !eventAttributes.isEmpty()) {
+			auth.put("userAgent", eventAttributes.getString("ua"));
+			auth.put("deviceType", eventAttributes.getString("deviceType"));
+			auth.put("deviceName", eventAttributes.getString("deviceName"));
+			auth.put("osName", eventAttributes.getString("osName"));
+			auth.put("osVersion", eventAttributes.getString("osVersion"));
+		}
 		mongo.save(AUTH_INFO_COLLECTION, auth, new io.vertx.core.Handler<Message<JsonObject>>() {
 
 			@Override
@@ -500,7 +508,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 				if ("ok".equals(res.body().getString("status"))) {
 					auth.put("id", res.body().getString("_id"));
 					auth.remove("createdAt");
-          auth.remove("sessionId");
+					auth.remove("sessionId");
 					ObjectMapper mapper = DatabindCodec.mapper();
 					try {
 						handler.handle(mapper.readValue(auth.encode(), AuthInfo.class));
@@ -535,7 +543,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 									// "2.0".equals(RequestUtils.getAcceptVersion(getRequest().getHeader("Accept"))))
 									// {
 									openIdConnectService.generateIdToken(authInfo.getUserId(), authInfo.getClientId(),
-											authInfo.getNonce(), new io.vertx.core.Handler<AsyncResult<String>>() {
+											authInfo.getNonce(), authInfo.getSessionId(), new io.vertx.core.Handler<AsyncResult<String>>() {
 												@Override
 												public void handle(AsyncResult<String> ar) {
 													if (ar.succeeded()) {
@@ -604,7 +612,6 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
           }
           r.put("id", r.getString("_id"));
           r.remove("_id");
-          r.remove("sessionId");
           r.remove("createdAt");
           ObjectMapper mapper = new ObjectMapper();
           try {
@@ -659,7 +666,6 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 						}
 						r.put("id", r.getString("_id"));
 						r.remove("_id");
-						r.remove("sessionId");
 						r.remove("createdAt");
 						ObjectMapper mapper = new ObjectMapper();
 						try {
@@ -981,9 +987,9 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	}
 
 	@Override
-	public void getLogoutToken(String userId, String clientId, Handler<String> handler) {
+	public void getLogoutToken(String userId, String clientId, String sessionId, Handler<String> handler) {
 		if (userId != null && clientId != null) {
-			openIdConnectService.generateLogoutToken(userId, clientId, event -> {
+			openIdConnectService.generateLogoutToken(userId, clientId, sessionId, event -> {
 				if (event.result() != null && !event.result().trim().isEmpty()) {
 					log.debug("Token generated successfully");
 					handler.handle(event.result());

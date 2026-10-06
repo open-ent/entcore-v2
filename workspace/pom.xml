@@ -12,6 +12,10 @@
 
     <artifactId>workspace</artifactId>
 
+    <properties>
+        <lame4jVersion>2.1.0</lame4jVersion>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.entcore</groupId>
@@ -27,15 +31,15 @@
             <classifier>fat</classifier>
         </dependency>
         <dependency>
-            <groupId>com.sun.jna</groupId>
-            <artifactId>jna</artifactId>
-            <version>${jnaVersion}</version>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web-client</artifactId>
+            <version>${vertxVersion}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
-            <groupId>net.sf</groupId>
-            <artifactId>lamejb</artifactId>
-            <version>${lamejbVersion}</version>
+            <groupId>de.maxhenkel.lame4j</groupId>
+            <artifactId>lame4j</artifactId>
+            <version>${lame4jVersion}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -52,6 +56,13 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <repositories>
+        <repository>
+            <id>henkelmax.public</id>
+            <url>https://maven.maxhenkel.de/repository/public</url>
+        </repository>
+    </repositories>
 
     <build>
         <plugins>

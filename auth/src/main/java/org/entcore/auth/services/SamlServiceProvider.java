@@ -21,7 +21,7 @@ package org.entcore.auth.services;
 
 import fr.wseduc.webutils.Either;
 import io.vertx.core.eventbus.EventBus;
-import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import org.opensaml.saml2.core.Assertion;
 import io.vertx.core.Handler;
 
@@ -29,7 +29,16 @@ public interface SamlServiceProvider {
 
 	void execute(Assertion assertion, Handler<Either<String, Object>> handler);
 
-	void generate(EventBus eb, String userId, String host, String serviceProviderEntityId,
+	void generate(EventBus eb, String userId, String host, String serviceProviderEntityId, JsonObject eventAttributes,
 				  Handler<Either<String, io.vertx.core.json.JsonArray>> handler);
+
+	/**
+	 * Computes the SAML NameID value to use for this service provider, when it requires a specific
+	 * (non-default) NameID format such as an email address. Returns null if this provider has no
+	 * specific NameID to provide, in which case the caller should fall back to a default value.
+	 */
+	default String getNameId(String userId, String host) {
+		return null;
+	}
 
 }

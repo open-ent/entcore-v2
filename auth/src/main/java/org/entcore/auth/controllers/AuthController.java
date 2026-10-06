@@ -79,6 +79,7 @@ import org.entcore.auth.services.impl.OpenIdSloServiceImpl;
 import org.entcore.auth.users.UserAuthAccount;
 import org.entcore.common.datavalidation.UserValidation;
 import org.entcore.common.events.EventStore;
+import org.entcore.common.events.impl.GenericEventStore;
 import org.entcore.common.http.filter.*;
 import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.neo4j.Neo4j;
@@ -113,7 +114,6 @@ import java.util.stream.Collectors;
 import static fr.wseduc.webutils.Utils.*;
 import static fr.wseduc.webutils.request.RequestUtils.getTokenHeader;
 import static org.entcore.auth.oauth.OAuthAuthorizationResponse.*;
-import static org.entcore.common.aggregation.MongoConstants.TRACE_TYPE_CONNECTOR;
 import static org.entcore.common.http.response.DefaultResponseHandler.defaultResponseHandler;
 
 public class AuthController extends BaseController {
@@ -296,8 +296,9 @@ public class AuthController extends BaseController {
 								@Override
 								public void handle(UserInfos user) {
 									if (user != null && user.getUserId() != null) {
+										final JsonObject eventAttributes = GenericEventStore.generateEventAttributesFromRequest(request);
 										((OAuthDataHandler) data).createOrUpdateAuthInfo(clientId, user.getUserId(),
-												scope, redirectUri, nonce, sessionId, new Handler<AuthInfo>() {
+												scope, redirectUri, nonce, sessionId, eventAttributes, new Handler<AuthInfo>() {
 
 													@Override
 													public void handle(AuthInfo auth) {
@@ -540,31 +541,36 @@ public class AuthController extends BaseController {
 							}
 
 						} else {
-							String errorString = new JsonObject(response.getBody()).getString("error_description");
-							if (OAuthDataHandler.AUTH_ERROR_AUTHENTICATION_FAILED.equals(errorString)) {
-								trace.info(String.format(
-										"%s - Erreur de connexion ( %s ) pour l'utilisateur %s - Referer %s",
-										getIp(request), OAuthDataHandler.AUTH_ERROR_AUTHENTICATION_FAILED,
-										req.getParameter("username"), request.headers().get("Referer")));
-							} else if (OAuthDataHandler.AUTH_ERROR_BLOCKED_USER.equals(errorString)) {
-								trace.info(String.format(
-										"%s - Erreur de connexion ( %s ) pour l'utilisateur %s - Referer %s",
-										getIp(request), OAuthDataHandler.AUTH_ERROR_BLOCKED_USER,
-										req.getParameter("username"), request.headers().get("Referer")));
-							} else if ("auth.error.ban".equals(errorString)) {
-								trace.info(String.format(
-										"%s - Erreur de connexion ( %s ) pour l'utilisateur %s - Referer %s",
-										getIp(request), "auth.error.ban", req.getParameter("username"),
-										request.headers().get("Referer")));
-							} else if (OAuthDataHandler.AUTH_ERROR_BLOCKED_PROFILETYPE.equals(errorString)) {
-								trace.info(String.format(
-										"%s - Erreur de connexion ( %s ) pour l'utilisateur %s - Referer %s",
-										getIp(request), OAuthDataHandler.AUTH_ERROR_BLOCKED_PROFILETYPE,
-										req.getParameter("username"), request.headers().get("Referer")));
+							if (response.getCode() != 200) {
+								String errorString = new JsonObject(response.getBody()).getString("error_description");
+								if (OAuthDataHandler.AUTH_ERROR_AUTHENTICATION_FAILED.equals(errorString)) {
+									trace.info(String.format(
+											"%s - Erreur de connexion ( %s ) pour l'utilisateur %s - Referer %s",
+											getIp(request), OAuthDataHandler.AUTH_ERROR_AUTHENTICATION_FAILED,
+											req.getParameter("username"), request.headers().get("Referer")));
+								} else if (OAuthDataHandler.AUTH_ERROR_BLOCKED_USER.equals(errorString)) {
+									trace.info(String.format(
+											"%s - Erreur de connexion ( %s ) pour l'utilisateur %s - Referer %s",
+											getIp(request), OAuthDataHandler.AUTH_ERROR_BLOCKED_USER,
+											req.getParameter("username"), request.headers().get("Referer")));
+								} else if ("auth.error.ban".equals(errorString)) {
+									trace.info(String.format(
+											"%s - Erreur de connexion ( %s ) pour l'utilisateur %s - Referer %s",
+											getIp(request), "auth.error.ban", req.getParameter("username"),
+											request.headers().get("Referer")));
+								} else if (OAuthDataHandler.AUTH_ERROR_BLOCKED_PROFILETYPE.equals(errorString)) {
+									trace.info(String.format(
+											"%s - Erreur de connexion ( %s ) pour l'utilisateur %s - Referer %s",
+											getIp(request), OAuthDataHandler.AUTH_ERROR_BLOCKED_PROFILETYPE,
+											req.getParameter("username"), request.headers().get("Referer")));
+								} else {
+									trace.info(String.format(
+											"%s - Erreur de connexion pour l'utilisateur - Referer %s",
+											getIp(request), request.headers().get("Referer")));
+								}
 							} else {
-								trace.info(String.format(
-										"%s - Erreur de connexion pour l'utilisateur - Referer %s",
-										getIp(request), request.headers().get("Referer")));
+								//create login event for AuthorizationCode, ClientCredentials, etc.
+								eventStore.createAndStoreEventByUserId(AuthEvent.LOGIN.name(), userData.getId(), clientId, request);
 							}
 
 							renderJson(request, new JsonObject(response.getBody()), response.getCode());
@@ -1117,7 +1123,7 @@ public class AuthController extends BaseController {
 						String clientId = sr.getAttribute("client_id");
 						info = adapter.getInfo(infos, clientId);
 						if (isNotEmpty(clientId)) {
-							createStatsEvent(infos, clientId);
+							createStatsEvent(infos, clientId, request);
 						}
 					} else {
 						info = adapter.getInfo(infos, null);
@@ -1137,7 +1143,7 @@ public class AuthController extends BaseController {
 		this.userInfo(request);
 	}
 
-	private void createStatsEvent(JsonObject infos, String clientId) {
+	private void createStatsEvent(JsonObject infos, String clientId, HttpServerRequest request) {
 		JsonObject custom = new JsonObject().put("override-module", clientId)
 				.put("connector-type", "OAuth2");
 		UserInfos user = new UserInfos();
@@ -1147,7 +1153,33 @@ public class AuthController extends BaseController {
 			user.setStructures(structures.getList());
 		}
 		user.setType(infos.getString("type"));
-		eventStore.createAndStoreEvent(TRACE_TYPE_CONNECTOR, user, custom);
+
+		final String oauth2 = AppOAuthResourceProvider.getTokenId((SecureHttpServerRequest) request).orElse(null);
+		if (oauth2 != null) {
+			final Request req = new HttpServerRequestAdapter(request);
+			final DataHandler data = oauthDataFactory.create(req);
+			data.getAccessToken(oauth2, access -> {
+				if (access != null && access.getAuthId() != null) {
+					data.getAuthInfoById(access.getAuthId(), authInfo -> {
+						if (authInfo != null) {
+							final JsonObject eventAttributes = new JsonObject();
+							eventAttributes.put("ua", authInfo.getUserAgent());
+							eventAttributes.put("deviceName", authInfo.getDeviceName());
+							eventAttributes.put("deviceType", authInfo.getDeviceType());
+							eventAttributes.put("osName", authInfo.getOsName());
+							eventAttributes.put("osVersion", authInfo.getOsVersion());
+							eventStore.createConnectorEvent(user, custom, eventAttributes);
+						} else {
+							eventStore.createConnectorEvent(user, custom, new JsonObject());
+						}
+					});
+				} else {
+					eventStore.createConnectorEvent(user, custom, new JsonObject());
+				}
+			});
+		} else {
+			eventStore.createConnectorEvent(user, custom, new JsonObject());
+		}
 	}
 
 	@Get("/internal/userinfo")
