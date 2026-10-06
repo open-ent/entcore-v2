@@ -40,6 +40,7 @@ import org.entcore.common.storage.StorageFactory;
 import org.entcore.common.storage.impl.MongoDBApplicationStorage;
 import org.entcore.workspace.controllers.AudioRecorderHandler;
 import org.entcore.workspace.controllers.QuotaController;
+import org.entcore.workspace.controllers.UserDocumentsAdminController;
 import org.entcore.workspace.controllers.WorkspaceController;
 import org.entcore.workspace.dao.DocumentDao;
 import org.entcore.workspace.listeners.ResourceBrokerListenerImpl;
@@ -144,6 +145,9 @@ public class Workspace extends BaseServer {
 		// annoncer le seuil réellement appliqué aux établissements qui n'en fixent pas.
 		quotaController.setDefaultAlertThreshold(threshold);
 		addController(quotaController);
+
+		// Liste et purge des documents d'un compte, réservées au super-admin (dashboard).
+		addController(new UserDocumentsAdminController(workspaceService));
 
 		// Expose /workspace/conf/public (renvoie config.publicConf, dont "folder-service").
 		// Sans ce contrôleur, la route renvoie vide -> le front media-library (directive

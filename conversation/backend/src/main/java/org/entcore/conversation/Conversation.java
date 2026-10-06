@@ -33,6 +33,7 @@ import org.entcore.conversation.controllers.ApiController;
 import org.entcore.conversation.controllers.ConversationController;
 import org.entcore.conversation.controllers.MessagingHoursController;
 import org.entcore.conversation.controllers.StudentMessagingExclusionsController;
+import org.entcore.conversation.controllers.UserAttachmentsAdminController;
 import org.entcore.conversation.util.MessagingHours;
 import org.entcore.conversation.util.StudentMessagingExclusions;
 import org.entcore.conversation.service.ConversationService;
@@ -103,6 +104,9 @@ public class Conversation extends BaseServer {
 		// Exclusion temporaire d'un élève de la messagerie : cache partagé (Mongo) + API d'admin.
 		StudentMessagingExclusions.getInstance().init(vertx, config);
 		addController(new StudentMessagingExclusionsController());
+
+		// Pièces jointes d'un compte : liste et retrait en bloc, réservés au super-admin (dashboard).
+		addController(new UserAttachmentsAdminController(storage));
 
 		// Rend le contenu des messages interrogeable depuis le moteur de recherche
 		// (le module n'exposait aucune source, la messagerie était donc exclue).
