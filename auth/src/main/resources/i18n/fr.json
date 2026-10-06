@@ -72,6 +72,7 @@
   "auth.reset.header": "Réinitialisation du mot de passe",
   "auth.reset.invalid.argument": "Le formulaire contient des erreurs. Veuillez vérifier que le nouveau mot de passe n’a pas déjà été utilisé et que les deux saisies sont identiques.",
   "auth.credentials.locked": "Les identifiants de ce compte de démonstration sont verrouillés : son mot de passe ne peut pas être modifié.",
+  "user.account.locked": "Ce compte de démonstration est verrouillé : il ne peut être ni bloqué, ni supprimé, ni détaché de son établissement, de ses classes ou de ses groupes.",
   "auth.reset.title": "Réinitialisation du mot de passe",
   "auth.resetCodeSent": "Un mail vous a été envoyé, avec les instructions pour changer votre mot de passe.",
   "auth.title": "Authentification",

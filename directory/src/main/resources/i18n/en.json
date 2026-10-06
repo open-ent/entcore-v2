@@ -505,6 +505,8 @@
   "directory.notify.levelsUpdate": "Education levels have been saved",
   "directory.notify.loginAlias": "Custom username updated",
   "user.credentials.locked": "The credentials of this demonstration account are locked: login, email address and mobile number cannot be changed.",
+  "user.functions.locked": "This demonstration account is locked: its functions cannot be removed.",
+  "user.account.locked": "This demonstration account is locked: it cannot be blocked, deleted, or detached from its school, classes or groups.",
   "directory.notify.loginUpdate.error.alreadyExists": "The username already exists.",
   "directory.notify.loginUpdate.error.invalid": "The username is not valid.",
   "directory.notify.mailError": "Error sending",

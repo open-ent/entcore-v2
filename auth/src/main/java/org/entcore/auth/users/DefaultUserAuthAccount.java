@@ -938,6 +938,16 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	}
 
 	@Override
+	public void anyCredentialsLocked(JsonArray ids, final Handler<Boolean> handler) {
+		String query = "MATCH (n:User) WHERE n.id IN {ids} AND n.lockedCredentials = true RETURN count(n) > 0 as locked";
+		neo.execute(query, new JsonObject().put("ids", ids), r -> {
+			JsonArray res = r.body().getJsonArray("result");
+			handler.handle("ok".equals(r.body().getString("status")) && res != null && res.size() == 1
+					&& Boolean.TRUE.equals(res.getJsonObject(0).getBoolean("locked")));
+		});
+	}
+
+	@Override
 	public void areCredentialsLocked(String login, final Handler<Boolean> handler) {
 		String query = "MATCH (n:User) WHERE (n.login = {login} OR n.loginAlias = {login}) " +
 				"AND n.lockedCredentials = true RETURN count(n) > 0 as locked";

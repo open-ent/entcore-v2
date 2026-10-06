@@ -59,6 +59,9 @@ public interface UserAuthAccount {
 	 */
 	void lockCredentials(String id, boolean lock, Handler<Boolean> handler);
 
+	/** Vrai si au moins un des comptes visés est verrouillé. */
+	void anyCredentialsLocked(JsonArray ids, Handler<Boolean> handler);
+
 	/** @param login identifiant ou alias de connexion */
 	void areCredentialsLocked(String login, Handler<Boolean> handler);
 

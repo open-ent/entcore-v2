@@ -1813,6 +1813,25 @@ public class AuthController extends BaseController {
 		});
 	}
 
+	/**
+	 * Un compte de démonstration verrouillé ne se bloque pas : le bloquer le rendrait
+	 * inutilisable pour tous. Le déblocage, lui, reste toujours possible.
+	 */
+	private void unlessLockedAccount(final HttpServerRequest request, final JsonArray userIds, final boolean block,
+			final Runnable action) {
+		if (!block || userIds == null) {
+			action.run();
+			return;
+		}
+		userAuthAccount.anyCredentialsLocked(userIds, locked -> {
+			if (Boolean.TRUE.equals(locked)) {
+				badRequest(request, "user.account.locked");
+			} else {
+				action.run();
+			}
+		});
+	}
+
 	@Put("/block/:userId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	public void blockUser(final HttpServerRequest request) {
@@ -1821,7 +1840,7 @@ public class AuthController extends BaseController {
 			public void handle(JsonObject json) {
 				final String userId = request.params().get("userId");
 				boolean block = json.getBoolean("block", true);
-				userAuthAccount.blockUser(userId, block, new io.vertx.core.Handler<Boolean>() {
+				unlessLockedAccount(request, new JsonArray().add(userId), block, () -> userAuthAccount.blockUser(userId, block, new io.vertx.core.Handler<Boolean>() {
 					@Override
 					public void handle(Boolean r) {
 						if (Boolean.TRUE.equals(r)) {
@@ -1846,7 +1865,7 @@ public class AuthController extends BaseController {
 							badRequest(request);
 						}
 					}
-				});
+				}));
 			}
 		});
 	}
@@ -1881,7 +1900,7 @@ public class AuthController extends BaseController {
 			public void handle(JsonObject json) {
 				JsonArray userIds = json.getJsonArray("users");
 				boolean block = json.getBoolean("block", true);
-				userAuthAccount.blockUsers(userIds, block, new io.vertx.core.Handler<Boolean>() {
+				unlessLockedAccount(request, userIds, block, () -> userAuthAccount.blockUsers(userIds, block, new io.vertx.core.Handler<Boolean>() {
 					@Override
 					public void handle(Boolean r) {
 						if (Boolean.TRUE.equals(r)) {
@@ -1909,7 +1928,7 @@ public class AuthController extends BaseController {
 							badRequest(request);
 						}
 					}
-				});
+				}));
 			}
 		});
 	}

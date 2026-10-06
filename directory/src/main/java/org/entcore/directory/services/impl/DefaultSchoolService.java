@@ -471,6 +471,9 @@ public class DefaultSchoolService implements SchoolService {
 		String query =
 			"MATCH (s:Structure {id:{structureId}})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) " +
 			"WHERE g.name ENDS WITH {profile} " + filter +
+			// Un compte de démonstration verrouillé n'est jamais bloqué, même par un blocage en
+			// masse : il est ignoré, les autres comptes du profil sont traités normalement.
+			"AND ({blocked} = false OR coalesce(u.lockedCredentials, false) = false) " +
 			"SET u.blocked = {blocked} " +
 			"RETURN COLLECT(DISTINCT u.id) as usersId";
 		JsonObject params = new JsonObject()
