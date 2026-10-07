@@ -11,6 +11,7 @@ import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import org.entcore.auth.services.impl.DefaultMfaService;
 import org.entcore.common.neo4j.Neo4j;
+import org.entcore.common.utils.Mfa;
 import org.entcore.test.TestHelper;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,6 +49,9 @@ public class DefaultMfaServiceTest {
     @BeforeClass
     public static void setUp(TestContext context) throws Exception {
         // No Docker needed: service instantiation only, Neo4j is mocked per-test
+        // Platform offers the choice between an emailed code and an authenticator app.
+        Mfa.Factory.getFactory().init(test.vertx(), new JsonObject().put("mfaConfig",
+                new JsonObject().put("types", new JsonArray().add("email").add("totp"))));
         mfaService = new DefaultMfaService(test.vertx(), new JsonObject(), new HashMap<>());
     }
 
@@ -210,6 +214,70 @@ public class DefaultMfaServiceTest {
                         async.complete();
                     })
                     .onSuccess(result -> context.fail("Expected failure for unknown user, got: " + result));
+        }
+    }
+
+    // ───────────────────────────────────────
+    // Choix du canal par compte (email | totp)
+    // ───────────────────────────────────────
+
+    @Test
+    public void testResolveChannel_preferenceWins(TestContext context) {
+        context.assertEquals("email", DefaultMfaService.resolveChannel("email", true, true, false),
+                "A user who chose email keeps email even with an enrolled app");
+        context.assertEquals("totp", DefaultMfaService.resolveChannel("totp", true, true, false));
+    }
+
+    @Test
+    public void testResolveChannel_unusablePreferenceFallsBack(TestContext context) {
+        context.assertEquals("email", DefaultMfaService.resolveChannel("totp", false, true, false),
+                "Choosing totp without an enrolled secret falls back to email");
+        context.assertEquals("totp", DefaultMfaService.resolveChannel("email", true, false, false),
+                "Choosing email without an address falls back to the enrolled app");
+        context.assertEquals("email", DefaultMfaService.resolveChannel("sms", false, true, true),
+                "SMS is not configured on the platform, so it is never chosen");
+    }
+
+    @Test
+    public void testResolveChannel_noPreferenceKeepsUpstreamOrder(TestContext context) {
+        context.assertEquals("totp", DefaultMfaService.resolveChannel(null, true, true, false),
+                "An enrolled key (hardware key given by an admin) stays the default channel");
+        context.assertEquals("email", DefaultMfaService.resolveChannel(null, false, true, false));
+    }
+
+    @Test
+    public void testBase32_rfc4648Vectors(TestContext context) {
+        context.assertEquals("MZXW6YTBOI", DefaultMfaService.base32("foobar".getBytes()));
+        context.assertEquals("MZXW6YQ", DefaultMfaService.base32("foob".getBytes()));
+        context.assertEquals("MY", DefaultMfaService.base32("f".getBytes()));
+    }
+
+    @Test
+    public void testMaskTarget(TestContext context) {
+        context.assertEquals("j•••@exemple.fr", DefaultMfaService.maskTarget("email", "jean.dupont@exemple.fr"));
+        context.assertEquals("••••••78", DefaultMfaService.maskTarget("sms", "+33612345678"));
+        context.assertNull(DefaultMfaService.maskTarget("email", null));
+    }
+
+    @Test
+    public void testVerifyTotpForUser_appPeriod30s(TestContext context) throws Exception {
+        final Async async = context.async();
+        final TimeBasedOneTimePasswordGenerator appGenerator = new TimeBasedOneTimePasswordGenerator(Duration.ofSeconds(30));
+        final String code = appGenerator.generateOneTimePasswordString(
+                new SecretKeySpec(SECRET_BYTES, appGenerator.getAlgorithm()), Instant.now());
+
+        try (MockedStatic<Neo4j> neo4jMock = Mockito.mockStatic(Neo4j.class)) {
+            final Neo4j mockNeo4j = Mockito.mock(Neo4j.class);
+            neo4jMock.when(Neo4j::getInstance).thenReturn(mockNeo4j);
+            mockNeo4jExecute(mockNeo4j, new JsonObject().put("totp", SECRET_B64).put("totpPeriod", 30));
+
+            mfaService.verifyTotpForUser("user-app", code)
+                    .onFailure(context::fail)
+                    .onSuccess(result -> {
+                        context.assertEquals("valid", result.getString("state"),
+                                "A self-enrolled app secret is checked with a 30 s period");
+                        async.complete();
+                    });
         }
     }
 }

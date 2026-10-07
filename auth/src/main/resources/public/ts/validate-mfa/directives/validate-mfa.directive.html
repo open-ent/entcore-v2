@@ -25,17 +25,26 @@
         <div class="row justify-content-center">
             <div class="col-md-9 col-sm-12">
                 <div class="mb-16 text-center">
-                    <div ng-if="!ctrl.isTotp">
+                    <div ng-if="!ctrl.isTotp && !ctrl.isEmail">
                         <div>
                             <i18n>validate-mfa.step2.hint.paragraph1</i18n>
-                            <span> [[ctrl.mobile]].</span>
+                            <span> [[ctrl.target]].</span>
                         </div>
                         <div>
                             <i18n>validate-mfa.step2.hint.paragraph2</i18n>
                         </div>
                     </div>
+                    <div ng-if="ctrl.isEmail">
+                        <div>
+                            <i18n>validate-mfa.step2.hint.email.paragraph1</i18n>
+                            <span> [[ctrl.target]].</span>
+                        </div>
+                        <div>
+                            <i18n>validate-mfa.step2.hint.email.paragraph2</i18n>
+                        </div>
+                    </div>
                     <div ng-if="ctrl.isTotp">
-                        <i18n>validate-mfa.step2.totp.hint</i18n>
+                        <i18n>validate-mfa.step2.totp.app.hint</i18n>
                     </div>
                 </div>
 
@@ -43,7 +52,8 @@
                 <div class="text-center">
                     <form novalidate autocomplete="off" name="formCodeMfa" class="col-sm-6 form-control-lg mx-auto" ng-submit="">
                         <label class="mb-8 fw-bold text-center d-block">
-                            <i18n ng-if="!ctrl.isTotp">validate-mfa.step2.form.code</i18n>
+                            <i18n ng-if="!ctrl.isTotp && !ctrl.isEmail">validate-mfa.step2.form.code</i18n>
+                            <i18n ng-if="ctrl.isEmail">validate-mfa.step2.form.code.email</i18n>
                             <i18n ng-if="ctrl.isTotp">validate-mfa.step2.totp.form.code</i18n>
                         </label>
                         <div class="d-flex justify-content-center gap-8">
@@ -82,6 +92,19 @@
                             <div><span translate content="[[ctrl.koStatusCause]]"></span></div>
                         </div>
                     </footer>
+                </div>
+
+                <div class="text-center" ng-if="ctrl.status!=='ok' && ctrl.isTotp">
+                    <div class="mb-16">
+                        <span>
+                            <i18n>validate-mfa.step2.totp.fallback</i18n>
+                        </span>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-ghost-tertiary mx-auto fw-bold d-flex align-items-center" ng-click="onEmailFallback()">
+                            <i18n class="align-text-top">validate-mfa.step2.totp.fallback.btn</i18n>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="text-center" ng-if="ctrl.status!=='ok' && !ctrl.isTotp">

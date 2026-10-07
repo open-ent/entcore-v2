@@ -258,5 +258,21 @@
     "wayf.title": "Welcome to your VLE!",
     "weak": "Weak",
     "auth.device.on": "on",
-    "auth.device.unknown": "Unknown device"
+    "auth.device.unknown": "Unknown device",
+    "mfa.email.subject": "{{projectName}}: your sign-in code",
+    "mfa.email.code.infos": "Here is your verification code to complete your sign-in:",
+    "mfa.email.code.duration": "This code is valid for {{duration}} minutes.",
+    "mfa.email.code.warning": "If you did not try to sign in, change your password right away.",
+    "mfa.totp.enrolled.subject": "{{projectName}}: authenticator app linked to your account",
+    "mfa.totp.enrolled.infos": "An authenticator app has just been linked to your account. It will now be your second factor when signing in.",
+    "mfa.totp.enrolled.warning": "If you did not make this change, contact your school administrator right away.",
+    "validate-mfa.step2.form.code.email": "Enter the code you received by email",
+    "validate-mfa.step2.hint.email.paragraph1": "A 6-digit code has been sent by email to:",
+    "validate-mfa.step2.hint.email.paragraph2": "The message may take a few minutes to arrive; check your spam folder.",
+    "validate-mfa.step2.totp.app.hint": "Open your authenticator app and enter the 6-digit code shown for your account.",
+    "validate-mfa.step2.totp.fallback": "Don't have your app at hand?",
+    "validate-mfa.step2.totp.fallback.btn": "Get a code by email",
+    "validate-mfa.error.channel.unavailable": "No email address is set on your account.",
+    "mfa.totp.enrolled.device": "Device:",
+    "validate-mfa.error.send.failed": "The code could not be sent by email. Try again in a few minutes, or contact your school."
 }

@@ -2821,7 +2821,8 @@ public class AuthController extends BaseController {
 				return;
 			}
 
-			mfaSvc.startMfaWorkflow(request, session, userInfos)
+			// ?channel=email : code de repli quand l'application d'authentification n'est pas à portée de main
+			mfaSvc.startMfaWorkflow(request, session, userInfos, request.params().get("channel"))
 			.onSuccess( mfaState -> {
 				/*{
 					"type": "sms | email",
@@ -2834,10 +2835,12 @@ public class AuthController extends BaseController {
 				}*/
 				mfaState.remove("valid");
 				final String mfaType = mfaState.containsKey("type")
-					? mfaState.getString("type")
+					? (String) mfaState.remove("type")
 					: (Mfa.withSms() ? Mfa.TYPE_SMS : Mfa.TYPE_EMAIL);
 				renderJson(request, new JsonObject()
 					.put("type", mfaType)
+					// adresse e-mail ou numéro masqué, pour indiquer où le code a été envoyé
+					.put("target", mfaState.remove("target"))
 					.put("waitInSeconds", UserValidation.getDefaultWaitInSeconds())
 					.put("state", mfaState)
 				);
@@ -2880,6 +2883,117 @@ public class AuthController extends BaseController {
 					renderError(request, new JsonObject().put("error", exception.getMessage()));
 				});
 			});
+		});
+	}
+
+	/**
+	 * Réglages du second facteur du compte connecté : modes proposés par la plateforme, mode choisi,
+	 * application d'authentification enregistrée ou non.
+	 */
+	@Get("/user/mfa/settings")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void getUserMfaSettings(final HttpServerRequest request) {
+		withMfaSession(request, false, (session, userInfos) ->
+			mfaSvc.getSettings(userInfos)
+				.onSuccess(settings -> renderJson(request, settings
+					// Second facteur exigé dès la connexion, et déjà franchi ou non dans cette session :
+					// le tableau de bord et l'application mobile s'en servent pour présenter la
+					// vérification avant tout autre appel (sinon redirigé vers /auth/validate-mfa).
+					.put("atLogin", mfaRequiredAtLogin(session))
+					.put("verified", Boolean.TRUE.equals(UserValidation.getIsMFA(eb, session)))))
+				.onFailure(e -> renderError(request, new JsonObject().put("error", e.getMessage()))));
+	}
+
+	/** Choix du mode de second facteur : body { "type": "email" | "sms" | "totp" }. */
+	@Put("/user/mfa/settings")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void putUserMfaSettings(final HttpServerRequest request) {
+		withMfaSession(request, true, (session, userInfos) ->
+			RequestUtils.bodyToJson(request, payload ->
+				mfaSvc.setPreferredType(userInfos, payload.getString("type"))
+					.onSuccess(settings -> renderJson(request, settings))
+					.onFailure(e -> badRequest(request, e.getMessage()))));
+	}
+
+	/**
+	 * Démarre l'enregistrement d'une application d'authentification : body { "deviceName"?: "…" }.
+	 * Renvoie le secret et l'URI otpauth à afficher en QR code ; si la session n'a pas franchi le
+	 * second facteur, un code de preuve part aussi à l'adresse e-mail du compte (`proof: "email"`).
+	 */
+	@Post("/user/mfa/totp")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void postUserMfaTotp(final HttpServerRequest request) {
+		withMfaSession(request, false, (session, userInfos) ->
+			RequestUtils.bodyToJson(request, payload -> {
+				final JsonObject mfaConfig = Mfa.Factory.getFactory().getConfig();
+				final String issuer = (mfaConfig != null) ? mfaConfig.getString("totpIssuer", "Open ENT") : "Open ENT";
+				mfaSvc.startTotpEnrollment(request, userInfos, issuer, payload.getString("deviceName"),
+						Boolean.TRUE.equals(UserValidation.getIsMFA(eb, session)))
+					.onSuccess(enrollment -> renderJson(request, enrollment))
+					.onFailure(e -> badRequest(request, e.getMessage()));
+			}));
+	}
+
+	/** Confirme l'application avec un premier code : body { "code": "123456", "emailCode"?: "654321" }. */
+	@Post("/user/mfa/totp/confirm")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void confirmUserMfaTotp(final HttpServerRequest request) {
+		withMfaSession(request, false, (session, userInfos) ->
+			RequestUtils.bodyToJson(request, payload ->
+				mfaSvc.confirmTotpEnrollment(request, userInfos, payload.getString("code"), payload.getString("emailCode"),
+						Boolean.TRUE.equals(UserValidation.getIsMFA(eb, session)))
+					.onSuccess(result -> renderJson(request, result))
+					.onFailure(e -> badRequest(request, e.getMessage()))));
+	}
+
+	/** Retire l'application d'authentification enregistrée par la personne (pas une clé remise par l'administration). */
+	@Delete("/user/mfa/totp")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void deleteUserMfaTotp(final HttpServerRequest request) {
+		withMfaSession(request, true, (session, userInfos) ->
+			mfaSvc.removeTotp(userInfos)
+				.onSuccess(settings -> renderJson(request, settings))
+				.onFailure(e -> badRequest(request, e.getMessage())));
+	}
+
+	/**
+	 * Même règle que {@code Mfa.isRequiredAtLogin} (edifice-entcore-libs) : indicateur `mfaAtLogin`
+	 * calculé à la création de la session, et au moins un moyen de recevoir ou de produire un code.
+	 * Recalculée ici pour ne pas dépendre d'une version des bibliothèques qui la porte.
+	 */
+	private static boolean mfaRequiredAtLogin(final JsonObject session) {
+		if (session == null || !Boolean.TRUE.equals(session.getBoolean("mfaAtLogin"))) {
+			return false;
+		}
+		final boolean hasTotp = Boolean.TRUE.equals(session.getBoolean("hasTotp"));
+		final boolean hasEmail = !StringUtils.isEmpty(StringUtils.trimToNull(session.getString("email")));
+		final boolean hasMobile = !StringUtils.isEmpty(StringUtils.trimToNull(session.getString("mobile")));
+		return (Mfa.withTotp() && hasTotp) || (Mfa.withEmail() && hasEmail) || (Mfa.withSms() && hasMobile);
+	}
+
+	/**
+	 * Résout la session ; pour une modification (`requireMfa`), exige que le second facteur ait déjà
+	 * été franchi dans cette session quand il s'applique au compte. Sans cette garde, un mot de passe
+	 * dérobé suffirait à enregistrer sa propre application et à franchir ensuite le second facteur.
+	 */
+	private void withMfaSession(final HttpServerRequest request, final boolean requireMfa,
+			final java.util.function.BiConsumer<JsonObject, UserInfos> handler) {
+		UserUtils.getSession(eb, request, session -> {
+			if (session == null) {
+				unauthorized(request);
+				return;
+			}
+			final UserInfos userInfos = UserUtils.sessionToUserInfos(session);
+			if (userInfos == null) {
+				unauthorized(request);
+				return;
+			}
+			if (requireMfa && !Mfa.isNotActivatedForUser(userInfos)
+					&& !Boolean.TRUE.equals(UserValidation.getIsMFA(eb, session))) {
+				renderJson(request, new JsonObject().put("error", "mfa.required"), 403);
+				return;
+			}
+			handler.accept(session, userInfos);
 		});
 	}
 

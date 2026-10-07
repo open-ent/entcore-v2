@@ -145,6 +145,9 @@ public class UserController extends BaseController {
 						if(!user.getFunctions().containsKey(DefaultFunctions.SUPER_ADMIN) &&
 								!user.getFunctions().containsKey(DefaultFunctions.ADMIN_LOCAL)){
 							body.remove("positionIds");
+							// Une clé TOTP est affectée par l'administration ; la personne enregistre la
+							// sienne par /auth/user/mfa/totp, qui exige d'avoir franchi le second facteur.
+							body.remove("totp");
 							if (!user.getFunctions().containsKey(DefaultFunctions.CLASS_ADMIN)) {
 								body.remove("lastName");
 								body.remove("firstName");

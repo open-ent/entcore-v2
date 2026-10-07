@@ -296,5 +296,21 @@
   "wayf.title": "Bienvenue sur votre ENT !",
   "weak": "Faible",
   "auth.device.on": "sur",
-  "auth.device.unknown": "Appareil inconnu"
+  "auth.device.unknown": "Appareil inconnu",
+  "mfa.email.subject": "{{projectName}} : votre code de connexion",
+  "mfa.email.code.infos": "Voici votre code de vérification pour terminer votre connexion :",
+  "mfa.email.code.duration": "Ce code est valable {{duration}} minutes.",
+  "mfa.email.code.warning": "Si vous n'êtes pas à l'origine de cette connexion, changez votre mot de passe sans attendre.",
+  "mfa.totp.enrolled.subject": "{{projectName}} : application d'authentification associée à votre compte",
+  "mfa.totp.enrolled.infos": "Une application d'authentification vient d'être associée à votre compte. Elle vous servira désormais de second facteur à la connexion.",
+  "mfa.totp.enrolled.warning": "Si vous n'êtes pas à l'origine de ce changement, prévenez sans attendre l'administrateur de votre établissement.",
+  "validate-mfa.step2.form.code.email": "Indiquez votre code reçu par e-mail",
+  "validate-mfa.step2.hint.email.paragraph1": "Un code à 6 chiffres vous a été envoyé par e-mail à l'adresse :",
+  "validate-mfa.step2.hint.email.paragraph2": "Le message peut mettre quelques minutes à arriver ; pensez à regarder dans vos indésirables.",
+  "validate-mfa.step2.totp.app.hint": "Ouvrez votre application d'authentification et saisissez le code à 6 chiffres affiché pour votre compte.",
+  "validate-mfa.step2.totp.fallback": "Vous n'avez pas votre application sous la main ?",
+  "validate-mfa.step2.totp.fallback.btn": "Recevoir un code par e-mail",
+  "validate-mfa.error.channel.unavailable": "Aucune adresse e-mail n'est renseignée sur votre compte.",
+  "mfa.totp.enrolled.device": "Appareil :",
+  "validate-mfa.error.send.failed": "Le code n'a pas pu être envoyé par e-mail. Réessayez dans quelques minutes, ou contactez votre établissement."
 }

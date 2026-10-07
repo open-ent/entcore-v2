@@ -44,9 +44,14 @@ export class ValidateMfaController implements IController {
 		};
 	}
 
+	/** Canal de repli demandé depuis la page (« recevoir un code par e-mail »), sinon celui du compte. */
+	private channel?: string;
+
 	private async getMfaInfos(): Promise<IMfaInfos> {
 		try {
-			const i = await session().getMfaInfos();
+			const i = this.channel
+				? await http().get<IMfaInfos>('/auth/user/mfa/code?channel=' + encodeURIComponent(this.channel))
+				: await session().getMfaInfos();
 			// We want more details about any error
 			const response = http().latestResponse as IHttpResponseErrorWithPayload;
 			if( response.status>=400 && typeof response.data?.error === "string" ) {
@@ -72,6 +77,30 @@ export class ValidateMfaController implements IController {
 
 	public get isTotp(): boolean {
 		return this.infos?.type === 'totp' as any;
+	}
+
+	public get isEmail(): boolean {
+		return this.infos?.type === 'email' as any;
+	}
+
+	/** Adresse e-mail ou numéro (masqués par le serveur) auquel le code a été envoyé. */
+	public get target(): string {
+		return (this.infos as any)?.target || this.mobile;
+	}
+
+	/** L'application d'authentification n'est pas à portée de main : code de repli par e-mail. */
+	public async useEmailFallback(): Promise<void> {
+		this.channel = 'email';
+		const infos = await this.getMfaInfos();
+		if( infos ) {
+			this.infos = infos;
+			notify.success('validate-mfa.step2.renewed');
+		} else {
+			this.channel = undefined;
+		}
+		this.inputCode = "";
+		this.status = "";
+		this.koStatusCause = "";
 	}
 
 	public get hasTotp(): boolean {
@@ -177,6 +206,7 @@ interface ValidateMfaScope extends IScope {
 	onCodeChange: (form:angular.IFormController) => Promise<void>;
 	onDigitChange: (index:number) => void;
 	onCodeRenew: () => Promise<void>;
+	onEmailFallback: () => Promise<void>;
 	onOpenTotpEnrollment: () => void;
 	onSaveTotp: () => Promise<void>;
 	onCancelTotpEnrollment: () => void;
@@ -258,6 +288,11 @@ class Directive implements IDirective<ValidateMfaScope,JQLite,IAttributes,IContr
 			angular.element(document.getElementById('btnRenew')).prop("disabled", "disabled");
 			await ctrl.renewCode();
 			setTimeout( ()=>angular.element(document.getElementById('btnRenew')).prop("disabled", false), 15000);
+			safeApply();
+		}
+
+		scope.onEmailFallback = async () => {
+			await ctrl.useEmailFallback();
 			safeApply();
 		}
 

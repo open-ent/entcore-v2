@@ -160,13 +160,17 @@ public class DefaultUserService implements UserService {
 					return;
 				}
 				// No conflict — proceed with enrollment
-				neo.execute("MATCH (u:User {id: {id}}) SET u.totp = {totp}",
+				// Clé matérielle remise par l'administration : période de 60 s (amont), non retirable depuis le compte
+				neo.execute("MATCH (u:User {id: {id}}) SET u.totp = {totp}, u.totpSelf = false, u.totpEnrolledAt = timestamp() " +
+						"REMOVE u.totpPeriod, u.totpPending, u.totpDevice",
 						new JsonObject().put("id", id).put("totp", totpSecret),
 						m -> result.handle(Neo4jResult.validEmpty(m)));
 			});
 		} else {
 			// null or empty => unenroll (remove the property)
-			neo.execute("MATCH (u:User {id: {id}}) REMOVE u.totp",
+			neo.execute("MATCH (u:User {id: {id}}) " +
+					"SET u.mfaType = CASE WHEN u.mfaType = 'totp' THEN null ELSE u.mfaType END " +
+					"REMOVE u.totp, u.totpPeriod, u.totpSelf, u.totpPending, u.totpDevice, u.totpEnrolledAt",
 					new JsonObject().put("id", id),
 					m -> result.handle(Neo4jResult.validEmpty(m)));
 		}
@@ -440,7 +444,7 @@ public class DefaultUserService implements UserService {
 				filterAttributes.add("password").add("resetCode").add("lastNameSearchField").add("firstNameSearchField")
 						.add("displayNameSearchField").add("checksum").add("emailSearchField")
 						.add("emailInternal").add("resetDate").add("lastScheme").add("lastDomain")
-						.add("mfaState").add("emailState").add("mobileState").add("oldPasswords").add("oldPassword");
+						.add("mfaState").add("emailState").add("mobileState").add("totpPending").add("oldPasswords").add("oldPassword");
 				for (Object o : filterAttributes) {
 					r.remove((String) o);
 				}
@@ -1331,6 +1335,7 @@ public class DefaultUserService implements UserService {
 				"motto, health, mood, hobbies, " +
 				" (HAS(u.federatedIDP) AND NOT(u.federatedIDP IS NULL) AND HAS(u.federated) AND u.federated = true) OR (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) as hasFederatedIdentity, " +
 				"CASE WHEN u.totp IS NOT NULL AND u.totp <> '' THEN true ELSE false END as hasTotp, " +
+				"u.totpDevice as totpDevice, u.totpEnrolledAt as totpEnrolledAt, COALESCE(u.totpSelf, false) as totpSelf, " +
 				"CASE WHEN schools IS NULL THEN [] ELSE schools END as schools ";
 		} catch (ValidationException exception) {
 			logger.error("Select hobbies exception", exception);
