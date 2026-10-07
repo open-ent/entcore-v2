@@ -94,6 +94,13 @@ jobs:
           NEXUS_USER: ${{ secrets.NEXUS_USER }}
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
+      # Les libs (org.entcore:common, session…) sont republiées À VERSION IDENTIQUE
+      # (6.16.7-patched) : Maven tient une release pour immuable et le cache de setup-java
+      # resservirait l'ancien jar. common est embarqué dans chaque fat-jar : un cache périmé
+      # republierait entcore avec les anciens correctifs, sans aucun message.
+      - name: Purger org.entcore du cache Maven
+        run: rm -rf ~/.m2/repository/org/entcore
+
       - name: Resolve revision
         run: |
           if [ -n "${{ github.event.inputs.entcore_version }}" ]; then
