@@ -58,8 +58,8 @@
         <!-- Fork patché des libs extraites d'entcore en 6.16 (open-ent/edifice-entcore-libs) :
              il porte nos correctifs de common/, session/ et broker-parent/ (antivirus à
              l'upload, seuil d'alerte de quota, horaires d'utilisation, suivi des sessions),
-             que la version amont 6.16.7 ne contient pas. -->
-        <entCoreLibsVersion>6.16.7-patched</entCoreLibsVersion>
+             que la version amont 6.16.8 ne contient pas. -->
+        <entCoreLibsVersion>6.16.8-patched</entCoreLibsVersion>
         <junitVersion>4.13.2</junitVersion>
         <testContainerVersion>1.19.3</testContainerVersion>
         <modPostgresVersion>2.2.1</modPostgresVersion>
