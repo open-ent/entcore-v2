@@ -55,6 +55,19 @@
             </exclusions>
         </dependency>
         <dependency>
+            <!--
+              Formats d'échange de cours du marché : SCORM 1.2/2004, Moodle (.mbz et banque de
+              questions Moodle XML), LearnHouse. La bibliothèque produit un modèle de cours neutre
+              et ne connaît rien de l'ENT ; la projection vers nos ressources reste ici.
+              Jackson y est déclaré en `provided` : elle n'introduit donc pas de seconde copie de
+              jackson-databind, ce qui serait fatal au vu de l'exclusion ci-dessus.
+            -->
+            <groupId>fr.tech.openent</groupId>
+            <artifactId>interoperability</artifactId>
+            <version>${openentInteroperabilityVersion}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
             <groupId>com.networknt</groupId>
             <artifactId>json-schema-validator</artifactId>
             <version>${jsonSchemaValidatorVersion}</version>

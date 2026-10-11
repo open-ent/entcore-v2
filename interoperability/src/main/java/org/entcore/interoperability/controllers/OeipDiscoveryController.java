@@ -7,6 +7,7 @@ import fr.wseduc.webutils.http.BaseController;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonObject;
 import org.entcore.interoperability.OeipFormat;
+import org.entcore.interoperability.foreign.ForeignFormats;
 import org.entcore.interoperability.schema.OeipSchemaRegistry;
 import org.entcore.interoperability.spi.OeipProviderRegistry;
 
@@ -55,6 +56,18 @@ public class OeipDiscoveryController extends BaseController {
                 .put("services", registry.capabilitiesJson());
 
         renderJson(request, body);
+    }
+
+    /**
+     * Formats d'échange du marché que cette plateforme sait lire et écrire.
+     *
+     * Pendant de /capabilities : celle-ci décrit OEIP, l'échange entre ENT ; celle-là les formats
+     * des plateformes tierces, qu'un enseignant dépose ou emporte.
+     */
+    @Get("/formats")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void formats(HttpServerRequest request) {
+        renderJson(request, new JsonObject().put("formats", ForeignFormats.toJson()));
     }
 
     @Get("/schemas")
