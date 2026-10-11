@@ -102,21 +102,15 @@ public class ForeignCourseAnalyzerTest {
         JsonArray formats = ForeignFormats.toJson();
         assertEquals(5, formats.size());
 
-        boolean scorm12Write = false;
-        boolean moodleBackupWrite = true;
+        // Le catalogue est bâti depuis les lecteurs et écrivains réellement enregistrés : il
+        // suit donc l'état du code, et ce test échoue le jour où un format gagne ou perd une
+        // capacité sans qu'on s'en avise.
         for (int i = 0; i < formats.size(); i++) {
             JsonObject format = formats.getJsonObject(i);
             assertTrue("tout format annoncé doit au moins être lisible",
                     format.getBoolean("read"));
-            if ("scorm12".equals(format.getString("id"))) {
-                scorm12Write = format.getBoolean("write");
-            }
-            if ("moodle".equals(format.getString("id"))) {
-                moodleBackupWrite = format.getBoolean("write");
-            }
+            assertTrue("tout format annoncé doit aussi être écrit : " + format.getString("id"),
+                    format.getBoolean("write"));
         }
-        assertTrue("SCORM 1.2 est écrit", scorm12Write);
-        // L'écriture du .mbz reste à faire : le catalogue ne doit pas l'annoncer avant.
-        assertEquals(false, moodleBackupWrite);
     }
 }

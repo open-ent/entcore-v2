@@ -65,7 +65,7 @@
           écriture de SCORM 1.2/2004, des sauvegardes Moodle et des exports LearnHouse. Elle ne
           dépend ni de Vert.x ni d'entcore, et cible le bytecode Java 8 comme le reste.
         -->
-        <openentInteroperabilityVersion>1.0.0</openentInteroperabilityVersion>
+        <openentInteroperabilityVersion>1.1.0</openentInteroperabilityVersion>
         <junitVersion>4.13.2</junitVersion>
         <testContainerVersion>1.19.3</testContainerVersion>
         <modPostgresVersion>2.2.1</modPostgresVersion>
