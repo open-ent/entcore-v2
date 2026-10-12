@@ -176,6 +176,26 @@ public class DefaultMassMailServiceTest {
 
     /**
      * <h1>Goal</h1>
+     * <p>Ensures that the "sort" filter, which is concatenated in the ORDER BY clause, only accepts the aliases
+     * of the RETURN clause: an injected Cypher expression must be ignored instead of being executed.</p>
+     */
+    @Test
+    public void testMassmailUsersIgnoresInjectedSort(final TestContext testContext) {
+        final Async async = testContext.async();
+        final JsonObject filter = new JsonObject()
+                .put("activated", "all")
+                .put("sort", new JsonArray()
+                        .add("profile")
+                        .add("lastName)) UNION MATCH (x:User) RETURN x.password as profile //"));
+        defaultMassMailService.massmailUsers("massmail-structure-01", filter, superAdmin(), h -> {
+            testContext.assertTrue(h.isRight(), "Injected sort should be ignored, not break the query " + h);
+            testContext.assertNotNull(findById(h.right().getValue(), student.getId()), "Simple student should be in the structure");
+            async.complete();
+        });
+    }
+
+    /**
+     * <h1>Goal</h1>
      * <p>Ensures that massMailAllUsersByStructure returns the users of the structure with federated flag = false
      * when the user is not federated and federated flag = true when federated = true and federatedIDP != null.</p>
      */

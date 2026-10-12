@@ -23,8 +23,11 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static fr.wseduc.webutils.Utils.getOrElse;
 import static fr.wseduc.webutils.Utils.handlerToAsyncHandler;
@@ -33,6 +36,8 @@ import static org.entcore.common.user.DefaultFunctions.*;
 
 public class DefaultMassMailService extends Renders implements MassMailService {
     protected static final Logger log = LoggerFactory.getLogger(DefaultMassMailService.class);
+    static final Set<String> SORTABLE_FIELDS = new HashSet<>(Arrays.asList(
+            "profile", "classname", "firstClass", "lastName", "firstName", "displayName", "login", "email", "creationDate"));
     private final Vertx vertx;
     private final EventBus eb;
     private final EmailSender notifHelper;
@@ -447,8 +452,11 @@ public class DefaultMassMailService extends Renders implements MassMailService {
         String sort = " ORDER BY ";
         if (filterObj.containsKey("sort")) {
             for (Object sortObj : filterObj.getJsonArray("sort")) {
-                String sortstr = (String) sortObj;
-                sort += "TOLOWER(TOSTRING(" + sortstr + ")), ";
+                // Le tri est concaténé dans la requête : seuls les alias du RETURN sont admis (injection Cypher).
+                if (!(sortObj instanceof String) || !SORTABLE_FIELDS.contains(sortObj)) {
+                    continue;
+                }
+                sort += "TOLOWER(TOSTRING(" + sortObj + ")), ";
             }
         }
         sort += "TOLOWER(lastName) ";
