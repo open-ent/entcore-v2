@@ -1048,8 +1048,15 @@ public class WorkspaceController extends BaseController {
                         final String now = MongoDb.formatDate(new Date());
                         final JsonObject update = new MongoUpdateBuilder().set("accessed", now).build();
 
-						boolean inline = "true".equalsIgnoreCase(request.params().get("inline"))
-										 || inlineDocumentResponse(jo, request.params().get("application"));
+						// Le Content-Type vient de l'envoi : un .html ou un .svg servi en ligne s'exécuterait sur le domaine de l'ENT.
+						final String contentType = normalizeContentType(DocumentHelper.getContentType(jo));
+						final boolean inline = ("true".equalsIgnoreCase(request.params().get("inline"))
+										 || inlineDocumentResponse(jo, request.params().get("application")))
+										 && isSafeInlineContentType(contentType);
+						request.response().putHeader("X-Content-Type-Options", "nosniff");
+						if (inline && SVG_CONTENT_TYPE.equals(contentType)) {
+							request.response().putHeader("Content-Security-Policy", SVG_INLINE_CSP);
+						}
 						if (inline && ETag.check(request, file)) {
 							notModified(request, file);
 						} else {
@@ -1232,6 +1239,27 @@ public class WorkspaceController extends BaseController {
 		this.eventHelper = new EventHelper(eventStore);
 		post("/documents/copy/:ids", "copyDocuments");
 		put("/documents/move/:ids", "moveDocuments");
+	}
+
+	static final String SVG_CONTENT_TYPE = "image/svg+xml";
+	static final String SVG_INLINE_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox";
+	private static final Set<String> SAFE_INLINE_CONTENT_TYPES = new HashSet<>(Arrays.asList(
+			"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff", "image/avif",
+			"image/vnd.microsoft.icon", "image/x-icon", SVG_CONTENT_TYPE,
+			"application/pdf", "text/plain", "application/octet-stream"));
+
+	static String normalizeContentType(String contentType) {
+		if (contentType == null) {
+			return "";
+		}
+		final int params = contentType.indexOf(';');
+		return (params >= 0 ? contentType.substring(0, params) : contentType).trim().toLowerCase();
+	}
+
+	static boolean isSafeInlineContentType(String normalizedContentType) {
+		return SAFE_INLINE_CONTENT_TYPES.contains(normalizedContentType)
+				|| normalizedContentType.startsWith("audio/")
+				|| normalizedContentType.startsWith("video/");
 	}
 
 	private boolean inlineDocumentResponse(JsonObject doc, String application) {
