@@ -11,7 +11,7 @@ import io.vertx.core.json.JsonObject;
  * Catalogue des formats d'échange du marché que cette plateforme sait lire et écrire.
  *
  * Pendant de /capabilities, qui décrit OEIP — le format d'échange ENTRE ENT. Ici il s'agit des
- * formats des plateformes tierces : SCORM, Moodle, LearnHouse.
+ * formats des plateformes tierces : SCORM, cmi5, xAPI (Tin Can), Moodle, LearnHouse.
  *
  * Le catalogue est construit depuis les lecteurs et écrivains RÉELLEMENT enregistrés dans la
  * bibliothèque, jamais depuis une liste écrite à la main : une liste parallèle finit toujours
