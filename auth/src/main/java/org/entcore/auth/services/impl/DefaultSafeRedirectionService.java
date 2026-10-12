@@ -58,6 +58,20 @@ public class DefaultSafeRedirectionService implements SafeRedirectionService {
         return URI.create(StringUtils.substringBeforeLast(address, "?"));
     }
 
+    static boolean hasAmbiguousChars(String address) {
+        // Seule la partie avant la requête ou le fragment décide de l'hôte.
+        for (int i = 0; i < address.length(); i++) {
+            final char c = address.charAt(i);
+            if (c == '?' || c == '#') {
+                return false;
+            }
+            if (c == '\\' || Character.isISOControl(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Optional<String> extractHost(String address) {
         try {
             address = address.trim();
@@ -125,6 +139,13 @@ public class DefaultSafeRedirectionService implements SafeRedirectionService {
             uriOriginal = URLDecoder.decode(uriOriginal, "UTF-8");//sometimes url are passed encoded
         }catch(Exception e){}
         final String uri = uriOriginal.toLowerCase();
+        // parseUri retire « \ » et les blancs alors que le navigateur lit « \ » comme « / » :
+        // https://evil.com\@ent.fr serait validé sur ent.fr puis suivi vers evil.com.
+        if (hasAmbiguousChars(uri)) {
+            logger.warn("Redirection not authorized (ambiguous characters) : " + uri);
+            handler.handle(false);
+            return;
+        }
         if(uri.matches("^/[A-Za-z0-9].*$")){ //uri is in fact a path
             handler.handle(true);
             return;

@@ -204,6 +204,31 @@ public class SafeRedirectionTest {
     }
 
     @Test
+    public void testAuthServiceShouldNotRedirectUsingBackslashBeforeUserInfo(TestContext context) {
+        // Les navigateurs lisent « \ » comme « / » : l'hôte réel est hacker.com, pas connecteur2.com.
+        final Async async = context.async();
+        final HttpServerRequest request = getRequest();
+        request.response().endHandler(end -> {
+            final String location = request.response().headers().get("Location");
+            context.assertEquals(entHost + "/", location);
+            async.complete();
+        });
+        redirectionService.redirect(request, "https://hacker.com\\@connecteur2.com/", "");
+    }
+
+    @Test
+    public void testAuthServiceShouldNotRedirectUsingEncodedBackslash(TestContext context) {
+        final Async async = context.async();
+        final HttpServerRequest request = getRequest();
+        request.response().endHandler(end -> {
+            final String location = request.response().headers().get("Location");
+            context.assertEquals(entHost + "/", location);
+            async.complete();
+        });
+        redirectionService.redirect(request, "https://hacker.com%5C@connecteur2.com/", "");
+    }
+
+    @Test
     public void testAuthServiceShouldExtractHost(TestContext context) {
         context.assertEquals("docs.google.com", DefaultSafeRedirectionService.extractHost(
                 "https://docs.google.com/spreadsheets/d/1C3F0y6J\nzZ7Y3duvO3UieuzXE-4VzNjMNpyzQFzTNWX0/edit? usp=sharing")
