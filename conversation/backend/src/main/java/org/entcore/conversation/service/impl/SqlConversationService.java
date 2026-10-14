@@ -348,11 +348,19 @@ public class SqlConversationService implements ConversationService{
 				builder.prepared("UPDATE conversation.messages SET schedule_at = ? WHERE id = ? ", new JsonArray().add(message.getString("scheduleAt")).add(draftId));
 			}
 
+			// Message d'absence : la réponse automatique n'est due qu'une fois le message
+			// réellement délivré (un message programmé ne l'est qu'à son échéance).
+			final boolean delivered = targetState != State.SCHEDULE;
+
             sql.transaction(builder.build(),new DeliveryOptions().setSendTimeout(sendTimeout),
 					h -> {
 				if (!"ok".equalsIgnoreCase(h.body().getString("status"))) {
 					result.handle(new Either.Left<>("conversation.error.alreadysend"));
 					return;
+				}
+				if (delivered) {
+					VacationAutoReply.getInstance().onMessageDelivered(user, ids,
+							message.getString("subject"), message.getBoolean("autoReply", false));
 				}
 				SqlResult.validUniqueResultHandler(0, result).handle(h);
 			});

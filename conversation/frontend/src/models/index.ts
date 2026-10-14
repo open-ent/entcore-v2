@@ -4,3 +4,4 @@ export * from './folder';
 export * from './recipient';
 export * from './attachment';
 export * from './message';
+export * from './vacation';

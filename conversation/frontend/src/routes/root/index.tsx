@@ -8,6 +8,7 @@ import {
 } from '@open-ent/react';
 import { QueryClient } from '@tanstack/react-query';
 import { useLoaderData, useLocation, useParams } from 'react-router-dom';
+import { VacationBanner } from '~/components';
 import { Config, existingActions } from '~/config';
 import {
   CreateFolderModal,
@@ -17,6 +18,7 @@ import {
   RenameFolderModal,
   SignatureModal,
   TrashFolderModal,
+  VacationModal,
 } from '~/features';
 import { AppActionHeader } from '~/features/app/Action/AppActionHeader';
 import {
@@ -89,6 +91,9 @@ export function Component() {
           <AppHeader render={AppActionHeader}>
             <Breadcrumb app={currentApp!} />
           </AppHeader>
+
+          {/* Rappel permanent tant que les réponses automatiques partent. */}
+          <VacationBanner />
         </div>
 
         {!lg && (
@@ -120,6 +125,7 @@ export function Component() {
         {openedModal === 'trash' && <TrashFolderModal />}
         {openedModal === 'move-message' && <MoveMessageToFolderModal />}
         {openedModal === 'signature' && <SignatureModal />}
+        {openedModal === 'vacation' && <VacationModal />}
       </Layout>
     </div>
   );

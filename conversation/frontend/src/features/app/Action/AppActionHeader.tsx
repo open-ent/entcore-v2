@@ -1,5 +1,9 @@
 import { Dropdown, IconButton, IconButtonProps } from '@open-ent/react';
-import { IconSettings, IconSignature } from '@open-ent/react/icons';
+import {
+  IconSettings,
+  IconSignature,
+  IconCalendar,
+} from '@open-ent/react/icons';
 import { Fragment, RefAttributes } from 'react';
 import { useLocation } from 'react-router-dom';
 import { NewMessageButton } from '~/components/NewMessageButton';
@@ -21,6 +25,13 @@ export function AppActionHeader() {
       label: t('signature.menu.label'),
       icon: <IconSignature />,
       action: () => setOpenedModal('signature'),
+      visibility: true,
+    },
+    {
+      id: 'vacation',
+      label: t('vacation.menu.label'),
+      icon: <IconCalendar />,
+      action: () => setOpenedModal('vacation'),
       visibility: true,
     },
   ];

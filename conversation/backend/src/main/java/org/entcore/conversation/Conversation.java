@@ -35,7 +35,9 @@ import org.entcore.conversation.controllers.MessagingHoursController;
 import org.entcore.conversation.controllers.StudentMessagingExclusionsController;
 import org.entcore.conversation.controllers.TaskController;
 import org.entcore.conversation.controllers.UserAttachmentsAdminController;
+import org.entcore.conversation.controllers.VacationController;
 import org.entcore.conversation.util.MessagingHours;
+import org.entcore.conversation.util.VacationMessages;
 import org.entcore.conversation.util.StudentMessagingExclusions;
 import org.entcore.conversation.service.ConversationService;
 import org.entcore.conversation.events.ConversationSearchingEvents;
@@ -45,6 +47,7 @@ import org.entcore.conversation.service.impl.DeleteOrphan;
 import org.entcore.conversation.service.impl.Neo4jConversationService;
 import org.entcore.conversation.service.impl.ScheduledMessageSender;
 import org.entcore.conversation.service.impl.SqlConversationService;
+import org.entcore.conversation.service.impl.VacationAutoReply;
 
 import fr.wseduc.cron.CronTrigger;
 import fr.wseduc.transformer.ContentTransformerFactoryProvider;
@@ -108,6 +111,11 @@ public class Conversation extends BaseServer {
 
 		// Pièces jointes d'un compte : liste et retrait en bloc, réservés au super-admin (dashboard).
 		addController(new UserAttachmentsAdminController(storage));
+
+		// Message d'absence automatique : réglages en cache (Mongo) + émission des réponses.
+		VacationMessages.getInstance().init(vertx, config);
+		VacationAutoReply.getInstance().init(config.getString("db-schema", "conversation"));
+		addController(new VacationController(conversationService));
 
 		// Rend le contenu des messages interrogeable depuis le moteur de recherche
 		// (le module n'exposait aucune source, la messagerie était donc exclue).

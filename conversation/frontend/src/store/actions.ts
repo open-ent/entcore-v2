@@ -11,7 +11,8 @@ type OpenedModal =
   | 'rename'
   | 'trash'
   | 'move-message'
-  | 'signature';
+  | 'signature'
+  | 'vacation';
 
 interface ActionsState {
   workflows: Record<string, boolean>;

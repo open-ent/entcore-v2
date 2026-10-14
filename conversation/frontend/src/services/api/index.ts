@@ -3,6 +3,7 @@ import { createConfigService } from './configService';
 import { createFolderService } from './folderService';
 import { createMessageService } from './messageService';
 import { createUserService } from './userService';
+import { createVacationService } from './vacationService';
 
 export const baseUrl = '/conversation';
 export const configService = createConfigService(baseUrl);
@@ -10,3 +11,4 @@ export const folderService = createFolderService(baseUrl);
 export const messageService = createMessageService(baseUrl);
 export const attachmentService = createAttachmentService(baseUrl);
 export const userService = createUserService();
+export const vacationService = createVacationService(baseUrl);
