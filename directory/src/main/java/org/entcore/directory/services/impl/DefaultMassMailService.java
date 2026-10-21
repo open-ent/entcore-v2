@@ -23,11 +23,17 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static fr.wseduc.webutils.Utils.getOrElse;
 import static fr.wseduc.webutils.Utils.handlerToAsyncHandler;
@@ -43,6 +49,12 @@ public class DefaultMassMailService extends Renders implements MassMailService {
     private final EmailSender notifHelper;
     private final String node;
     private final Neo4j neo = Neo4j.getInstance();
+    /** Envois simultanés d'un publipostage par courriel. */
+    private static final int MAIL_CONCURRENCY = 4;
+    /** Durée de conservation d'un bilan après la fin de son lot. */
+    private static final long REPORT_TTL_MS = 24L * 3600 * 1000;
+    /** Lots de publipostage par courriel, en cours ou terminés depuis moins de {@link #REPORT_TTL_MS}. */
+    private static final Map<String, JsonObject> MAIL_JOBS = new ConcurrentHashMap<>();
 
     public DefaultMassMailService(Vertx vertx, EventBus eb, EmailSender notifHelper, JsonObject config, String node) {
         super(vertx, config);
@@ -175,6 +187,19 @@ public class DefaultMassMailService extends Renders implements MassMailService {
     }
 
     public void massMailTypeMail(UserInfos userInfos, final HttpServerRequest request, final String templatePath, final JsonArray users, final JsonObject branding, final JsonObject mailHeader) {
+        massMailTypeMail(userInfos, request, templatePath, users, branding, mailHeader, null);
+    }
+
+    /**
+     * Envoi en arrière-plan : la requête reçoit aussitôt l'identifiant du lot ({@code jobId}) et
+     * ses effectifs ; l'avancement puis le bilan se lisent par {@link #massMailReport}. À la fin du
+     * lot, le bilan part aussi par courriel à l'administrateur qui l'a lancé.
+     * <p>
+     * Les envois sont faits {@value #MAIL_CONCURRENCY} par {@value #MAIL_CONCURRENCY} : les lancer
+     * tous d'un coup saturait le serveur SMTP sur un gros établissement, et chaque réponse doit
+     * être comptée.
+     */
+    public void massMailTypeMail(UserInfos userInfos, final HttpServerRequest request, final String templatePath, final JsonArray users, final JsonObject branding, final JsonObject mailHeader, final String structureId) {
         final String header = mailHeaderHtml(mailHeader);
         getTemplateName(userInfos, request, templatePath, "massmail.mail", "txt").onComplete(templateNameRes -> {
             if (templateNameRes.failed()) {
@@ -187,58 +212,284 @@ public class DefaultMassMailService extends Renders implements MassMailService {
                     badRequest(request);
                     return;
                 }
-
-                StringReader reader = new StringReader(result.result().toString("UTF-8"));
+                final String template = result.result().toString("UTF-8");
                 final JsonArray mailHeaders = new JsonArray().add(
                         new JsonObject().put("name", "Content-Type").put("value", "text/html; charset=\"UTF-8\""));
 
+                final List<JsonObject> recipients = new ArrayList<>();
+                final JsonArray withoutEmail = new JsonArray();
                 for (Object userObj : users) {
                     final JsonObject user = (JsonObject) userObj;
                     final String userMail = user.getString("email");
                     if (userMail == null || userMail.trim().isEmpty()) {
-                        continue;
+                        withoutEmail.add(reportUser(user));
+                    } else {
+                        recipients.add(user);
                     }
-
-                    final String mailTitle = !user.containsKey("activationCode") ||
-                            user.getString("activationCode") == null ||
-                            user.getString("activationCode").trim().isEmpty() ?
-                            "directory.massmail.mail.subject.activated" :
-                            "directory.massmail.mail.subject.not.activated";
-
-                    try {
-                        reader.reset();
-                    } catch (IOException exc) {
-                        log.error("[MassMail] Error on StringReader (" + exc.toString() + ")");
-                    }
-
-                    final JsonObject mailProps = (branding == null || branding.isEmpty())
-                            ? user
-                            : user.copy().put("branding", branding);
-
-                    processTemplate(request, mailProps, templateName, reader, writer -> {
-                        String processedTemplate = ((StringWriter) writer).getBuffer().toString();
-
-                        if (processedTemplate == null) {
-                            badRequest(request);
-                            return;
-                        }
-
-                        notifHelper.sendEmail(
-                                request,
-                                userMail, null, null,
-                                mailTitle,
-                                header + processedTemplate, null, true, mailHeaders,
-                                handlerToAsyncHandler(event -> {
-                                    if ("error".equals(event.body().getString("status"))) {
-                                        log.error("[MassMail] Error while sending mail (" + event.body().getString("message", "") + ")");
-                                    }
-                                }));
-                    });
                 }
-                ok(request);
+                final JsonObject job = startMailJob(userInfos, structureId, users.size(), recipients.size(), withoutEmail);
+                renderJson(request, jobSummary(job));
+
+                final AtomicInteger next = new AtomicInteger();
+                final AtomicInteger workers = new AtomicInteger(Math.min(MAIL_CONCURRENCY, recipients.size()));
+                final Runnable onDone = () -> finishMailJob(request, userInfos, job);
+                if (recipients.isEmpty()) {
+                    onDone.run();
+                    return;
+                }
+                for (int w = 0; w < MAIL_CONCURRENCY && w < recipients.size(); w++) {
+                    sendNextMail(request, template, templateName, header, mailHeaders, branding, recipients, next, workers, job, onDone);
+                }
             });
         });
+    }
 
+    /** Prend le compte suivant de la file et l'envoie ; le dernier ouvrier à s'arrêter clôt le lot. */
+    private void sendNextMail(final HttpServerRequest request, final String template, final String templateName,
+            final String header, final JsonArray mailHeaders, final JsonObject branding, final List<JsonObject> recipients,
+            final AtomicInteger next, final AtomicInteger workers, final JsonObject job, final Runnable onDone) {
+        final int i = next.getAndIncrement();
+        if (i >= recipients.size()) {
+            if (workers.decrementAndGet() == 0) {
+                onDone.run();
+            }
+            return;
+        }
+        final JsonObject user = recipients.get(i);
+        final Handler<String> recordAndContinue = error -> {
+            recordMailResult(job, user, error);
+            sendNextMail(request, template, templateName, header, mailHeaders, branding, recipients, next, workers, job, onDone);
+        };
+        try {
+            final String mailTitle = !user.containsKey("activationCode") ||
+                    user.getString("activationCode") == null ||
+                    user.getString("activationCode").trim().isEmpty() ?
+                    "directory.massmail.mail.subject.activated" :
+                    "directory.massmail.mail.subject.not.activated";
+            final JsonObject mailProps = (branding == null || branding.isEmpty())
+                    ? user
+                    : user.copy().put("branding", branding);
+
+            // Un lecteur par compte : plusieurs rendus sont en cours en même temps.
+            processTemplate(request, mailProps, templateName, new StringReader(template), writer -> {
+                final String processedTemplate = writer == null ? null : ((StringWriter) writer).getBuffer().toString();
+                if (processedTemplate == null) {
+                    recordAndContinue.handle("template");
+                    return;
+                }
+                notifHelper.sendEmail(
+                        request,
+                        user.getString("email"), null, null,
+                        mailTitle,
+                        header + processedTemplate, null, true, mailHeaders,
+                        handlerToAsyncHandler(event -> {
+                            if ("error".equals(event.body().getString("status"))) {
+                                final String message = event.body().getString("message", "");
+                                log.error("[MassMail] Error while sending mail to " + user.getString("id") + " (" + message + ")");
+                                recordAndContinue.handle(message.isEmpty() ? "error" : message);
+                            } else {
+                                recordAndContinue.handle(null);
+                            }
+                        }));
+            });
+        } catch (Exception e) {
+            log.error("[MassMail] Error while preparing mail for " + user.getString("id"), e);
+            recordAndContinue.handle(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+        }
+    }
+
+    /** Ce que le bilan retient d'un compte : de quoi le retrouver, rien de son code d'activation. */
+    private static JsonObject reportUser(final JsonObject user) {
+        final String displayName = user.getString("displayName");
+        return new JsonObject()
+                .put("id", user.getString("id"))
+                .put("login", user.getString("login"))
+                .put("displayName", displayName != null ? displayName
+                        : (getOrElse(user.getString("firstName"), "") + " " + getOrElse(user.getString("lastName"), "")).trim())
+                .put("profile", user.getString("profile"))
+                .put("email", user.getString("email"));
+    }
+
+    JsonObject startMailJob(final UserInfos userInfos, final String structureId, final int total,
+            final int recipients, final JsonArray withoutEmail) {
+        final long now = System.currentTimeMillis();
+        MAIL_JOBS.values().removeIf(j -> j.getLong("finishedAt", now) < now - REPORT_TTL_MS);
+        final JsonObject job = new JsonObject()
+                .put("jobId", UUID.randomUUID().toString())
+                .put("ownerId", userInfos == null ? null : userInfos.getUserId())
+                .put("structureId", structureId)
+                .put("status", "running")
+                .put("startedAt", now)
+                .put("total", total)
+                .put("recipients", recipients)
+                .put("sent", 0)
+                .put("failed", 0)
+                .put("withoutEmail", withoutEmail.size())
+                .put("failures", new JsonArray())
+                .put("withoutEmailUsers", withoutEmail);
+        MAIL_JOBS.put(job.getString("jobId"), job);
+        return job;
+    }
+
+    static synchronized void recordMailResult(final JsonObject job, final JsonObject user, final String error) {
+        if (error == null) {
+            job.put("sent", job.getInteger("sent") + 1);
+        } else {
+            job.put("failed", job.getInteger("failed") + 1);
+            job.getJsonArray("failures").add(reportUser(user).put("error", error));
+        }
+    }
+
+    private void finishMailJob(final HttpServerRequest request, final UserInfos userInfos, final JsonObject job) {
+        final long now = System.currentTimeMillis();
+        job.put("finishedAt", now).put("durationMs", now - job.getLong("startedAt")).put("status", "done");
+        log.info("[MassMail] Job " + job.getString("jobId") + " done: " + job.getInteger("sent") + " sent, "
+                + job.getInteger("failed") + " failed, " + job.getInteger("withoutEmail") + " without e-mail, "
+                + job.getLong("durationMs") + " ms");
+        sendReportEmail(request, userInfos, job);
+    }
+
+    /** Effectifs et état du lot, sans les listes de comptes. */
+    static JsonObject jobSummary(final JsonObject job) {
+        final JsonObject summary = job.copy();
+        summary.remove("failures");
+        summary.remove("withoutEmailUsers");
+        summary.remove("ownerId");
+        return summary;
+    }
+
+    @Override
+    public JsonObject massMailReport(final String jobId, final UserInfos user) {
+        final JsonObject job = jobId == null ? null : MAIL_JOBS.get(jobId);
+        if (job == null || user == null) {
+            return null;
+        }
+        final boolean owner = user.getUserId() != null && user.getUserId().equals(job.getString("ownerId"));
+        final boolean superAdmin = user.getFunctions() != null && user.getFunctions().containsKey(SUPER_ADMIN);
+        if (!owner && !superAdmin) {
+            return null;
+        }
+        synchronized (DefaultMassMailService.class) {
+            final JsonObject copy = job.copy();
+            copy.remove("ownerId");
+            return copy;
+        }
+    }
+
+    /**
+     * Bilan envoyé à l'administrateur qui a lancé le lot, à l'adresse de son compte. L'issue est
+     * notée dans le bilan ({@code reportEmail} : sent, failed ou none faute d'adresse).
+     */
+    private void sendReportEmail(final HttpServerRequest request, final UserInfos userInfos, final JsonObject job) {
+        if (userInfos == null || userInfos.getUserId() == null) {
+            job.put("reportEmail", "none");
+            return;
+        }
+        neo.execute("MATCH (u:User {id: {userId}}) OPTIONAL MATCH (s:Structure {id: {structureId}}) " +
+                        "RETURN u.email as email, s.name as structureName",
+                new JsonObject().put("userId", userInfos.getUserId()).put("structureId", job.getString("structureId", "")),
+                validResultHandler(res -> {
+                    final JsonObject row = res.isRight() && !res.right().getValue().isEmpty()
+                            ? res.right().getValue().getJsonObject(0) : new JsonObject();
+                    final String email = row.getString("email");
+                    if (email == null || email.trim().isEmpty()) {
+                        job.put("reportEmail", "none");
+                        return;
+                    }
+                    final String lang = I18n.acceptLanguage(request);
+                    final String host = Renders.getHost(request);
+                    final String body = reportEmailHtml(job, row.getString("structureName"), host, lang);
+                    final JsonArray headers = new JsonArray().add(
+                            new JsonObject().put("name", "Content-Type").put("value", "text/html; charset=\"UTF-8\""));
+                    notifHelper.sendEmail(request, email, null, null,
+                            I18n.getInstance().translate("directory.massmail.report.subject", host, lang),
+                            body, null, false, headers,
+                            handlerToAsyncHandler(event -> {
+                                final boolean ok = !"error".equals(event.body().getString("status"));
+                                if (!ok) {
+                                    log.error("[MassMail] Error while sending report of job " + job.getString("jobId")
+                                            + " (" + event.body().getString("message", "") + ")");
+                                }
+                                job.put("reportEmail", ok ? "sent" : "failed");
+                            }));
+                }));
+    }
+
+    /** Nombre maximal de comptes listés par tableau dans le courriel de bilan. */
+    private static final int REPORT_EMAIL_MAX_ROWS = 200;
+
+    private static String html(final String s) {
+        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
+    static String formatDuration(final long ms) {
+        final long seconds = Math.round(ms / 1000d);
+        if (seconds < 60) {
+            return seconds + " s";
+        }
+        final long minutes = seconds / 60;
+        if (minutes < 60) {
+            return minutes + " min " + (seconds % 60) + " s";
+        }
+        return (minutes / 60) + " h " + (minutes % 60) + " min";
+    }
+
+    String reportEmailHtml(final JsonObject job, final String structureName, final String host, final String lang) {
+        final I18n i18n = I18n.getInstance();
+        final java.util.function.Function<String, String> t = key -> html(i18n.translate("directory.massmail.report." + key, host, lang));
+        final SimpleDateFormat date = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+        date.setTimeZone(TimeZone.getTimeZone("Europe/Paris"));
+        final String cell = "style=\"padding:4px 8px;border:1px solid #ddd;text-align:left\"";
+        final StringBuilder b = new StringBuilder();
+        b.append("<p>").append(t.apply("intro")).append("</p>\n<table style=\"border-collapse:collapse\">\n");
+        final String[][] rows = {
+                {"structure", html(structureName)},
+                {"started", date.format(new Date(job.getLong("startedAt")))},
+                {"duration", formatDuration(job.getLong("durationMs", 0L))},
+                {"total", String.valueOf(job.getInteger("total"))},
+                {"sent", String.valueOf(job.getInteger("sent"))},
+                {"failed", String.valueOf(job.getInteger("failed"))},
+                {"withoutEmail", String.valueOf(job.getInteger("withoutEmail"))}};
+        for (final String[] row : rows) {
+            if (row[1] == null || row[1].isEmpty()) continue;
+            b.append("<tr><th ").append(cell).append(">").append(t.apply(row[0])).append("</th><td ").append(cell)
+                    .append(">").append(row[1]).append("</td></tr>\n");
+        }
+        b.append("</table>\n");
+        // Profils traduits par les libellés existants du module (Teacher → Enseignant…).
+        final java.util.function.Function<String, String> profile = p -> p == null ? "" : html(i18n.translate(p, host, lang));
+        appendUserTable(b, t.apply("failures"), job.getJsonArray("failures"), true, cell, t, profile);
+        appendUserTable(b, t.apply("withoutEmailList"), job.getJsonArray("withoutEmailUsers"), false, cell, t, profile);
+        return b.toString();
+    }
+
+    private static void appendUserTable(final StringBuilder b, final String title, final JsonArray users, final boolean failures,
+            final String cell, final java.util.function.Function<String, String> t,
+            final java.util.function.Function<String, String> profile) {
+        if (users == null || users.isEmpty()) {
+            return;
+        }
+        b.append("<h3>").append(title).append(" (").append(users.size()).append(")</h3>\n<table style=\"border-collapse:collapse\">\n<tr>");
+        for (final String col : failures ? new String[]{"name", "login", "email", "error"} : new String[]{"name", "login", "profile"}) {
+            b.append("<th ").append(cell).append(">").append(t.apply("col." + col)).append("</th>");
+        }
+        b.append("</tr>\n");
+        for (int i = 0; i < users.size() && i < REPORT_EMAIL_MAX_ROWS; i++) {
+            final JsonObject u = users.getJsonObject(i);
+            b.append("<tr><td ").append(cell).append(">").append(html(u.getString("displayName")))
+                    .append("</td><td ").append(cell).append(">").append(html(u.getString("login")));
+            if (failures) {
+                b.append("</td><td ").append(cell).append(">").append(html(u.getString("email")))
+                        .append("</td><td ").append(cell).append(">").append(html(u.getString("error")));
+            } else {
+                b.append("</td><td ").append(cell).append(">").append(profile.apply(u.getString("profile")));
+            }
+            b.append("</td></tr>\n");
+        }
+        b.append("</table>\n");
+        if (users.size() > REPORT_EMAIL_MAX_ROWS) {
+            b.append("<p>").append(t.apply("truncated")).append("</p>\n");
+        }
     }
 
     public void massMailTypeCSV(final HttpServerRequest request, JsonArray users) {

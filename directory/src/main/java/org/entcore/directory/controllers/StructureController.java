@@ -980,7 +980,7 @@ public class StructureController extends BaseController {
 									}
 
 									massMailService.massMailTypeMail(infos, request, templatePath, result.right().getValue(), branding,
-											mailHeader(request, skin, structureId, branding));
+											mailHeader(request, skin, structureId, branding), structureId);
 								}
 							});
 						} else {
@@ -990,6 +990,24 @@ public class StructureController extends BaseController {
 					}
 				});
 			});
+		});
+	}
+
+	/**
+	 * Avancement puis bilan d'un publipostage par courriel lancé par {@code /massMail/process/mail}
+	 * (identifiant {@code jobId} de sa réponse). Seul le compte qui l'a lancé, ou un
+	 * super-administrateur, peut le lire ; le bilan est gardé 24 h après la fin de l'envoi.
+	 */
+	@Get("/massmail/report/:jobId")
+	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+	public void massMailReport(final HttpServerRequest request) {
+		UserUtils.getUserInfos(eb, request, infos -> {
+			final JsonObject report = massMailService.massMailReport(request.params().get("jobId"), infos);
+			if (report == null) {
+				notFound(request);
+			} else {
+				renderJson(request, report);
+			}
 		});
 	}
 
@@ -1053,7 +1071,7 @@ public class StructureController extends BaseController {
 											break;
 										case "mail":
 											massMailService.massMailTypeMail(infos, request, templatePath, users, branding,
-													mailHeader(request, skin, schoolId, branding));
+													mailHeader(request, skin, schoolId, branding), schoolId);
 											break;
 										case "csv":
 											massMailService.massMailTypeCSV(request, users);

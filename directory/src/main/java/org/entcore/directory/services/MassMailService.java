@@ -57,6 +57,21 @@ public interface MassMailService {
 	void massMailTypeMail(UserInfos user, final HttpServerRequest request, final String templatePath,
 			final JsonArray users, final JsonObject branding, final JsonObject mailHeader);
 
+	/**
+	 * Envoi en arrière-plan : répond aussitôt {@code jobId} et les effectifs du lot, puis envoie un
+	 * courriel par compte. {@code structureId} (facultatif) nomme l'établissement dans le bilan.
+	 */
+	void massMailTypeMail(UserInfos user, final HttpServerRequest request, final String templatePath,
+			final JsonArray users, final JsonObject branding, final JsonObject mailHeader, final String structureId);
+
+	/**
+	 * Avancement puis bilan d'un publipostage par courriel : {@code status} (running, done),
+	 * {@code total}, {@code sent}, {@code failed}, {@code withoutEmail}, {@code startedAt},
+	 * {@code finishedAt}, {@code durationMs}, {@code failures} et {@code withoutEmailUsers}.
+	 * {@code null} si le lot est inconnu, expiré ou lancé par un autre compte (sauf super-admin).
+	 */
+	JsonObject massMailReport(String jobId, UserInfos user);
+
 	void massMailTypeCSV(final HttpServerRequest request, JsonArray users);
 
 	void massMailTypePdf(UserInfos user, final HttpServerRequest request, final String templatePath, final String baseUrl, final String filename, final String type, final JsonArray users);
