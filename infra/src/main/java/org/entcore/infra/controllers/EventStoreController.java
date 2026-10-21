@@ -285,6 +285,35 @@ public class EventStoreController extends BaseController {
 		}
 	}
 
+	/**
+	 * Historique d'un compte (connexions, activation, création et suppression par l'annuaire) pour la
+	 * fiche utilisateur de l'administration. Réservé au super administrateur, comme /event/list.
+	 * Paramètres : duration (ms, défaut 90 jours), event-types (répétable), limit (défaut 500, max 2000).
+	 */
+	@Get("/event/user/:userId/:type/:epoch")
+	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@ResourceFilter(SuperAdminFilter.class)
+	public void listUserHistory(final HttpServerRequest request) {
+		final String type = request.params().get("type");
+		final String userId = request.params().get("userId");
+		if (!EventStoreService.EVENT_STORE_TYPES.contains(type) || StringUtils.isEmpty(userId)) {
+			badRequest(request, "invalid.type");
+			return;
+		}
+		try {
+			final long epoch = Long.parseLong(request.params().get("epoch"));
+			final long duration = request.params().contains("duration") ?
+					Long.parseLong(request.params().get("duration")) : 90 * EventStoreService.ONE_DAY_DURATION;
+			final int limit = request.params().contains("limit") ?
+					Math.max(1, Math.min(2000, Integer.parseInt(request.params().get("limit")))) : 500;
+			final List<String> eventTypes = request.params().getAll("event-types");
+			eventStoreService.listUserHistory(type, userId, epoch, duration, eventTypes, limit,
+					asyncArrayResponseHandler(request));
+		} catch (RuntimeException e) {
+			badRequest(request, "invalid.input.format");
+		}
+	}
+
 	@Put("/event/mark/:type/:epoch")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(SuperAdminFilter.class)

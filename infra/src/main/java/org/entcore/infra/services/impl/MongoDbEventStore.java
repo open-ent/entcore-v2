@@ -90,6 +90,27 @@ public class MongoDbEventStore implements EventStoreService {
 				eventsBatchSize = DEFAULT_EVENT_BATCH_SIZE;
 				}
 			}).onFailure(ex -> log.error("Error when get event-store conf in server map", ex));
+		ensureUserHistoryIndexes();
+	}
+
+	/**
+	 * Index de l'historique par compte (cf. {@link #listUserHistory}) : sans eux, chaque lecture balaie
+	 * toute la collection. createIndexes est idempotent ; la construction est en ligne.
+	 */
+	private void ensureUserHistoryIndexes() {
+		final JsonArray indexes = new JsonArray()
+			.add(new JsonObject().put("name", "userId_date")
+				.put("key", new JsonObject().put("userId", 1).put("date", -1)))
+			.add(new JsonObject().put("name", "new-user_date").put("sparse", true)
+				.put("key", new JsonObject().put("new-user", 1).put("date", -1)))
+			.add(new JsonObject().put("name", "old-users.id_date").put("sparse", true)
+				.put("key", new JsonObject().put("old-users.id", 1).put("date", -1)));
+		final JsonObject command = new JsonObject().put("createIndexes", COLLECTION).put("indexes", indexes);
+		mongoDb.command(command.encode(), new DeliveryOptions().setSendTimeout(QUERY_TIMEOUT), res -> {
+			if (!"ok".equals(res.body().getString("status"))) {
+				log.error("[EventStore] user history indexes not created : " + res.body().encode());
+			}
+		});
 	}
 
 	@Override
@@ -214,7 +235,25 @@ public class MongoDbEventStore implements EventStoreService {
 				new DeliveryOptions().setSendTimeout(QUERY_TIMEOUT), validAsyncResultsHandler(handler));
 	}
 
+	static JsonObject buildUserHistoryQuery(String userId, long startEpoch, long duration, List<String> eventTypes) {
+		final JsonObject query = new JsonObject()
+			.put("date", new JsonObject().put("$gte", startEpoch).put("$lt", (startEpoch + duration)))
+			.put("$or", new JsonArray()
+				.add(new JsonObject().put("userId", userId))
+				.add(new JsonObject().put("new-user", userId))
+				.add(new JsonObject().put("old-users.id", userId)));
+		if (eventTypes != null && !eventTypes.isEmpty()) {
+			query.put("event-type", new JsonObject().put("$in", new JsonArray(eventTypes)));
+		}
+		return query;
+	}
 
+	@Override
+	public void listUserHistory(String eventStoreType, String userId, long startEpoch, long duration, List<String> eventTypes, int limit, Handler<AsyncResult<JsonArray>> handler) {
+		final JsonObject query = buildUserHistoryQuery(userId, startEpoch, duration, eventTypes);
+		mongoDb.find(eventStoreType, query, new JsonObject().put("date", -1), (JsonObject) null, 0, limit, limit,
+				new DeliveryOptions().setSendTimeout(QUERY_TIMEOUT), validAsyncResultsHandler(handler));
+	}
 
   @Override
   public void listEventsPartial(String eventStoreType, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<PartialResults>> handler) {

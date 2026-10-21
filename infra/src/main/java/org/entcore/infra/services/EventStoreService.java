@@ -74,6 +74,13 @@ public interface EventStoreService {
 
   void listEventsForUser(String eventStoreType, String userId, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<JsonArray>> handler);
 
+  /**
+   * Historique d'un compte pour la fiche utilisateur de l'administration : événements dont il est
+   * l'auteur ({@code userId}) et événements de l'annuaire qui le visent (création {@code new-user},
+   * suppression définitive {@code old-users.id}). Tri du plus récent au plus ancien, {@code limit} au plus.
+   */
+  void listUserHistory(String eventStoreType, String userId, long startEpoch, long duration, List<String> eventTypes, int limit, Handler<AsyncResult<JsonArray>> handler);
+
 	void markSyncedEvents(String eventStoreType, long startEpoch, long duration, Handler<AsyncResult<JsonObject>> handler);
 
 }
