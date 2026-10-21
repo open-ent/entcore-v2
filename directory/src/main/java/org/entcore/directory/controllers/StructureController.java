@@ -37,6 +37,8 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.Message;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.file.CopyOptions;
 import io.vertx.core.file.FileSystem;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
@@ -44,6 +46,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.entcore.common.appregistry.ApplicationUtils;
+import org.entcore.common.bus.WorkspaceHelper;
 import org.entcore.common.http.filter.AdminFilter;
 import org.entcore.common.http.filter.AdmlOfStructure;
 import org.entcore.common.http.filter.ResourceFilter;
@@ -67,10 +70,12 @@ import org.vertx.java.core.http.RouteMatcher;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
+import java.io.File;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static fr.wseduc.webutils.Utils.handlerToAsyncHandler;
 import static fr.wseduc.webutils.Utils.isEmpty;
@@ -100,6 +105,13 @@ public class StructureController extends BaseController {
 	 */
 	private StructureBrandingService structureBrandingService;
 
+	/** Lecture des images de branding dans le stockage, pour les PDF (voir brandingForPdf). */
+	private WorkspaceHelper workspaceHelper;
+
+	public void setWorkspaceHelper(WorkspaceHelper workspaceHelper) {
+		this.workspaceHelper = workspaceHelper;
+	}
+
 	public void setStructureBrandingService(StructureBrandingService structureBrandingService) {
 		this.structureBrandingService = structureBrandingService;
 	}
@@ -124,6 +136,133 @@ public class StructureController extends BaseController {
 			}
 			return branding;
 		});
+	}
+
+	/**
+	 * Lecture des images de l'établissement pour le PDF, qui ne doit jamais les télécharger.
+	 * <p>
+	 * Le générateur de PDF ouvre chaque {@code <img>} avec {@code URL.openStream()}, de façon
+	 * bloquante, sur un fil d'événements. Une URL {@code /workspace/document/<id>} est privée
+	 * (le générateur n'a pas de session) et part vers l'hôte public, c'est-à-dire vers ce même
+	 * serveur : le fil restait bloqué plusieurs minutes et le publipostage n'aboutissait pas.
+	 * <p>
+	 * Le document est donc lu ici dans le stockage, puis déposé dans un fichier local que le
+	 * générateur (même JVM) lit sous une URL {@code file:}. Une donnée intégrée ({@code data:})
+	 * serait recopiée dans le gabarit pour chaque compte du lot. Une image illisible est retirée
+	 * du branding : le gabarit retombe alors sur l'image du thème.
+	 */
+	private io.vertx.core.Future<JsonObject> brandingForPdf(final JsonObject branding) {
+		final JsonObject out = branding.copy();
+		io.vertx.core.Future<Void> chain = io.vertx.core.Future.succeededFuture();
+		for (final String field : new String[]{"logo", "entete", "cachet", "signature"}) {
+			out.remove(field + "Url");
+			final String documentId = branding.getString(field);
+			if (documentId == null || workspaceHelper == null) continue;
+			chain = chain.compose(v -> localBrandingImage(documentId, "logo".equals(field))
+					.map(uri -> {
+						out.put(field + "Url", uri);
+						return (Void) null;
+					})
+					.otherwise(err -> {
+						log.warn("Branding image " + documentId + " unavailable for PDF: " + err.getMessage());
+						return null;
+					}));
+		}
+		return chain.map(v -> out);
+	}
+
+	private io.vertx.core.Future<String> localBrandingImage(final String documentId, final boolean asLogo) {
+		final io.vertx.core.Promise<String> promise = io.vertx.core.Promise.promise();
+		workspaceHelper.readDocument(documentId, document -> {
+			if (document == null || document.getData() == null || document.getData().length() == 0) {
+				promise.fail("document.not.found");
+				return;
+			}
+			final FileSystem fs = vertx.fileSystem();
+			final String dir = System.getProperty("java.io.tmpdir") + File.separator + "openent-branding";
+			final String target = dir + File.separator + documentId.replaceAll("[^A-Za-z0-9-]", "_")
+					+ (asLogo ? "-logo.png" : "");
+			// Écriture puis renommage atomique : un rendu concurrent lit l'ancienne image ou la
+			// nouvelle, jamais un fichier à moitié écrit.
+			final String part = target + "." + UUID.randomUUID() + ".part";
+			final io.vertx.core.Future<Buffer> data = asLogo
+					? vertx.executeBlocking(() -> logoInBanner(document.getData()), false)
+					: io.vertx.core.Future.succeededFuture(document.getData());
+			fs.mkdirs(dir)
+					.compose(v -> data)
+					.compose(bytes -> fs.writeFile(part, bytes))
+					.compose(v -> fs.move(part, target,
+							new CopyOptions().setReplaceExisting(true).setAtomicMove(true)))
+					.onSuccess(v -> promise.complete(new File(target).toURI().toString()))
+					.onFailure(err -> {
+						fs.delete(part);
+						promise.fail(err);
+					});
+		});
+		return promise.future();
+	}
+
+	/** Format du cadre où le logo est posé dans le PDF (largeur / hauteur). */
+	private static final double LOGO_BANNER_RATIO = 2.5;
+	/** Largeur maximale du cadre, en pixels : au-delà, le PDF s'alourdit sans gain à l'impression. */
+	private static final int LOGO_BANNER_MAX_WIDTH = 750;
+
+	/**
+	 * Le logo de l'établissement posé, aligné à gauche et centré verticalement, dans un cadre
+	 * transparent au format bandeau.
+	 * <p>
+	 * Les gabarits de publipostage, propres à chaque thème, imposent au logo une <b>largeur</b>
+	 * fixe pensée pour le logo horizontal du thème : un logo carré ou en hauteur sortait aussi
+	 * haut que large et écrasait la page. Le cadre donne à tout logo la même proportion, donc une
+	 * hauteur raisonnable sous la largeur du gabarit, sans toucher aux gabarits des thèmes. Un
+	 * format que Java ne sait pas lire (SVG…) est laissé tel quel.
+	 */
+	private static Buffer logoInBanner(final Buffer data) {
+		try {
+			final java.awt.image.BufferedImage src =
+					javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data.getBytes()));
+			if (src == null || src.getWidth() <= 0 || src.getHeight() <= 0) {
+				return data;
+			}
+			final double w = src.getWidth();
+			final double h = src.getHeight();
+			double frameW = Math.max(w, h * LOGO_BANNER_RATIO);
+			double frameH = frameW / LOGO_BANNER_RATIO;
+			final double scale = Math.min(1.0, LOGO_BANNER_MAX_WIDTH / frameW);
+			frameW *= scale;
+			frameH *= scale;
+			final int logoW = Math.max(1, (int) Math.round(w * scale));
+			final int logoH = Math.max(1, (int) Math.round(h * scale));
+			final java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(
+					(int) Math.round(frameW), (int) Math.round(frameH), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+			final java.awt.Graphics2D g = out.createGraphics();
+			try {
+				g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+						java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+				g.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+				g.drawImage(src, 0, (out.getHeight() - logoH) / 2, logoW, logoH, null);
+			} finally {
+				g.dispose();
+			}
+			final java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+			javax.imageio.ImageIO.write(out, "png", png);
+			return Buffer.buffer(png.toByteArray());
+		} catch (Exception e) {
+			log.warn("Branding logo kept as is for PDF: " + e.getMessage());
+			return data;
+		}
+	}
+
+	/**
+	 * URL de base des images du thème pour le PDF : le dossier local du thème quand il est
+	 * présent sur ce nœud (c'est là que sont lus les gabarits), l'hôte public sinon.
+	 */
+	private String pdfBaseUrl(final HttpServerRequest request, final String host, final String skin) {
+		final File imgDir = new File(this.assetsPath + "/assets/themes/" + skin + "/img/");
+		if (imgDir.isDirectory()) {
+			return imgDir.getAbsoluteFile().toURI().toString();
+		}
+		return getScheme(request) + "://" + host + "/assets/themes/" + skin + "/img/";
 	}
 
 	@Override
@@ -598,7 +737,7 @@ public class StructureController extends BaseController {
 
 			final String assetsPath = this.assetsPath + "/assets/themes/" + skin;
 			final String templatePath = assetsPath + "/template/directory/";
-			final String baseUrl = getScheme(request) + "://" + Renders.getHost(request) + "/assets/themes/" + skin + "/img/";
+			final String baseUrl = pdfBaseUrl(request, Renders.getHost(request), skin);
 
 			UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
 				public void handle(final UserInfos infos) {
@@ -690,12 +829,16 @@ public class StructureController extends BaseController {
 
 			final String assetsPath = this.assetsPath + "/assets/themes/" + skin;
 			final String templatePath = assetsPath + "/template/directory/";
-			final String baseUrl = getScheme(request) + "://" + Renders.getHost(request) + "/assets/themes/" + skin + "/img/";
+			final String baseUrl = pdfBaseUrl(request, Renders.getHost(request), skin);
 
 			// Le branding de l'établissement est résolu une fois pour tout le lot : c'est lui qui
 			// met le logo et le cachet de l'établissement sur les courriers d'identifiants, là où
 			// seules les images du thème (communes à tout le domaine) apparaissaient jusqu'ici.
-			resolveBranding(request, structureId).onComplete(brandingRes -> {
+			// `branding=false` le laisse de côté : l'administrateur choisit alors explicitement le
+			// courrier aux couleurs de l'ENT, même pour un établissement doté d'une identité.
+			final boolean withBranding = !"false".equalsIgnoreCase(request.params().get("branding"));
+			(withBranding ? resolveBranding(request, structureId)
+					: io.vertx.core.Future.succeededFuture(new JsonObject())).onComplete(brandingRes -> {
 				final JsonObject branding = brandingRes.succeeded() ? brandingRes.result() : new JsonObject();
 				UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
 					public void handle(final UserInfos infos) {
@@ -709,7 +852,7 @@ public class StructureController extends BaseController {
 										return;
 									}
 
-									massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, filename, type, result.right().getValue(), branding);
+									brandingForPdf(branding).onComplete(pdfBranding -> massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, filename, type, result.right().getValue(), pdfBranding.succeeded() ? pdfBranding.result() : new JsonObject()));
 								}
 							});
 						}
@@ -764,7 +907,7 @@ public class StructureController extends BaseController {
 					final String assetsPath = StructureController.this.assetsPath +
 							"/assets/themes/" + skin;
 					final String templatePath = assetsPath + "/template/directory/";
-					final String baseUrl = getScheme(request) + "://" + host + "/assets/themes/" + skin + "/img/";
+					final String baseUrl = pdfBaseUrl(request, host, skin);
 
 					UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
 						public void handle(final UserInfos infos) {
@@ -791,7 +934,7 @@ public class StructureController extends BaseController {
 										case "pdf":
 										case "newPdf":
 										case "simplePdf":
-											massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, "massmail", type, users, branding);
+											brandingForPdf(branding).onComplete(pdfBranding -> massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, "massmail", type, users, pdfBranding.succeeded() ? pdfBranding.result() : new JsonObject()));
 											break;
 										case "mail":
 											massMailService.massMailTypeMail(infos, request, templatePath, users, branding);

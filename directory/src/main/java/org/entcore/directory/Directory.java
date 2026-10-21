@@ -185,6 +185,7 @@ public class Directory extends BaseServer {
 		structureController.setStructureService(schoolService);
 		structureController.setNotifHelper(emailSender);
 		structureController.setStructureBrandingService(structureBrandingService);
+		structureController.setWorkspaceHelper(wsHelper);
 		structureController.setMassMailService(new DefaultMassMailService(
 				vertx,eb,emailSender,config, (String) serverMap.get("node")));
 		addController(structureController);
