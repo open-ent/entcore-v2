@@ -253,6 +253,119 @@ public class StructureController extends BaseController {
 		}
 	}
 
+	/** Nom de thème acceptable dans un chemin de fichier. */
+	private static final java.util.regex.Pattern SKIN_NAME = java.util.regex.Pattern.compile("[A-Za-z0-9_-]{1,64}");
+	/** Identifiant de structure (UUID). */
+	private static final java.util.regex.Pattern STRUCTURE_ID = java.util.regex.Pattern.compile("[A-Za-z0-9-]{1,64}");
+
+	/**
+	 * Logo du thème à poser en tête des e-mails : le logo « texte » (horizontal) quand le thème en
+	 * a un, son logo principal sinon. {@code null} si le thème n'en embarque aucun sur ce nœud.
+	 */
+	private File themeLogoFile(final String skin) {
+		if (skin == null || !SKIN_NAME.matcher(skin).matches()) {
+			return null;
+		}
+		for (final String name : new String[]{"logo-text.png", "logo.png"}) {
+			final File f = new File(this.assetsPath + "/assets/themes/" + skin + "/img/" + name);
+			if (f.isFile()) {
+				return f;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Bandeau logo des e-mails de publipostage : le logo de l'établissement quand {@code branding}
+	 * en porte un (l'appelant ne transmet un branding que si l'identité de l'établissement est
+	 * demandée), celui du thème sinon. L'URL est publique — le destinataire n'a pas de session —
+	 * et versionnée par l'image, pour qu'un logo remplacé ne reste pas servi depuis un cache.
+	 */
+	private JsonObject mailHeader(final HttpServerRequest request, final String skin, final String structureId,
+			final JsonObject branding) {
+		final String base = getScheme(request) + "://" + Renders.getHost(request) + pathPrefix + "/massmail/logo";
+		final String logo = branding == null ? null : branding.getString("logo");
+		if (logo != null && structureId != null && STRUCTURE_ID.matcher(structureId).matches()) {
+			return new JsonObject()
+					.put("url", base + "?structure=" + structureId + "&v=" + logo)
+					.put("alt", "");
+		}
+		final File themeLogo = themeLogoFile(skin);
+		if (themeLogo == null) {
+			return null;
+		}
+		return new JsonObject()
+				.put("url", base + "?skin=" + skin + "&v=" + themeLogo.lastModified())
+				.put("alt", "");
+	}
+
+	/**
+	 * Logo du bandeau des e-mails de publipostage, au format 2,5:1 (voir {@link #logoInBanner}).
+	 * <p>
+	 * Route <b>publique</b> : le mail est lu par des destinataires sans session, souvent avant même
+	 * d'avoir activé leur compte. Elle ne sert que des logos — celui d'un établissement, que son
+	 * site public affiche déjà, ou celui d'un thème, déjà servi sous {@code /assets} — jamais un
+	 * autre document du workspace : l'identifiant du document est relu sur la structure.
+	 */
+	@Get("/massmail/logo")
+	@ApiDoc("Public banner logo of mass mail e-mails: the structure's logo (structure=<id>) or the theme's (skin=<skin>).")
+	public void massMailLogo(final HttpServerRequest request) {
+		final String structureId = request.params().get("structure");
+		if (structureId != null) {
+			if (!STRUCTURE_ID.matcher(structureId).matches() || workspaceHelper == null) {
+				notFound(request);
+				return;
+			}
+			Neo4j.getInstance().execute("MATCH (s:Structure {id: {id}}) RETURN s.brandingLogo as logo",
+					new JsonObject().put("id", structureId), Neo4jResult.validUniqueResultHandler(res -> {
+						final String documentId = res.isRight() ? res.right().getValue().getString("logo") : null;
+						if (documentId == null) {
+							notFound(request);
+							return;
+						}
+						workspaceHelper.readDocument(documentId, document -> {
+							if (document == null || document.getData() == null || document.getData().length() == 0) {
+								notFound(request);
+								return;
+							}
+							sendBannerLogo(request, document.getData());
+						});
+					}));
+			return;
+		}
+		final String skin = request.params().contains("skin")
+				? request.params().get("skin")
+				: this.skins.getString(Renders.getHost(request));
+		final File themeLogo = themeLogoFile(skin);
+		if (themeLogo == null) {
+			notFound(request);
+			return;
+		}
+		vertx.fileSystem().readFile(themeLogo.getAbsolutePath()).onComplete(read -> {
+			if (read.failed()) {
+				notFound(request);
+				return;
+			}
+			sendBannerLogo(request, read.result());
+		});
+	}
+
+	private void sendBannerLogo(final HttpServerRequest request, final Buffer data) {
+		vertx.executeBlocking(() -> logoInBanner(data), false).onComplete(res -> {
+			// Une image que Java ne sait pas lire (SVG…) traverse logoInBanner telle quelle : elle
+			// n'a pas le format du cadre, et serait déformée par les dimensions fixes du bandeau.
+			if (res.failed() || res.result() == data) {
+				notFound(request);
+				return;
+			}
+			request.response()
+					.putHeader("Content-Type", "image/png")
+					// L'URL est versionnée (paramètre v) : un jour de cache ne fige pas un ancien logo.
+					.putHeader("Cache-Control", "public, max-age=86400")
+					.end(res.result());
+		});
+	}
+
 	/**
 	 * URL de base des images du thème pour le PDF : le dossier local du thème quand il est
 	 * présent sur ce nœud (c'est là que sont lus les gabarits), l'hôte public sinon.
@@ -765,7 +878,8 @@ public class StructureController extends BaseController {
 									return;
 								}
 
-								massMailService.massMailTypeMail(infos, request, templatePath, result.right().getValue());
+								massMailService.massMailTypeMail(infos, request, templatePath, result.right().getValue(), null,
+										mailHeader(request, skin, null, null));
 							}
 						});
 					} else {
@@ -865,7 +979,8 @@ public class StructureController extends BaseController {
 										return;
 									}
 
-									massMailService.massMailTypeMail(infos, request, templatePath, result.right().getValue(), branding);
+									massMailService.massMailTypeMail(infos, request, templatePath, result.right().getValue(), branding,
+											mailHeader(request, skin, structureId, branding));
 								}
 							});
 						} else {
@@ -937,7 +1052,8 @@ public class StructureController extends BaseController {
 											brandingForPdf(branding).onComplete(pdfBranding -> massMailService.massMailTypePdf(infos, request, templatePath, baseUrl, "massmail", type, users, pdfBranding.succeeded() ? pdfBranding.result() : new JsonObject()));
 											break;
 										case "mail":
-											massMailService.massMailTypeMail(infos, request, templatePath, users, branding);
+											massMailService.massMailTypeMail(infos, request, templatePath, users, branding,
+													mailHeader(request, skin, schoolId, branding));
 											break;
 										case "csv":
 											massMailService.massMailTypeCSV(request, users);

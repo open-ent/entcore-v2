@@ -154,6 +154,28 @@ public class DefaultMassMailService extends Renders implements MassMailService {
     }
 
     public void massMailTypeMail(UserInfos userInfos, final HttpServerRequest request, final String templatePath, final JsonArray users, final JsonObject branding) {
+        massMailTypeMail(userInfos, request, templatePath, users, branding, null);
+    }
+
+    /**
+     * Bandeau logo posé en tête du mail. Largeur ET hauteur sont fixées, en attributs et en style :
+     * les messageries ignorent souvent les feuilles de style, et une image sans dimensions s'y
+     * affiche à sa taille native. L'image servie a toujours le format du cadre (2,5:1), elle n'est
+     * donc jamais déformée.
+     */
+    private static String mailHeaderHtml(final JsonObject mailHeader) {
+        if (mailHeader == null || mailHeader.getString("url", "").isEmpty()) {
+            return "";
+        }
+        final String alt = mailHeader.getString("alt", "")
+                .replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;");
+        final String url = mailHeader.getString("url").replace("&", "&amp;").replace("\"", "&quot;");
+        return "<p style=\"margin:0 0 16px 0\"><img src=\"" + url + "\" width=\"150\" height=\"60\" alt=\"" + alt
+                + "\" style=\"display:block;border:0;outline:none;width:150px;height:60px\"/></p>\n";
+    }
+
+    public void massMailTypeMail(UserInfos userInfos, final HttpServerRequest request, final String templatePath, final JsonArray users, final JsonObject branding, final JsonObject mailHeader) {
+        final String header = mailHeaderHtml(mailHeader);
         getTemplateName(userInfos, request, templatePath, "massmail.mail", "txt").onComplete(templateNameRes -> {
             if (templateNameRes.failed()) {
                 badRequest(request, templateNameRes.cause().getMessage());
@@ -205,7 +227,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
                                 request,
                                 userMail, null, null,
                                 mailTitle,
-                                processedTemplate, null, true, mailHeaders,
+                                header + processedTemplate, null, true, mailHeaders,
                                 handlerToAsyncHandler(event -> {
                                     if ("error".equals(event.body().getString("status"))) {
                                         log.error("[MassMail] Error while sending mail (" + event.body().getString("message", "") + ")");

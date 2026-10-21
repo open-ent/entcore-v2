@@ -48,6 +48,15 @@ public interface MassMailService {
 	void massMailTypeMail(UserInfos user, final HttpServerRequest request, final String templatePath,
 			final JsonArray users, final JsonObject branding);
 
+	/**
+	 * Variante qui pose un bandeau logo en tête de chaque e-mail : {@code mailHeader} porte
+	 * {@code url} (image publique, au format 2,5:1 servi par {@code /directory/massmail/logo})
+	 * et {@code alt}. Le bandeau est ajouté au rendu du gabarit, pas au gabarit : les gabarits
+	 * des thèmes restent du texte éditable, et leur rendu ailleurs (dashboard) n'en dépend pas.
+	 */
+	void massMailTypeMail(UserInfos user, final HttpServerRequest request, final String templatePath,
+			final JsonArray users, final JsonObject branding, final JsonObject mailHeader);
+
 	void massMailTypeCSV(final HttpServerRequest request, JsonArray users);
 
 	void massMailTypePdf(UserInfos user, final HttpServerRequest request, final String templatePath, final String baseUrl, final String filename, final String type, final JsonArray users);
