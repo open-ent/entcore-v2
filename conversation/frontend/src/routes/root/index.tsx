@@ -6,6 +6,7 @@ import {
   useBreakpoint,
   useEdificeClient,
 } from '@open-ent/react';
+import type { IWebApp } from '@open-ent/client';
 import { QueryClient } from '@tanstack/react-query';
 import { useLoaderData, useLocation, useParams } from 'react-router-dom';
 import { VacationBanner } from '~/components';
@@ -29,6 +30,23 @@ import {
 import { useActionsStore } from '~/store/actions';
 import { ScrollableOutlet } from './components/ScrollableOutlet';
 import './index.css';
+
+/**
+ * Application affichée quand la messagerie n'est pas dans `/applications-list`. Cette liste vient
+ * des rôles portés par les groupes de l'utilisateur ; le super-admin, rattaché à aucun groupe de
+ * profil, ne l'y trouve pas alors que le serveur lui ouvre la messagerie. Sans repli, l'écran
+ * restait indéfiniment sur le chargement.
+ */
+const FALLBACK_APP: IWebApp = {
+  name: 'Messagerie',
+  displayName: 'conversation',
+  address: '/conversation/inbox',
+  prefix: '/conversation',
+  icon: 'conversation-large',
+  display: true,
+  isExternal: false,
+  scope: [''],
+};
 
 // Typing for the root route loader.
 export interface RootLoaderData {
@@ -65,7 +83,8 @@ export function loader(queryClient: QueryClient) {
 }
 
 export function Component() {
-  const { init, currentApp } = useEdificeClient();
+  const { init, currentApp: listedApp } = useEdificeClient();
+  const currentApp = listedApp ?? FALLBACK_APP;
 
   const { actions, config } = useLoaderData() as RootLoaderData;
 
@@ -78,7 +97,7 @@ export function Component() {
 
   const openedModal = useActionsStore.use.openedModal();
 
-  if (!init || !currentApp) return <LoadingScreen position={false} />;
+  if (!init) return <LoadingScreen position={false} />;
 
   if (!actions || !config) {
     throw 'Unexpected error';
@@ -89,7 +108,7 @@ export function Component() {
       <Layout>
         <div className="d-print-none">
           <AppHeader render={AppActionHeader}>
-            <Breadcrumb app={currentApp!} />
+            <Breadcrumb app={currentApp} />
           </AppHeader>
 
           {/* Rappel permanent tant que les réponses automatiques partent. */}
