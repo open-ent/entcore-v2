@@ -19,6 +19,8 @@
 
 package org.entcore.auth.controllers;
 
+import org.entcore.common.http.filter.Trace;
+
 import fr.wseduc.bus.BusAddress;
 import fr.wseduc.rs.*;
 import fr.wseduc.security.ActionType;
@@ -1755,6 +1757,7 @@ public class AuthController extends BaseController {
 	 */
 	@Post("/reset/student-temp-password")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@Trace(value = "RESET_STUDENT_PASSWORD", audit = true, body = false, retentionDays = 1825)
 	public void resetStudentTempPassword(final HttpServerRequest request) {
 		if (!config.getBoolean("primary-assisted-password-reset", false)) {
 			notFound(request);
@@ -1777,6 +1780,7 @@ public class AuthController extends BaseController {
 
 	@Post("/sendResetPassword")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@Trace(value = "SEND_RESET_PASSWORD", audit = true, body = false, retentionDays = 1825)
 	public void sendResetPassword(final HttpServerRequest request) {
 		String login = request.formAttributes().get("login");
 		String email = request.formAttributes().get("email");
@@ -1814,6 +1818,7 @@ public class AuthController extends BaseController {
 
 	@Post("/generatePasswordRenewalCode")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@Trace(value = "GENERATE_RENEWAL_CODE", audit = true, body = false, retentionDays = 1825)
 	public void generatePasswordRenewalCode(final HttpServerRequest request) {
 		String login = request.formAttributes().get("login");
 
@@ -1869,6 +1874,7 @@ public class AuthController extends BaseController {
 
 	@Put("/block/:userId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@Trace(value = "BLOCK_USER", audit = true, body = false, retentionDays = 1825)
 	public void blockUser(final HttpServerRequest request) {
 		RequestUtils.bodyToJson(request, new io.vertx.core.Handler<JsonObject>() {
 			@Override
@@ -1929,6 +1935,7 @@ public class AuthController extends BaseController {
 
 	@Put("/users/block")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
+	@Trace(value = "BLOCK_USERS", audit = true, body = false, retentionDays = 1825)
 	public void blockUsers(final HttpServerRequest request) {
 		RequestUtils.bodyToJson(request, new io.vertx.core.Handler<JsonObject>() {
 			@Override

@@ -110,6 +110,13 @@ public interface UserService {
 	void addFunction(String id, String functionCode, JsonArray scope, String inherit,
 			Handler<Either<String, JsonObject>> result);
 
+	/**
+	 * Attribution avec trace d'accès privilégié : qui accorde (grantedBy), pourquoi (reason) et
+	 * jusqu'à quand (validUntil, epoch ms ; null = permanente).
+	 */
+	void addFunction(String id, String functionCode, JsonArray scope, String inherit, Long validUntil,
+			String grantedBy, String reason, Handler<Either<String, JsonObject>> result);
+
 	void addHeadTeacherManual(String id, String structureExternalId, String classExternalId, Handler<Either<String, JsonObject>> result);
 
 	void updateHeadTeacherManual(String id, String structureExternalId, String classExternalId, Handler<Either<String, JsonObject>> result);

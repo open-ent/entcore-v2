@@ -20,6 +20,7 @@
 package org.entcore.directory.controllers;
 
 import fr.wseduc.bus.BusAddress;
+import org.entcore.common.http.filter.Trace;
 import fr.wseduc.rs.ApiDoc;
 import fr.wseduc.rs.Delete;
 import fr.wseduc.rs.Get;
@@ -386,6 +387,7 @@ public class StructureController extends BaseController {
 	@Put("/structure/:structureId")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Trace(value = "UPDATE_STRUCTURE", audit = true, retentionDays = 1825)
 	public void update(final HttpServerRequest request) {
 		bodyToJson(request, pathPrefix + "updateStructure", new Handler<JsonObject>() {
 			@Override
@@ -1169,6 +1171,7 @@ public class StructureController extends BaseController {
 	@SecuredAction( value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(AdminStructureFilter.class)
 	@MfaProtected()
+	@Trace(value = "BLOCK_PROFILE", audit = true, retentionDays = 1825)
 	public void blockUsers(final HttpServerRequest request) {
 		RequestUtils.bodyToJson(request, new Handler<JsonObject>() {
 			@Override

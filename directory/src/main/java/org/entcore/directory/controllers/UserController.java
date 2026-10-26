@@ -67,6 +67,8 @@ import org.entcore.directory.pojo.Users;
 import org.entcore.directory.security.*;
 import org.entcore.directory.services.UserBookService;
 import org.entcore.directory.services.UserService;
+import org.entcore.directory.pim.PimPolicy;
+import org.entcore.common.http.filter.Trace;
 import org.vertx.java.core.http.RouteMatcher;
 
 import javax.xml.bind.JAXBContext;
@@ -245,6 +247,7 @@ public class UserController extends BaseController {
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(SuperAdminFilter.class)
 	@MfaProtected()
+	@Trace(value = "UPDATE_LOGIN", audit = true, retentionDays = 1825)
 	public void updateUserLogin(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
 			@Override
@@ -522,6 +525,7 @@ public class UserController extends BaseController {
 	@Delete("/user")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Trace(value = "DELETE_USERS", audit = true, retentionDays = 1825)
 	public void delete(final HttpServerRequest request) {
 		List<String> users = request.params().getAll("userId");
 		userService.delete(users, defaultResponseHandler(request));
@@ -530,6 +534,7 @@ public class UserController extends BaseController {
 	@Post("/user/delete")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(TeacherOfUser.class)
+	@Trace(value = "DELETE_USERS", audit = true, retentionDays = 1825)
 	public void deleteByPost(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
 			@Override
@@ -548,6 +553,7 @@ public class UserController extends BaseController {
 	@ResourceFilter(AnyAdminOfUser.class)
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Trace(value = "RESTORE_USERS", audit = true, retentionDays = 1825)
 	public void restore(final HttpServerRequest request) {
 		List<String> users = request.params().getAll("userId");
 		userService.restore(users, defaultResponseHandler(request));
@@ -642,13 +648,24 @@ public class UserController extends BaseController {
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(AddFunctionFilter.class)
 	@MfaProtected()
+	@Trace(value = "ADD_FUNCTION", audit = true, retentionDays = 1825)
 	public void addFunction(final HttpServerRequest request) {
 		final String userId = request.params().get("userId");
 		bodyToJson(request, pathPrefix + "addFunction", new Handler<JsonObject>() {
 			@Override
 			public void handle(JsonObject event) {
-				userService.addFunction(userId, event.getString("functionCode"),
-						event.getJsonArray("scope"), event.getString("inherit", ""), r -> {
+				final String functionCode = event.getString("functionCode");
+				final Long validUntil = event.getLong("validUntil");
+				final String reason = event.getString("reason");
+				final String refused = new PimPolicy(config).check(functionCode, validUntil, reason, System.currentTimeMillis());
+				if (refused != null) {
+					badRequest(request, refused);
+					return;
+				}
+				UserUtils.getUserInfos(eb, request, caller ->
+				userService.addFunction(userId, functionCode,
+						event.getJsonArray("scope"), event.getString("inherit", ""), validUntil,
+						caller != null ? caller.getUserId() : null, reason, r -> {
 							if (r.isRight()) {
 								final String groupId = (String) r.right().getValue().remove("groupId");
 								if (isNotEmpty(groupId)) {
@@ -661,7 +678,7 @@ public class UserController extends BaseController {
 							} else {
 								badRequest(request, r.left().getValue());
 							}
-						});
+						}));
 			}
 		});
 	}
@@ -734,6 +751,7 @@ public class UserController extends BaseController {
 	@Delete("/user/function/:userId/:function")
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Trace(value = "REMOVE_FUNCTION", audit = true, body = false, retentionDays = 1825)
 	public void removeFunction(final HttpServerRequest request) {
 		final String userId = request.params().get("userId");
 		final String function = request.params().get("function");
@@ -940,6 +958,7 @@ public class UserController extends BaseController {
 	@ResourceFilter(AdmlOfTwoUsers.class)
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@MfaProtected()
+	@Trace(value = "MERGE_USERS", audit = true, body = false, retentionDays = 1825)
 	public void mergeDuplicate(final HttpServerRequest request) {
 		RequestUtils.bodyToClass(request, MergeUsersMetadata.class, () -> new MergeUsersMetadata(false)).onSuccess(mergeUsersMetadata -> {
 			final String userId1 = request.params().get("userId1");
@@ -1038,6 +1057,7 @@ public class UserController extends BaseController {
 
 	@Post("/duplicate/user/mergeByKey")
 	@SecuredAction("user.merge.by.key")
+	@Trace(value = "MERGE_USERS", audit = true, retentionDays = 1825)
 	public void mergeByKey(final HttpServerRequest request) {
 		RequestUtils.bodyToJson(request, new Handler<JsonObject>() {
 			@Override
@@ -1060,6 +1080,7 @@ public class UserController extends BaseController {
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(SuperAdminFilter.class)
 	@MfaProtected()
+	@Trace(value = "UNMERGE_USERS", audit = true, retentionDays = 1825)
 	public void unmergeFromLogins(final HttpServerRequest request) {
 		RequestUtils.bodyToJson(request, body -> {
 			if( body != null && body.containsKey("originalUserId") && body.containsKey("mergedLogins") ) {

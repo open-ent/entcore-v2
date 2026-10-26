@@ -1265,6 +1265,10 @@ public class ManualFeeder extends BusModBase {
 		final Boolean autoSend = message.body().getBoolean("autoSend", true);
 		final JsonArray scope = message.body().getJsonArray("scope");
 		String inherit =  message.body().getString("inherit", "");
+		// Accès privilégiés : échéance (epoch ms) et justification, posées après la fonction.
+		final Long validUntil = message.body().getLong("validUntil");
+		final String grantedBy = message.body().getString("grantedBy");
+		final String reason = message.body().getString("reason");
 		StatementsBuilder statementsBuilder = new StatementsBuilder();
 		if (scope != null && ("s".equals(inherit) || "sc".equals(inherit))) {
 			String query;
@@ -1290,6 +1294,7 @@ public class ManualFeeder extends BusModBase {
 							@Override
 							public void apply(TransactionHelper tx) {
 								User.addFunction(userId, function, s, tx);
+								User.setFunctionGrant(userId, function, validUntil, grantedBy, reason, tx);
 							}
 						}, transactionId, commit, autoSend);
 					} else {
@@ -1302,6 +1307,7 @@ public class ManualFeeder extends BusModBase {
 				@Override
 				public void apply(TransactionHelper tx) {
 					User.addFunction(userId, function, scope, tx);
+					User.setFunctionGrant(userId, function, validUntil, grantedBy, reason, tx);
 				}
 			}, transactionId, commit, autoSend);
 		}

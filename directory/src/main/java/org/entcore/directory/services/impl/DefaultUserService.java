@@ -923,17 +923,27 @@ public class DefaultUserService implements UserService {
 	@Override
 	public void addFunction(String id, String functionCode, JsonArray scope, String inherit,
 			Handler<Either<String, JsonObject>> result) {
+		addFunction(id, functionCode, scope, inherit, null, null, null, result);
+	}
+
+	@Override
+	public void addFunction(String id, String functionCode, JsonArray scope, String inherit, Long validUntil,
+			String grantedBy, String reason, Handler<Either<String, JsonObject>> result) {
 		JsonObject action = new JsonObject()
 				.put("action", "manual-add-user-function")
 				.put("userId", id)
 				.put("function", functionCode)
 				.put("inherit", inherit)
-				.put("scope", scope);
+				.put("scope", scope)
+				.put("validUntil", validUntil)
+				.put("grantedBy", grantedBy)
+				.put("reason", reason);
 		eb.request(Directory.FEEDER, action, ar -> {
 			if (ar.succeeded()) {
 				JsonArray res = ((JsonObject) ar.result().body()).getJsonArray("results");
 				JsonObject json = new JsonObject();
-				if (res.size() == 4) {
+				// 4 requêtes + la trace d'attribution (setFunctionGrant), ajoutée en dernier.
+				if (res.size() >= 4) {
 					JsonArray r = res.getJsonArray(1);
 					if (r.size() == 1) {
 						json = r.getJsonObject(0);
@@ -997,7 +1007,8 @@ public class DefaultUserService implements UserService {
 	public void listFunctions(String userId, Handler<Either<String, JsonArray>> result) {
 		String query =
 				"MATCH (u:User{id: {userId}})-[rf:HAS_FUNCTION]->(f:Function) " +
-				"RETURN COLLECT(distinct [f.externalId, rf.scope]) as functions";
+				// 3e élément : échéance (epoch ms) d'un accès privilégié temporaire, null si permanent.
+				"RETURN COLLECT(distinct [f.externalId, rf.scope, rf.validUntil]) as functions";
 		JsonObject params = new JsonObject();
 		params.put("userId", userId);
 		neo.execute(query, params, validResultHandler(result));
