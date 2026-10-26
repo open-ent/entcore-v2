@@ -235,6 +235,8 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		manual = new ManualFeeder(neo4j, eb, new DefaultUserPositionService(eb, false));
 		manual.setLoginAliasValidatorForAD(config.getBoolean("ad-login-alias-validator", false));
 		scim = new org.entcore.feeder.scim.ScimFeeder(neo4j);
+		// Retrait des accès privilégiés arrivés à échéance (HAS_FUNCTION.validUntil).
+		new org.entcore.feeder.pim.PimExpiryJob(vertx, neo4j).start(config);
 		duplicateUsers = new DuplicateUsers(config.getBoolean("timetable", true),
 				config.getBoolean("autoMergeOnlyInSameStructure", true), vertx.eventBus());
 		postImport = new PostImport(vertx, duplicateUsers, config);
@@ -477,8 +479,21 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
                 manual.updateManualGroupsByUserPositions(message);
                 break;
 			case "scim-event" :
-				scim.handleEvent(message.body().getJsonObject("event", new io.vertx.core.json.JsonObject()))
+				final io.vertx.core.json.JsonObject scimEvent = message.body().getJsonObject("event", new io.vertx.core.json.JsonObject());
+				scim.handleEvent(scimEvent)
+					.onComplete(ar -> org.entcore.common.audit.AuditHelper.publish(vertx.eventBus(),
+						org.entcore.feeder.scim.ScimFeeder.auditEvent(scimEvent, ar.succeeded() ? 200 : 500)))
 					.onSuccess(r -> message.reply(new io.vertx.core.json.JsonObject().put("status", "ok").put("result", r)))
+					.onFailure(err -> sendError(message, err.getMessage()));
+				break;
+			case "scim-rest" :
+				final String scimOp = message.body().getString("op", "");
+				final io.vertx.core.json.JsonObject scimPayload = message.body().getJsonObject("payload", new io.vertx.core.json.JsonObject());
+				scim.handleRest(scimOp, scimPayload)
+					.onComplete(ar -> org.entcore.common.audit.AuditHelper.publish(vertx.eventBus(),
+						org.entcore.feeder.scim.ScimFeeder.restAuditEvent(scimOp, scimPayload,
+							message.body().getString("client"), ar.succeeded() ? 200 : 500)))
+					.onSuccess(r -> message.reply(new io.vertx.core.json.JsonObject().put("status", "ok").put("id", r.getString("id"))))
 					.onFailure(err -> sendError(message, err.getMessage()));
 				break;
 			case "transition" : launchTransition(message, null);
