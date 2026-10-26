@@ -37,6 +37,7 @@ public class ScimJwtVerifier {
     private final Vertx vertx;
     private final String jwksUrl;
     private volatile Map<String, PublicKey> keyCache;
+    private volatile long lastReload;
 
     public ScimJwtVerifier(Vertx vertx, String jwksUrl) {
         this.vertx = vertx;
@@ -65,7 +66,10 @@ public class ScimJwtVerifier {
         } catch (Exception e) {
             return Future.failedFuture("scim.jwt.signature.decode.error");
         }
-        return keys().compose(map -> {
+        // kid inconnu : l'émetteur a pu tourner ses clés, on recharge le JWKS une fois.
+        final Future<Map<String, PublicKey>> keys = keys().compose(map ->
+                kid != null && !map.containsKey(kid) ? reloadKeys() : Future.succeededFuture(map));
+        return keys.compose(map -> {
             PublicKey key = kid != null ? map.get(kid) : null;
             if (key == null && !map.isEmpty()) key = map.values().iterator().next();
             if (key == null) return Future.failedFuture("scim.jwks.no.key");
@@ -82,6 +86,15 @@ public class ScimJwtVerifier {
         });
     }
 
+    /** Au plus un rechargement par minute : un kid forgé ne doit pas déclencher un appel réseau par requête. */
+    private Future<Map<String, PublicKey>> reloadKeys() {
+        final long now = System.currentTimeMillis();
+        if (now - lastReload < 60_000L && keyCache != null) return Future.succeededFuture(keyCache);
+        lastReload = now;
+        keyCache = null;
+        return keys();
+    }
+
     /** Récupère (et met en cache) les clés publiques du JWKS. Lecture réseau déportée hors event-loop. */
     private Future<Map<String, PublicKey>> keys() {
         final Map<String, PublicKey> cached = keyCache;
@@ -94,6 +107,8 @@ public class ScimJwtVerifier {
                 final KeyFactory kf = KeyFactory.getInstance("RSA");
                 for (int i = 0; i < jwks.size(); i++) {
                     final JsonObject jwk = jwks.getJsonObject(i);
+                    // Keycloak publie aussi des clés EC ou de chiffrement : seules les clés RSA de signature servent ici.
+                    if (!"RSA".equals(jwk.getString("kty")) || "enc".equals(jwk.getString("use"))) continue;
                     final BigInteger n = new BigInteger(1, b64url(jwk.getString("n")));
                     final BigInteger e = new BigInteger(1, b64url(jwk.getString("e")));
                     map.put(jwk.getString("kid"), kf.generatePublic(new RSAPublicKeySpec(n, e)));

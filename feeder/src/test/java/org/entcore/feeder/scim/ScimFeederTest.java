@@ -145,19 +145,174 @@ public class ScimFeederTest {
                 }));
     }
 
+    private Future<JsonArray> seedDeleteGroup() {
+        return test.database().executeNeo4j("CREATE (:DeleteGroup:ProfileGroup:Group)", new JsonObject());
+    }
+
     @Test
-    public void shouldDeleteUser(TestContext context) {
+    public void shouldPreDeleteUser(TestContext context) {
         final Async async = context.async();
         final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
         seedProfiles()
+                .compose(x -> seedDeleteGroup())
                 .compose(x -> scim.handleEvent(orgCreate()))
                 .compose(x -> scim.handleEvent(userCreate()))
                 .compose(x -> scim.handleEvent(ra("ra1", "User", USER_ID, "Organization", ORG_ID)))
                 .compose(x -> scim.handleEvent(deleteEvent("User", USER_ID)))
                 .compose(x -> test.database().executeNeo4j(
-                        "MATCH (u:User {source:'SCIM'}) RETURN count(u) AS c", new JsonObject()))
+                        "MATCH (u:User {source:'SCIM'}) " +
+                        "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
+                        "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup) WHERE NOT pg:DeleteGroup " +
+                        "OPTIONAL MATCH (u)-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+                        "RETURN HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg, " +
+                        "b.IN_OUTGOING AS backup", new JsonObject()))
                 .onComplete(context.asyncAssertSuccess(rows -> {
-                    context.assertEquals(0, rows.getJsonObject(0).getInteger("c"), "l'utilisateur doit être supprimé");
+                    context.assertEquals(1, rows.size(), "le compte est conservé jusqu'à la purge");
+                    final JsonObject r = rows.getJsonObject(0);
+                    context.assertTrue(r.getBoolean("pending"), "deleteDate posé");
+                    context.assertEquals(1, r.getInteger("dg"), "dans le DeleteGroup");
+                    context.assertEquals(0, r.getInteger("pg"), "plus rattaché à la structure");
+                    context.assertEquals(1, r.getJsonArray("backup").size(), "rattachement sauvegardé");
+                    async.complete();
+                }));
+    }
+
+    @Test
+    public void shouldRestorePreDeletedUserOnCreate(TestContext context) {
+        final Async async = context.async();
+        final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
+        seedProfiles()
+                .compose(x -> seedDeleteGroup())
+                .compose(x -> scim.handleEvent(orgCreate()))
+                .compose(x -> scim.handleEvent(userCreate()))
+                .compose(x -> scim.handleEvent(ra("ra1", "User", USER_ID, "Organization", ORG_ID)))
+                .compose(x -> scim.handleEvent(deleteEvent("User", USER_ID)))
+                .compose(x -> scim.handleEvent(userCreate()))
+                .compose(x -> test.database().executeNeo4j(
+                        "MATCH (u:User {source:'SCIM'}) " +
+                        "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
+                        "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(:Structure) " +
+                        "RETURN HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
+                        new JsonObject()))
+                .onComplete(context.asyncAssertSuccess(rows -> {
+                    context.assertEquals(1, rows.size(), "un seul compte (pas de doublon)");
+                    final JsonObject r = rows.getJsonObject(0);
+                    context.assertFalse(r.getBoolean("pending"), "deleteDate retiré");
+                    context.assertEquals(0, r.getInteger("dg"), "sorti du DeleteGroup");
+                    context.assertEquals(1, r.getInteger("pg"), "rattachement à la structure restauré");
+                    async.complete();
+                }));
+    }
+
+    // ------------------------------------------------------------------ API REST /scim/v2
+
+    private static final String REST_USER_ID = "55555555-5555-5555-5555-555555555555";
+    private static final String REST_GROUP_ID = "66666666-6666-6666-6666-666666666666";
+
+    private Future<JsonArray> seedAafStructureAndUser() {
+        return test.database().executeNeo4j(
+                "CREATE (s:Structure {id:'s-aaf', externalId:'AAF-S', name:'Lycée AAF', source:'AAF'}) " +
+                "WITH s MATCH (p:Profile) " +
+                "CREATE (s)<-[:DEPENDS]-(:Group:ProfileGroup {id:'pg-'+p.name, name:'Lycée AAF-'+p.name, filter:p.name})-[:HAS_PROFILE]->(p) " +
+                "WITH DISTINCT s CREATE (:User {id:'u-aaf', externalId:'AAF-U', login:'jean.aaf', source:'AAF', profiles:['Teacher']})",
+                new JsonObject());
+    }
+
+    private JsonObject restUser() {
+        return new JsonObject()
+                .put("externalId", "iam-42")
+                .put("name", new JsonObject().put("givenName", "Ines").put("familyName", "Rest"))
+                .put("emails", new JsonArray().add(new JsonObject().put("value", "ines@demo.fr").put("primary", true)))
+                .put(ScimFeeder.ODE_USER_EXT, new JsonObject().put("profile", "Teacher")
+                        .put("structures", new JsonArray().add(new JsonObject().put("value", "s-aaf"))));
+    }
+
+    @Test
+    public void restCreateUserKeepsIdAndAttachesToExistingStructure(TestContext context) {
+        final Async async = context.async();
+        final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
+        seedProfiles()
+                .compose(x -> seedAafStructureAndUser())
+                .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", REST_USER_ID).put("resource", restUser())))
+                .compose(x -> test.database().executeNeo4j(
+                        "MATCH (u:User {id:{id}})-[r:IN {source:'SCIM'}]->(:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(s:Structure) " +
+                        "RETURN u.scimExternalId AS ext, u.login AS login, s.id AS s", new JsonObject().put("id", REST_USER_ID)))
+                .onComplete(context.asyncAssertSuccess(rows -> {
+                    context.assertEquals(1, rows.size(), "rattaché à la structure AAF existante");
+                    context.assertEquals("iam-42", rows.getJsonObject(0).getString("ext"));
+                    context.assertNotNull(rows.getJsonObject(0).getString("login"), "login généré par l'ENT");
+                    async.complete();
+                }));
+    }
+
+    @Test
+    public void restCreateRejectsDuplicateExternalId(TestContext context) {
+        final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
+        seedProfiles()
+                .compose(x -> seedAafStructureAndUser())
+                .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", REST_USER_ID).put("resource", restUser())))
+                .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", "other-id").put("resource", restUser())))
+                .onComplete(context.asyncAssertFailure(err ->
+                        context.assertTrue(err.getMessage().startsWith("scim.conflict"), err.getMessage())));
+    }
+
+    @Test
+    public void restCannotModifyAccountOfAnotherSource(TestContext context) {
+        final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
+        final JsonObject patch = new JsonObject().put("Operations", new JsonArray().add(new JsonObject()
+                .put("op", "replace").put("value", new JsonObject().put("active", false))));
+        seedProfiles()
+                .compose(x -> seedAafStructureAndUser())
+                .compose(x -> scim.handleRest("user-patch", new JsonObject().put("id", "u-aaf").put("resource", patch)))
+                .onComplete(context.asyncAssertFailure(err ->
+                        context.assertTrue(err.getMessage().startsWith("scim.readonly"), err.getMessage())));
+    }
+
+    @Test
+    public void restPatchWithoutPathDeactivatesUser(TestContext context) {
+        final Async async = context.async();
+        final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
+        final JsonObject patch = new JsonObject().put("Operations", new JsonArray().add(new JsonObject()
+                .put("op", "Replace").put("value", new JsonObject().put("active", false)
+                        .put("name", new JsonObject().put("familyName", "Rest-Martin")))));
+        seedProfiles()
+                .compose(x -> seedAafStructureAndUser())
+                .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", REST_USER_ID).put("resource", restUser())))
+                .compose(x -> scim.handleRest("user-patch", new JsonObject().put("id", REST_USER_ID).put("resource", patch)))
+                .compose(x -> test.database().executeNeo4j("MATCH (u:User {id:{id}}) RETURN u.blocked AS b, u.lastName AS ln",
+                        new JsonObject().put("id", REST_USER_ID)))
+                .onComplete(context.asyncAssertSuccess(rows -> {
+                    context.assertEquals(true, rows.getJsonObject(0).getBoolean("b"));
+                    context.assertEquals("Rest-Martin", rows.getJsonObject(0).getString("ln"));
+                    async.complete();
+                }));
+    }
+
+    @Test
+    public void restGroupMembershipKeepsOtherSources(TestContext context) {
+        final Async async = context.async();
+        final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
+        final JsonObject group = new JsonObject().put("displayName", "Club robotique")
+                .put(ScimFeeder.ODE_GROUP_EXT, new JsonObject().put("type", "functional")
+                        .put("structure", new JsonObject().put("value", "s-aaf")))
+                .put("members", new JsonArray().add(new JsonObject().put("value", REST_USER_ID)));
+        final JsonObject removeAll = new JsonObject().put("Operations", new JsonArray()
+                .add(new JsonObject().put("op", "remove").put("path", "members")));
+        seedProfiles()
+                .compose(x -> seedAafStructureAndUser())
+                .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", REST_USER_ID).put("resource", restUser())))
+                .compose(x -> scim.handleRest("group-create", new JsonObject().put("id", REST_GROUP_ID).put("resource", group)))
+                // adhésion posée par une autre source : ne doit pas être retirée par SCIM
+                .compose(x -> test.database().executeNeo4j("MATCH (u:User {id:'u-aaf'}), (g:Group {id:{g}}) CREATE (u)-[:IN]->(g)",
+                        new JsonObject().put("g", REST_GROUP_ID)))
+                .compose(x -> scim.handleRest("group-patch", new JsonObject().put("id", REST_GROUP_ID).put("resource", removeAll)))
+                .compose(x -> test.database().executeNeo4j(
+                        "MATCH (g:FunctionalGroup {id:{g}})-[:DEPENDS]->(:Structure {id:'s-aaf'}) " +
+                        "OPTIONAL MATCH (u:User)-[:IN]->(g) RETURN collect(u.id) AS members",
+                        new JsonObject().put("g", REST_GROUP_ID)))
+                .onComplete(context.asyncAssertSuccess(rows -> {
+                    context.assertEquals(1, rows.size(), "groupe fonctionnel rattaché à la structure");
+                    context.assertEquals(new JsonArray().add("u-aaf"), rows.getJsonObject(0).getJsonArray("members"));
                     async.complete();
                 }));
     }

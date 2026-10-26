@@ -1,0 +1,74 @@
+[
+  {
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Schema"],
+    "id": "urn:ietf:params:scim:schemas:core:2.0:User",
+    "name": "User",
+    "description": "Compte de l'ENT (sous-ensemble supporté)",
+    "attributes": [
+      {"name": "userName", "type": "string", "multiValued": false, "required": false, "caseExact": false, "mutability": "readOnly", "returned": "default", "uniqueness": "server", "description": "Identifiant de connexion, généré par l'ENT"},
+      {"name": "name", "type": "complex", "multiValued": false, "required": true, "mutability": "readWrite", "returned": "default", "uniqueness": "none", "subAttributes": [
+        {"name": "givenName", "type": "string", "multiValued": false, "required": true, "caseExact": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none"},
+        {"name": "familyName", "type": "string", "multiValued": false, "required": true, "caseExact": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none"},
+        {"name": "formatted", "type": "string", "multiValued": false, "required": false, "caseExact": false, "mutability": "readOnly", "returned": "default", "uniqueness": "none"}
+      ]},
+      {"name": "displayName", "type": "string", "multiValued": false, "required": false, "caseExact": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none"},
+      {"name": "active", "type": "boolean", "multiValued": false, "required": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none"},
+      {"name": "emails", "type": "complex", "multiValued": true, "required": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none", "subAttributes": [
+        {"name": "value", "type": "string", "multiValued": false, "required": true, "caseExact": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none"},
+        {"name": "primary", "type": "boolean", "multiValued": false, "required": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none"}
+      ]},
+      {"name": "groups", "type": "complex", "multiValued": true, "required": false, "mutability": "readOnly", "returned": "default", "uniqueness": "none", "subAttributes": [
+        {"name": "value", "type": "string", "multiValued": false, "required": false, "caseExact": true, "mutability": "readOnly", "returned": "default", "uniqueness": "none"},
+        {"name": "display", "type": "string", "multiValued": false, "required": false, "caseExact": false, "mutability": "readOnly", "returned": "default", "uniqueness": "none"}
+      ]}
+    ],
+    "meta": {"resourceType": "Schema", "location": "/Schemas/urn:ietf:params:scim:schemas:core:2.0:User"}
+  },
+  {
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Schema"],
+    "id": "urn:ietf:params:scim:schemas:core:2.0:Group",
+    "name": "Group",
+    "description": "Classe, groupe fonctionnel ou groupe manuel de l'ENT",
+    "attributes": [
+      {"name": "displayName", "type": "string", "multiValued": false, "required": true, "caseExact": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none"},
+      {"name": "members", "type": "complex", "multiValued": true, "required": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none", "subAttributes": [
+        {"name": "value", "type": "string", "multiValued": false, "required": true, "caseExact": true, "mutability": "immutable", "returned": "default", "uniqueness": "none"},
+        {"name": "display", "type": "string", "multiValued": false, "required": false, "caseExact": false, "mutability": "readOnly", "returned": "default", "uniqueness": "none"}
+      ]}
+    ],
+    "meta": {"resourceType": "Schema", "location": "/Schemas/urn:ietf:params:scim:schemas:core:2.0:Group"}
+  },
+  {
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Schema"],
+    "id": "urn:openent:scim:schemas:extension:education:2.0:User",
+    "name": "OpenEntUser",
+    "description": "Extension Open ENT : profil, structures, état du compte",
+    "attributes": [
+      {"name": "profile", "type": "string", "multiValued": false, "required": false, "caseExact": true, "mutability": "immutable", "returned": "default", "uniqueness": "none", "canonicalValues": ["Student", "Teacher", "Relative", "Personnel", "Guest"]},
+      {"name": "structures", "type": "complex", "multiValued": true, "required": false, "mutability": "readWrite", "returned": "default", "uniqueness": "none", "subAttributes": [
+        {"name": "value", "type": "string", "multiValued": false, "required": true, "caseExact": true, "mutability": "readWrite", "returned": "default", "uniqueness": "none", "description": "id entcore de la structure"},
+        {"name": "display", "type": "string", "multiValued": false, "required": false, "caseExact": false, "mutability": "readOnly", "returned": "default", "uniqueness": "none"}
+      ]},
+      {"name": "birthDate", "type": "string", "multiValued": false, "required": false, "caseExact": true, "mutability": "readWrite", "returned": "default", "uniqueness": "none", "description": "AAAA-MM-JJ, obligatoire pour un élève"},
+      {"name": "source", "type": "string", "multiValued": false, "required": false, "caseExact": true, "mutability": "readOnly", "returned": "default", "uniqueness": "none", "description": "AAF, CSV, MANUAL, SCIM… ; seuls les comptes SCIM sont modifiables par l'API"},
+      {"name": "activated", "type": "boolean", "multiValued": false, "required": false, "mutability": "readOnly", "returned": "default", "uniqueness": "none"},
+      {"name": "pendingDeletion", "type": "boolean", "multiValued": false, "required": false, "mutability": "readOnly", "returned": "default", "uniqueness": "none"}
+    ],
+    "meta": {"resourceType": "Schema", "location": "/Schemas/urn:openent:scim:schemas:extension:education:2.0:User"}
+  },
+  {
+    "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Schema"],
+    "id": "urn:openent:scim:schemas:extension:education:2.0:Group",
+    "name": "OpenEntGroup",
+    "description": "Extension Open ENT : type de groupe et structure",
+    "attributes": [
+      {"name": "type", "type": "string", "multiValued": false, "required": true, "caseExact": true, "mutability": "immutable", "returned": "default", "uniqueness": "none", "canonicalValues": ["class", "functional", "manual"]},
+      {"name": "structure", "type": "complex", "multiValued": false, "required": true, "mutability": "immutable", "returned": "default", "uniqueness": "none", "subAttributes": [
+        {"name": "value", "type": "string", "multiValued": false, "required": true, "caseExact": true, "mutability": "immutable", "returned": "default", "uniqueness": "none"},
+        {"name": "display", "type": "string", "multiValued": false, "required": false, "caseExact": false, "mutability": "readOnly", "returned": "default", "uniqueness": "none"}
+      ]},
+      {"name": "source", "type": "string", "multiValued": false, "required": false, "caseExact": true, "mutability": "readOnly", "returned": "default", "uniqueness": "none"}
+    ],
+    "meta": {"resourceType": "Schema", "location": "/Schemas/urn:openent:scim:schemas:extension:education:2.0:Group"}
+  }
+]
