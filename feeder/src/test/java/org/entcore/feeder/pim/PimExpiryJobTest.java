@@ -53,10 +53,18 @@ public class PimExpiryJobTest {
                             new JsonObject());
                 })
                 .onComplete(context.asyncAssertSuccess(rows -> {
-                    context.assertEquals(new JsonObject().put("id", "expired").put("functions", 0).put("groups", 0), rows.getJsonObject(0));
-                    context.assertEquals(new JsonObject().put("id", "permanent").put("functions", 1).put("groups", 0), rows.getJsonObject(1));
-                    context.assertEquals(new JsonObject().put("id", "valid").put("functions", 1).put("groups", 1), rows.getJsonObject(2));
+                    assertUser(context, rows.getJsonObject(0), "expired", 0, 0);
+                    assertUser(context, rows.getJsonObject(1), "permanent", 1, 0);
+                    assertUser(context, rows.getJsonObject(2), "valid", 1, 1);
                     async.complete();
                 }));
+    }
+
+    // Les lignes sont des fr.wseduc.webutils.collections.JsonObject : equals() échoue
+    // face à un io.vertx JsonObject de même contenu, d'où la comparaison champ par champ.
+    private static void assertUser(TestContext context, JsonObject row, String id, int functions, int groups) {
+        context.assertEquals(id, row.getString("id"));
+        context.assertEquals(functions, row.getInteger("functions"), id + " : fonctions");
+        context.assertEquals(groups, row.getInteger("groups"), id + " : groupes de fonction");
     }
 }

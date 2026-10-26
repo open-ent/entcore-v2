@@ -56,9 +56,10 @@ public class PimController extends BaseController {
                 "WHERE f.externalId IN {functions} " + filter +
                 "OPTIONAL MATCH (s:Structure) WHERE s.id IN coalesce(rf.scope, []) " +
                 "OPTIONAL MATCH (g:User {id: rf.grantedBy}) " +
+                // Agrégation dans un WITH : après un RETURN agrégé, ORDER BY ne voit plus u.
+                "WITH u, rf, f, g, collect(DISTINCT {id: s.id, name: s.name}) AS scope " +
                 "RETURN u.id AS userId, u.login AS login, u.displayName AS displayName, u.blocked AS blocked, " +
-                "u.lastLogin AS lastLogin, f.externalId AS function, " +
-                "collect(DISTINCT {id: s.id, name: s.name}) AS scope, " +
+                "u.lastLogin AS lastLogin, f.externalId AS function, scope, " +
                 "rf.grantedBy AS grantedBy, g.displayName AS grantedByName, rf.grantedAt AS grantedAt, " +
                 "rf.reason AS reason, rf.validUntil AS validUntil " +
                 "ORDER BY coalesce(rf.validUntil, 9223372036854775807), u.lastName, u.firstName " +
