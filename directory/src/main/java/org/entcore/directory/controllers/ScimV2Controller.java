@@ -262,14 +262,16 @@ public class ScimV2Controller extends BaseController {
     /** Écriture via le feeder puis relecture de la ressource (ou 204 pour un DELETE). */
     private void write(HttpServerRequest request, String op, String id, JsonObject resource, String client, int status) {
         service().write(op, new JsonObject().put("id", id).put("resource", resource), client).onComplete(ar -> {
+            // L'id renvoyé par le feeder prime : un create peut restaurer un compte existant.
+            final String resourceId = ar.succeeded() ? ar.result().getString("id", id) : id;
             if (ar.failed()) {
                 fail(request, ar.cause());
             } else if (status == 204) {
                 request.response().setStatusCode(204).end();
             } else if (op.startsWith("group")) {
-                sendGroup(request, id, status);
+                sendGroup(request, resourceId, status);
             } else {
-                sendUser(request, id, status);
+                sendUser(request, resourceId, status);
             }
         });
     }

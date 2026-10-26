@@ -157,14 +157,23 @@ public class ScimFeeder {
         final String externalId = resource.getString("externalId");
         final JsonObject check = new JsonObject().put("id", id).put("externalId", externalId);
         return exec("OPTIONAL MATCH (u:User) WHERE u.id = {id} OR (u.scimExternalId IS NOT NULL AND u.scimExternalId = {externalId}) " +
-                "RETURN u.id AS id ", check, "scim.read.error").compose(r -> {
-            if (firstId(r) != null) return Future.failedFuture("scim.conflict:user already exists (id or externalId)");
-            return upsertUser(resource.copy().put("id", id));
-        })
-        .compose(x -> exec("MATCH (u:User {id:{id}}) SET u.scimExternalId = {externalId}, u.blocked = {blocked} RETURN u.id AS id ",
-                check.copy().put("blocked", Boolean.FALSE.equals(resource.getBoolean("active"))), "scim.user.create.error"))
-        .compose(x -> setUserStructures(id, structureIds(resource)))
-        .map(x -> new JsonObject().put("id", id));
+                "RETURN u.id AS id, u.source AS source, HAS(u.deleteDate) AS pending ", check, "scim.read.error").compose(r -> {
+            final JsonObject existing = r.getJsonArray("result").getJsonObject(0);
+            final String existingId = existing.getString("id");
+            if (existingId == null) {
+                return upsertUser(resource.copy().put("id", id))
+                        .compose(x -> exec("MATCH (u:User {id:{id}}) SET u.scimExternalId = {externalId}, u.blocked = {blocked} RETURN u.id AS id ",
+                                check.copy().put("blocked", Boolean.FALSE.equals(resource.getBoolean("active"))), "scim.user.create.error"))
+                        .compose(x -> setUserStructures(id, structureIds(resource)))
+                        .map(x -> new JsonObject().put("id", id));
+            }
+            // Compte SCIM supprimé puis provisionné de nouveau (même externalId) : il est restauré
+            // avec son id d'origine, puis aligné sur la ressource reçue, au lieu d'un 409.
+            if (externalId != null && SOURCE.equals(existing.getString("source")) && Boolean.TRUE.equals(existing.getBoolean("pending"))) {
+                return restorePreDeletedById(existingId).compose(x -> replaceUser(existingId, resource));
+            }
+            return Future.failedFuture("scim.conflict:user already exists (id or externalId)");
+        });
     }
 
     private Future<JsonObject> replaceUser(String id, JsonObject resource) {
@@ -615,15 +624,19 @@ public class ScimFeeder {
                 .compose(r -> {
                     final String userId = firstId(r);
                     if (userId == null) return Future.succeededFuture(r);
-                    return runTransaction(tx -> {
-                        User.restorePreDeleted(userId, tx);
-                        // Sans rattachement au moment du delete, aucun Backup n'a été créé et
-                        // restorePreDeleted ne sort pas le compte du DeleteGroup : on le fait ici.
-                        tx.add("MATCH (u:User {id:{userId}})-[r:IN]->(:DeleteGroup) " +
-                               "REMOVE u.deleteDate, u.disappearanceDate DELETE r",
-                               new JsonObject().put("userId", userId));
-                    }, "scim.restore.error");
+                    return restorePreDeletedById(userId);
                 });
+    }
+
+    private Future<JsonObject> restorePreDeletedById(String userId) {
+        return runTransaction(tx -> {
+            User.restorePreDeleted(userId, tx);
+            // Sans rattachement au moment du delete, aucun Backup n'a été créé et
+            // restorePreDeleted ne sort pas le compte du DeleteGroup : on le fait ici.
+            tx.add("MATCH (u:User {id:{userId}})-[r:IN]->(:DeleteGroup) " +
+                   "REMOVE u.deleteDate, u.disappearanceDate DELETE r",
+                   new JsonObject().put("userId", userId));
+        }, "scim.restore.error");
     }
 
     private Future<String> findUserId(String eid) {

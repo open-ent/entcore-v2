@@ -257,6 +257,38 @@ public class ScimFeederTest {
     }
 
     @Test
+    public void restCreateRestoresDeletedUserWithSameExternalId(TestContext context) {
+        final Async async = context.async();
+        final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
+        final JsonObject again = restUser().put("name", new JsonObject().put("givenName", "Inès").put("familyName", "Rest"));
+        seedProfiles()
+                .compose(x -> seedDeleteGroup())
+                .compose(x -> seedAafStructureAndUser())
+                .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", REST_USER_ID).put("resource", restUser())))
+                .compose(x -> scim.handleRest("user-delete", new JsonObject().put("id", REST_USER_ID)))
+                .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", "other-id").put("resource", again)))
+                .compose(created -> {
+                    context.assertEquals(REST_USER_ID, created.getString("id"), "id d'origine renvoyé");
+                    return test.database().executeNeo4j(
+                            "MATCH (u:User {scimExternalId:'iam-42'}) " +
+                            "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
+                            "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(:Structure {id:'s-aaf'}) " +
+                            "RETURN u.id AS id, u.firstName AS fn, HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
+                            new JsonObject());
+                })
+                .onComplete(context.asyncAssertSuccess(rows -> {
+                    context.assertEquals(1, rows.size(), "un seul compte (pas de doublon)");
+                    final JsonObject r = rows.getJsonObject(0);
+                    context.assertEquals(REST_USER_ID, r.getString("id"));
+                    context.assertEquals("Inès", r.getString("fn"), "ressource reçue appliquée");
+                    context.assertFalse(r.getBoolean("pending"), "deleteDate retiré");
+                    context.assertEquals(0, r.getInteger("dg"), "sorti du DeleteGroup");
+                    context.assertEquals(1, r.getInteger("pg"), "rattachement à la structure restauré");
+                    async.complete();
+                }));
+    }
+
+    @Test
     public void restCannotModifyAccountOfAnotherSource(TestContext context) {
         final ScimFeeder scim = new ScimFeeder(Neo4j.getInstance());
         final JsonObject patch = new JsonObject().put("Operations", new JsonArray().add(new JsonObject()
