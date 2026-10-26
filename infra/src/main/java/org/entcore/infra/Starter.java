@@ -44,6 +44,7 @@ import org.entcore.infra.metrics.MicrometerInfraMetricsRecorder;
 import org.entcore.infra.services.EventStoreService;
 import org.entcore.infra.services.impl.ClamAvService;
 import org.entcore.infra.services.impl.ExecCommandWorker;
+import org.entcore.infra.services.impl.MongoDbAuditStore;
 import org.entcore.infra.services.impl.MongoDbEventStore;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
@@ -100,6 +101,8 @@ public class Starter extends BaseServer {
 		EventStoreController eventStoreController = new EventStoreController(eventConfig);
 		eventStoreController.setEventStoreService(eventStoreService);
 		addController(eventStoreController);
+		new MongoDbAuditStore(vertx);
+		addController(new AuditController());
 		addController(new MonitoringController());
 		addController(new EmbedController());
 		if (config.getJsonObject("node-pdf-generator") != null) {
