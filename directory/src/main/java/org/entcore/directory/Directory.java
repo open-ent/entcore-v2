@@ -219,6 +219,10 @@ public class Directory extends BaseServer {
 
 		// Endpoint d'ingestion SCIM/SET (IAM Magellan) : POST /scim/events -> bus entcore.feeder.
 		addController(new org.entcore.directory.controllers.ScimController());
+		// API SCIM 2.0 (l'ENT comme service provider) : /scim/v2, désactivée sauf "scim-v2.enabled".
+		addController(new org.entcore.directory.controllers.ScimV2Controller());
+		// Revue des accès privilégiés et des comptes dormants (super administrateur).
+		addController(new org.entcore.directory.controllers.PimController());
 
 		MassMessagingController massMessagingController = new MassMessagingController(massMessagingService, importService, defaulStorage);
 		addController(massMessagingController);
