@@ -19,6 +19,8 @@
 
 package org.entcore.registry.controllers;
 
+import org.entcore.common.http.filter.Trace;
+
 import fr.wseduc.bus.BusAddress;
 import fr.wseduc.rs.Delete;
 import fr.wseduc.rs.Get;
@@ -168,6 +170,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(RoleFilter.class)
 	@MfaProtected()
+	@Trace(value = "CREATE_ROLE", audit = true, retentionDays = 1825)
 	public void createRole(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
 			@Override
@@ -190,6 +193,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(RoleFilter.class)
 	@MfaProtected()
+	@Trace(value = "UPDATE_ROLE", audit = true, retentionDays = 1825)
 	public void updateRole(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
 			@Override
@@ -214,6 +218,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(RoleFilter.class)
 	@MfaProtected()
+	@Trace(value = "DELETE_ROLE", audit = true, body = false, retentionDays = 1825)
 	public void deleteRole(final HttpServerRequest request) {
 		String roleId = request.params().get("id");
 		if (roleId != null && !roleId.trim().isEmpty()) {
@@ -227,6 +232,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(SuperAdminOrCollectiviteFilter.class)
 	@MfaProtected()
+	@Trace(value = "SET_ROLE_DISTRIBUTIONS", audit = true, retentionDays = 1825)
 	public void setRoleDistributions(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
 			@Override
@@ -246,6 +252,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(LinkRoleGroupFilter.class)
 	@MfaProtected()
+	@Trace(value = "LINK_GROUP_ROLES", audit = true, retentionDays = 1825)
 	public void linkGroup(final HttpServerRequest request) {
 		bodyToJson(request, new Handler<JsonObject>() {
 			@Override
@@ -275,6 +282,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(RoleGroupFilter.class)
 	@MfaProtected()
+	@Trace(value = "ADD_GROUP_ROLE", audit = true, body = false, retentionDays = 1825)
 	public void addGroupLink(final HttpServerRequest request) {
 		final String groupId = request.params().get("groupId");
 		final String roleId = request.params().get("roleId");
@@ -285,6 +293,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
 	@SecuredAction(value = "", type = ActionType.RESOURCE)
 	@ResourceFilter(RoleGroupFilter.class)
 	@MfaProtected()
+	@Trace(value = "REMOVE_GROUP_ROLE", audit = true, body = false, retentionDays = 1825)
 	public void removeGroupLink(final HttpServerRequest request) {
 		final String groupId = request.params().get("groupId");
 		final String roleId = request.params().get("roleId");
@@ -539,6 +548,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
     @SecuredAction(value = "", type = ActionType.RESOURCE)
     @ResourceFilter(AdminFilter.class)
 	@MfaProtected()
+    @Trace(value = "AUTHORIZE_PROFILES", audit = true, retentionDays = 1825)
     public void authorizeProfiles(final HttpServerRequest request) {
         bodyToJson(request, new Handler<JsonObject>() {
             @Override
@@ -561,6 +571,7 @@ public class AppRegistryController extends BaseController implements AppRegistry
     @SecuredAction(value = "", type = ActionType.RESOURCE)
     @ResourceFilter(AdminFilter.class)
 	@MfaProtected()
+    @Trace(value = "UNAUTHORIZE_PROFILES", audit = true, retentionDays = 1825)
     public void unauthorizeProfiles(final HttpServerRequest request) {
         bodyToJson(request, new Handler<JsonObject>() {
             @Override

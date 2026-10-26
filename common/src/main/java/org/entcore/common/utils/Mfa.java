@@ -87,6 +87,8 @@ public class Mfa {
 
 	private boolean withSms = false;
 	private boolean withEmail = false;
+	/** "enforceForAdmins" : un ADMC/ADML ne peut pas être dispensé de MFA par sa structure (ignoreMFA). */
+	private boolean enforceForAdmins = false;
 	private Mfa(final io.vertx.core.Vertx vertx, final JsonObject params) {
 		if( params != null ) {
 			final JsonArray types = params.getJsonArray("types", new JsonArray());
@@ -98,6 +100,7 @@ public class Mfa {
 			}
 			this.withSms = types.contains(Mfa.TYPE_SMS);
 			this.withEmail = types.contains(Mfa.TYPE_EMAIL);
+			this.enforceForAdmins = params.getBoolean("enforceForAdmins", false);
 		}
 	}
 
@@ -119,7 +122,8 @@ public class Mfa {
     public static boolean isNotActivatedForUser(final UserInfos userInfos) {
         return (
 			!(Factory.getInstance().withSms || Factory.getInstance().withEmail) 
-			|| Boolean.TRUE.equals(userInfos.getIgnoreMFA()) 
+			|| (Boolean.TRUE.equals(userInfos.getIgnoreMFA())
+				&& !(Factory.getInstance().enforceForAdmins && (userInfos.isADMC() || userInfos.isADML())))
 		);
     }
 

@@ -759,6 +759,25 @@ public class User {
 		}
 	}
 
+	/**
+	 * Trace de l'attribution d'une fonction (accès privilégiés) sur la relation HAS_FUNCTION :
+	 * qui l'a accordée, quand, pourquoi, et jusqu'à quand. Sans validUntil, la fonction est
+	 * permanente (un validUntil antérieur est retiré). À ajouter après {@link #addFunction}.
+	 */
+	public static void setFunctionGrant(String userId, String functionCode, Long validUntil, String grantedBy,
+			String reason, TransactionHelper transactionHelper) {
+		final String query =
+				"MATCH (u:User { id : {userId}})-[rf:HAS_FUNCTION]->(:Function { externalId : {functionCode}}) " +
+				"SET rf.grantedBy = {grantedBy}, rf.grantedAt = timestamp(), rf.reason = {reason}, rf.validUntil = {validUntil} ";
+		final JsonObject params = new JsonObject()
+				.put("userId", userId)
+				.put("functionCode", functionCode)
+				.put("grantedBy", grantedBy)
+				.put("reason", reason)
+				.put("validUntil", validUntil);
+		transactionHelper.add(query, params);
+	}
+
 	public static void removeFunction(String userId, String functionCode, TransactionHelper transactionHelper) {
 		String query =
 				"MATCH (u:User { id : {userId}})-[hasFunction:HAS_FUNCTION]->(f:Function {externalId : {functionCode}}), (u)-[inOrComm:IN|COMMUNIQUE]-(fg:FunctionGroup) " +
