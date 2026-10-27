@@ -5,8 +5,13 @@
  *       Fonctions d'administration attribuées : titulaire, périmètre, qui l'a accordée, quand,
  *       pourquoi, échéance, dernière connexion. expiringWithinDays filtre les échéances proches ;
  *       "permanent=true" ne garde que les attributions sans échéance.
- *   GET /directory/pim/dormant-accounts?days=<n>&adminsOnly=<bool>
- *       Comptes actifs sans connexion depuis n jours (180 par défaut), jamais connectés compris.
+ *   GET /directory/pim/dormant-accounts?days=<n>&connection=inactive|never&profile=<p>
+ *         &structureId=<id>&adminsOnly=<bool>&skip=<n>&limit=<n>
+ *       Comptes actifs sans connexion depuis n jours (180 par défaut), une page à la fois :
+ *       "inactive" (défaut) = déjà connectés, mais plus depuis n jours, les plus anciens d'abord ;
+ *       "never" = jamais connectés, créés depuis plus de n jours. profile : Student, Teacher,
+ *       Relative, Personnel ou Guest. limit : 50 par défaut, 200 au plus ; skip : 10 000 au plus.
+ *       Le client demande limit + 1 lignes pour savoir s'il existe une page suivante.
  *
  * Fonctions concernées : "pim.privileged-functions" (défaut : SUPER_ADMIN, ADMIN_LOCAL).
  */
@@ -25,8 +30,8 @@ import org.entcore.common.http.filter.SuperAdminFilter;
 import org.entcore.common.neo4j.Neo4j;
 import org.joda.time.DateTime;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.entcore.common.http.response.DefaultResponseHandler.arrayResponseHandler;
 import static org.entcore.common.neo4j.Neo4jResult.validResultHandler;
@@ -77,64 +82,53 @@ public class PimController extends BaseController {
     public void dormantAccounts(final HttpServerRequest request) {
         final Integer days = intParam(request, "days");
         final String cutoff = DateTime.now().minusDays(days == null || days < 1 ? 180 : days).toString();
+        final boolean never = "never".equals(request.params().get("connection"));
+        final String profile = request.params().get("profile");
+        final String structureId = request.params().get("structureId");
         final boolean adminsOnly = "true".equals(request.params().get("adminsOnly"));
-        final JsonObject params = new JsonObject().put("cutoff", cutoff)
-                .put("functions", privilegedFunctions()).put("limit", MAX_ROWS);
-        // Presque tous les comptes sont « dormants » (élèves importés jamais connectés) : agréger
-        // sur l'ensemble des User matérialise des centaines de milliers de lignes et fait tomber
-        // Neo4j en OutOfMemoryError (prod, 27/10/2026). D'où deux requêtes bornées : les titulaires
-        // d'une fonction, atteints par les quelques nœuds Function, puis les autres comptes en
-        // top-k (ORDER BY + LIMIT sans agrégat, mémoire limitée à {limit} lignes).
-        final String functionHolders =
-                "MATCH (:Function)<-[:HAS_FUNCTION]-(u:User) WHERE " + DORMANT +
-                "WITH DISTINCT u " +
-                "OPTIONAL MATCH (u)-[:HAS_FUNCTION]->(f:Function) WHERE f.externalId IN {functions} " +
-                "WITH u, collect(DISTINCT f.externalId) AS privilegedFunctions " +
-                "RETURN " + DORMANT_COLUMNS + ", privilegedFunctions " +
-                "ORDER BY size(privilegedFunctions) DESC, coalesce(u.lastLogin, '') " +
-                "LIMIT {limit}";
-        Neo4j.getInstance().execute(functionHolders, params, validResultHandler(holders -> {
-            if (holders.isLeft()) {
-                renderError(request, new JsonObject().put("error", holders.left().getValue()));
-                return;
-            }
-            final JsonArray rows = new JsonArray();
-            final Set<String> seen = new HashSet<>();
-            for (Object o : holders.right().getValue()) {
-                final JsonObject row = (JsonObject) o;
-                if (adminsOnly || !row.getJsonArray("privilegedFunctions", new JsonArray()).isEmpty()) {
-                    rows.add(row);
-                    seen.add(row.getString("userId"));
-                }
-            }
-            if (adminsOnly || rows.size() >= MAX_ROWS) {
-                renderJson(request, rows);
-                return;
-            }
-            final String others =
-                    "MATCH (u:User) WHERE " + DORMANT +
-                    "RETURN " + DORMANT_COLUMNS + ", [] AS privilegedFunctions " +
-                    "ORDER BY coalesce(u.lastLogin, '') " +
-                    "LIMIT {limit}";
-            Neo4j.getInstance().execute(others, params, validResultHandler(rest -> {
-                if (rest.isLeft()) {
-                    renderError(request, new JsonObject().put("error", rest.left().getValue()));
-                    return;
-                }
-                for (Object o : rest.right().getValue()) {
-                    if (rows.size() >= MAX_ROWS) break;
-                    final JsonObject row = (JsonObject) o;
-                    if (seen.add(row.getString("userId"))) rows.add(row);
-                }
-                renderJson(request, rows);
-            }));
-        }));
+        final Integer skip = intParam(request, "skip");
+        final Integer limit = intParam(request, "limit");
+        final JsonObject params = new JsonObject().put("cutoff", cutoff).put("functions", privilegedFunctions())
+                .put("skip", skip == null ? 0 : Math.max(0, Math.min(skip, MAX_DORMANT_SKIP)))
+                .put("limit", limit == null ? 50 : Math.max(1, Math.min(limit, MAX_DORMANT_PAGE)));
+
+        // Presque tous les comptes sont dormants (élèves importés jamais connectés) : jamais
+        // d'agrégat sur l'ensemble des User, il a fait tomber Neo4j en OutOfMemoryError (prod,
+        // 27/10/2026). On part du plus petit ensemble disponible (établissement, titulaires d'une
+        // fonction, index lastLogin), on trie en top-k (ORDER BY + LIMIT) et l'on ne lit les
+        // fonctions que des lignes de la page.
+        final StringBuilder query = new StringBuilder();
+        String where = "WHERE ";
+        if (structureId != null && !structureId.isEmpty()) {
+            query.append("MATCH (:Structure {id: {structureId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) WITH DISTINCT u ");
+            params.put("structureId", structureId);
+            if (adminsOnly) where += "(u)-[:HAS_FUNCTION]->(:Function) AND ";
+        } else if (adminsOnly) {
+            query.append("MATCH (:Function)<-[:HAS_FUNCTION]-(u:User) WITH DISTINCT u ");
+        } else {
+            query.append("MATCH (u:User) ");
+        }
+        query.append(where).append(never
+                ? "u.lastLogin IS NULL AND u.created < {cutoff} "
+                // Comparaison seule sur lastLogin : Neo4j la sert par l'index (neo4j/001-user-lastlogin-index.cypher).
+                : "u.lastLogin < {cutoff} ");
+        query.append("AND NOT HAS(u.deleteDate) AND coalesce(u.blocked, false) = false ");
+        if (PROFILES.contains(profile)) {
+            query.append("AND {profile} IN u.profiles ");
+            params.put("profile", profile);
+        }
+        final String order = never ? "u.created" : "u.lastLogin";
+        query.append("WITH u ORDER BY ").append(order).append(" SKIP {skip} LIMIT {limit} ")
+                .append("OPTIONAL MATCH (u)-[:HAS_FUNCTION]->(f:Function) WHERE f.externalId IN {functions} ")
+                .append("WITH u, collect(DISTINCT f.externalId) AS privilegedFunctions ")
+                .append("RETURN ").append(DORMANT_COLUMNS).append(", privilegedFunctions ")
+                .append("ORDER BY ").append(order);
+        Neo4j.getInstance().execute(query.toString(), params, validResultHandler(arrayResponseHandler(request)));
     }
 
-    private static final String DORMANT =
-            "NOT HAS(u.deleteDate) AND coalesce(u.blocked, false) = false " +
-            "AND ((u.lastLogin IS NOT NULL AND u.lastLogin < {cutoff}) " +
-            "  OR (u.lastLogin IS NULL AND u.created IS NOT NULL AND u.created < {cutoff})) ";
+    private static final int MAX_DORMANT_PAGE = 201;
+    private static final int MAX_DORMANT_SKIP = 10000;
+    private static final List<String> PROFILES = Arrays.asList("Student", "Teacher", "Relative", "Personnel", "Guest");
 
     private static final String DORMANT_COLUMNS =
             "u.id AS userId, u.login AS login, u.displayName AS displayName, head(u.profiles) AS profile, " +
