@@ -71,6 +71,10 @@ Première passe mécanique, vérifiable sans base :
 | `exists(prop)` → `IS [NOT] NULL` | 44 |
 | `filter(x IN l WHERE p)` → `[x IN l WHERE p]` | 76 |
 | `CREATE UNIQUE` → `MERGE` | 53 |
+| `length()` → `size()` hors chemins | 38 |
+| `exists((motif))` → `EXISTS { }` | 7 |
+| `extract(x IN l \| e)` → `[x IN l \| e]` | 4 |
+| `length((motif))` → `EXISTS { }` | 1 |
 
 Cible retenue : `IS [NOT] NULL` directement, et non le palier `exists(prop)` — `has()` a été
 retiré de Cypher en 3.0 et `exists(prop)` en 5.0. C'est aussi le choix fait dans la tentative
@@ -166,28 +170,19 @@ Neo4j 5 en écriture et en restitution.
 
 | Motif | Occurrences | Fichiers | Nature |
 |---|---|---|---|
-| `length()` | 37 | 15 | à arbitrer : valide sur un chemin, à passer en `size()` sur liste/chaîne |
+| DDL d'index et de contraintes en syntaxe 3.x | 52 | — | mécanique, syntaxe Neo4j 4/5 validée |
 | `START ... node_auto_index(...)` | 5 | 3 | à reprendre sur index de schéma (`feeder`) |
-| `exists((motif))` → `EXISTS { }` | 3 | 2 | réécriture |
-| `extract(...)` → `[x IN ...]` | 2 | 2 | réécriture |
 | `CREATE UNIQUE` dans `ManualFeeder` | 2 | 1 | **décision à prendre**, voir ci-dessous |
 
-S'ajoutent les 52 occurrences de DDL d'index et de contrainte, à passer en syntaxe Neo4j 4/5.
+Les requêtes complètes extractibles s'analysent à **130 sur 133** contre ArcadeDB 26.11 ;
+les trois restantes sont tronquées par l'extracteur, pas fautives.
 
-### Une lacune de périmètre : `scripts/`
+Ce qui subsiste et ne doit **pas** être converti, vérifié un à un :
 
-Le périmètre retenu jusqu'ici est le code Java et `infra/src/main/resources/neo4j/*.cypher`.
-Le répertoire `scripts/` en est resté dehors, et il contient du Cypher opérationnel
-entièrement en style 2.3 :
-
-| Fichier | À reprendre |
-|---|---|
-| `scripts/schema.cypher` | `CREATE INDEX ON :L(p)` et `CREATE CONSTRAINT ON … ASSERT` |
-| `scripts/deleteGroupArchiveRole.cypher` | `CREATE UNIQUE`, variables de nœud nues (`m-[:AUTHORIZE]->n`) |
-
-Les deux fichiers s'ouvrent par `begin transaction` et se terminent par `commit` : c'est la
-syntaxe de **neo4j-shell**, retirée elle aussi en Neo4j 4.0. Leur reprise suppose de savoir
-comment ils sont lancés aujourd'hui, ce qui n'a pas été établi — d'où leur mise de côté.
+- deux `length(p)` sur des chemins issus de `MATCH p=(...)`, où `length()` reste correct ;
+- un `EXTRACT(EPOCH FROM NOW())` dans `SqlConversationService`, qui est du SQL PostgreSQL ;
+- cinq littéraux portant `{x}` : trois propriétés Unicode de regex Java, un gabarit d'URL,
+  un préfixe de `startsWith()`.
 
 ### La décision en suspens : création d'utilisateur dans ManualFeeder
 
