@@ -1,5 +1,5 @@
 import { odeServices } from "@open-ent/client";
-import { Quota, TreeName, ViewMode, WorkspaceElement } from "../lib/types";
+import { Quota, Revision, TreeName, ViewMode, WorkspaceElement } from "../lib/types";
 
 const query = (params: Record<string, string | boolean | undefined>): string => {
   const sp = new URLSearchParams();
@@ -109,4 +109,30 @@ export const fetchText = async (url: string): Promise<string> => {
   const res = await fetch(url, { credentials: "same-origin" });
   if (!res.ok) throw new Error(String(res.status));
   return res.text();
+};
+
+export const revisionService = {
+  list: (docId: string) => odeServices.http().get<Revision[]>(`/workspace/document/${docId}/revisions`),
+  remove: (docId: string, revisionId: string) => odeServices.http().delete(`/workspace/document/${docId}/revision/${revisionId}`),
+  /** Envoie un nouveau fichier comme nouvelle version du document (même appel que l'ancienne interface). */
+  add: (docId: string, file: File): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const form = new FormData();
+      form.append("file", file, file.name);
+      xhr.open("PUT", `/workspace/document/${docId}`);
+      xhr.setRequestHeader("X-XSRF-TOKEN", xsrfToken());
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 400 ? resolve() : reject(uploadErrorKey(xhr.status, xhr.responseText)));
+      xhr.onerror = () => reject("workspace.react.upload.failed");
+      xhr.send(form);
+    }),
+};
+
+export const commentService = {
+  /** Commentaire d'un document ou d'un dossier ; renvoie l'identifiant du commentaire créé. */
+  add: (el: { _id: string; eType: string }, comment: string) =>
+    odeServices
+      .http()
+      .post<{ id: string }>(el.eType === "folder" ? `/workspace/folder/${el._id}/comment` : `/workspace/document/${el._id}/comment`, new URLSearchParams({ comment })),
+  remove: (docId: string, commentId: string) => odeServices.http().delete(`/workspace/document/${docId}/comment/${commentId}`),
 };

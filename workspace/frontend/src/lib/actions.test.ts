@@ -8,13 +8,18 @@ describe("availableActions", () => {
   const two = [el({ _id: "a" }), el({ _id: "b" })];
   it("sans sélection, aucune action", () => expect(availableActions("owner", [])).toEqual([]));
   it("Mes documents : renommer seulement pour un élément", () => {
-    expect(availableActions("owner", one)).toEqual(["rename", "share", "copy", "move", "trash", "download"]);
+    expect(availableActions("owner", one)).toEqual(["rename", "share", "copy", "move", "trash", "download", "history", "comments"]);
     expect(availableActions("owner", two)).toEqual(["copy", "move", "trash", "download"]);
   });
   it("corbeille : restaurer et supprimer définitivement", () => expect(availableActions("trash", one)).toEqual(["restore", "delete"]));
   it("partagés : copier et télécharger, partager seulement si gestionnaire", () => {
-    expect(availableActions("shared", one)).toEqual(["copy", "download"]);
-    expect(availableActions("shared", one, { canManage: true })).toEqual(["share", "copy", "download"]);
+    expect(availableActions("shared", one)).toEqual(["copy", "download", "history", "comments"]);
+    expect(availableActions("shared", one, { canManage: true })).toEqual(["share", "copy", "download", "history", "comments"]);
+  });
+  it("l'historique ne concerne qu'un document, les commentaires un dossier ou un document", () => {
+    expect(availableActions("owner", [el({ eType: "folder" })])).not.toContain("history");
+    expect(availableActions("owner", [el({ eType: "folder" })])).toContain("comments");
+    expect(availableActions("trash", one)).not.toContain("comments");
   });
   it("publier au portail : un seul document, par un administrateur", () => {
     expect(availableActions("owner", one, { canPublish: true })).toContain("publish");

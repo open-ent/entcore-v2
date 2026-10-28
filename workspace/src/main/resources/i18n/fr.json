@@ -382,5 +382,11 @@
   "workspace.react.viewer.next": "Suivant",
   "workspace.react.viewer.unavailable": "Ce document ne peut pas être affiché.",
   "workspace.react.viewer.empty": "Ce fichier est vide.",
-  "workspace.react.viewer.truncated": "Seules les [[count]] premières lignes sont affichées."
+  "workspace.react.viewer.truncated": "Seules les [[count]] premières lignes sont affichées.",
+  "workspace.react.action.comments": "Commentaires",
+  "workspace.react.comments.empty": "Aucun commentaire.",
+  "workspace.react.comments.add": "Ajouter un commentaire",
+  "workspace.react.comments.send": "Envoyer",
+  "workspace.react.comments.delete": "Supprimer",
+  "workspace.react.close": "Fermer"
 }

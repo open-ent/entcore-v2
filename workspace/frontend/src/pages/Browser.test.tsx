@@ -13,6 +13,8 @@ vi.mock("@open-ent/react", () => ({
 }));
 vi.mock("../components/NewFolderModal", () => ({ NewFolderModal: () => null }));
 vi.mock("../components/ZipDialog", () => ({ ZipDialog: () => null }));
+vi.mock("../components/VersionsModal", () => ({ VersionsModal: () => null }));
+vi.mock("../components/CommentsModal", () => ({ CommentsModal: () => null }));
 vi.mock("../components/PublishModal", () => ({ PublishModal: () => null }));
 vi.mock("../components/ShareWarning", () => ({ ShareWarning: () => null }));
 vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
@@ -80,7 +82,7 @@ describe("Browser", () => {
     expect(document.querySelector("[data-action-bar]")).not.toBeInTheDocument();
     fireEvent.click(document.querySelector("[data-element-select]")!);
     const actions = [...document.querySelectorAll("[data-action-bar] [data-action]")].map((b) => b.getAttribute("data-action"));
-    expect(actions).toEqual(["rename", "share", "copy", "move", "trash", "download"]);
+    expect(actions).toEqual(["rename", "share", "copy", "move", "trash", "download", "history", "comments"]);
   });
 
   it("dans la corbeille, la sélection propose restaurer et supprimer, et le vidage est proposé", () => {

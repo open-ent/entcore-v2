@@ -9,6 +9,24 @@ export interface ElementMetadata {
   role?: string;
 }
 
+export interface WorkspaceComment {
+  id: string;
+  author: string;
+  authorName?: string;
+  comment: string;
+  posted?: string;
+}
+
+export interface Revision {
+  _id: string;
+  documentId: string;
+  name: string;
+  userId: string;
+  userName?: string;
+  date?: { $date?: string };
+  metadata?: ElementMetadata;
+}
+
 /** Entrée de partage : un utilisateur (`userId`) ou un groupe (`groupId`) et ses droits, clés `…WorkspaceController|action` → true. */
 export interface ShareEntry {
   userId?: string;
@@ -30,6 +48,7 @@ export interface WorkspaceElement {
   shared?: ShareEntry[];
   inheritedShares?: ShareEntry[];
   portalPublication?: { publishedAt?: string };
+  comments?: WorkspaceComment[];
   isShared?: boolean;
   protected?: boolean;
   trasher?: string;

@@ -4,12 +4,14 @@ import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { ActionBar } from "../components/ActionBar";
+import { CommentsModal } from "../components/CommentsModal";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { ElementList } from "../components/ElementList";
 import { FolderPicker } from "../components/FolderPicker";
 import { PublishModal } from "../components/PublishModal";
 import { RenameModal } from "../components/RenameModal";
 import { ShareWarning } from "../components/ShareWarning";
+import { VersionsModal } from "../components/VersionsModal";
 import { NewFolderModal } from "../components/NewFolderModal";
 import { UploadPanel } from "../components/UploadPanel";
 import { ZipDialog } from "../components/ZipDialog";
@@ -69,6 +71,8 @@ export const Browser = () => {
   const [sharing, setSharing] = useState<WorkspaceElement | null>(null);
   const [copyingForShare, setCopyingForShare] = useState(false);
   const [publishing, setPublishing] = useState<WorkspaceElement | null>(null);
+  const [versions, setVersions] = useState<WorkspaceElement | null>(null);
+  const [commenting, setCommenting] = useState<WorkspaceElement | null>(null);
   useEffect(() => setSelected(new Set()), [tree, folderId]);
 
   const selection = useMemo(() => elements.filter((e) => selected.has(e._id)), [elements, selected]);
@@ -105,6 +109,8 @@ export const Browser = () => {
     else if (a === "delete") setConfirm("delete");
     else if (a === "share") (validTree === "owner" ? setWarnShare : setSharing)(selection[0]);
     else if (a === "publish") setPublishing(selection[0]);
+    else if (a === "history") setVersions(selection[0]);
+    else if (a === "comments") setCommenting(selection[0]);
     else if (a === "rename") {
       setRenameError(null);
       setRenaming(selection[0]);
@@ -282,6 +288,21 @@ export const Browser = () => {
           }}
         />
       )}
+      <VersionsModal
+        element={versions}
+        rights={versions ? rightsOn(versions, user?.userId, groupIds) : { read: false, contrib: false, manager: false, comment: false }}
+        userId={user?.userId}
+        onClose={() => setVersions(null)}
+        onChanged={() => void Promise.all(["content", "quota"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] })))}
+      />
+      <CommentsModal
+        element={commenting}
+        rights={commenting ? rightsOn(commenting, user?.userId, groupIds) : { read: false, contrib: false, manager: false, comment: false }}
+        userId={user?.userId}
+        userName={user?.username}
+        onClose={() => setCommenting(null)}
+        onChanged={() => void qc.invalidateQueries({ queryKey: ["workspace", "content"] })}
+      />
       <PublishModal
         element={publishing}
         onClose={() => setPublishing(null)}

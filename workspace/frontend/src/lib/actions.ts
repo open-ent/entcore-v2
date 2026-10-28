@@ -1,6 +1,6 @@
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish";
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments";
 
 /** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
 export interface ActionContext {
@@ -17,6 +17,7 @@ export interface ActionContext {
  *    supprimer y dépendent d'autres droits, non repris ici ;
  *  - corbeille : restaurer, supprimer définitivement ;
  *  - autres arbres (applis, publics) : copier dans mes documents et télécharger.
+ * « Historique des versions » (un seul document) et « Commentaires » (un seul élément) en « Mes documents » et « Documents partagés ».
  * « Publier au portail » : un seul document, par un administrateur. Aucune sélection → aucune action.
  */
 export const availableActions = (tree: TreeName, selection: WorkspaceElement[], ctx: ActionContext = {}): ActionId[] => {
@@ -30,6 +31,8 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if (tree === "owner") actions.push("move", "trash");
   actions.push("download");
   if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file" && ctx.canPublish) actions.push("publish");
+  if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file") actions.push("history");
+  if ((tree === "owner" || tree === "shared") && single) actions.push("comments");
   return actions;
 };
 

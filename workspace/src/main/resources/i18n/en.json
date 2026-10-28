@@ -381,5 +381,11 @@
   "workspace.react.viewer.next": "Next",
   "workspace.react.viewer.unavailable": "This document cannot be displayed.",
   "workspace.react.viewer.empty": "This file is empty.",
-  "workspace.react.viewer.truncated": "Only the first [[count]] rows are shown."
+  "workspace.react.viewer.truncated": "Only the first [[count]] rows are shown.",
+  "workspace.react.action.comments": "Comments",
+  "workspace.react.comments.empty": "No comments.",
+  "workspace.react.comments.add": "Add a comment",
+  "workspace.react.comments.send": "Send",
+  "workspace.react.comments.delete": "Delete",
+  "workspace.react.close": "Close"
 }

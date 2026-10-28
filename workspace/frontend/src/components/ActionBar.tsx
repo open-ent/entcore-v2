@@ -11,6 +11,8 @@ const LABEL: Record<ActionId, string> = {
   download: "workspace.react.action.download",
   share: "workspace.react.action.share",
   publish: "workspace.document.publish",
+  history: "workspace.versions.list",
+  comments: "workspace.react.action.comments",
 };
 
 /** Barre d'actions de la sélection (les actions viennent de `availableActions`). */
@@ -28,7 +30,7 @@ export const ActionBar = ({
   const { t } = useTranslation("workspace");
   if (actions.length === 0) return null;
   return (
-    <div className="d-flex gap-8 align-items-center mb-16" role="toolbar" data-action-bar>
+    <div className="d-flex flex-wrap gap-8 align-items-center mb-16" role="toolbar" data-action-bar>
       <span data-selection-count>{t("workspace.react.selected", { count })}</span>
       {actions.map((a) => (
         <button key={a} type="button" className="btn btn-outline-primary btn-sm" data-action={a} onClick={() => onAction(a)}>
