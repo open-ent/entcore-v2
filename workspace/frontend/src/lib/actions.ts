@@ -1,6 +1,6 @@
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments";
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location";
 
 /** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
 export interface ActionContext {
@@ -8,6 +8,8 @@ export interface ActionContext {
   canManage?: boolean;
   /** Administrateur local ou super-administrateur : peut publier un document sur le portail public. */
   canPublish?: boolean;
+  /** Résultats de recherche affichés : propose d'ouvrir l'emplacement d'un résultat. */
+  searching?: boolean;
 }
 
 /**
@@ -22,7 +24,7 @@ export interface ActionContext {
  */
 export const availableActions = (tree: TreeName, selection: WorkspaceElement[], ctx: ActionContext = {}): ActionId[] => {
   if (selection.length === 0) return [];
-  if (tree === "trash") return ["restore", "delete"];
+  if (tree === "trash" && !ctx.searching) return ["restore", "delete"];
   const single = selection.length === 1;
   const actions: ActionId[] = [];
   if (tree === "owner" && single) actions.push("rename");
@@ -33,6 +35,7 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file" && ctx.canPublish) actions.push("publish");
   if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file") actions.push("history");
   if ((tree === "owner" || tree === "shared") && single) actions.push("comments");
+  if (ctx.searching && single) actions.push("location");
   return actions;
 };
 

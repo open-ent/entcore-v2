@@ -2,7 +2,7 @@ import { AppHeader, LoadingScreen, SegmentedControl, ShareModal, useEdificeClien
 import { useQueryClient } from "@tanstack/react-query";
 import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { ActionBar } from "../components/ActionBar";
 import { CommentsModal } from "../components/CommentsModal";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -19,12 +19,14 @@ import { QuotaGauge } from "../components/QuotaGauge";
 import { TreeNav } from "../components/TreeNav";
 import { ActionId, availableActions, downloadUrl, forbiddenTargets } from "../lib/actions";
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
+import { readFlags } from "../lib/flags";
 import { rightsOn } from "../lib/rights";
+import { clientFilter, locationOf, searchQuery } from "../lib/search";
 import { isZip, planUpload, remainingLabel } from "../lib/upload";
 import { ViewMode, WorkspaceElement } from "../lib/types";
 import { useUploads } from "../services/useUploads";
 import { elementActions } from "../services/workspace.service";
-import { useContent, useFolders, useQuota, useViewModePreference } from "../services/queries";
+import { useContent, useFolders, useQuota, useSearch, useViewModePreference } from "../services/queries";
 
 /** Navigation dans l'espace documentaire : arbres, dossiers, fil d'Ariane, liste en icônes ou en tableau, jauge d'espace. */
 export const Browser = () => {
@@ -58,7 +60,21 @@ export const Browser = () => {
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const elements = useMemo(() => sortElements(content.data ?? [], sort), [content.data, sort]);
+  // Recherche : critère saisi, recherche active (dans le dossier courant ou dans tout l'espace)
+  const navigate = useNavigate();
+  const flags = useMemo(() => readFlags(), []);
+  const [criteria, setCriteria] = useState("");
+  const [query, setQuery] = useState<{ criteria: string; everywhere: boolean } | null>(null);
+  useEffect(() => {
+    setQuery(null);
+    setCriteria("");
+  }, [tree, folderId]);
+  const searchQs = query ? searchQuery({ ...query, tree: validTree, folderId }) : undefined;
+  const search = useSearch(flags.disableFullTextSearch ? undefined : searchQs);
+  // Sans index texte (réglage serveur) ou si le serveur le refuse : filtre sur les noms des éléments déjà chargés.
+  const searchDegraded = !!query && (flags.disableFullTextSearch || search.isError);
+  const baseElements = !query ? content.data ?? [] : searchDegraded ? clientFilter(content.data ?? [], query.criteria) : search.data ?? [];
+  const elements = useMemo(() => sortElements(baseElements, sort), [baseElements, sort]);
 
   // Sélection et actions de gestion
   const qc = useQueryClient();
@@ -79,6 +95,7 @@ export const Browser = () => {
   const actions = availableActions(validTree, selection, {
     canManage: selection.length === 1 && rightsOn(selection[0], user?.userId, groupIds).manager,
     canPublish: canPublishToPortal,
+    searching: !!query,
   });
   const toggle = (id: string) =>
     setSelected((cur) => {
@@ -111,6 +128,7 @@ export const Browser = () => {
     else if (a === "publish") setPublishing(selection[0]);
     else if (a === "history") setVersions(selection[0]);
     else if (a === "comments") setCommenting(selection[0]);
+    else if (a === "location") navigate(locationOf(selection[0]));
     else if (a === "rename") {
       setRenameError(null);
       setRenaming(selection[0]);
@@ -184,6 +202,58 @@ export const Browser = () => {
               </span>
             ))}
           </nav>
+          <form
+            className="d-flex gap-8 align-items-center mb-16"
+            role="search"
+            data-workspace-search
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (criteria.trim()) setQuery({ criteria: criteria.trim(), everywhere: false });
+            }}
+          >
+            <input
+              type="search"
+              className="form-control"
+              style={{ maxWidth: 360 }}
+              value={criteria}
+              placeholder={t("workspace.search.placeholder")}
+              aria-label={t("workspace.search.placeholder")}
+              onChange={(e) => setCriteria(e.target.value)}
+              data-search-input
+            />
+            <button type="submit" className="btn btn-outline-primary" data-search-submit>
+              {t("workspace.react.search")}
+            </button>
+            {query && (
+              <button
+                type="button"
+                className="btn btn-link"
+                data-search-reset
+                onClick={() => {
+                  setQuery(null);
+                  setCriteria("");
+                }}
+              >
+                {t("workspace.react.search.reset")}
+              </button>
+            )}
+          </form>
+          {query && (
+            <div className="mb-16" data-search-banner>
+              <strong>{query.everywhere ? t("workspace.search.results.inworkspace") : `${t("workspace.search.results.infolder")} ${path.length ? path[path.length - 1].name : t(`workspace.react.tree.${validTree}`)}`}</strong>
+              {!query.everywhere && (
+                <button type="button" className="btn btn-link" data-search-everywhere onClick={() => setQuery({ ...query, everywhere: true })}>
+                  {t("workspace.search.inworkspace")}
+                </button>
+              )}
+              {search.isFetching && !searchDegraded && <span> — {t("workspace.search.inprogress")}</span>}
+              {searchDegraded && !flags.disableFullTextSearch && (
+                <p className="text-warning mb-0" role="status" data-search-degraded>
+                  {t("workspace.react.search.degraded")}
+                </p>
+              )}
+            </div>
+          )}
           <div className="d-flex gap-16 align-items-center mb-16">
             <SegmentedControl
               options={[

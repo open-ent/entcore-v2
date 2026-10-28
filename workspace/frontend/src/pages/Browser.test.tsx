@@ -23,9 +23,10 @@ vi.mock("../components/ConfirmModal", () => ({ ConfirmModal: () => null }));
 vi.mock("../services/workspace.service", () => ({ elementActions: {} }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
-const content = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
+const content = vi.hoisted(() => ({ value: {} as Record<string, unknown>, search: { isError: false, isFetching: false, data: undefined } as Record<string, unknown> }));
 vi.mock("../services/queries", () => ({
   useContent: () => content.value,
+  useSearch: () => content.search,
   useFolders: () => ({ data: [{ _id: "f1", name: "Cours", eType: "folder", eParent: null, owner: "u1" }] }),
   useQuota: () => ({ data: { quota: 1000, storage: 250 } }),
   useViewModePreference: () => ({ data: "icons" }),
@@ -92,6 +93,31 @@ describe("Browser", () => {
     fireEvent.click(document.querySelector("[data-element-select]")!);
     const actions = [...document.querySelectorAll("[data-action-bar] [data-action]")].map((b) => b.getAttribute("data-action"));
     expect(actions).toEqual(["restore", "delete"]);
+  });
+
+  it("une recherche affiche les résultats du serveur et propose de chercher partout", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [el({ _id: "d1", name: "autre.txt" })] };
+    content.search = { isError: false, isFetching: false, data: [el({ _id: "r1", name: "devoir.txt" })] };
+    renderAt("/owner");
+    fireEvent.change(document.querySelector("[data-search-input]")!, { target: { value: "devoir" } });
+    fireEvent.submit(document.querySelector("[data-workspace-search]")!);
+    const ids = [...document.querySelectorAll("[data-element]")].map((n) => n.getAttribute("data-element-id"));
+    expect(ids).toEqual(["r1"]);
+    expect(document.querySelector("[data-search-everywhere]")).toBeInTheDocument();
+    fireEvent.click(document.querySelector("[data-search-reset]")!);
+    expect(document.querySelector("[data-search-banner]")).not.toBeInTheDocument();
+    content.search = { isError: false, isFetching: false, data: undefined };
+  });
+
+  it("si la recherche serveur échoue, filtre les noms affichés et le dit", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [el({ _id: "a", name: "devoir.txt" }), el({ _id: "b", name: "zebre.txt" })] };
+    content.search = { isError: true, isFetching: false, data: undefined };
+    renderAt("/owner");
+    fireEvent.change(document.querySelector("[data-search-input]")!, { target: { value: "dev" } });
+    fireEvent.submit(document.querySelector("[data-workspace-search]")!);
+    expect([...document.querySelectorAll("[data-element]")].map((n) => n.getAttribute("data-element-id"))).toEqual(["a"]);
+    expect(document.querySelector("[data-search-degraded]")).toBeInTheDocument();
+    content.search = { isError: false, isFetching: false, data: undefined };
   });
 
   it("affiche un message pour un dossier vide", () => {

@@ -388,5 +388,8 @@
   "workspace.react.comments.add": "Ajouter un commentaire",
   "workspace.react.comments.send": "Envoyer",
   "workspace.react.comments.delete": "Supprimer",
-  "workspace.react.close": "Fermer"
+  "workspace.react.close": "Fermer",
+  "workspace.react.search": "Rechercher",
+  "workspace.react.search.reset": "Effacer la recherche",
+  "workspace.react.search.degraded": "La recherche dans le contenu est indisponible : seuls les noms des éléments affichés sont filtrés."
 }

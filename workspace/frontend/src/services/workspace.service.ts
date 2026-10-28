@@ -136,3 +136,6 @@ export const commentService = {
       .post<{ id: string }>(el.eType === "folder" ? `/workspace/folder/${el._id}/comment` : `/workspace/document/${el._id}/comment`, new URLSearchParams({ comment })),
   remove: (docId: string, commentId: string) => odeServices.http().delete(`/workspace/document/${docId}/comment/${commentId}`),
 };
+
+/** Recherche côté serveur (index texte). Rejette si l'index est absent ou indisponible. */
+export const searchElements = (queryString: string) => odeServices.http().get<WorkspaceElement[]>(`/workspace/documents?${queryString}`);

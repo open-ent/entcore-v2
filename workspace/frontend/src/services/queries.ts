@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { TreeName } from "../lib/types";
-import { fetchText, getElement, workspaceService } from "./workspace.service";
+import { fetchText, getElement, searchElements, workspaceService } from "./workspace.service";
 
 export const useContent = (tree: TreeName, parentId?: string) =>
   useQuery({
@@ -26,3 +26,6 @@ export const useElement = (id?: string) =>
 
 export const useTextContent = (url?: string) =>
   useQuery({ queryKey: ["workspace", "text", url], queryFn: () => fetchText(url as string), enabled: !!url });
+
+export const useSearch = (queryString?: string) =>
+  useQuery({ queryKey: ["workspace", "search", queryString], queryFn: () => searchElements(queryString as string), enabled: !!queryString });

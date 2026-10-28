@@ -13,6 +13,7 @@ const LABEL: Record<ActionId, string> = {
   publish: "workspace.document.publish",
   history: "workspace.versions.list",
   comments: "workspace.react.action.comments",
+  location: "workspace.open.location",
 };
 
 /** Barre d'actions de la sélection (les actions viennent de `availableActions`). */

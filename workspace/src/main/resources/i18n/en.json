@@ -387,5 +387,8 @@
   "workspace.react.comments.add": "Add a comment",
   "workspace.react.comments.send": "Send",
   "workspace.react.comments.delete": "Delete",
-  "workspace.react.close": "Close"
+  "workspace.react.close": "Close",
+  "workspace.react.search": "Search",
+  "workspace.react.search.reset": "Clear search",
+  "workspace.react.search.degraded": "Full-text search is unavailable: only the names of the displayed items are filtered."
 }

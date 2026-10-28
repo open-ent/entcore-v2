@@ -21,6 +21,11 @@ describe("availableActions", () => {
     expect(availableActions("owner", [el({ eType: "folder" })])).toContain("comments");
     expect(availableActions("trash", one)).not.toContain("comments");
   });
+  it("pendant une recherche, un résultat unique propose d'ouvrir son emplacement", () => {
+    expect(availableActions("owner", one, { searching: true })).toContain("location");
+    expect(availableActions("owner", two, { searching: true })).not.toContain("location");
+    expect(availableActions("owner", one)).not.toContain("location");
+  });
   it("publier au portail : un seul document, par un administrateur", () => {
     expect(availableActions("owner", one, { canPublish: true })).toContain("publish");
     expect(availableActions("owner", two, { canPublish: true })).not.toContain("publish");
