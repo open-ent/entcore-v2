@@ -1,7 +1,7 @@
 import { AppHeader, LoadingScreen, SegmentedControl, useEdificeClient } from "@open-ent/react";
 import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { ElementList } from "../components/ElementList";
 import { NewFolderModal } from "../components/NewFolderModal";
 import { UploadPanel } from "../components/UploadPanel";
@@ -18,7 +18,6 @@ import { useContent, useFolders, useQuota, useViewModePreference } from "../serv
 export const Browser = () => {
   const { t } = useTranslation("workspace");
   const { tree, folderId } = useParams();
-  const { search } = useLocation();
   const [view, setView] = useState<ViewMode>("icons");
   const [sort, setSort] = useState<SortKey>("name");
 
@@ -77,7 +76,7 @@ export const Browser = () => {
   const path = useMemo(() => breadcrumb(folders.data ?? [], folderId ?? null), [folders.data, folderId]);
   const elements = useMemo(() => sortElements(content.data ?? [], sort), [content.data, sort]);
 
-  if (!isTreeName(tree)) return <Navigate to={{ pathname: "/workspace/owner", search }} replace />;
+  if (!isTreeName(tree)) return <Navigate to="/owner" replace />;
 
   return (
     <>
@@ -102,11 +101,11 @@ export const Browser = () => {
           onDrop={onDrop}
         >
           <nav aria-label={t("workspace.react.breadcrumb")} data-workspace-breadcrumb className="mb-12">
-            <Link to={{ pathname: `/workspace/${validTree}`, search }}>{t(`workspace.react.tree.${validTree}`)}</Link>
+            <Link to={`/${validTree}`}>{t(`workspace.react.tree.${validTree}`)}</Link>
             {path.map((f) => (
               <span key={f._id}>
                 {" / "}
-                <Link to={{ pathname: `/workspace/${validTree}/${f._id}`, search }}>{f.name}</Link>
+                <Link to={`/${validTree}/${f._id}`}>{f.name}</Link>
               </span>
             ))}
           </nav>

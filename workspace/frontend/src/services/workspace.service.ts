@@ -48,9 +48,13 @@ export const uploadErrorKey = (status: number, body?: string): string => {
   }
 };
 
-/** Crée un dossier sous `parentId` (absent = racine de « Mes documents »). Rejette avec le code d'erreur du serveur (ex. doublon). */
-export const createFolder = (name: string, parentId?: string) =>
-  odeServices.http().postJson<{ _id: string }>("/workspace/folder", { name, parentFolderId: parentId ?? null });
+/** Crée un dossier sous `parentId` (absent = racine de « Mes documents »). Rejette avec l'erreur du serveur. */
+export const createFolder = (name: string, parentId?: string) => {
+  // Le serveur lit un formulaire (un corps JSON lui donne une erreur 500).
+  const form = new URLSearchParams({ name });
+  if (parentId) form.set("parentFolderId", parentId);
+  return odeServices.http().post<{ _id: string }>("/workspace/folder", form);
+};
 
 /**
  * Envoie un fichier (XMLHttpRequest : seul moyen d'avoir la progression).

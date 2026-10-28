@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { childFolders } from "../lib/elements";
 import { TREES, TreeName, WorkspaceElement } from "../lib/types";
@@ -9,14 +9,12 @@ const FolderNodes = ({
   folders,
   parentId,
   currentId,
-  search,
   depth,
 }: {
   tree: TreeName;
   folders: WorkspaceElement[];
   parentId: string | null;
   currentId?: string;
-  search: string;
   depth: number;
 }) => {
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -39,14 +37,14 @@ const FolderNodes = ({
               </button>
             )}
             <Link
-              to={{ pathname: `/workspace/${tree}/${f._id}`, search }}
+              to={`/${tree}/${f._id}`}
               data-tree-folder={f._id}
               className={f._id === currentId ? "fw-bold" : undefined}
             >
               {f.name}
             </Link>
             {open[f._id] && (
-              <FolderNodes tree={tree} folders={folders} parentId={f._id} currentId={currentId} search={search} depth={depth + 1} />
+              <FolderNodes tree={tree} folders={folders} parentId={f._id} currentId={currentId} depth={depth + 1} />
             )}
           </li>
         );
@@ -66,21 +64,20 @@ export const TreeNav = ({
   folders: WorkspaceElement[];
 }) => {
   const { t } = useTranslation("workspace");
-  const { search } = useLocation();
   return (
     <nav aria-label={t("workspace.title")} data-workspace-tree>
       <ul className="list-unstyled" role="tree">
         {TREES.map((name) => (
           <li key={name} role="treeitem" aria-selected={name === tree}>
             <Link
-              to={{ pathname: `/workspace/${name}`, search }}
+              to={`/${name}`}
               data-tree-root={name}
               className={name === tree && !folderId ? "fw-bold" : undefined}
             >
               {t(`workspace.react.tree.${name}`)}
             </Link>
             {(name === "owner" || name === "shared") && name === tree && (
-              <FolderNodes tree={name} folders={folders} parentId={null} currentId={folderId} search={search} depth={0} />
+              <FolderNodes tree={name} folders={folders} parentId={null} currentId={folderId} depth={0} />
             )}
           </li>
         ))}

@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { fileKind, formatSize, parseDate } from "../lib/elements";
 import { TreeName, ViewMode, WorkspaceElement } from "../lib/types";
@@ -32,11 +32,10 @@ export const ElementList = ({
   view: ViewMode;
 }) => {
   const { t } = useTranslation("workspace");
-  const { search } = useLocation();
 
   const open = (e: WorkspaceElement) =>
     e.eType === "folder" ? (
-      <Link to={{ pathname: `/workspace/${tree}/${e._id}`, search }} data-element-open>
+      <Link to={`/${tree}/${e._id}`} data-element-open>
         {e.name}
       </Link>
     ) : (

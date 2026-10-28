@@ -1,19 +1,19 @@
-import { Navigate, RouteObject, createBrowserRouter } from "react-router-dom";
+import { Navigate, RouteObject, createHashRouter } from "react-router-dom";
 import { Browser } from "./pages/Browser";
 import { Root } from "./pages/Root";
 
 export const routes: RouteObject[] = [
   {
-    path: "/workspace",
+    path: "/",
     element: <Root />,
     children: [
-      { index: true, element: <Navigate to="owner" replace /> },
+      { index: true, element: <Navigate to="/owner" replace /> },
       { path: ":tree", element: <Browser /> },
       { path: ":tree/:folderId", element: <Browser /> },
     ],
   },
-  { path: "*", element: <Navigate to="/workspace/owner" replace /> },
+  { path: "*", element: <Navigate to="/owner" replace /> },
 ];
 
-// La vue est servie sous /workspace/workspace : le routeur a pour base la racine du site.
-export const createRouter = () => createBrowserRouter(routes);
+// Routage par « # » comme l'interface AngularJS : la vue n'est servie que sous /workspace/workspace, un rechargement ou un lien direct ne doit pas viser un autre chemin serveur.
+export const createRouter = () => createHashRouter(routes);

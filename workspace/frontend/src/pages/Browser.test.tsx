@@ -29,8 +29,8 @@ const renderAt = (url: string) =>
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[url]}>
         <Routes>
-          <Route path="/workspace/:tree" element={<Browser />} />
-          <Route path="/workspace/:tree/:folderId" element={<Browser />} />
+          <Route path="/:tree" element={<Browser />} />
+          <Route path="/:tree/:folderId" element={<Browser />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -44,7 +44,7 @@ describe("Browser", () => {
       isSuccess: true,
       data: [el({ _id: "d1", name: "zeta.txt" }), el({ _id: "f1", name: "Cours", eType: "folder" })],
     };
-    renderAt("/workspace/owner");
+    renderAt("/owner");
     const ids = [...document.querySelectorAll("[data-element]")].map((n) => n.getAttribute("data-element-id"));
     expect(ids).toEqual(["f1", "d1"]);
     expect(screen.getByText(/250 o/)).toBeInTheDocument();
@@ -52,30 +52,30 @@ describe("Browser", () => {
 
   it("signale une erreur de chargement au lieu d'un dossier vide", () => {
     content.value = { isLoading: false, isError: true, isSuccess: false, data: undefined, refetch: vi.fn() };
-    renderAt("/workspace/owner");
+    renderAt("/owner");
     expect(document.querySelector("[data-workspace-error]")).toBeInTheDocument();
     expect(document.querySelector("[data-workspace-empty]")).not.toBeInTheDocument();
   });
 
   it("propose créer et importer dans Mes documents, pas dans la corbeille", () => {
     content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
-    const { unmount } = renderAt("/workspace/owner");
+    const { unmount } = renderAt("/owner");
     expect(document.querySelector('[data-action="new-folder"]')).toBeInTheDocument();
     expect(document.querySelector('[data-action="import"]')).toBeInTheDocument();
     unmount();
-    renderAt("/workspace/trash");
+    renderAt("/trash");
     expect(document.querySelector("[data-workspace-toolbar]")).not.toBeInTheDocument();
   });
 
   it("affiche un message pour un dossier vide", () => {
     content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
-    renderAt("/workspace/trash");
+    renderAt("/trash");
     expect(document.querySelector("[data-workspace-empty]")).toBeInTheDocument();
   });
 
   it("construit le fil d'Ariane du dossier ouvert", () => {
     content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
-    renderAt("/workspace/owner/f1");
+    renderAt("/owner/f1");
     expect(document.querySelector("[data-workspace-breadcrumb]")?.textContent).toContain("Cours");
   });
 });
