@@ -184,7 +184,7 @@ public class DefaultSchoolService implements SchoolService {
 
 	@Override
 	public void isParent(String structureId, String parentStructureId, Handler<Either<String, Boolean>> handler) {
-		final String query = "MATCH (s:Structure {id: $structureId}) RETURN EXISTS((s)-[:HAS_ATTACHMENT*1..]->(:Structure {id: $parentStructureId})) AS exists";
+		final String query = "MATCH (s:Structure {id: $structureId}) RETURN EXISTS { (s)-[:HAS_ATTACHMENT*1..]->(:Structure {id: $parentStructureId}) } AS exists";
 		JsonObject params = new JsonObject().put("structureId", structureId).put("parentStructureId", parentStructureId);
 		neo.execute(query.toString(), params, validUniqueResultHandler(exists -> {
 			if (exists.isRight()) {
@@ -355,7 +355,7 @@ public class DefaultSchoolService implements SchoolService {
 		String query = 
 			"MATCH (u:User)-[:IN]->(pg: ProfileGroup)-[:DEPENDS]->(s:Structure) " +
 			"WHERE s.id = $structureId " + 
-			"RETURN collect(DISTINCT EXTRACT(function IN u.functions | split(function, \"$\"))) as aafFunctions";
+			"RETURN collect(DISTINCT [function IN u.functions | split(function, \"$\")]) as aafFunctions";
 
 		JsonObject params = new JsonObject().put("structureId", structureId);
 		neo.execute(query, params, Neo4jResult.validResultHandler(result));
@@ -436,7 +436,7 @@ public class DefaultSchoolService implements SchoolService {
 			"u.id as id, u.profiles[0] as type, u.activationCode as code, u.login as login," +
 			"u.firstName as firstName, u.lastName as lastName, u.displayName as displayName," +
 			"u.source as source, u.deleteDate as deleteDate, u.disappearanceDate as disappearanceDate, u.blocked as blocked, u.created as creationDate, u.removedFromStructures AS removedFromStructures, " +
-			"EXTRACT(function IN u.functions | split(function, \"$\")) as aafFunctions," +
+			"[function IN u.functions | split(function, \"$\")] as aafFunctions," +
 			" classes, functionalGroups, manualGroups, functions, duplicates, structures, userPositions " +
 			"ORDER BY lastName, firstName ";
 		if("none".equals(listUserMode)){

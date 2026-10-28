@@ -867,7 +867,7 @@ public class DefaultUserService implements UserService {
 				"u.email as email, u.homePhone as phone, u.mobile as mobile, u.zipCode as zipCode, u.address as address, " +
 				"u.city as city, u.country as country, u.level as level, u.title as title, u.startDateClasses as startDateClasses," +
 				" u.endDateClasses as endDateClasses," +
-				"extract(function IN u.functions | last(split(function, \"$\"))) as aafFunctions, " +
+				"[function IN u.functions | last(split(function, \"$\"))] as aafFunctions, " +
 				"CASE WHEN s IS NULL THEN [] ELSE collect(distinct {id: s.id, uai: s.UAI, name: s.name}) END as structures, " +
 				"collect(distinct {id: class.id, name: class.name}) as allClasses, " +
 				"collect(distinct [f.externalId, rf.scope]) as functions, " +

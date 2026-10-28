@@ -106,7 +106,7 @@ public class Neo4jConversationService {
 			returnClause =
 				"RETURN " +
 				"[t IN targets WHERE t.users.activationCode IS NOT NULL | t.users.displayName] as inactives, " +
-				"EXTRACT(t IN targets | t.users.id) as userTargets ";
+				"[t IN targets | t.users.id] as userTargets ";
 		}
 
 		String query =

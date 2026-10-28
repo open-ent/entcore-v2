@@ -1338,9 +1338,9 @@ public class DefaultCommunicationService implements CommunicationService {
 		// le droit de communication quelle que soit la visibilité héritée des groupes.
 		String query = "MATCH (s:User), (r:User) "
 				+ "where s.id = $senderId and r.id = $recipientId "
-				+ "return (exists((r)<-[:COMMUNIQUE*1..2]-()<-[:COMMUNIQUE]-(s)) OR "
-				+ "exists((r)<-[:COMMUNIQUE_DIRECT]-(s))) "
-				+ "AND NOT exists((s)-[:BLOCKED_COMMUNICATION]-(r)) as " + CAN_COMMUNICATE_VERIFY;
+				+ "return (EXISTS { (r)<-[:COMMUNIQUE*1..2]-()<-[:COMMUNIQUE]-(s) } OR "
+				+ "EXISTS { (r)<-[:COMMUNIQUE_DIRECT]-(s) }) "
+				+ "AND NOT EXISTS { (s)-[:BLOCKED_COMMUNICATION]-(r) } as " + CAN_COMMUNICATE_VERIFY;
 
 		JsonObject params = new JsonObject()
 				.put("senderId", senderId)
@@ -1354,9 +1354,9 @@ public class DefaultCommunicationService implements CommunicationService {
 
 				String queryGroup = "MATCH (s:User), (r:Group) "
 						+ "where s.id = $senderId and r.id = $recipientId "
-						+ "return exists((s)-[:COMMUNIQUE*1..2]->()<-[:DEPENDS]-(r)) OR "
-						+ "exists((r)<-[:COMMUNIQUE]-()<-[:COMMUNIQUE]-(s)) OR "
-						+ "(exists((r)<-[:COMMUNIQUE]-(s)) AND r.users <> 'INCOMING') as " + CAN_COMMUNICATE_VERIFY;
+						+ "return EXISTS { (s)-[:COMMUNIQUE*1..2]->()<-[:DEPENDS]-(r) } OR "
+						+ "EXISTS { (r)<-[:COMMUNIQUE]-()<-[:COMMUNIQUE]-(s) } OR "
+						+ "(EXISTS { (r)<-[:COMMUNIQUE]-(s) } AND r.users <> 'INCOMING') as " + CAN_COMMUNICATE_VERIFY;
 
 				JsonObject paramsGroup = new JsonObject()
 						.put("senderId", senderId)
