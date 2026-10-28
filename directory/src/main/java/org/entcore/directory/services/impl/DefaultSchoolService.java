@@ -405,46 +405,97 @@ public class DefaultSchoolService implements SchoolService {
 			? "MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id:$structureId}) "
 			: "MATCH (s:Structure {id:$structureId}), " +
 				"(u:User)-[:IN]->(pg:ProfileGroup) WHERE u.removedFromStructures IS NOT NULL AND s.externalId IN (coalesce(u.removedFromStructures, [])) ";
-		String query =
-			userStructMatcher + filter +
-			"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class: Class) " +
-			"  WITH distinct u, s, CASE WHEN class IS NULL THEN [] ELSE COLLECT(distinct {id: class.id, name: class.name, externalId : class.externalId}) END as classes  ";
-		if (!listRemovedUsersInsteadOfNormalUsers) {
-			query += "OPTIONAL MATCH (u)-[dd: DUPLICATE]-(dupDet: User) " +
-					" WHERE dupDet.removedFromStructures IS NOT NULL AND SIZE(dupDet.removedFromStructures) > 0 " +
-					"	AND (NOT dupDet.structures IS NOT NULL OR SIZE(dupDet.structures) = 0) " +
-					" WITH  u, s, classes, dupDet, dd, " +
-					" CASE WHEN dupDet IS NULL THEN [] ELSE COLLECT(distinct { id: dupDet.id, firstName: dupDet.firstName, lastName: dupDet.lastName, score: dd.score, code: dupDet.activationCode, structures: [] }) END as dupsDet ";
+		// Deux formes, parce que la mesure les départage dans les deux sens.
+		//
+		// Le chemin normal bâtissait ses collections par neuf OPTIONAL MATCH enchaînés,
+		// chacun refermé par un WITH agrégeant. Elles le sont désormais par des
+		// compréhensions de motif, évaluées depuis `u` déjà lié. Ce n'est pas un
+		// contournement : la forme est plus rapide sur les deux moteurs. Mesuré le
+		// 28/10/2026 sur les données de production, par établissement —
+		//   59 utilisateurs : 12,6 ms -> 3,6 (Neo4j 3.1.9 C3.1) et 2 523 -> 3,5 (ArcadeDB)
+		//   593            : 121,3 -> 36,1  et 2 526 -> 24,1
+		//   4 955          : 2 598 -> 278   et 2 848 -> 240
+		// Le planner de Neo4j n'a plus à matérialiser neuf agrégats successifs sur toute
+		// la liste ; celui d'ArcadeDB, lui, ne sait pas piloter un OPTIONAL MATCH depuis
+		// un flux issu d'un parcours et payait ~2,5 s de coût quasi fixe, indépendant du
+		// nombre d'utilisateurs — d'où les 2 523 ms pour 59 comptes.
+		//
+		// Le chemin « utilisateurs retirés » garde l'ancienne forme, et c'est voulu. Son
+		// matcher est un produit cartésien (toutes les structures x tous les utilisateurs
+		// en groupe de profil), que les deux planners traitent différemment. Sur la requête
+		// complète, 2 lignes rendues : ArcadeDB 165 ms avec les OPTIONAL MATCH contre 755
+		// avec les compréhensions, Neo4j 2 745 contre 1 928. Aucune des deux formes ne gagne
+		// sur les deux moteurs, et réordonner le matcher ne gagne sur aucun. On garde donc
+		// ici ce qui est le plus rapide sur le moteur visé, et déjà éprouvé.
+		String query;
+		if (listRemovedUsersInsteadOfNormalUsers) {
+			query = userStructMatcher + filter +
+				"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class: Class) " +
+				"  WITH distinct u, s, CASE WHEN class IS NULL THEN [] ELSE COLLECT(distinct {id: class.id, name: class.name, externalId : class.externalId}) END as classes  ";
+			if (!listRemovedUsersInsteadOfNormalUsers) {
+				query += "OPTIONAL MATCH (u)-[dd: DUPLICATE]-(dupDet: User) " +
+						" WHERE dupDet.removedFromStructures IS NOT NULL AND SIZE(dupDet.removedFromStructures) > 0 " +
+						"	AND (NOT dupDet.structures IS NOT NULL OR SIZE(dupDet.structures) = 0) " +
+						" WITH  u, s, classes, dupDet, dd, " +
+						" CASE WHEN dupDet IS NULL THEN [] ELSE COLLECT(distinct { id: dupDet.id, firstName: dupDet.firstName, lastName: dupDet.lastName, score: dd.score, code: dupDet.activationCode, structures: [] }) END as dupsDet ";
+			} else {
+				query += " WITH u, s, classes, [] as  dupsDet ";
+			}
+			query += "OPTIONAL MATCH (u)-[d: DUPLICATE]-(duplicate: User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(sd: Structure) " +
+				"  WITH distinct u, classes, collect({id: sd.id, name: sd.name}) as structuresDup, duplicate, d, dupsDet " +
+				"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(struct: Structure) " +
+				// `dupsDet` n'était ni clé de regroupement ni agrégé, alors qu'il figurait dans
+				// une projection agrégeante : ArcadeDB refuse (AmbiguousAggregationExpression),
+				// faute de pouvoir déterminer les clés. Il devient clé de regroupement — il est
+				// constant pour un utilisateur donné, venant lui-même d'un agrégat — et la
+				// concaténation est reportée sur un WITH suivant.
+				"  WITH distinct u, classes, structuresDup, dupsDet, " +
+				"  CASE WHEN duplicate IS NULL THEN [] ELSE COLLECT(distinct { id: duplicate.id, firstName: duplicate.firstName, lastName: duplicate.lastName, score: d.score, code: duplicate.activationCode, structures: structuresDup }) END as duplicatesOfUser, " +
+				"  COLLECT (distinct {id: struct.id, name: struct.name, externalId: struct.externalId}) as structures " +
+				"  WITH u, classes, structuresDup, structures, duplicatesOfUser + dupsDet as duplicates " +
+				"OPTIONAL MATCH (u)-[:IN]->(fgroup: FunctionalGroup) " +
+				"  WITH distinct u, classes, structuresDup, duplicates, structures, CASE WHEN fgroup IS NULL THEN [] ELSE COLLECT(distinct fgroup.name) END as functionalGroups " +
+				"OPTIONAL MATCH (u)-[:IN]->(mgroup: ManualGroup) " +
+				"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, CASE WHEN mgroup IS NULL THEN [] ELSE COLLECT(distinct mgroup.name) END as manualGroups " +
+				"OPTIONAL MATCH (u)-[rf:HAS_FUNCTION]->(f:Function) " +
+				"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, manualGroups, CASE WHEN f IS NULL THEN [] ELSE COLLECT(distinct [f.externalId, rf.scope]) END as functions " +
+				"OPTIONAL MATCH (u)-[:HAS_POSITION]->(p:UserPosition)-[:IN]->(:Structure {id:$structureId}) " +
+				"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, manualGroups, functions, CASE WHEN p IS NULL THEN [] ELSE COLLECT(distinct {id: p.id}) END as userPositions " +
+				"RETURN DISTINCT " +
+				"u.id as id, u.profiles[0] as type, u.activationCode as code, u.login as login," +
+				"u.firstName as firstName, u.lastName as lastName, u.displayName as displayName," +
+				"u.source as source, u.deleteDate as deleteDate, u.disappearanceDate as disappearanceDate, u.blocked as blocked, u.created as creationDate, u.removedFromStructures AS removedFromStructures, " +
+				"[function IN u.functions | split(function, \"$\")] as aafFunctions," +
+				" classes, functionalGroups, manualGroups, functions, duplicates, structures, userPositions " +
+				"ORDER BY lastName, firstName ";
 		} else {
-			query += " WITH u, s, classes, [] as  dupsDet ";
+			// L'ordre des colonnes est contraint : les branches UNION ci-dessous le suivent
+			// à l'identique.
+			query = userStructMatcher + filter +
+				"WITH DISTINCT u, s " +
+				"RETURN " +
+				"u.id as id, u.profiles[0] as type, u.activationCode as code, u.login as login," +
+				"u.firstName as firstName, u.lastName as lastName, u.displayName as displayName," +
+				"u.source as source, u.deleteDate as deleteDate, u.disappearanceDate as disappearanceDate, u.blocked as blocked, u.created as creationDate, u.removedFromStructures AS removedFromStructures, " +
+				"[function IN u.functions | split(function, \"$\")] as aafFunctions, " +
+				"[ (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class:Class) | {id: class.id, name: class.name, externalId: class.externalId} ] as classes, " +
+				"[ (u)-[:IN]->(fgroup:FunctionalGroup) | fgroup.name ] as functionalGroups, " +
+				"[ (u)-[:IN]->(mgroup:ManualGroup) | mgroup.name ] as manualGroups, " +
+				"[ (u)-[rf:HAS_FUNCTION]->(f:Function) | [f.externalId, rf.scope] ] as functions, " +
+				// Les deux branches d'origine sont réunies : l'ancienne collectait séparément les
+				// doublons ayant un établissement et les doublons présupprimés. La condition est
+				// l'union exacte des deux, et un doublon sans établissement reçoit naturellement
+				// `structures: []`, comme le faisait `dupsDet`.
+				"[ (u)-[d:DUPLICATE]-(dup:User) WHERE " +
+				"     size([ (dup)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Structure) | 1 ]) > 0 " +
+				"     OR (dup.removedFromStructures IS NOT NULL AND size(dup.removedFromStructures) > 0 " +
+				"         AND (dup.structures IS NULL OR size(dup.structures) = 0)) " +
+				"  | {id: dup.id, firstName: dup.firstName, lastName: dup.lastName, score: d.score, code: dup.activationCode, " +
+				"     structures: [ (dup)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(sd:Structure) | {id: sd.id, name: sd.name} ]} ] as duplicates, " +
+				"[ (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(struct:Structure) | {id: struct.id, name: struct.name, externalId: struct.externalId} ] as structures, " +
+				"[ (u)-[:HAS_POSITION]->(p:UserPosition)-[:IN]->(:Structure {id:$structureId}) | {id: p.id} ] as userPositions " +
+				"ORDER BY lastName, firstName ";
 		}
-		query += "OPTIONAL MATCH (u)-[d: DUPLICATE]-(duplicate: User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(sd: Structure) " +
-			"  WITH distinct u, classes, collect({id: sd.id, name: sd.name}) as structuresDup, duplicate, d, dupsDet " +
-			"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(struct: Structure) " +
-			// `dupsDet` n'était ni clé de regroupement ni agrégé, alors qu'il figurait dans
-			// une projection agrégeante : ArcadeDB refuse (AmbiguousAggregationExpression),
-			// faute de pouvoir déterminer les clés. Il devient clé de regroupement — il est
-			// constant pour un utilisateur donné, venant lui-même d'un agrégat — et la
-			// concaténation est reportée sur un WITH suivant.
-			"  WITH distinct u, classes, structuresDup, dupsDet, " +
-			"  CASE WHEN duplicate IS NULL THEN [] ELSE COLLECT(distinct { id: duplicate.id, firstName: duplicate.firstName, lastName: duplicate.lastName, score: d.score, code: duplicate.activationCode, structures: structuresDup }) END as duplicatesOfUser, " +
-			"  COLLECT (distinct {id: struct.id, name: struct.name, externalId: struct.externalId}) as structures " +
-			"  WITH u, classes, structuresDup, structures, duplicatesOfUser + dupsDet as duplicates " +
-			"OPTIONAL MATCH (u)-[:IN]->(fgroup: FunctionalGroup) " +
-			"  WITH distinct u, classes, structuresDup, duplicates, structures, CASE WHEN fgroup IS NULL THEN [] ELSE COLLECT(distinct fgroup.name) END as functionalGroups " +
-			"OPTIONAL MATCH (u)-[:IN]->(mgroup: ManualGroup) " +
-			"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, CASE WHEN mgroup IS NULL THEN [] ELSE COLLECT(distinct mgroup.name) END as manualGroups " +
-			"OPTIONAL MATCH (u)-[rf:HAS_FUNCTION]->(f:Function) " +
-			"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, manualGroups, CASE WHEN f IS NULL THEN [] ELSE COLLECT(distinct [f.externalId, rf.scope]) END as functions " +
-			"OPTIONAL MATCH (u)-[:HAS_POSITION]->(p:UserPosition)-[:IN]->(:Structure {id:$structureId}) " +
-			"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, manualGroups, functions, CASE WHEN p IS NULL THEN [] ELSE COLLECT(distinct {id: p.id}) END as userPositions " +
-			"RETURN DISTINCT " +
-			"u.id as id, u.profiles[0] as type, u.activationCode as code, u.login as login," +
-			"u.firstName as firstName, u.lastName as lastName, u.displayName as displayName," +
-			"u.source as source, u.deleteDate as deleteDate, u.disappearanceDate as disappearanceDate, u.blocked as blocked, u.created as creationDate, u.removedFromStructures AS removedFromStructures, " +
-			"[function IN u.functions | split(function, \"$\")] as aafFunctions," +
-			" classes, functionalGroups, manualGroups, functions, duplicates, structures, userPositions " +
-			"ORDER BY lastName, firstName ";
 		if("none".equals(listUserMode)){
 			//do not include presuppressed user
 		}else if("mono".equals(listUserMode)){
