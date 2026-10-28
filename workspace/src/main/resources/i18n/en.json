@@ -359,5 +359,9 @@
   "workspace.react.sort": "Sort by",
   "workspace.react.view.icons": "Icons",
   "workspace.react.view.list": "List",
-  "workspace.react.breadcrumb": "Location"
+  "workspace.react.breadcrumb": "Location",
+  "workspace.react.upload.done": "Done",
+  "workspace.react.upload.failed": "The upload failed.",
+  "workspace.react.upload.clear": "Clear list",
+  "workspace.react.folder.error": "The folder could not be created."
 }

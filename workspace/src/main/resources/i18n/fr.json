@@ -360,5 +360,9 @@
   "workspace.react.sort": "Trier par",
   "workspace.react.view.icons": "Icônes",
   "workspace.react.view.list": "Liste",
-  "workspace.react.breadcrumb": "Emplacement"
+  "workspace.react.breadcrumb": "Emplacement",
+  "workspace.react.upload.done": "Terminé",
+  "workspace.react.upload.failed": "L'envoi a échoué.",
+  "workspace.react.upload.clear": "Effacer la liste",
+  "workspace.react.folder.error": "Le dossier n'a pas pu être créé."
 }

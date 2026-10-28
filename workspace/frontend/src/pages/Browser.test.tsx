@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Browser } from "./Browser";
 import { WorkspaceElement } from "../lib/types";
@@ -9,6 +10,8 @@ vi.mock("@open-ent/react", () => ({
   SegmentedControl: ({ value }: { value: string }) => <div data-segmented={value} />,
   useEdificeClient: () => ({ user: { userId: "u1" } }),
 }));
+vi.mock("../components/NewFolderModal", () => ({ NewFolderModal: () => null }));
+vi.mock("../components/ZipDialog", () => ({ ZipDialog: () => null }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 const content = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
@@ -23,12 +26,14 @@ const el = (p: Partial<WorkspaceElement>): WorkspaceElement => ({ _id: "x", name
 
 const renderAt = (url: string) =>
   render(
-    <MemoryRouter initialEntries={[url]}>
-      <Routes>
-        <Route path="/workspace/:tree" element={<Browser />} />
-        <Route path="/workspace/:tree/:folderId" element={<Browser />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/workspace/:tree" element={<Browser />} />
+          <Route path="/workspace/:tree/:folderId" element={<Browser />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe("Browser", () => {
@@ -50,6 +55,16 @@ describe("Browser", () => {
     renderAt("/workspace/owner");
     expect(document.querySelector("[data-workspace-error]")).toBeInTheDocument();
     expect(document.querySelector("[data-workspace-empty]")).not.toBeInTheDocument();
+  });
+
+  it("propose créer et importer dans Mes documents, pas dans la corbeille", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
+    const { unmount } = renderAt("/workspace/owner");
+    expect(document.querySelector('[data-action="new-folder"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-action="import"]')).toBeInTheDocument();
+    unmount();
+    renderAt("/workspace/trash");
+    expect(document.querySelector("[data-workspace-toolbar]")).not.toBeInTheDocument();
   });
 
   it("affiche un message pour un dossier vide", () => {
