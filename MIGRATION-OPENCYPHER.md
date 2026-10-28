@@ -125,6 +125,38 @@ Deux remarques utiles pour la suite :
 - Les syntaxes d'index et de contrainte attendues sont celles de Neo4j 4/5. Les 52
   occurrences concernées sont donc à reprendre de toute façon, quelle que soit la base visée.
 
+## Comparaison de performance
+
+Banc dans `libs/edifice-entcore-libs/common/src/test/resources/benchmark`, mesuré le
+28/10/2026 sur 100 000 utilisateurs / 100 structures, conteneurs à 3 Go et 4 cœurs chacun.
+Latence médiane en ms.
+
+| | Neo4j 3.1.9 C2.3 | Neo4j 3.1.9 C3.1 | Neo4j 5.21 | ArcadeDB 26.11 |
+|---|---|---|---|---|
+| plancher protocolaire | 0.55 | 0.54 | 1.69 | 0.41 |
+| agrégat par structure | 103.34 | 73.44 | **17.08** | 20.54 |
+| parcours global + agrégat | 133.80 | 108.39 | **19.36** | 31.10 |
+| parcours lourd (paires) | 21863 | 12396 | **1214** | 7819 |
+| 20 000 lignes rendues | 53.85 | 57.26 | 135.87 | **19.34** |
+| écriture simple | 5.69 | 5.51 | 3.13 | **0.76** |
+| écriture en lot (1000) | 9.69 | 10.04 | 7.34 | **3.25** |
+
+Trois conclusions, dans l'ordre d'importance pour la décision :
+
+1. **ArcadeDB n'est pas un gain de performance face à Neo4j 5.** Il est 6,4 fois plus lent
+   sur le parcours de graphe profond, qui est précisément ce qu'on attend d'une base de
+   graphe. Son intérêt reste donc entier mais il est ailleurs : licence Apache 2.0,
+   clustering et backup à chaud sans édition commerciale.
+2. **Le pin Cypher 2.3 coûte 29 à 43 %**, à base et données identiques. C'est l'« étape 0 »
+   chiffrée, et elle ne demande aucun changement d'infrastructure.
+3. **Les requêtes légères ne départagent rien** : sur un lookup indexé, le coût moteur est
+   de 0,02 à 0,04 ms pour les trois serveurs, le reste étant du round-trip HTTP. Le plancher
+   plus élevé de Neo4j 5.21 (1,69 ms) tient à son endpoint REST ; open-ent passant par Bolt,
+   cette pénalité ne le concerne pas.
+
+ArcadeDB reste très supérieur à la 3.1.9 actuelle sur tous les postes, et meilleur que
+Neo4j 5 en écriture et en restitution.
+
 ## Reste à faire
 
 Comptage restreint aux chaînes effectivement Cypher (les appels Java `.filter(` sont exclus) :
