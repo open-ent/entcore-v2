@@ -174,6 +174,21 @@ Neo4j 5 en écriture et en restitution.
 
 S'ajoutent les 52 occurrences de DDL d'index et de contrainte, à passer en syntaxe Neo4j 4/5.
 
+### Une lacune de périmètre : `scripts/`
+
+Le périmètre retenu jusqu'ici est le code Java et `infra/src/main/resources/neo4j/*.cypher`.
+Le répertoire `scripts/` en est resté dehors, et il contient du Cypher opérationnel
+entièrement en style 2.3 :
+
+| Fichier | À reprendre |
+|---|---|
+| `scripts/schema.cypher` | `CREATE INDEX ON :L(p)` et `CREATE CONSTRAINT ON … ASSERT` |
+| `scripts/deleteGroupArchiveRole.cypher` | `CREATE UNIQUE`, variables de nœud nues (`m-[:AUTHORIZE]->n`) |
+
+Les deux fichiers s'ouvrent par `begin transaction` et se terminent par `commit` : c'est la
+syntaxe de **neo4j-shell**, retirée elle aussi en Neo4j 4.0. Leur reprise suppose de savoir
+comment ils sont lancés aujourd'hui, ce qui n'a pas été établi — d'où leur mise de côté.
+
 ### La décision en suspens : création d'utilisateur dans ManualFeeder
 
 ```
