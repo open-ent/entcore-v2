@@ -26,10 +26,16 @@ export const ElementList = ({
   tree,
   elements,
   view,
+  selected = new Set<string>(),
+  onToggle,
+  onToggleAll,
 }: {
   tree: TreeName;
   elements: WorkspaceElement[];
   view: ViewMode;
+  selected?: Set<string>;
+  onToggle?: (id: string) => void;
+  onToggleAll?: () => void;
 }) => {
   const { t } = useTranslation("workspace");
 
@@ -44,11 +50,33 @@ export const ElementList = ({
       </a>
     );
 
+  const checkbox = (e: WorkspaceElement) =>
+    onToggle && (
+      <input
+        type="checkbox"
+        data-element-select
+        checked={selected.has(e._id)}
+        onChange={() => onToggle(e._id)}
+        aria-label={e.name}
+      />
+    );
+
   if (view === "list") {
     return (
       <table className="table w-100" data-workspace-list="list">
         <thead>
           <tr>
+            <th>
+              {onToggleAll && (
+                <input
+                  type="checkbox"
+                  data-select-all
+                  checked={elements.length > 0 && selected.size === elements.length}
+                  onChange={onToggleAll}
+                  aria-label={t("workspace.react.select.all")}
+                />
+              )}
+            </th>
             <th>{t("name")}</th>
             <th>{t("owner")}</th>
             <th>{t("modified")}</th>
@@ -57,7 +85,8 @@ export const ElementList = ({
         </thead>
         <tbody>
           {elements.map((e) => (
-            <tr key={e._id} data-element={e.eType} data-element-id={e._id}>
+            <tr key={e._id} data-element={e.eType} data-element-id={e._id} data-selected={selected.has(e._id)}>
+              <td>{checkbox(e)}</td>
               <td>
                 <span aria-hidden="true">{iconOf(e)}</span> {open(e)}
               </td>
@@ -74,7 +103,15 @@ export const ElementList = ({
   return (
     <ul className="list-unstyled d-flex flex-wrap gap-16" data-workspace-list="icons">
       {elements.map((e) => (
-        <li key={e._id} data-element={e.eType} data-element-id={e._id} style={{ width: 150 }} className="text-center">
+        <li
+          key={e._id}
+          data-element={e.eType}
+          data-element-id={e._id}
+          data-selected={selected.has(e._id)}
+          style={{ width: 150, outline: selected.has(e._id) ? "2px solid #2a9cc8" : undefined }}
+          className="text-center"
+        >
+          <div className="text-start">{checkbox(e)}</div>
           <div style={{ fontSize: 48 }} aria-hidden="true">
             {iconOf(e)}
           </div>

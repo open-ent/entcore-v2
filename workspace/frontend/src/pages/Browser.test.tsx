@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Browser } from "./Browser";
@@ -12,6 +12,10 @@ vi.mock("@open-ent/react", () => ({
 }));
 vi.mock("../components/NewFolderModal", () => ({ NewFolderModal: () => null }));
 vi.mock("../components/ZipDialog", () => ({ ZipDialog: () => null }));
+vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
+vi.mock("../components/RenameModal", () => ({ RenameModal: () => null }));
+vi.mock("../components/ConfirmModal", () => ({ ConfirmModal: () => null }));
+vi.mock("../services/workspace.service", () => ({ elementActions: {} }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 const content = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
@@ -65,6 +69,24 @@ describe("Browser", () => {
     unmount();
     renderAt("/trash");
     expect(document.querySelector("[data-workspace-toolbar]")).not.toBeInTheDocument();
+  });
+
+  it("sélectionner un élément de Mes documents propose les actions de gestion", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [el({ _id: "d1", name: "a.txt" })] };
+    renderAt("/owner");
+    expect(document.querySelector("[data-action-bar]")).not.toBeInTheDocument();
+    fireEvent.click(document.querySelector("[data-element-select]")!);
+    const actions = [...document.querySelectorAll("[data-action-bar] [data-action]")].map((b) => b.getAttribute("data-action"));
+    expect(actions).toEqual(["rename", "copy", "move", "trash", "download"]);
+  });
+
+  it("dans la corbeille, la sélection propose restaurer et supprimer, et le vidage est proposé", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [el({ _id: "d1", name: "a.txt" })] };
+    renderAt("/trash");
+    expect(document.querySelector('[data-action="empty-trash"]')).toBeInTheDocument();
+    fireEvent.click(document.querySelector("[data-element-select]")!);
+    const actions = [...document.querySelectorAll("[data-action-bar] [data-action]")].map((b) => b.getAttribute("data-action"));
+    expect(actions).toEqual(["restore", "delete"]);
   });
 
   it("affiche un message pour un dossier vide", () => {

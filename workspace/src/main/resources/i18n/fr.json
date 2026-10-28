@@ -364,5 +364,16 @@
   "workspace.react.upload.done": "Terminé",
   "workspace.react.upload.failed": "L'envoi a échoué.",
   "workspace.react.upload.clear": "Effacer la liste",
-  "workspace.react.folder.error": "Le dossier n'a pas pu être créé."
+  "workspace.react.folder.error": "Le dossier n'a pas pu être créé.",
+  "workspace.react.action.copy": "Copier",
+  "workspace.react.action.move": "Déplacer",
+  "workspace.react.action.delete": "Supprimer définitivement",
+  "workspace.react.action.download": "Télécharger",
+  "workspace.react.action.failed": "L'action a échoué.",
+  "workspace.react.selected": "[[count]] sélectionné(s)",
+  "workspace.react.select.all": "Tout sélectionner",
+  "workspace.react.select.none": "Désélectionner",
+  "workspace.react.picker.copy": "Copier vers",
+  "workspace.react.picker.move": "Déplacer vers",
+  "workspace.react.confirm.delete": "Ces éléments seront supprimés définitivement."
 }

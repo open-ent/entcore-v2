@@ -363,5 +363,16 @@
   "workspace.react.upload.done": "Done",
   "workspace.react.upload.failed": "The upload failed.",
   "workspace.react.upload.clear": "Clear list",
-  "workspace.react.folder.error": "The folder could not be created."
+  "workspace.react.folder.error": "The folder could not be created.",
+  "workspace.react.action.copy": "Copy",
+  "workspace.react.action.move": "Move",
+  "workspace.react.action.delete": "Delete permanently",
+  "workspace.react.action.download": "Download",
+  "workspace.react.action.failed": "The action failed.",
+  "workspace.react.selected": "[[count]] selected",
+  "workspace.react.select.all": "Select all",
+  "workspace.react.select.none": "Clear selection",
+  "workspace.react.picker.copy": "Copy to",
+  "workspace.react.picker.move": "Move to",
+  "workspace.react.confirm.delete": "These items will be permanently deleted."
 }

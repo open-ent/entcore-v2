@@ -76,3 +76,21 @@ export const uploadFile = (
     xhr.onerror = () => reject("workspace.react.upload.failed");
     xhr.send(form);
   });
+
+const ids = (elements: Array<{ _id: string }>) => ({ ids: elements.map((e) => e._id) });
+
+export const elementActions = {
+  trash: (els: Array<{ _id: string }>) => odeServices.http().putJson("/workspace/documents/trash", ids(els)),
+  restore: (els: Array<{ _id: string }>) => odeServices.http().putJson("/workspace/documents/restore", ids(els)),
+  deleteForever: (els: Array<{ _id: string }>) => odeServices.http().deleteJson("/workspace/documents", ids(els)),
+  emptyTrash: () => odeServices.http().delete("/workspace/trash"),
+  /** Destination absente = racine de « Mes documents ». */
+  move: (els: Array<{ _id: string }>, destId?: string) =>
+    odeServices.http().putJson(`/workspace/documents/move/${destId ?? "root"}`, ids(els)),
+  copy: (els: Array<{ _id: string }>, destId?: string) =>
+    odeServices.http().postJson(`/workspace/documents/copy/${destId ?? "root"}`, ids(els)),
+  rename: (el: { _id: string; eType: string }, name: string) =>
+    odeServices
+      .http()
+      .putJson(el.eType === "folder" ? `/workspace/folder/rename/${el._id}` : `/workspace/rename/${el._id}`, { name }),
+};

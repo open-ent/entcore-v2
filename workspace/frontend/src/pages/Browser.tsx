@@ -1,17 +1,24 @@
 import { AppHeader, LoadingScreen, SegmentedControl, useEdificeClient } from "@open-ent/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { ActionBar } from "../components/ActionBar";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { ElementList } from "../components/ElementList";
+import { FolderPicker } from "../components/FolderPicker";
+import { RenameModal } from "../components/RenameModal";
 import { NewFolderModal } from "../components/NewFolderModal";
 import { UploadPanel } from "../components/UploadPanel";
 import { ZipDialog } from "../components/ZipDialog";
 import { QuotaGauge } from "../components/QuotaGauge";
 import { TreeNav } from "../components/TreeNav";
+import { ActionId, availableActions, downloadUrl, forbiddenTargets } from "../lib/actions";
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
 import { isZip, planUpload, remainingLabel } from "../lib/upload";
-import { ViewMode } from "../lib/types";
+import { ViewMode, WorkspaceElement } from "../lib/types";
 import { useUploads } from "../services/useUploads";
+import { elementActions } from "../services/workspace.service";
 import { useContent, useFolders, useQuota, useViewModePreference } from "../services/queries";
 
 /** Navigation dans l'espace documentaire : arbres, dossiers, fil d'Ariane, liste en icônes ou en tableau, jauge d'espace. */
@@ -40,6 +47,52 @@ export const Browser = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  const elements = useMemo(() => sortElements(content.data ?? [], sort), [content.data, sort]);
+
+  // Sélection et actions de gestion
+  const qc = useQueryClient();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [picker, setPicker] = useState<"copy" | "move" | null>(null);
+  const [renaming, setRenaming] = useState<WorkspaceElement | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<"delete" | "empty" | null>(null);
+  useEffect(() => setSelected(new Set()), [tree, folderId]);
+
+  const selection = useMemo(() => elements.filter((e) => selected.has(e._id)), [elements, selected]);
+  const actions = availableActions(validTree, selection);
+  const toggle = (id: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const toggleAll = () => setSelected((cur) => (cur.size === elements.length ? new Set() : new Set(elements.map((e) => e._id))));
+
+  /** Exécute une action serveur, rafraîchit la liste, l'arborescence et la jauge ; un échec est signalé. */
+  const run = async (fn: () => Promise<unknown>) => {
+    setNotice(null);
+    try {
+      await fn();
+      setSelected(new Set());
+      await Promise.all(["content", "folders", "quota"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] })));
+      return true;
+    } catch {
+      setNotice(t("workspace.react.action.failed"));
+      return false;
+    }
+  };
+
+  const onAction = (a: ActionId) => {
+    if (a === "download") window.location.assign(downloadUrl(selection));
+    else if (a === "trash") void run(() => elementActions.trash(selection));
+    else if (a === "restore") void run(() => elementActions.restore(selection));
+    else if (a === "delete") setConfirm("delete");
+    else if (a === "rename") {
+      setRenameError(null);
+      setRenaming(selection[0]);
+    } else setPicker(a);
+  };
 
   const importFiles = (list: File[]) => {
     setNotice(null);
@@ -74,7 +127,6 @@ export const Browser = () => {
   };
 
   const path = useMemo(() => breadcrumb(folders.data ?? [], folderId ?? null), [folders.data, folderId]);
-  const elements = useMemo(() => sortElements(content.data ?? [], sort), [content.data, sort]);
 
   if (!isTreeName(tree)) return <Navigate to="/owner" replace />;
 
@@ -127,6 +179,14 @@ export const Browser = () => {
               </select>
             </label>
           </div>
+          <ActionBar actions={actions} count={selection.length} onAction={onAction} onClear={() => setSelected(new Set())} />
+          {validTree === "trash" && elements.length > 0 && (
+            <div className="mb-16">
+              <button type="button" className="btn btn-outline-danger" data-action="empty-trash" onClick={() => setConfirm("empty")}>
+                {t("workspace.empty.trash")}
+              </button>
+            </div>
+          )}
           {canWrite && (
             <div className="d-flex gap-12 mb-16" data-workspace-toolbar>
               <button type="button" className="btn btn-primary" onClick={() => setNewFolderOpen(true)} data-action="new-folder">
@@ -164,9 +224,44 @@ export const Browser = () => {
             </div>
           )}
           {content.isSuccess && elements.length === 0 && <p data-workspace-empty>{t("workspace.react.empty")}</p>}
-          {content.isSuccess && elements.length > 0 && <ElementList tree={validTree} elements={elements} view={view} />}
+          {content.isSuccess && elements.length > 0 && <ElementList tree={validTree} elements={elements} view={view} selected={selected} onToggle={toggle} onToggleAll={toggleAll} />}
         </main>
       </div>
+      <FolderPicker
+        isOpen={picker !== null}
+        title={picker === "copy" ? t("workspace.react.picker.copy") : t("workspace.react.picker.move")}
+        folders={folders.data ?? []}
+        forbidden={forbiddenTargets(folders.data ?? [], selection)}
+        onClose={() => setPicker(null)}
+        onPick={(dest) => {
+          const mode = picker;
+          setPicker(null);
+          void run(() => (mode === "copy" ? elementActions.copy(selection, dest ?? undefined) : elementActions.move(selection, dest ?? undefined)));
+        }}
+      />
+      <RenameModal
+        element={renaming}
+        error={renameError}
+        onClose={() => setRenaming(null)}
+        onRename={async (name) => {
+          if (!renaming) return;
+          const target = renaming;
+          if (await run(() => elementActions.rename(target, name))) setRenaming(null);
+          else setRenameError(t("workspace.react.action.failed"));
+        }}
+      />
+      <ConfirmModal
+        isOpen={confirm !== null}
+        title={confirm === "empty" ? t("workspace.empty.trash") : t("workspace.react.action.delete")}
+        message={confirm === "empty" ? t("workspace.delete.empty.trash") : t("workspace.react.confirm.delete")}
+        confirmLabel={confirm === "empty" ? t("workspace.empty.trash") : t("workspace.react.action.delete")}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          const mode = confirm;
+          setConfirm(null);
+          void run(() => (mode === "empty" ? elementActions.emptyTrash() : elementActions.deleteForever(selection)));
+        }}
+      />
       <NewFolderModal parentId={folderId} isOpen={newFolderOpen} onClose={() => setNewFolderOpen(false)} />
       <ZipDialog
         file={pendingZip}
