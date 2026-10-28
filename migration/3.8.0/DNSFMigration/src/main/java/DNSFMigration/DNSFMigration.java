@@ -35,7 +35,7 @@ public class DNSFMigration
       System.exit(-2);
     }
 
-    String match = DNSFMigration.cypherQuery(cypherUri, "MATCH (u:User) WHERE EXISTS(u.displayName) RETURN u.id AS id, u.displayName AS dn;");
+    String match = DNSFMigration.cypherQuery(cypherUri, "MATCH (u:User) WHERE u.displayName IS NOT NULL RETURN u.id AS id, u.displayName AS dn;");
 
     List<List<String>> records = parseMatchData(match);
     int rsize = records.size();

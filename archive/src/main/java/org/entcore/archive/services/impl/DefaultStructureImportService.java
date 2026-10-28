@@ -272,7 +272,7 @@ public class DefaultStructureImportService implements StructureImportService {
 			// Contrôle 3 : le compte existe encore, et n'est pas en attente de suppression.
 			neo.execute("MATCH (u:User {id: $userId}) "
 							+ "RETURN u.login as login, u.displayName as displayName, "
-							+ "       exists(u.deleteDate) as deletePending",
+							+ "       u.deleteDate IS NOT NULL as deletePending",
 					new JsonObject().put("userId", userId), res -> {
 						final JsonObject body = res.body();
 						final io.vertx.core.json.JsonArray rows = body.getJsonArray("result");

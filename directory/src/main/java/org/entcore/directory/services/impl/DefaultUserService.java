@@ -609,7 +609,7 @@ public class DefaultUserService implements UserService {
 	@Override
     public void getGroups(String id, Handler<Either<String, JsonArray>> results) {
         String query = ""
-				+ "MATCH (g:Group)<-[:IN]-(u:User { id: $id }) WHERE exists(g.id) "
+				+ "MATCH (g:Group)<-[:IN]-(u:User { id: $id }) WHERE g.id IS NOT NULL "
 				+ "OPTIONAL MATCH (sg:Structure)<-[:DEPENDS]-(g) "
 				+ "OPTIONAL MATCH (sc:Structure)<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(g) "
 				+ "WITH COALESCE(sg, sc) as s, c, g "
@@ -1567,9 +1567,9 @@ public class DefaultUserService implements UserService {
 		fields.add("id").add("blocked").add("emailInternal");
 
 		JsonArray specificFields = new JsonArray().add(" head(u.profiles) as profiles").add(", s.UAI as UAI")
-				.add(", NOT EXISTS(u.activationCode) as isActive").add(", s.externalId as structures")
+				.add(", NOT u.activationCode IS NOT NULL as isActive").add(", s.externalId as structures")
 				.add(", collect(distinct {groupName:g.name, groupId:g.id}) as groups").add(", u.created as createdDate")
-				.add(", u2.login as duplicated").add(", EXISTS(u.mergeIneDate) as isMergedWithINE")
+				.add(", u2.login as duplicated").add(", u.mergeIneDate IS NOT NULL as isMergedWithINE")
 				.add(", u.mergedIds as automaticMergedIds");
 
 		StringBuilder query = new StringBuilder();
@@ -1593,12 +1593,12 @@ public class DefaultUserService implements UserService {
 		for (Object specificField : specificFields) {
 			query.append(specificField);
 		}
-		query.append(", EXISTS(u.mergedLogins) as isMergedManuel");
+		query.append(", u.mergedLogins IS NOT NULL as isMergedManuel");
 
 		// Union with the backup to get the deleted users that are not in the structure anymore
 		query.append(" UNION MATCH (p:Structure) WHERE p.UAI IN $uai WITH p.id as id ");
 		query.append(" MATCH (b:Backup) WHERE id IN b.structureIds WITH id, b ");
-		query.append(" MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b) WHERE (EXISTS(u.deleteDate) OR EXISTS(u.mergedWith)) ");
+		query.append(" MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b) WHERE (u.deleteDate IS NOT NULL OR u.mergedWith IS NOT NULL) ");
 		query.append(" MATCH (s:Structure ) WHERE s.id=id ");
 		query.append(" OPTIONAL MATCH (g:Group) WHERE g.id IN b.IN_OUTGOING");
 		query.append(" OPTIONAL MATCH (u)-[r:DUPLICATE]-(u2:User)");
@@ -1612,7 +1612,7 @@ public class DefaultUserService implements UserService {
 		for (Object specificField : specificFields) {
 			query.append(specificField);
 		}
-		query.append(", EXISTS(u.mergedWith) as isMergedManuel");
+		query.append(", u.mergedWith IS NOT NULL as isMergedManuel");
 
 
 		neo.execute(query.toString(), params, validResultHandler(results));

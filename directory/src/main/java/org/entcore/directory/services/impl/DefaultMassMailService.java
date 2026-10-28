@@ -658,7 +658,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
             if(blocked) {
                 condition += " AND u.blocked = true ";
             } else {
-                condition += " AND (NOT EXISTS(u.blocked) OR u.blocked = false) ";
+                condition += " AND (NOT u.blocked IS NOT NULL OR u.blocked = false) ";
             }
         }
 

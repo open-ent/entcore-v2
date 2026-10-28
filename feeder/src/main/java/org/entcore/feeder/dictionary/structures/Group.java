@@ -44,7 +44,7 @@ public class Group {
 	private static final String TX_RUN_LINK_RULES = "TX_RUN_LINK_RULES";
 	private final static String QUERY_FROM_GROUP =
 			"MATCH (g:ManualGroup {id: $groupId})-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
-			"WHERE EXISTS(g.autolinkUsersFromGroups) "+
+			"WHERE g.autolinkUsersFromGroups IS NOT NULL "+
 			"WITH g, struct " +
 			"MATCH (u:User)-[:IN]->(target:Group)-[:DEPENDS]->(struct) " +
 			"WHERE " +
@@ -88,8 +88,8 @@ public class Group {
 			String query =
 					"MERGE (t:Group:ManualGroup:Visible { id : $id}) " +
 					"SET " + Neo4jUtils.nodeSetPropertiesFromJson("t", object, "id", "name", "displayNameSearchField", "create") +
-					", t.name = CASE WHEN EXISTS(t.lockDelete) AND t.lockDelete = true AND $create = false THEN t.name ELSE $name END " +
-					", t.displayNameSearchField = CASE WHEN EXISTS(t.lockDelete) AND t.lockDelete = true AND $create = false THEN t.displayNameSearchField ELSE $displayNameSearchField END " +
+					", t.name = CASE WHEN t.lockDelete IS NOT NULL AND t.lockDelete = true AND $create = false THEN t.name ELSE $name END " +
+					", t.displayNameSearchField = CASE WHEN t.lockDelete IS NOT NULL AND t.lockDelete = true AND $create = false THEN t.displayNameSearchField ELSE $displayNameSearchField END " +
 					"RETURN t.id as id, t.createdAt as createdAt, t.createdByName as createdByName, t.modifiedAt as modifiedAt, t.modifiedByName as modifiedByName ";
 			transactionHelper.add(query, object);
 			if (create) {
@@ -118,7 +118,7 @@ public class Group {
 	public static void manualDelete(String id, TransactionHelper transactionHelper) {
 		String query =
 				"MATCH (g:ManualGroup {id : $id}) " +
-				"WHERE NOT(EXISTS(g.lockDelete)) OR g.lockDelete <> true " +
+				"WHERE g.lockDelete IS NULL OR g.lockDelete <> true " +
 				"OPTIONAL MATCH (g)-[r]-() " +
 				"DELETE g, r";
 		transactionHelper.add(query, new JsonObject().put("id", id));
@@ -166,7 +166,7 @@ public class Group {
 
             final String updateQuery =
                     "MATCH (g:ManualGroup) " +
-                        "WHERE EXISTS(g.manualGroupAutolinkUsersPositions) " +
+                        "WHERE g.manualGroupAutolinkUsersPositions IS NOT NULL " +
                         "  AND $userPosition IN g.manualGroupAutolinkUsersPositions " +
                         "WITH g " +
                         "MATCH (g)-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
@@ -181,11 +181,11 @@ public class Group {
 
             final String cleanupQuery =
                     "MATCH (g:ManualGroup) " +
-                        "WHERE EXISTS(g.manualGroupAutolinkUsersPositions) " +
+                        "WHERE g.manualGroupAutolinkUsersPositions IS NOT NULL " +
                         "  AND $userPosition IN g.manualGroupAutolinkUsersPositions " +
                         "MATCH (g)<-[old:IN]-(u:User) " +
                         "WHERE old.source = 'AUTO' " +
-                        "  AND (NOT EXISTS(old.updated) OR old.updated <> $now) " +
+                        "  AND (NOT old.updated IS NOT NULL OR old.updated <> $now) " +
                         "DELETE old";
 
             transactionHelper.add(cleanupQuery, params);
@@ -213,7 +213,7 @@ public class Group {
 
 		final String removeQuery =
 				"MATCH (g:ManualGroup {id: $groupId})<-[old:IN]-(:User) " +
-						"WHERE old.source = 'AUTO' AND (NOT EXISTS(old.updated) OR old.updated <> $now) " +
+						"WHERE old.source = 'AUTO' AND (NOT old.updated IS NOT NULL OR old.updated <> $now) " +
 						"DELETE old ";
 		transactionHelper.add(removeQuery, params);
 
@@ -243,9 +243,9 @@ public class Group {
 			final TransactionHelper tx = TransactionManager.getInstance().begin(TX_RUN_LINK_RULES);
 			final String listAutolinkGroups =
 				"MATCH (g:ManualGroup) " +
-				"WHERE EXISTS(g.autolinkUsersFromGroups) " +
-				  " OR EXISTS(g.autolinkUsersFromPositions) " +
-                        "OR EXISTS(g.manualGroupAutolinkUsersPositions) " +
+				"WHERE g.autolinkUsersFromGroups IS NOT NULL " +
+				  " OR g.autolinkUsersFromPositions IS NOT NULL " +
+                        "OR g.manualGroupAutolinkUsersPositions IS NOT NULL " +
 				"RETURN g.id as id, g.autolinkUsersFromGroups as autolinkUsersFromGroups, " +
 						" g.autolinkUsersFromLevels as autolinkUsersFromLevels, " +
                         " g.autolinkUsersFromPositions as autolinkUsersFromPositions, " +
@@ -323,8 +323,8 @@ public class Group {
 
 		final String removeQuery =
 				"MATCH (g:ManualGroup {id: $groupId})<-[old:IN]-(:User) " +
-						"WHERE (EXISTS(g.autolinkUsersFromGroups) OR EXISTS(g.autolinkUsersFromPositions) OR EXISTS(g.manualGroupAutolinkUsersPositions)) " +
-				" AND old.source = 'AUTO' AND (NOT EXISTS(old.updated) OR old.updated <> $now) " +
+						"WHERE (g.autolinkUsersFromGroups IS NOT NULL OR g.autolinkUsersFromPositions IS NOT NULL OR g.manualGroupAutolinkUsersPositions IS NOT NULL) " +
+				" AND old.source = 'AUTO' AND (NOT old.updated IS NOT NULL OR old.updated <> $now) " +
 				"DELETE old ";
 
 

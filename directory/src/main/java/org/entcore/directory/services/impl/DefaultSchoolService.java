@@ -404,15 +404,15 @@ public class DefaultSchoolService implements SchoolService {
 		String userStructMatcher = listRemovedUsersInsteadOfNormalUsers == false
 			? "MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id:$structureId}) "
 			: "MATCH (s:Structure {id:$structureId}), " +
-				"(u:User)-[:IN]->(pg:ProfileGroup) WHERE EXISTS(u.removedFromStructures) AND s.externalId IN (coalesce(u.removedFromStructures, [])) ";
+				"(u:User)-[:IN]->(pg:ProfileGroup) WHERE u.removedFromStructures IS NOT NULL AND s.externalId IN (coalesce(u.removedFromStructures, [])) ";
 		String query =
 			userStructMatcher + filter +
 			"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class: Class) " +
 			"  WITH distinct u, s, CASE WHEN class IS NULL THEN [] ELSE COLLECT(distinct {id: class.id, name: class.name, externalId : class.externalId}) END as classes  ";
 		if (!listRemovedUsersInsteadOfNormalUsers) {
 			query += "OPTIONAL MATCH (u)-[dd: DUPLICATE]-(dupDet: User) " +
-					" WHERE EXISTS(dupDet.removedFromStructures) AND SIZE(dupDet.removedFromStructures) > 0 " +
-					"	AND (NOT EXISTS(dupDet.structures) OR SIZE(dupDet.structures) = 0) " +
+					" WHERE dupDet.removedFromStructures IS NOT NULL AND SIZE(dupDet.removedFromStructures) > 0 " +
+					"	AND (NOT dupDet.structures IS NOT NULL OR SIZE(dupDet.structures) = 0) " +
 					" WITH  u, s, classes, dupDet, dd, " +
 					" CASE WHEN dupDet IS NULL THEN [] ELSE COLLECT(distinct { id: dupDet.id, firstName: dupDet.firstName, lastName: dupDet.lastName, score: dd.score, code: dupDet.activationCode, structures: [] }) END as dupsDet ";
 		} else {
@@ -445,7 +445,7 @@ public class DefaultSchoolService implements SchoolService {
 			//include presuppressed (mono etab)
 			query += " UNION " +
 					"MATCH (s: Structure) WHERE s.id = $structureId WITH s " +
-					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) WHERE $structureId IN b.structureIds AND EXISTS(u.deleteDate)" +
+					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) WHERE $structureId IN b.structureIds AND u.deleteDate IS NOT NULL" +
 					"WITH u, b, s " +
 					"RETURN DISTINCT u.id as id, u.profiles[0] as type, u.activationCode as code, u.login as login, u.firstName as firstName, u.lastName as lastName, u.displayName as displayName, " +
 					"u.source as source, u.deleteDate as deleteDate, u.disappearanceDate as disappearanceDate, u.blocked as blocked, u.created as creationDate, u.removedFromStructures as removedFromStructures, " +
@@ -456,7 +456,7 @@ public class DefaultSchoolService implements SchoolService {
 			//include presuppressed (multi etab)
 			query += " UNION " +
 					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) " +
-					"WHERE $structureId IN b.structureIds AND EXISTS(u.deleteDate)" +
+					"WHERE $structureId IN b.structureIds AND u.deleteDate IS NOT NULL" +
 					"MATCH (s: Structure) " +
 					"WHERE s.id IN b.structureIds " +
 					"WITH u, b, s " +

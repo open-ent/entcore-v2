@@ -1079,7 +1079,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 
 		final String type = conf.getString("type");
 		final boolean isDefault = type != null && type.equals("");
-		final String condition = isDefault == true ? "(s.timetable IS NOT NULL AND s.timetable <> $type)" : "(NOT(EXISTS(s.timetable)) OR s.timetable <> $type)";
+		final String condition = isDefault == true ? "(s.timetable IS NOT NULL AND s.timetable <> $type)" : "(s.timetable IS NULL OR s.timetable <> $type)";
 		final String query =
 				"MATCH (s:Structure {id:$structureId}) " +
 				"WITH " + condition + " AS update, s " +

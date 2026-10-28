@@ -76,7 +76,7 @@ public class DefaultGroupService implements GroupService {
 			condition = "WHERE g:Group ";
 		}
 		if(onlyAutomaticGroups.booleanValue() == true)
-			condition += " AND EXISTS(g.filter) ";
+			condition += " AND g.filter IS NOT NULL ";
 
 		JsonObject params = new JsonObject();
 		if (!userInfos.getFunctions().containsKey(SUPER_ADMIN) &&
@@ -299,7 +299,7 @@ public class DefaultGroupService implements GroupService {
 
 		String query =
 				"MATCH (s:Structure)" + recursion + "<-[:BELONGS*0..1]-()<-[:DEPENDS]-(g:Group) " +
-				"WHERE EXISTS(g.filter) " + structureCondition + " AND ('FuncGroup' in labels(g) OR 'DisciplineGroup' in labels(g)) " +
+				"WHERE g.filter IS NOT NULL " + structureCondition + " AND ('FuncGroup' in labels(g) OR 'DisciplineGroup' in labels(g)) " +
 				"RETURN g.id as id, g.name as name, g.displayName as displayName, g.filter as filter, labels(g) as labels";
 		neo.execute(query, params, validResultHandler(results));
 	}

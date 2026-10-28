@@ -980,7 +980,7 @@ public class DefaultCommunicationService implements CommunicationService {
 
 	@Override
 	public void getOutgoingRelations(String id, Handler<Either<String, JsonArray>> results) {
-		String query = "MATCH (g:Group)<-[:COMMUNIQUE]-(ug: Group { id: $id }) WHERE exists(g.id) "
+		String query = "MATCH (g:Group)<-[:COMMUNIQUE]-(ug: Group { id: $id }) WHERE g.id IS NOT NULL "
 				+ relationQuery;
 		JsonObject params = new JsonObject().put("id", id);
 		neo4j.execute(query, params, validResultHandler(results));
@@ -988,7 +988,7 @@ public class DefaultCommunicationService implements CommunicationService {
 
 	@Override
 	public void getIncomingRelations(String id, Handler<Either<String, JsonArray>> results) {
-		String query = "MATCH (g:Group)-[:COMMUNIQUE]->(ug: Group { id: $id }) WHERE exists(g.id) "
+		String query = "MATCH (g:Group)-[:COMMUNIQUE]->(ug: Group { id: $id }) WHERE g.id IS NOT NULL "
 				+ relationQuery;
 		JsonObject params = new JsonObject().put("id", id);
 		neo4j.execute(query, params, validResultHandler(results));

@@ -490,7 +490,7 @@ public class Structure {
 		JsonObject params = new JsonObject().put("externalId", externalId);
 		String query =
 			"MATCH (u:User) " +
-			"WHERE EXISTS(u.removedFromStructures) AND $externalId IN u.removedFromStructures " +
+			"WHERE u.removedFromStructures IS NOT NULL AND $externalId IN u.removedFromStructures " +
 			"SET u.removedFromStructures = [removedStruct IN u.removedFromStructures WHERE removedStruct <> $externalId]";
 		tx.add(query, params);
 	}

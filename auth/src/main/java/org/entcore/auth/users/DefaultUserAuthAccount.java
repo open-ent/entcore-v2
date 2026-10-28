@@ -154,7 +154,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		String query =
 				"MATCH (n:User) " +
 				"WHERE n." + loginFieldName + "=$login AND n.activationCode = $activationCode AND n.password IS NULL " +
-				"AND (NOT EXISTS(n.blocked) OR n.blocked = false) " +
+				"AND (NOT n.blocked IS NOT NULL OR n.blocked = false) " +
 				"OPTIONAL MATCH (n)-[r:DUPLICATE]-() " +
 				"WHERE NOT(head(n.profiles) IN $allowActivateDuplicate) " +
 				"OPTIONAL MATCH (p:Profile) " +
@@ -293,7 +293,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		String query =
 				"MATCH (n:User) " +
 				"WHERE n." + loginFieldName + "=$login AND n.activationCode = $activationCode AND n.password IS NULL " +
-				"AND (NOT EXISTS(n.blocked) OR n.blocked = false) " +
+				"AND (NOT n.blocked IS NOT NULL OR n.blocked = false) " +
 				"RETURN true as exists, n.displayName as displayName, n.email as email, n.mobile as mobile";
 
 		JsonObject params = new JsonObject()
