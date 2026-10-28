@@ -100,13 +100,13 @@ public class DefaultWidgetService implements WidgetService {
 			"RETURN collect({id: w.id, name: w.name, js: w.js, path: w.path, i18n: w.i18n, " +
 			"distributions: coalesce(w.distributions, []), " +
 			"levelsOfEducation: coalesce(w.levelsOfEducation, CASE " +
-				"WHEN w.name IN {1stLoeWidgets} THEN [1] " +
-				"WHEN w.name IN {2ndLoeWidgets} THEN [2] " +
+				"WHEN w.name IN $firstLoeWidgets THEN [1] " +
+				"WHEN w.name IN $secondLoeWidgets THEN [2] " +
 				"ELSE $defLoe " +
 			"END), locked: w.locked, application: {id: a.id, name: a.name, address: a.address, strongLink: workflowLinked}}) as widgets";
 		JsonObject params = new JsonObject()
-				.put("1stLoeWidgets", firstLevelWidgets)
-				.put("2ndLoeWidgets", secondLevelWidgets)
+				.put("firstLoeWidgets", firstLevelWidgets)
+				.put("secondLoeWidgets", secondLevelWidgets)
 				.put("defLoe", defaultLevelsOfEducation);
 		neo.execute(query, params, Neo4jResult.validUniqueResultHandler(handler)
 		);

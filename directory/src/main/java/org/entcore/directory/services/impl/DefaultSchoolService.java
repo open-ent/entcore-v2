@@ -421,9 +421,15 @@ public class DefaultSchoolService implements SchoolService {
 		query += "OPTIONAL MATCH (u)-[d: DUPLICATE]-(duplicate: User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(sd: Structure) " +
 			"  WITH distinct u, classes, collect({id: sd.id, name: sd.name}) as structuresDup, duplicate, d, dupsDet " +
 			"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(struct: Structure) " +
-			"  WITH distinct u, classes, structuresDup, " +
-			"  CASE WHEN duplicate IS NULL THEN [] ELSE COLLECT(distinct { id: duplicate.id, firstName: duplicate.firstName, lastName: duplicate.lastName, score: d.score, code: duplicate.activationCode, structures: structuresDup }) END + dupsDet as duplicates, " +
+			// `dupsDet` n'était ni clé de regroupement ni agrégé, alors qu'il figurait dans
+			// une projection agrégeante : ArcadeDB refuse (AmbiguousAggregationExpression),
+			// faute de pouvoir déterminer les clés. Il devient clé de regroupement — il est
+			// constant pour un utilisateur donné, venant lui-même d'un agrégat — et la
+			// concaténation est reportée sur un WITH suivant.
+			"  WITH distinct u, classes, structuresDup, dupsDet, " +
+			"  CASE WHEN duplicate IS NULL THEN [] ELSE COLLECT(distinct { id: duplicate.id, firstName: duplicate.firstName, lastName: duplicate.lastName, score: d.score, code: duplicate.activationCode, structures: structuresDup }) END as duplicatesOfUser, " +
 			"  COLLECT (distinct {id: struct.id, name: struct.name, externalId: struct.externalId}) as structures " +
+			"  WITH u, classes, structuresDup, structures, duplicatesOfUser + dupsDet as duplicates " +
 			"OPTIONAL MATCH (u)-[:IN]->(fgroup: FunctionalGroup) " +
 			"  WITH distinct u, classes, structuresDup, duplicates, structures, CASE WHEN fgroup IS NULL THEN [] ELSE COLLECT(distinct fgroup.name) END as functionalGroups " +
 			"OPTIONAL MATCH (u)-[:IN]->(mgroup: ManualGroup) " +
@@ -511,7 +517,7 @@ public class DefaultSchoolService implements SchoolService {
 
 		query.append("OPTIONAL MATCH (s)<-[:DEPENDS]-(fg:FunctionGroup) ");
 		query.append("OPTIONAL MATCH (s)<-[:DEPENDS]-(htg:HTGroup) ");
-		query.append("OPTIONAL MATCH (s)<-[:DEPENDS]-(dirg:DirectionGroup) WHERE {1d} IN COALESCE(s.levelsOfEducation, $defLoe)");
+		query.append("OPTIONAL MATCH (s)<-[:DEPENDS]-(dirg:DirectionGroup) WHERE $firstLevel IN COALESCE(s.levelsOfEducation, $defLoe)");
 		query.append("RETURN COLLECT(DISTINCT { id: s.id, name: s.name}) as structures, ");
 
 		if (getClassesForMonoEtabOnly) {
@@ -529,7 +535,7 @@ public class DefaultSchoolService implements SchoolService {
 		query.append("['Teacher', 'Personnel', 'Student', 'Relative', 'Guest'] as profiles, ");
 		query.append("['ManualGroup','FunctionalGroup','CommunityGroup'] as groupTypes");
 
-		JsonObject params = new JsonObject().put("structures", new JsonArray(structures)).put("1d", firstLevel).put("defLoe", defaultStructureLevelsOfEducation);
+		JsonObject params = new JsonObject().put("structures", new JsonArray(structures)).put("firstLevel", firstLevel).put("defLoe", defaultStructureLevelsOfEducation);
 		neo.execute(query.toString(), params, validUniqueResultHandler(handler));
 	}
 
