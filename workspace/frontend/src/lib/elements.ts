@@ -61,7 +61,8 @@ export const sortElements = (elements: WorkspaceElement[], key: SortKey = "name"
 
 /** Dossiers enfants directs d'un parent (null = racine de l'arbre). */
 export const childFolders = (folders: WorkspaceElement[], parentId: string | null): WorkspaceElement[] =>
-  sortElements(folders.filter((f) => (f.eParent ?? null) === parentId));
+  // un dossier mis à la corbeille (marqué par `trasher`) disparaît de l'arborescence, même si la liste serveur le renvoie encore
+  sortElements(folders.filter((f) => (f.eParent ?? null) === parentId && !f.trasher));
 
 /**
  * Chemin du dossier courant, de la racine vers lui : [Mes dossiers, Cours, 6e].

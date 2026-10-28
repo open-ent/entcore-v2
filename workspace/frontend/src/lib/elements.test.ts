@@ -81,6 +81,10 @@ describe("dossiers", () => {
     expect(childFolders(folders, "c").map((f) => f.name)).toEqual(["5e", "6e"]);
     expect(childFolders(folders, null).map((f) => f.name)).toEqual(["Cours"]);
   });
+  it("n'affiche pas un dossier mis à la corbeille", () => {
+    const avecCorbeille = [...folders, el({ _id: "x", name: "Supprimé", eType: "folder", eParent: null, trasher: "u" })];
+    expect(childFolders(avecCorbeille, null).map((f) => f.name)).toEqual(["Cours"]);
+  });
   it("construit le chemin de la racine au dossier courant", () => {
     expect(breadcrumb(folders, "s").map((f) => f.name)).toEqual(["Cours", "6e"]);
     expect(breadcrumb(folders, null)).toEqual([]);
