@@ -75,7 +75,7 @@ public class DefaultWidgetService implements WidgetService {
 		String linkApp = " ";
 
 		if(applicationName != null && !applicationName.trim().isEmpty()){
-			linkApp = "WITH w MATCH (a:Application {name: $applicationName}) CREATE UNIQUE (w)<-[:HAS_WIDGET]-(a) ";
+			linkApp = "WITH w MATCH (a:Application {name: $applicationName}) MERGE (w)<-[:HAS_WIDGET]-(a) ";
 			params.put("applicationName", applicationName);
 		}
 
@@ -168,7 +168,7 @@ public class DefaultWidgetService implements WidgetService {
 			"MATCH (w:Widget {id: $widgetId}), (g:Group) " +
 			"WHERE g.id IN $groupIds AND NOT((g)-[:AUTHORIZED]->(w)) " +
 			"AND COALESCE(w.locked ,false) = false " +
-			"CREATE UNIQUE (g)-[:AUTHORIZED]->(w)";
+			"MERGE (g)-[:AUTHORIZED]->(w)";
 		JsonObject params = new JsonObject()
 				.put("widgetId", widgetId)
 				.put("groupIds", new JsonArray(groupIds));
@@ -249,13 +249,13 @@ public class DefaultWidgetService implements WidgetService {
 			"MATCH (w:Widget {id: $widgetId}), " +
 			"(parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
 			"WHERE fg.filter = 'AdminLocal' AND NOT((fg)-[:AUTHORIZED]->(w)) " +
-			"CREATE UNIQUE (fg)-[:AUTHORIZED]->(w)";
+			"MERGE (fg)-[:AUTHORIZED]->(w)";
 
 		String queryProfile =
 			"MATCH (w:Widget {id: $widgetId}), " +
 			"(parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 			"WHERE p.name IN $profiles AND NOT((g)-[:AUTHORIZED]->(w)) " +
-			"CREATE UNIQUE (g)-[:AUTHORIZED]->(w)";
+			"MERGE (g)-[:AUTHORIZED]->(w)";
 
 		executeMassDispatch(includeAdml, filteredProfiles, params, queryAdml, queryProfile, handler);
 	}

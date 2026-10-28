@@ -271,7 +271,7 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 					final JsonObject json = (JsonObject) o;
 					final Integer pgId = json.getInteger("pgId");
 					final Integer rId = json.getInteger("rId");
-					allQueries.add(String.format("MATCH (pg), (r) WHERE id(pg)=%s AND id(r)=%s CREATE UNIQUE (pg)-[:AUTHORIZED]->(r) ", pgId, rId));
+					allQueries.add(String.format("MATCH (pg), (r) WHERE id(pg)=%s AND id(r)=%s MERGE (pg)-[:AUTHORIZED]->(r) ", pgId, rId));
 					if(allQueries.size()==batchSize){
 						final StatementsBuilder chunk = new StatementsBuilder();
 						for(final String q : allQueries){

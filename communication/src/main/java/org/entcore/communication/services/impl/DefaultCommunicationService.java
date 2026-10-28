@@ -148,7 +148,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		}
 
 		query = " MATCH (startUser:User {id: $startUser}), (endUser:User {id: $endUser}) " +
-				" CREATE UNIQUE " + createRelationship;
+				" MERGE " + createRelationship;
 		builder.add(query, params);
 
 		neo4j.executeTransaction(builder.build(), null, true, validUniqueResultHandler(eitherHandler) );
@@ -226,7 +226,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		String query =
 				"MATCH (g1:Group {id : $startGroupId}), (g2:Group {id : $endGroupId}) " +
 						"SET g1.communiqueWith = coalesce(g1.communiqueWith, []) + $endGroupId " +
-						"CREATE UNIQUE (g1)-[:COMMUNIQUE { source: 'MANUAL'}]->(g2) " +
+						"MERGE (g1)-[:COMMUNIQUE { source: 'MANUAL'}]->(g2) " +
 						"RETURN COUNT(*) as number ";
 		JsonObject params = new JsonObject()
 				.put("startGroupId", startGroupId)
@@ -275,7 +275,7 @@ public class DefaultCommunicationService implements CommunicationService {
 							"SET g.users = $direction " +
 							"WITH g " +
 							"MATCH (g)<-[:IN]-(u:User) " +
-							"CREATE UNIQUE " + createRelationship +
+							"MERGE " + createRelationship +
 							"RETURN COUNT(*) as number ";
 			JsonObject params = new JsonObject().put("groupId", groupId).put("direction", direction.name());
 			neo4j.execute(query, params, validUniqueResultHandler(handler));
@@ -313,7 +313,7 @@ public class DefaultCommunicationService implements CommunicationService {
 									"SET g.users = $direction " +
 									"WITH g " +
 									"MATCH (g)<-[:IN]-(u:User) " +
-									"CREATE UNIQUE " + createRelationship;
+									"MERGE " + createRelationship;
 					sb.add(query, new JsonObject().put("groupId", groupId).put("direction", direction.name()));
 				}
 			});
@@ -396,7 +396,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		String query =
 				"MATCH (g:Group { id : $groupId})<-[:IN]-(u:User)<-[:RELATED]-(s:User) " +
 						"SET g.relativeCommuniqueStudent = $direction " +
-						"CREATE UNIQUE " + createRelationship +
+						"MERGE " + createRelationship +
 						"RETURN COUNT(*) as number ";
 		JsonObject params = new JsonObject().put("groupId", groupId).put("direction", direction.name());
 		neo4j.execute(query, params, validUniqueResultHandler(handler));
@@ -1382,11 +1382,11 @@ public class DefaultCommunicationService implements CommunicationService {
 	@Override
 	public void blockCommunication(String userA, String userB, String reason, String createdBy,
 			String createdByName, String structureId, Handler<Either<String, JsonObject>> handler) {
-		// CREATE UNIQUE : une seule relation BLOCKED_COMMUNICATION entre les deux users, quel que
+		// MERGE : une seule relation BLOCKED_COMMUNICATION entre les deux users, quel que
 		// soit l'ordre (matchée non orientée à la lecture). Idempotent.
 		String query =
 				"MATCH (a:User {id:$userA}), (b:User {id:$userB}) " +
-				"CREATE UNIQUE (a)-[r:BLOCKED_COMMUNICATION]-(b) " +
+				"MERGE (a)-[r:BLOCKED_COMMUNICATION]-(b) " +
 				"SET r.reason = $reason, r.createdBy = $createdBy, r.createdByName = $createdByName, " +
 				"    r.structureId = $structureId, r.createdAt = coalesce(r.createdAt, timestamp()) " +
 				"RETURN a.id as userA, a.displayName as userAName, b.id as userB, b.displayName as userBName, " +

@@ -801,7 +801,7 @@ public class DefaultSchoolService implements SchoolService {
 
 				StatementsBuilder builder = new StatementsBuilder();
 				final String authorizedQuery = "MATCH (a:Application {name:$appName})-[]->(ac:Action)<-[]-(r:Role), (g:Group {id:$groupId}) " +
-						" CREATE UNIQUE (g)-[:AUTHORIZED]->(r)";
+						" MERGE (g)-[:AUTHORIZED]->(r)";
 				final JsonObject authorizedParams = new JsonObject().put("appName", appName).put("groupId", groupId);
 				builder.add(authorizedQuery, authorizedParams);
 
@@ -812,12 +812,12 @@ public class DefaultSchoolService implements SchoolService {
 				} else {
 					populateQuery += "WHERE pg.filter IN ['Teacher','Personnel'] AND ANY(function IN u.functions WHERE function CONTAINS '$DIR$' OR function CONTAINS '$DOC$' OR function CONTAINS '$DIRECTION') ";
 				}
-				populateQuery += "CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(g)";
+				populateQuery += "MERGE (u)-[:IN {source:'MANUAL'}]->(g)";
 				final JsonObject populateParams = new JsonObject().put("uai", uai).put("groupId", groupId);
 				builder.add(populateQuery, populateParams);
 
 				final String affectQuery = "MATCH (r:Role {name : $roleName}), (s:Structure {UAI:$uai})-[:DEPENDS]-(pg:ProfileGroup) WHERE NOT pg.filter IN ['Guest','Relative'] " +
-						"CREATE UNIQUE (pg)-[:AUTHORIZED]->(r)";
+						"MERGE (pg)-[:AUTHORIZED]->(r)";
 				final JsonObject affectParams = new JsonObject().put("roleName", roleName).put("uai", uai);
 				builder.add(affectQuery, affectParams);
 

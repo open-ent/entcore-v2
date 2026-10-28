@@ -160,7 +160,7 @@ public class SSOAzure extends AbstractSSOProvider {
 			updateQuery += " set u.emailInternal = $email";
 			updateParams.put("email", mail);
 			if (isAffectationGroup) {
-				updateQuery += " CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(g)";
+				updateQuery += " MERGE (u)-[:IN {source:'MANUAL'}]->(g)";
 			}
 
 			Neo4j.getInstance().execute(updateQuery, updateParams, Neo4jResult.validEmptyHandler(res -> {
