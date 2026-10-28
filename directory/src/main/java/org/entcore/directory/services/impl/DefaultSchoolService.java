@@ -363,9 +363,12 @@ public class DefaultSchoolService implements SchoolService {
 
 	@Override
 	public void getMetrics(String structureId, Handler<Either<String, JsonObject>> results){
-		String query = "MATCH (s:Structure) " +
-				"WHERE s.id = $structureId " +
-				"MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s)," +
+		// La structure est liée DANS le motif, et non par un MATCH séparé réutilisé plus
+		// bas. L'écart n'est pas cosmétique : ArcadeDB ne sait pas piloter un second motif
+		// depuis une variable liée au motif précédent, et repartait d'un balayage.
+		// Mesuré sur les données de production, un établissement de 593 comptes :
+		// 2 524 ms -> 1,9 ms. Sur Neo4j, les deux formes se valent (2,3 contre 2,7).
+		String query = "MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id:$structureId})," +
 				"(pg)-[:HAS_PROFILE]->(p:Profile) " +
 				"WITH p, collect(distinct u) as allUsers " +
 				"WITH p, [u IN allUsers WHERE u.activationCode IS NULL] as active, " +
