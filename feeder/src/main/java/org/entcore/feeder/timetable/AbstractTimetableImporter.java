@@ -99,7 +99,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 			"MATCH (s:Structure {externalId : $structureExternalId}) " +
 			"MERGE (fg:FunctionalGroup:Group {externalId:$externalId}) " +
 			"ON CREATE SET fg.name = $name, fg.id = $id, fg.source = $source, fg.displayNameSearchField = $displayNameSearchField " +
-			", fg.created = $date, fg.filter = $filter SET fg.modified = $date" +
+			", fg.created = $date, fg.filter = $filter SET fg.modified = $date " +
 			"MERGE (fg)-[:DEPENDS]->(s) ";
 	private static final String PERSEDUCNAT_TO_GROUPS =
 			"MATCH (u:User {id : $id}), (fg:FunctionalGroup) " +

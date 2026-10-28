@@ -445,7 +445,7 @@ public class DefaultSchoolService implements SchoolService {
 			//include presuppressed (mono etab)
 			query += " UNION " +
 					"MATCH (s: Structure) WHERE s.id = $structureId WITH s " +
-					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) WHERE $structureId IN b.structureIds AND u.deleteDate IS NOT NULL" +
+					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) WHERE $structureId IN b.structureIds AND u.deleteDate IS NOT NULL " +
 					"WITH u, b, s " +
 					"RETURN DISTINCT u.id as id, u.profiles[0] as type, u.activationCode as code, u.login as login, u.firstName as firstName, u.lastName as lastName, u.displayName as displayName, " +
 					"u.source as source, u.deleteDate as deleteDate, u.disappearanceDate as disappearanceDate, u.blocked as blocked, u.created as creationDate, u.removedFromStructures as removedFromStructures, " +
@@ -456,7 +456,7 @@ public class DefaultSchoolService implements SchoolService {
 			//include presuppressed (multi etab)
 			query += " UNION " +
 					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) " +
-					"WHERE $structureId IN b.structureIds AND u.deleteDate IS NOT NULL" +
+					"WHERE $structureId IN b.structureIds AND u.deleteDate IS NOT NULL " +
 					"MATCH (s: Structure) " +
 					"WHERE s.id IN b.structureIds " +
 					"WITH u, b, s " +

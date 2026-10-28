@@ -604,7 +604,7 @@ public class User {
 				.put("date", System.currentTimeMillis() - delay);
 		String query =
 				"MATCH (:DeleteGroup)<-[:IN]-(u:User) " +
-				"WHERE u.deleteDate IS NOT NULL AND u.deleteDate < $date AND u.id IS NULL" +
+				"WHERE u.deleteDate IS NOT NULL AND u.deleteDate < $date AND u.id IS NULL " +
 				"OPTIONAL MATCH (u)-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
 				"OPTIONAL MATCH (u)-[r]-() " +
 				"DELETE u,b,r,rb ";

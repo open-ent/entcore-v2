@@ -188,7 +188,9 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	private void getUserIdNeo4j(final String username, final String password,
 			final Handler<Try<AccessDenied, String>> handler) {
 		String query = "MATCH (n:User) " +
-				"WHERE n.login=$login";
+				// L'espace finale est obligatoire : la suite de la requête est concaténée plus bas
+				// et, sans séparateur, le nom du paramètre absorbe le mot-clé suivant ($loginOPTIONAL).
+				"WHERE n.login=$login ";
 		// "AND (n.blocked IS NULL OR n.blocked = false) ";
 		if (checkFederatedLogin) {
 			query += "AND (n.federated IS NULL OR n.federated = false) ";
