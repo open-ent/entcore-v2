@@ -1070,7 +1070,7 @@ public class DuplicateUsers {
 						"WITH u, ub, prevUb, r " +
 						"WHERE prevUb IS NULL " +
 						"SET ub.theme = null " +
-						"CREATE UNIQUE (u)-[:USERBOOK]->(ub) " +
+						"MERGE (u)-[:USERBOOK]->(ub) " +
 						"SET ub.userid = $oldId " +
 						"DELETE r"; // We only delete the relationship between the old user and the userbook if it was transfered to the new user
 									// So we will be able to delete unlinked UserBook nodes with query4
@@ -1080,7 +1080,7 @@ public class DuplicateUsers {
 				"MATCH (old:User {id: $oldId})-[r:PREFERS]->(ub:UserAppConf), (u:User {id: $id}) " +
 						"WHERE NOT (u)-[:PREFERS]->(:UserAppConf) " +
 						"SET ub.theme = null, ub.mergeDuplicateIneTransferred = true " +
-						"CREATE UNIQUE (u)-[:PREFERS]->(ub) " +
+						"MERGE (u)-[:PREFERS]->(ub) " +
 						"DELETE r";
 		tx.add(query2a, params);
 		// Otherwise the principal's UserAppConf is kept as canonical and old ones are transferred for deduplication.
@@ -1088,7 +1088,7 @@ public class DuplicateUsers {
 				"MATCH (old:User {id: $oldId})-[r:PREFERS]->(ub:UserAppConf), (u:User {id: $id}) " +
 						"WHERE (u)-[:PREFERS]->(:UserAppConf) " +
 						"SET ub.theme = null, ub.mergeDuplicateIneTransferred = true " +
-						"CREATE UNIQUE (u)-[:PREFERS]->(ub) " +
+						"MERGE (u)-[:PREFERS]->(ub) " +
 						"DELETE r";
 		tx.add(query2b, params);
 		// Deduplicate UserAppConf after transfer, keeping rich prefs and salvaging quietHours/timezone.
@@ -1116,7 +1116,7 @@ public class DuplicateUsers {
 			final String query3 =
 					"MATCH (old:User {id: $oldId})-[r:RELATED]->(ub:User), (u:User {id: $id}) " +
 							"SET u.mergeIneDate = $now " +
-							"CREATE UNIQUE (u)-[:RELATED {source:'MERGE_INE'}]->(ub) " +
+							"MERGE (u)-[:RELATED {source:'MERGE_INE'}]->(ub) " +
 							"DELETE r";
 			tx.add(query3, params.copy().put("now", now));
 		}

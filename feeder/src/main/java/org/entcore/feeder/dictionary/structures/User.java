@@ -501,19 +501,19 @@ public class User {
 				"MATCH (u:User { id : $userId})<-[r:MERGED]-(um:User), " +
 				"(u)<-[:RELATED]-(us:User) " +
 				"WHERE us.relative IS NOT NULL AND LENGTH([eId IN us.relative WHERE eId STARTS WITH um.externalId]) > 0 " +
-				"CREATE UNIQUE (um)<-[:RELATED]-(us) " +
+				"MERGE (um)<-[:RELATED]-(us) " +
 				"DELETE r " +
 				"WITH um, us " +
 				"MATCH (us)-[:IN]->(scg:ProfileGroup)-[:DEPENDS]->(c:Structure)<-[:DEPENDS]-(rcg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 				"WHERE p.name = head(um.profiles) " +
-				"CREATE UNIQUE (um)-[:IN]->(rcg) ";
+				"MERGE (um)-[:IN]->(rcg) ";
 		transaction.add(mQuery, params);
 		String query =
 				"MATCH (u:User { id : $userId}), (dg:DeleteGroup) " +
 				"OPTIONAL MATCH (u)-[r:IN|COMMUNIQUE|COMMUNIQUE_DIRECT|RELATED|DUPLICATE|TEACHES_FOS|TEACHES|HAS_FUNCTION]-() " +
 				"SET u.deleteDate = timestamp(), u.IDPN = null " +
 				"DELETE r " +
-				"CREATE UNIQUE (dg)<-[:IN]-(u)";
+				"MERGE (dg)<-[:IN]-(u)";
 		transaction.add(query, params);
 	}
 
@@ -522,17 +522,17 @@ public class User {
 
 		String query =
 			"MATCH (u:User {id: $userId})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
-			"MATCH (g:Group) WHERE g.id IN b.IN_OUTGOING CREATE UNIQUE (u)-[:IN]->(g)";
+			"MATCH (g:Group) WHERE g.id IN b.IN_OUTGOING MERGE (u)-[:IN]->(g)";
 		transaction.add(query, params);
 
 		query =
 			"MATCH (u:User {id: $userId})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
-			"MATCH (g:Group) WHERE g.id IN b.COMMUNIQUE_OUTGOING CREATE UNIQUE (u)-[:COMMUNIQUE]->(g)";
+			"MATCH (g:Group) WHERE g.id IN b.COMMUNIQUE_OUTGOING MERGE (u)-[:COMMUNIQUE]->(g)";
 		transaction.add(query, params);
 
 		query =
 			"MATCH (u:User {id: $userId})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
-			"MATCH (g:Group) WHERE g.id IN b.COMMUNIQUE_INCOMING CREATE UNIQUE (u)<-[:COMMUNIQUE]-(g)";
+			"MATCH (g:Group) WHERE g.id IN b.COMMUNIQUE_INCOMING MERGE (u)<-[:COMMUNIQUE]-(g)";
 		transaction.add(query, params);
 
 		query =
@@ -764,7 +764,7 @@ public class User {
 					"OPTIONAL MATCH (f:Function { externalId : $functionCode}) " +
 					"MERGE (fg:Group:FunctionGroup { externalId : s.id + '-' + $functionCode}) " +
 					"ON CREATE SET fg.id = id(fg) + '-' + timestamp(), fg.name = s.name + '-' + f.name, fg.displayNameSearchField = toLower(s.name) + toLower(f.name), fg.filter = f.name\n" +
-					"CREATE UNIQUE (s)<-[:DEPENDS]-(fg)<-[:IN {source:'MANUAL'}]-(u) " +
+					"MERGE (s)<-[:DEPENDS]-(fg)<-[:IN {source:'MANUAL'}]-(u) " +
 					"RETURN fg.id as groupId ";
 			JsonObject p2 = new JsonObject()
 				.put("scope", scope)
@@ -810,7 +810,7 @@ public class User {
 		String query =
 				"MATCH (u:User { id : $userId}), (f:Group {id : $groupId}) " +
 				"WHERE 'ManualGroup' IN labels(f) OR 'FunctionalGroup' IN labels(f) OR 'FunctionGroup' IN labels(f) " +
-				"CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(f) " +
+				"MERGE (u)-[:IN {source:'MANUAL'}]->(f) " +
 				"WITH f, u " +
 				"WHERE 'FunctionalGroup' IN labels(f) OR 'FunctionGroup' IN labels(f) " +
 				"SET u.groups = [gId IN coalesce(u.groups, []) WHERE gId <> f.externalId] + f.externalId ";

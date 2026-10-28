@@ -183,13 +183,13 @@ public class Structure {
 				query =
 						"MATCH (s:Structure { externalId : $externalId}), " +
 						"(ps:Structure { externalId : $functionalAttachment}) " +
-						"CREATE UNIQUE (s)-[:HAS_ATTACHMENT]->(ps)";
+						"MERGE (s)-[:HAS_ATTACHMENT]->(ps)";
 				params.put("functionalAttachment", functionalAttachment.getString(0));
 			} else {
 				query =
 						"MATCH (s:Structure { externalId : $externalId}), (ps:Structure) " +
 						"WHERE ps.externalId IN $functionalAttachment " +
-						"CREATE UNIQUE (s)-[:HAS_ATTACHMENT]->(ps)";
+						"MERGE (s)-[:HAS_ATTACHMENT]->(ps)";
 				params.put("functionalAttachment", functionalAttachment);
 			}
 			getTransaction().add(query, params);
@@ -382,7 +382,7 @@ public class Structure {
 		String query =
 				"MATCH (s:Structure { externalId : $externalId}), " +
 				"(m:Module { externalId : $moduleExternalId}) " +
-				"CREATE UNIQUE (s)-[:OFFERS]->(m)";
+				"MERGE (s)-[:OFFERS]->(m)";
 		JsonObject params = new JsonObject()
 				.put("externalId", externalId)
 				.put("moduleExternalId", moduleExternalId);
@@ -587,7 +587,7 @@ public class Structure {
 		String query =
 				"MATCH (s:Structure { id : $structureId}), " +
 				"(ps:Structure { id : $parentStructureId}) " +
-				"CREATE UNIQUE (s)-[r:HAS_ATTACHMENT]->(ps) " +
+				"MERGE (s)-[r:HAS_ATTACHMENT]->(ps) " +
 				"RETURN id(r) as id";
 		String query2 =
 				"MATCH (s:Structure { id : $structureId})-[:HAS_ATTACHMENT*1..]->(ps:Structure)" +
@@ -598,7 +598,7 @@ public class Structure {
 				"WITH DISTINCT s as n, f, u " +
 				"MERGE (fg:Group:FunctionGroup { externalId : n.id + '-ADMIN_LOCAL'}) " +
 				"ON CREATE SET fg.id = id(fg) + '-' + timestamp(), fg.name = n.name + '-' + f.name, fg.displayNameSearchField = toLower(n.name), fg.filter = f.name " +
-				"CREATE UNIQUE (n)<-[:DEPENDS]-(fg) " +
+				"MERGE (n)<-[:DEPENDS]-(fg) " +
 				"MERGE (fg)<-[:IN { source : 'MANUAL'}]-(u)";
 		JsonObject params =  new JsonObject()
 				.put("structureId", structureId)

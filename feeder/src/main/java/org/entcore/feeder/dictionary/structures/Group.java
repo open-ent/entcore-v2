@@ -96,7 +96,7 @@ public class Group {
 				if (structureId != null && !structureId.trim().isEmpty()) {
 					String qs =
 							"MATCH (s:Structure {id : $structureId}), (g:Group {id : $groupId}) " +
-							"CREATE UNIQUE (s)<-[:DEPENDS]-(g)";
+							"MERGE (s)<-[:DEPENDS]-(g)";
 					JsonObject ps = new JsonObject()
 							.put("groupId", id)
 							.put("structureId", structureId);
@@ -105,7 +105,7 @@ public class Group {
 				if (classId != null && !classId.trim().isEmpty()) {
 					String qs =
 							"MATCH (s:Class {id : $classId}), (g:Group {id : $groupId}) " +
-							"CREATE UNIQUE (s)<-[:DEPENDS]-(g)";
+							"MERGE (s)<-[:DEPENDS]-(g)";
 					JsonObject ps = new JsonObject()
 							.put("groupId", id)
 							.put("classId", classId);
@@ -129,7 +129,7 @@ public class Group {
 				"MATCH (u:User), (g:Group) " +
 				"WHERE g.id = $groupId AND u.id IN $userIds " +
 				"AND ('ManualGroup' IN labels(g) OR 'FunctionalGroup' IN labels(g)) " +
-				"CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(g) " +
+				"MERGE (u)-[:IN {source:'MANUAL'}]->(g) " +
 				"WITH g, u " +
 				"WHERE 'FunctionalGroup' IN labels(g) " +
 				"SET u.groups = [gId IN coalesce(u.groups, []) WHERE gId <> g.externalId] + g.externalId ";
