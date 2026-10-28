@@ -66,6 +66,9 @@ Première passe mécanique, vérifiable sans base :
 | `NOT(HAS(x.y))` → `x.y IS NULL` | 117 |
 | `HAS(x.y)` → `x.y IS NOT NULL` | 139 |
 | `lower(` → `toLower(` | 18 |
+| `{param}` → `$param` | 1790 |
+| variables de nœud parenthésées (`u-[:IN]->` → `(u)-[:IN]->`) | 488 |
+| `exists(prop)` → `IS [NOT] NULL` | 44 |
 
 Cible retenue : `IS [NOT] NULL` directement, et non le palier `exists(prop)` — `has()` a été
 retiré de Cypher en 3.0 et `exists(prop)` en 5.0. C'est aussi le choix fait dans la tentative
@@ -163,27 +166,22 @@ Comptage restreint aux chaînes effectivement Cypher (les appels Java `.filter(`
 
 | Motif | Occurrences | Fichiers | Nature |
 |---|---|---|---|
-| `{param}` → `$param` | 1492 | 121 | mécanique mais massif, dans des requêtes concaténées |
 | `filter(...)` → `[x IN ... WHERE ...]` | 76 | 18 | réécriture, pas un remplacement |
 | `CREATE UNIQUE` → `MERGE` | 54 | 13 | sémantique proche, à relire une à une |
 | `length()` | 37 | 15 | à arbitrer : valide sur un chemin, à passer en `size()` sur liste/chaîne |
 | `START ... node_auto_index(...)` | 5 | 3 | à reprendre sur index de schéma (`feeder`) |
+| `exists((motif))` → `EXISTS { }` | 3 | 2 | réécriture |
 | `extract(...)` → `[x IN ...]` | 2 | 2 | réécriture |
-| `exists((pattern))` → `EXISTS { }` | 2 | 1 | réécriture |
-
-Le gros morceau reste `{param}` → `$param`. Un simple remplacement global est dangereux :
-ces requêtes sont construites par concaténation de chaînes Java, et les accolades servent
-aussi aux littéraux de map Cypher (`{name: 'x'}`) et aux chaînes JSON embarquées.
 
 Deux points non couverts par cette liste, à traiter avant toute campagne :
 
 - `dbms.auto_index.nodes.enabled` (auto-indexation Lucene héritée) n'a de raison d'être que
   pour les 5 requêtes `START` du feeder. À retirer une fois celles-ci reprises.
-- Le portage ne dit rien de la conformité réelle du moteur OpenCypher d'ArcadeDB, annoncée
-  à 97,8 % du TCK par l'éditeur. C'est précisément ce que la campagne doit mesurer.
+- Les 52 occurrences de DDL d'index et de contrainte sont en syntaxe Neo4j 3.x et doivent
+  passer en syntaxe 4/5, validée sur ArcadeDB.
 
 ## Étape suivante conseillée
 
 Retirer `cypher.default_language_version=2.3` et mesurer sur Neo4j 3.1.9 avant de changer
-quoi que ce soit d'autre : c'est le gain de performance le plus accessible, il est
-indépendant du choix de base, et il valide la conversion déjà faite.
+quoi que ce soit d'autre : le banc chiffre ce gain entre 29 % et 43 %, il est indépendant
+du choix de base, et il valide la conversion déjà faite.
