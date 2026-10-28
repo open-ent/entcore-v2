@@ -479,8 +479,12 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			String query2 =
 					"MATCH (n:Application) " +
 					"WHERE n.id = $id " +
-					"CREATE UNIQUE (n)-[r:PROVIDE]->(a:Action:WorkflowAction {type: $type, " +
+					// CREATE UNIQUE raisonnait partie par partie : il réutilisait une Action
+					// existante et n'ajoutait que la relation. Deux MERGE reproduisent cela ;
+					// un MERGE unique sur tout le motif créerait un doublon de l'Action.
+					"MERGE (a:Action:WorkflowAction {type: $type, " +
 					"name:$name, displayName:$displayName}) " +
+					"MERGE (n)-[r:PROVIDE]->(a) " +
 					"RETURN a.name as name";
 			b.add(query2, new JsonObject()
 					.put("id", id)
@@ -644,7 +648,10 @@ public class DefaultAppRegistryService implements AppRegistryService {
 				"AND rt.name =~ '^[A-Za-z0-9]+-(teacher|all)-default$' " +
 				"AND rr.name =~ '^[A-Za-z0-9]+-(relative|all)-default$' " +
 				"AND pr.name =~ '^[A-Za-z0-9]+-(personnel|all)-default$' " +
-				"CREATE UNIQUE (csg)-[:AUTHORIZED]->(rs), (ctg)-[:AUTHORIZED]->(rt), (crg)-[:AUTHORIZED]->(rr), (cpg)-[:AUTHORIZED]->(pr)";
+				"MERGE (csg)-[:AUTHORIZED]->(rs) " +
+				"MERGE (ctg)-[:AUTHORIZED]->(rt) " +
+				"MERGE (crg)-[:AUTHORIZED]->(rr) " +
+				"MERGE (cpg)-[:AUTHORIZED]->(pr)";
 		final JsonObject params = new JsonObject().put("id", classId);
 		final String widgetQuery =
 				"MATCH (c:Class { id : $id})<-[:DEPENDS]-(csg:ProfileGroup)-[:DEPENDS]->(ssg:ProfileGroup), (w:Widget) " +

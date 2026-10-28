@@ -186,10 +186,15 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 		String createActionsAndRolesQuery =
 				"MATCH (n:Application) " +
 				"WHERE n.id = $id " +
-				"CREATE UNIQUE (n)-[r:PROVIDE]->(a:Action:WorkflowAction {type: $type, " +
+				// CREATE UNIQUE raisonnait partie par partie : nœud d'abord, relation ensuite.
+				// Deux MERGE le reproduisent ; un MERGE unique sur le motif entier créerait
+				// un doublon du nœud lorsqu'il existe déjà sans la relation.
+				"MERGE (a:Action:WorkflowAction {type: $type, " +
 				"name:$name, displayName:$displayName}) " +
+				"MERGE (n)-[r:PROVIDE]->(a) " +
 				"WITH a " +
-				"CREATE UNIQUE (r:Role {id: $roleId, name: $roleName, structureId: $structureId})-[:AUTHORIZE]->(a) " +
+				"MERGE (r:Role {id: $roleId, name: $roleName, structureId: $structureId}) " +
+				"MERGE (r)-[:AUTHORIZE]->(a) " +
 				"RETURN r.id as roleId";
 		b.add(createActionsAndRolesQuery, new JsonObject()
 				.put("id", id)

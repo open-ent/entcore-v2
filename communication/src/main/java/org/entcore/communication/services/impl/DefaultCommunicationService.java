@@ -1673,7 +1673,8 @@ public class DefaultCommunicationService implements CommunicationService {
 		final String addQuery = "MATCH (g:CommunityGroup:Group:Visible {id : $groupId}) " +
 								"MATCH (u:User) " +
 								"WHERE u.id IN $users AND HEAD(u.profiles) IN $discoverVisibleExpectedProfile " +
-								"CREATE UNIQUE (u)-[:IN]->(g), (u)-[:COMMUNIQUE]->(g);";
+								"MERGE (u)-[:IN]->(g) " +
+								"MERGE (u)-[:COMMUNIQUE]->(g);";
 
 		statementsBuilder.add(addQuery, params.copy().put("users", usersToAdd).put("discoverVisibleExpectedProfile", discoverVisibleExpectedProfile));
 
