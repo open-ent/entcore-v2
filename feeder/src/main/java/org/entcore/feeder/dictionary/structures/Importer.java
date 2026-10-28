@@ -624,15 +624,16 @@ public class Importer {
 			checkUpdateEmail(object);
 			if (linkStudent != null && linkStudent.size() > 0) {
 				String query2 =
-						"START u0=node:node_auto_index(externalId=$externalId), " +
-						"s=node:node_auto_index($studentExternalIds) " +
+						"MATCH (u0:User {externalId: $externalId}) " +
+						"MATCH (s:User) WHERE s.externalId IN $studentExternalIds " +
 						"MATCH (u0)-[:MERGED*0..1]->(u) " +
 						"WHERE u.mergedWith IS NULL " +
 						"MERGE (u)<-[:RELATED]-(s) ";
+				// La requête Lucene "externalId:A OR externalId:B" de l'auto-index hérité
+				// exprimait une appartenance : la liste est désormais passée telle quelle.
 				JsonObject p = new JsonObject()
 						.put("externalId", object.getString("externalId"))
-						.put("studentExternalIds",
-								"externalId:" + Joiner.on(" OR externalId:").join(linkStudent));
+						.put("studentExternalIds", linkStudent);
 				transactionHelper.add(query2, p);
 			} else if (linkRelativeWithoutChild) {
 				final String externalId = object.getString("externalId");
@@ -1206,7 +1207,7 @@ public class Importer {
 					}
 					existingUser.removeAll(userImportedExternalId); // set difference
 					String q = // mark missing users
-							"START u=node:node_auto_index(externalId=$externalId) " +
+							"MATCH (u:User {externalId: $externalId}) " +
 									"WHERE u.disappearanceDate IS NULL " +
 									"SET u.disappearanceDate = $date ";
 					JsonObject p = new JsonObject()
@@ -1215,7 +1216,7 @@ public class Importer {
 						transactionHelper.add(q, p.copy().put("externalId", eId));
 					}
 					String q2 = // remove mark of imported users
-							"START u=node:node_auto_index(externalId=$externalId) " +
+							"MATCH (u:User {externalId: $externalId}) " +
 									"WHERE u.disappearanceDate IS NOT NULL " +
 									"REMOVE u.disappearanceDate " +
 									"RETURN u.id AS id, u.login AS login";
