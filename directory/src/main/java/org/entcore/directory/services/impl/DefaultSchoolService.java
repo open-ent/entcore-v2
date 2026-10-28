@@ -275,7 +275,7 @@ public class DefaultSchoolService implements SchoolService {
 			  ? "MATCH (parent:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) "
 			  : "MATCH (s:Structure {id: {structureId}})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) ";
 		String condition =
-				"WHERE has(u.level) ";
+				"WHERE u.level IS NOT NULL ";
 		String filter2 =
 				"MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class:Class)-[:BELONGS]->(n) "+
 				"WITH distinct u.level as name, collect(distinct {id: class.id, name: class.name}) as classes "+
@@ -594,7 +594,7 @@ public class DefaultSchoolService implements SchoolService {
 		query.append("MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s)" );
 		query.append("WITH s, COLLECT(DISTINCT u) AS uu ");
 		query.append("UNWIND uu AS u ");
-		query.append("WITH s, HEAD(u.profiles) AS p, HAS(u.activationCode) AS unactive ");
+		query.append("WITH s, HEAD(u.profiles) AS p, u.activationCode IS NOT NULL AS unactive ");
 		query.append("RETURN s.id AS id, ");
 		query.append("SUM(CASE WHEN NOT(unactive) THEN 1 ELSE 0 END) AS activated, ");
 		query.append("SUM(CASE WHEN unactive THEN 1 ELSE 0 END) AS notactivated, ");
@@ -837,7 +837,7 @@ public class DefaultSchoolService implements SchoolService {
 		final Promise<JsonArray> promise = Promise.promise();
 		final String query =
 				"MATCH (s:Structure {id: {structureId}})<-[:DEPENDS]-(g:Group)<-[:IN]-(u:User) " +
-				"WHERE has(u.email) AND ((g:ProfileGroup AND g.filter IN ['Personnel', 'Teacher']) " +
+				"WHERE u.email IS NOT NULL AND ((g:ProfileGroup AND g.filter IN ['Personnel', 'Teacher']) " +
 				"OR (g:FunctionGroup AND g.filter = 'AdminLocal')) " +
 				"RETURN DISTINCT u.id AS userId, u.email AS email, head(u.profiles) AS profile";
 		final JsonObject params = new JsonObject().put("structureId", structureId);

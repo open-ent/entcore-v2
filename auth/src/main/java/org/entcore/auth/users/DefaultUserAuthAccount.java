@@ -158,11 +158,11 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 				"OPTIONAL MATCH n-[r:DUPLICATE]-() " +
 				"WHERE NOT(head(n.profiles) IN {allowActivateDuplicate}) " +
 				"OPTIONAL MATCH (p:Profile) " +
-				"WHERE HAS(n.profiles) AND p.name = head(n.profiles) " +
+				"WHERE n.profiles IS NOT NULL AND p.name = head(n.profiles) " +
 				"WITH n, LENGTH(FILTER(x IN COLLECT(distinct r.score) WHERE x > 3)) as duplicates, p.blocked as blockedProfile " +
 				"WHERE (blockedProfile IS NULL OR blockedProfile = false) " +
 				"FOREACH (duplicate IN CASE duplicates WHEN 0 THEN [1] ELSE [] END | " +
-				"SET n.password = {password}, n.oldPasswords = {oldPasswords}, n.activationCode = null, n.email = {email}, n.emailSearchField=LOWER({email}), n.mobile = {phone}, n.needRevalidateTerms = {needRevalidateTerms})  " +
+				"SET n.password = {password}, n.oldPasswords = {oldPasswords}, n.activationCode = null, n.email = {email}, n.emailSearchField=toLower({email}), n.mobile = {phone}, n.needRevalidateTerms = {needRevalidateTerms})  " +
 				"RETURN n.password as password, n.id as id, HEAD(n.profiles) as profile, duplicates > 0 as hasDuplicate, " +
 				"n.login as login, n.loginAlias as loginAlias ";
 		final String encryptedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
@@ -323,7 +323,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		final Handler<Either<String, JsonObject>> handler) {
 		String query =
 				"MATCH (n:User) " +
-				"WHERE n." + loginFieldName + "={login} AND has(n.resetDate) " +
+				"WHERE n." + loginFieldName + "={login} AND n.resetDate IS NOT NULL " +
 				"AND n.resetDate > {nowMinusDelay} AND n.resetCode = {resetCode} " +
 				"RETURN true as exists, n.displayName as displayName, n.email as email, n.mobile as mobile";
 
@@ -377,7 +377,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		final String baseQuery =
 				//"WHERE n.activationCode IS NULL " +
 				"WHERE 1=1 " +
-				(checkFederatedLogin ? "AND (NOT(HAS(n.federated)) OR n.federated = false) " : "") +
+				(checkFederatedLogin ? "AND (n.federated IS NULL OR n.federated = false) " : "") +
 				(setResetCode ? CREDENTIALS_UNLOCKED + "SET n.resetCode = {resetCode}, n.resetDate = {today} " : "") +
 				"RETURN n.email as email, n.mobile as mobile, n.displayName as displayName, n.activationCode as activationCode";
 		final String basicQuery = "MATCH (n:User {login:{login}}) " + baseQuery;
@@ -417,7 +417,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 					"tg-[:DEPENDS]->(ptg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name:'Teacher'}) " +
 					//"WHERE NOT(p.email IS NULL) AND n.activationCode IS NULL AND " +
 					"WHERE NOT(p.email IS NULL) AND " +
-					"(NOT(HAS(n.federated)) OR n.federated = false) " +
+					"(n.federated IS NULL OR n.federated = false) " +
 					(setResetCode ? "SET n.resetCode = {resetCode}, n.resetDate = {today} " : "") +
 					"RETURN p.email as email";
 			neo.execute(teacherQuery, params, Neo4jResult.validUniqueResultHandler(new Handler<Either<String,JsonObject>>() {
@@ -686,7 +686,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	public void resetPassword(String login, String resetCode, String password, HttpServerRequest request, final Handler<String> handler) {
 			String query =
 				"MATCH (n:User) " +
-					"WHERE n.login={login} AND has(n.resetDate) " +
+					"WHERE n.login={login} AND n.resetDate IS NOT NULL " +
 					"AND n.resetDate > {nowMinusDelay} AND n.resetCode = {resetCode} " +
 					CREDENTIALS_UNLOCKED +
 					"OPTIONAL MATCH (n)-[:IN]->(f:FunctionGroup) " +
@@ -798,7 +798,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 				"MATCH (n:User) " +
 						"WHERE n.login={login} AND n.activationCode IS NULL " +
 						CREDENTIALS_UNLOCKED +
-						"WITH n, (HAS(n.federated) AND n.federated = true) AS federated " +
+						"WITH n, (n.federated IS NOT NULL AND n.federated = true) AS federated " +
 						"FOREACH (i IN CASE WHEN {checkFederatedLogin} AND federated THEN [] ELSE [1] END | " +
 						"SET n.resetCode = {resetCode}, n.resetDate = {today}) " +
 						"RETURN n.displayName as displayName, federated as federated";
@@ -1218,7 +1218,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 				"<-[:DEPENDS]-(tg:ProfileGroup)<-[:IN]-(p:User), " +
 				"(sg)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name:'Student'}), " +
 				"(tg)-[:DEPENDS]->(tpg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name:'Teacher'}) " +
-				"WHERE n.activationCode IS NULL AND (NOT(HAS(n.federated)) OR n.federated = false) " +
+				"WHERE n.activationCode IS NULL AND (n.federated IS NULL OR n.federated = false) " +
 				CREDENTIALS_UNLOCKED +
 				"WITH n, n.passwordResetRequestDate AS previousDate, " +
 				"COLLECT(DISTINCT {id: p.id, email: p.email}) AS teachers " +
@@ -1236,7 +1236,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		final String query =
 				"MATCH (n:User) " +
 				"WHERE n.login={login} AND NOT(n.password IS NULL) " +
-				"AND (NOT(HAS(n.federated)) OR n.federated = false) " +
+				"AND (n.federated IS NULL OR n.federated = false) " +
 				CREDENTIALS_UNLOCKED +
 				"SET n.password = {password}, n.changePw = true, n.oldPasswords = {oldPasswords}, " +
 				"    n.resetCode = null, n.resetDate = null, " +

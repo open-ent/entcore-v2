@@ -330,7 +330,7 @@ public class NewDeviceWarningTask extends TemplatedEmailRenders implements Handl
                                                     " (" + LOGIN_ID_FIELD + "," + DATE_FIELD + "," + USER_AGENT_FIELD + "," + IP_FIELD +
                                                     " ," + USER_ID_FIELD + "," + USER_PROFILE_FIELD + "," + USER_ADMIN_FIELD +
                                                     " ," + PLATFORM_ID_FIELD + "," + SCORE_FIELD + "," + NOTIFICATION_FIELD + ")" +
-                                                    " VALUES ($1,$2,$3,CAST(lower($4) AS INET),$5,$6,$7,$8,$9,$10)";
+                                                    " VALUES ($1,$2,$3,CAST(toLower($4) AS INET),$5,$6,$7,$8,$9,$10)";
 
                     List<Tuple> insertTuples = new ArrayList<Tuple>();
                     for(LoginEventUser user : users.values())

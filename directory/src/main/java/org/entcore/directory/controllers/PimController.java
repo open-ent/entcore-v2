@@ -112,7 +112,7 @@ public class PimController extends BaseController {
                 ? "u.lastLogin IS NULL AND u.created < {cutoff} "
                 // Comparaison seule sur lastLogin : Neo4j la sert par l'index (neo4j/001-user-lastlogin-index.cypher).
                 : "u.lastLogin < {cutoff} ");
-        query.append("AND NOT HAS(u.deleteDate) AND coalesce(u.blocked, false) = false ");
+        query.append("AND NOT u.deleteDate IS NOT NULL AND coalesce(u.blocked, false) = false ");
         if (PROFILES.contains(profile)) {
             query.append("AND {profile} IN u.profiles ");
             params.put("profile", profile);

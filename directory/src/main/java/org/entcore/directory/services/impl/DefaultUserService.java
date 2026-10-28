@@ -427,7 +427,7 @@ public class DefaultUserService implements UserService {
 					"CASE WHEN userPositions IS NULL THEN [] ELSE userPositions END as userPositions, ";
 		}
 
-		query += " (HAS(u.federatedIDP) AND NOT(u.federatedIDP IS NULL) AND HAS(u.federated) AND u.federated = true) OR " +
+		query += " (u.federatedIDP IS NOT NULL AND NOT(u.federatedIDP IS NULL) AND u.federated IS NOT NULL AND u.federated = true) OR " +
 				"  (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) as hasFederatedIdentity, ";
 
 		if (getManualGroups)
@@ -628,7 +628,7 @@ public class DefaultUserService implements UserService {
 				+ "CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures, "
 				+ "CASE WHEN (g: ProfileGroup)-[:DEPENDS]->(:Structure) THEN 'StructureGroup' "
 				+ "     WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' "
-				+ "     WHEN HAS(g.subType) THEN g.subType END as subType";
+				+ "     WHEN g.subType IS NOT NULL THEN g.subType END as subType";
 			JsonObject params = new JsonObject().put("id", id);
         neo.execute(query, params, validResultHandler(results));
     }
@@ -1344,7 +1344,7 @@ public class DefaultUserService implements UserService {
 				"RETURN DISTINCT u.profiles as profiles, u.id as id, u.firstName as firstName, u.lastName as lastName, u.displayName as displayName, "+
 				"u.email as email, u.homePhone as homePhone, u.mobile as mobile, u.birthDate as birthDate, u.login as originalLogin, relativeList, " +
 				"motto, health, mood, hobbies, " +
-				" (HAS(u.federatedIDP) AND NOT(u.federatedIDP IS NULL) AND HAS(u.federated) AND u.federated = true) OR (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) as hasFederatedIdentity, " +
+				" (u.federatedIDP IS NOT NULL AND NOT(u.federatedIDP IS NULL) AND u.federated IS NOT NULL AND u.federated = true) OR (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) as hasFederatedIdentity, " +
 				"CASE WHEN u.totp IS NOT NULL AND u.totp <> '' THEN true ELSE false END as hasTotp, " +
 				"u.totpDevice as totpDevice, u.totpEnrolledAt as totpEnrolledAt, COALESCE(u.totpSelf, false) as totpSelf, " +
 				"CASE WHEN schools IS NULL THEN [] ELSE schools END as schools ";
@@ -1395,12 +1395,12 @@ public class DefaultUserService implements UserService {
 		String query;
 		if ("Student".equals(profile)) {
 			query = "MATCH (u:User)" + structureMatcher + " " +
-					"WHERE has(u.password) and u.level contains {level} " + levelFilter +
+					"WHERE u.password IS NOT NULL and u.level contains {level} " + levelFilter +
 					"RETURN u.id as id, u.ine as ine, head(u.profiles) as profile, u.lastName as lastName, u.firstName as firstName, " +
 					"u.login as login, u.loginAlias as loginAlias, u.email as email, u.mobile AS mobile, u.password as password ";
 		} else if ("Relative".equals(profile)) {
 			query = "MATCH (u:User)-[:RELATED]->(r:User)" + structureMatcher + " " +
-					"WHERE has(r.password) and u.level contains {level} " + levelFilter +
+					"WHERE r.password IS NOT NULL and u.level contains {level} " + levelFilter +
 					"RETURN r.id as id, u.ine as ine, head(r.profiles) as profile, r.lastName as lastName, r.firstName as firstName, " +
 					"r.login as login, r.loginAlias as loginAlias, r.email as email, r.mobile AS mobile, r.password as password ";
 		}
@@ -1408,7 +1408,7 @@ public class DefaultUserService implements UserService {
 		{
 			query = "MATCH (u:User)" + structureMatcher + " " +
 							(levelContains != null ? "MATCH (u)-[:IN]->(:ProfileGroup {filter: {profile}})-[:DEPENDS]->(:Class {name:{level}}) " : "") +
-							"WHERE HAS(u.password) AND u.firstName IS NOT NULL AND u.lastName IS NOT NULL AND u.birthDate IS NOT NULL AND {profile} IN u.profiles " +
+							"WHERE u.password IS NOT NULL AND u.firstName IS NOT NULL AND u.lastName IS NOT NULL AND u.birthDate IS NOT NULL AND {profile} IN u.profiles " +
 							(levelNotContains != null ? "OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup {filter: {profile}})-[:DEPENDS]->(c:Class {name:{notLevel}}) WITH u, c WHERE c = null " : "") +
 							"RETURN u.id as id, head(u.profiles) as profile, u.lastName as lastName, u.firstName as firstName, u.birthDate as birthDate, " +
 							"u.login as login, u.loginAlias as loginAlias, u.email as email, u.mobile AS mobile, u.password as password ";
@@ -1623,7 +1623,7 @@ public class DefaultUserService implements UserService {
 		final Promise<JsonArray> promise = Promise.promise();
 		final String query =
 				"MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-				"WHERE u.id IN {userIds} and s.source IN {structuresSources} and has(s.UAI) " +
+				"WHERE u.id IN {userIds} and s.source IN {structuresSources} and s.UAI IS NOT NULL " +
 				"RETURN u.id AS userId, u.externalId AS externalId, COLLECT(DISTINCT s.UAI) as structuresUAI";
 		final JsonObject params = new JsonObject();
 		params.put("userIds", userIds);

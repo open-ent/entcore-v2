@@ -330,7 +330,7 @@
 //									assertEquals("ok", message.body().getString("status"));
 //									String countQuery =
 //											"MATCH (u:User) " +
-//											"WHERE HAS(u.disappearanceDate) " +
+//											"WHERE u.disappearanceDate IS NOT NULL " +
 //											"RETURN count(*) as nbUsers ";
 //									neo4j.execute(countQuery, new JsonObject(), new Handler<Message<JsonObject>>() {
 //										@Override

@@ -167,12 +167,12 @@ public class PostImport {
 	private void publishClassesUpdate() {
 		final String query =
 				"MATCH (u:User) " +
-				"WHERE (has(u.classes) AND not(has(u.oldClasses))) OR u.classes <> u.oldClasses " +
+				"WHERE (u.classes IS NOT NULL AND u.oldClasses IS NULL) OR u.classes <> u.oldClasses " +
 				"RETURN u.id as userId, u.externalId as userExternalId, u.classes as classes, " +
 				"u.oldClasses as oldClasses, u.created as created, timestamp() as timestamp";
 		final String setOldClasses =
 				"MATCH (u:User) " +
-				"WHERE has(u.classes) " +
+				"WHERE u.classes IS NOT NULL " +
 				"SET u.oldClasses = u.classes ";
 		try {
 			final TransactionHelper tx = TransactionManager.getTransaction();
@@ -325,8 +325,8 @@ public class PostImport {
 	private void fixIncorrectStorages()
 	{
 		String setDefaultQuotas = "MATCH (p:Profile)-[:HAS_PROFILE]-(pg:ProfileGroup)-[:IN]-(u:User)-[r:USERBOOK]->(n:UserBook) " +
-									"WHERE NOT(HAS(n.quota)) SET n.quota = p.defaultQuota";
-		String setMissingStorages = "MATCH (n:UserBook) WHERE NOT(HAS(n.storage)) SET n.storage = 0";
+									"WHERE n.quota IS NULL SET n.quota = p.defaultQuota";
+		String setMissingStorages = "MATCH (n:UserBook) WHERE n.storage IS NULL SET n.storage = 0";
 		String fixNegativeStorages = "MATCH (n:UserBook) WHERE n.storage < 0 SET n.storage = 0";
 
 		try {

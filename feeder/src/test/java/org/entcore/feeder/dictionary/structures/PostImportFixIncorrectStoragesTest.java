@@ -142,7 +142,7 @@ public class PostImportFixIncorrectStoragesTest {
 
     private Future<Void> checkHasExpectedNumberOfUserBooksWithoutQuota(final int expected) {
         final Promise<Void> promise = Promise.promise();
-        neo4j.execute("MATCH (ub:UserBook) WHERE NOT(HAS(ub.storage)) return count(ub) as count", new JsonObject(),
+        neo4j.execute("MATCH (ub:UserBook) WHERE ub.storage IS NULL return count(ub) as count", new JsonObject(),
         result -> {
             if ("ok".equals(result.body().getString("status"))) {
                 final int count = result.body().getJsonArray("result").getJsonObject(0).getInteger("count");

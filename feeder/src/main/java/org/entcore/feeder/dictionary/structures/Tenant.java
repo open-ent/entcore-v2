@@ -92,7 +92,7 @@ public class Tenant {
 	static void linkStructures(final EventBus eb) {
 		final String query =
 				"MATCH (t:Tenant) " +
-				"WHERE has(t.linkRules) " +
+				"WHERE t.linkRules IS NOT NULL " +
 				"RETURN t.id as id, t.linkRules as rules ";
 		TransactionManager.getNeo4jHelper().execute(query, new JsonObject(), r -> {
 			if ("ok".equals(r.body().getString("status"))) {

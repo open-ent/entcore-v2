@@ -39,17 +39,17 @@ public class FranceConnectServiceProvider implements OpenIdConnectServiceProvide
 	private final Neo4j neo4j = Neo4j.getInstance();
 	private static final String QUERY_SUB_FC = "MATCH (u:User {subFC : {sub}}) " + AbstractSSOProvider.RETURN_QUERY;
 	private static final String QUERY_PIVOT_FC =
-			"MATCH (u:User) WHERE (lower(u.lastName) = lower({family_name}) OR lower(u.lastName) = lower({preferred_username})) " +
-			"AND lower({given_name}) CONTAINS lower(u.firstName) AND u.birthDate = {birthdate} AND NOT(HAS(u.subFC)) " +
+			"MATCH (u:User) WHERE (toLower(u.lastName) = toLower({family_name}) OR toLower(u.lastName) = toLower({preferred_username})) " +
+			"AND toLower({given_name}) CONTAINS toLower(u.firstName) AND u.birthDate = {birthdate} AND u.subFC IS NULL " +
 			"SET u.subFC = {sub}, u.federated = {setFederated}, u.changePw=null " +
 			"WITH u " + AbstractSSOProvider.RETURN_QUERY;
 	private static final String QUERY_MAPPING_FC =
 			"MATCH (n:User {login:{login}}) " +
-			"WHERE NOT(HAS(n.subFC)) " +
+			"WHERE n.subFC IS NULL " +
 			"RETURN n.password as password, n.activationCode as activationCode ";
 	private static final String QUERY_SET_MAPPING_FC =
 			"MATCH (u:User {login:{login}}) " +
-			"WHERE NOT(HAS(u.subFC)) " +
+			"WHERE u.subFC IS NULL " +
 			"SET u.subFC = {sub}, u.federated = {setFederated}, u.changePw=null " +
 			"WITH u " + AbstractSSOProvider.RETURN_QUERY;
 	private boolean setFederated = true;

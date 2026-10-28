@@ -116,7 +116,7 @@ public class Structure {
 		if (currName != null && !currName.equals(struct.getString("name")) && Boolean.TRUE.equals(manualName) == false) {
 			String updateGroupsStructureName =
 					"MATCH (s:Structure { externalId : {externalId}})<-[:DEPENDS]-(g:Group) " +
-					"WHERE s.checksum = {checksum} and has(g.structureName) " +
+					"WHERE s.checksum = {checksum} and g.structureName IS NOT NULL " +
 					"SET s.name = {name}, g.structureName = {name} ";
 			getTransaction().add(updateGroupsStructureName, struct);
 			String updateGroupsName =
@@ -237,7 +237,7 @@ public class Structure {
 	public void createFunctionalGroupIfAbsent(String groupExternalId, String name, String source) {
 			String query =
 					"MATCH (s:Structure { externalId : {structureExternalId}}) " +
-					(source == null ? "WHERE (NOT(HAS(s.timetable)) OR s.timetable = '') " : "WHERE s.timetable = {source} ") +
+					(source == null ? "WHERE (s.timetable IS NULL OR s.timetable = '') " : "WHERE s.timetable = {source} ") +
 					"CREATE s<-[:DEPENDS]-(c:Group:FunctionalGroup {props}) " +
 					"SET c.source = coalesce({source}, {importSource}, s.source) ";
 			JsonObject params = new JsonObject()
@@ -264,7 +264,7 @@ public class Structure {
 		if (isNotEmpty(label)) {
 			String query =
 					"MATCH (s:Structure { externalId : {structureExternalId}}) " +
-					//(source == null ? "WHERE (NOT(HAS(s.timetable)) OR s.timetable = '' OR s.timetable = 'NOP') " : "WHERE s.timetable = s.source ") +
+					//(source == null ? "WHERE (s.timetable IS NULL OR s.timetable = '' OR s.timetable = 'NOP') " : "WHERE s.timetable = s.source ") +
 					"CREATE s<-[:DEPENDS]-(c:Group:FunctionGroup:" + label + "Group {props}) " +
 					"SET c.source = coalesce({source}, {importSource}, s.source)";
 			JsonObject params = new JsonObject()
@@ -548,7 +548,7 @@ public class Structure {
 		JsonObject params = new JsonObject();
 		String query = "MATCH (s:Structure) ";
 		if (isNotEmpty(exportType)) {
-			query += "WHERE HAS(s.exports) AND {exportType} IN s.exports ";
+			query += "WHERE s.exports IS NOT NULL AND {exportType} IN s.exports ";
 			params.put("exportType", exportType);
 		}
 		query += "RETURN count(distinct s) as nb";
@@ -559,7 +559,7 @@ public class Structure {
 		StringBuilder query = new StringBuilder("MATCH (s:Structure) ");
 		JsonObject params = new JsonObject();
 		if (isNotEmpty(exportType)) {
-			query.append("WHERE HAS(s.exports) AND {exportType} IN s.exports ");
+			query.append("WHERE s.exports IS NOT NULL AND {exportType} IN s.exports ");
 			params.put("exportType", exportType);
 		}
 		if (attributes != null && attributes.size() > 0) {
@@ -597,7 +597,7 @@ public class Structure {
 				"SET rf.scope = coalesce(rf.scope, []) + s.id " +
 				"WITH DISTINCT s as n, f, u " +
 				"MERGE (fg:Group:FunctionGroup { externalId : n.id + '-ADMIN_LOCAL'}) " +
-				"ON CREATE SET fg.id = id(fg) + '-' + timestamp(), fg.name = n.name + '-' + f.name, fg.displayNameSearchField = lower(n.name), fg.filter = f.name " +
+				"ON CREATE SET fg.id = id(fg) + '-' + timestamp(), fg.name = n.name + '-' + f.name, fg.displayNameSearchField = toLower(n.name), fg.filter = f.name " +
 				"CREATE UNIQUE n<-[:DEPENDS]-fg " +
 				"MERGE fg<-[:IN { source : 'MANUAL'}]-u";
 		JsonObject params =  new JsonObject()

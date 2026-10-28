@@ -131,14 +131,14 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 	// prevent difference between relationships and properties
 	private static final String UNSET_OLD_GROUPS =
 			"MATCH (:Structure {externalId : {structureExternalId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
-			"WHERE NOT(HAS(u.deleteDate)) AND has(u.groups) AND LENGTH(u.groups) > 0 " +
+			"WHERE u.deleteDate IS NULL AND u.groups IS NOT NULL AND LENGTH(u.groups) > 0 " +
 			"AND NOT(u-[:IN]->(:FunctionalGroup)) " +
 			"SET u.groups = [];";
 	private static final String SET_GROUPS =
 			"MATCH (:Structure {externalId : {structureExternalId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
 			"WITH u " +
 			"MATCH u-[:IN]->(g:FunctionalGroup) " +
-			"WHERE has(u.groups) " +
+			"WHERE u.groups IS NOT NULL " +
 			"WITH u, collect(g.externalId) as groups " +
 			"SET u.groups = groups";
 	public static final String COURSES = "courses";
@@ -1079,7 +1079,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 
 		final String type = conf.getString("type");
 		final boolean isDefault = type != null && type.equals("");
-		final String condition = isDefault == true ? "(HAS(s.timetable) AND s.timetable <> {type})" : "(NOT(EXISTS(s.timetable)) OR s.timetable <> {type})";
+		final String condition = isDefault == true ? "(s.timetable IS NOT NULL AND s.timetable <> {type})" : "(NOT(EXISTS(s.timetable)) OR s.timetable <> {type})";
 		final String query =
 				"MATCH (s:Structure {id:{structureId}}) " +
 				"WITH " + condition + " AS update, s " +

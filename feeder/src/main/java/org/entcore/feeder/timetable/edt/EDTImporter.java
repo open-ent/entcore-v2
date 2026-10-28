@@ -59,7 +59,7 @@ public class EDTImporter extends AbstractTimetableImporter implements EDTReader 
 
 	private static final String MATCH_PERSEDUCNAT_QUERY =
 			"MATCH (:Structure {UAI : {UAI}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
-			"WHERE head(u.profiles) IN ['Teacher','Personnel'] AND LOWER(u.lastName) = {lastName} AND LOWER(u.firstName) = {firstName} " +
+			"WHERE head(u.profiles) IN ['Teacher','Personnel'] AND toLower(u.lastName) = {lastName} AND toLower(u.firstName) = {firstName} " +
 			"OPTIONAL MATCH (upn:User {IDPN: {IDPN}}) " +
 			"WITH COLLECT(DISTINCT u) as user, COUNT(DISTINCT upn) as countUpn " +
 			"WHERE countUpn = 0 AND LENGTH(user) = 1 " +
@@ -71,7 +71,7 @@ public class EDTImporter extends AbstractTimetableImporter implements EDTReader 
 			"SET r.lastUpdated = {now}, r.source = {source}, r.inDate = {inDate}, r.outDate = {outDate} ";
 	private static final String CLEAN_IDPN =
 			"MATCH (:Structure {UAI : {UAI}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
-			"WHERE HAS(u.IDPN) AND HEAD(u.profiles) IN ['Relative','Guest', 'Student'] " +
+			"WHERE u.IDPN IS NOT NULL AND HEAD(u.profiles) IN ['Relative','Guest', 'Student'] " +
 			"SET u.IDPN = null";
 	private static final String CLEAN_IDPN_OTHER_STRUCTURE =
 			"MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +

@@ -62,7 +62,7 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 		if (structureId != null && !structureId.trim().isEmpty()) {
 			filter =
 				", (s:Structure)-[:HAS_ATTACHMENT*0..]->(p:Structure) " +
-				"WHERE HAS(app.structureId) AND s.id = {structure} AND p.id = app.structureId AND r.structureId = app.structureId " +
+				"WHERE app.structureId IS NOT NULL AND s.id = {structure} AND p.id = app.structureId AND r.structureId = app.structureId " +
 				"AND (app.inherits = true OR p = s) ";
 			params = new JsonObject().put("structure", structureId);
 		}

@@ -219,7 +219,7 @@ public class Importer {
 		final Promise<Void> promise = Promise.promise();
 		final String query =
 			"MATCH (s:Structure {source:'AAF'})<-[:DEPENDS]-(pg:ProfileGroup)<-[r:IN]-(u:User) " +
-			"WHERE u.source = 'AAF' and pg.filter IN ['Personnel','Teacher'] and (not(has(r.source)) OR r.source = 'AAF') " +
+			"WHERE u.source = 'AAF' and pg.filter IN ['Personnel','Teacher'] and (r.source IS NULL OR r.source = 'AAF') " +
 			"RETURN DISTINCT u.externalId as externalId, u.source as source, head(u.profiles) as profile, " +
 			"u.functions as functions, COLLECT(distinct s.externalId) as structuresExternalIds";
 		Neo4j.getInstance().execute(query, new JsonObject(), event -> {
@@ -252,7 +252,7 @@ public class Importer {
 			// "COLLECT(g.externalId) as groups, " +
 			"COLLECT(c.externalId) as classes";
 			// "MATCH (s:Structure {source:{source}})<-[:DEPENDS]-(:ProfileGroup)<-[r:IN]-(u:User {source:{source}}) " +
-			// "WHERE head(u.profiles) = 'Student' and not(has(r.source)) " +
+			// "WHERE head(u.profiles) = 'Student' and r.source IS NULL " +
 			// "OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 			// "OPTIONAL MATCH u-[:COURSE]->(f:FieldOfStudy) " +
 			// "OPTIONAL MATCH u-[:FOLLOW]->(m:Module) " +
@@ -302,7 +302,7 @@ public class Importer {
 		final Promise<Void> f = Promise.promise();
 		final String query =
 				"MATCH (u:User) " +
-				"WHERE u.source IN {sources} AND HAS(u.ine) AND NOT(HAS(u.disappearanceDate)) AND NOT(HAS(u.deleteDate)) " +
+				"WHERE u.source IN {sources} AND u.ine IS NOT NULL AND u.disappearanceDate IS NULL AND u.deleteDate IS NULL " +
 				"RETURN COLLECT(DISTINCT u.ine) ines";
 		final JsonArray sources = new JsonArray();
 		for (Object o: sources) {
@@ -627,7 +627,7 @@ public class Importer {
 						"START u0=node:node_auto_index(externalId={externalId}), " +
 						"s=node:node_auto_index({studentExternalIds}) " +
 						"MATCH u0-[:MERGED*0..1]->u " +
-						"WHERE NOT(HAS(u.mergedWith)) " +
+						"WHERE u.mergedWith IS NULL " +
 						"MERGE u<-[:RELATED]-s ";
 				JsonObject p = new JsonObject()
 						.put("externalId", object.getString("externalId"))
@@ -656,7 +656,7 @@ public class Importer {
 				}
 				String q2 = "MATCH (g:FunctionGroup), (u:User { externalId : {userExternalId}}) " +
 						"WHERE g.externalId IN {groups} " +
-						"AND NOT(HAS(u.mergedWith)) " +
+						"AND u.mergedWith IS NULL " +
 						"AND g.source = {source} " +
 						"MERGE u-[:IN]->g";
 				JsonObject p = new JsonObject()
@@ -709,7 +709,7 @@ public class Importer {
 										"USING INDEX s:Structure(externalId) " +
 										"USING INDEX p:Profile(externalId) " +
 										"WHERE s.externalId = {structure} AND c.externalId = {class} " +
-										"AND p.externalId = {profileExternalId} AND NOT(HAS(u.mergedWith)) " +
+										"AND p.externalId = {profileExternalId} AND u.mergedWith IS NULL " +
 										"MERGE u-[:IN]->g";
 						JsonObject p = new JsonObject()
 								.put("userExternalId", externalId)
@@ -722,7 +722,7 @@ public class Importer {
 				}
 				String q =
 						"MATCH (u:User {externalId : {userExternalId}})-[r:IN]-(g:Group)-[:DEPENDS]->(c:Class) " +
-						"WHERE NOT(c.externalId IN {classes}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+						"WHERE NOT(c.externalId IN {classes}) AND (r.source IS NULL OR r.source = {source}) " +
 						"DELETE r ";
 				JsonObject p = new JsonObject()
 						.put("userExternalId", externalId)
@@ -801,14 +801,14 @@ public class Importer {
 						if (structures.size() == 1) {
 							query = "MATCH (s:Structure {externalId : {structureAdmin}}), " +
 									"(u:User { externalId : {userExternalId}}) " +
-									"WHERE NOT(HAS(u.mergedWith)) " +
+									"WHERE u.mergedWith IS NULL " +
 									"MERGE u-[:ADMINISTRATIVE_ATTACHMENT]->s ";
 							p.put("structureAdmin", structures.getString(0))
 									.put("profileExternalId", profileExternalId);
 						} else {
 							query = "MATCH (s:Structure), " +
 									"(u:User { externalId : {userExternalId}})) " +
-									"WHERE s.externalId IN {structuresAdmin} AND NOT(HAS(u.mergedWith)) " +
+									"WHERE s.externalId IN {structuresAdmin} AND u.mergedWith IS NULL " +
 									"MERGE u-[:ADMINISTRATIVE_ATTACHMENT]->s ";
 							p.put("structuresAdmin", structures)
 									.put("profileExternalId", profileExternalId);
@@ -823,7 +823,7 @@ public class Importer {
 							.put("structures", structures);
 					final String daa =
 							"MATCH (u:User {externalId : {userExternalId}})-[r:ADMINISTRATIVE_ATTACHMENT]->(s:Structure) " +
-							"WHERE NOT(s.externalId IN {structures}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+							"WHERE NOT(s.externalId IN {structures}) AND (r.source IS NULL OR r.source = {source}) " +
 							"DELETE r";
 					transactionHelper.add(daa, ps);
 				}
@@ -839,7 +839,7 @@ public class Importer {
 								"MATCH (c:Class)<-[:DEPENDS]-(g:ProfileGroup)" +
 								"-[:DEPENDS]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile {externalId : {profileExternalId}}), " +
 								"(u:User { externalId : {userExternalId}}) " +
-								"WHERE c.externalId IN {classes} AND NOT(HAS(u.mergedWith))  " +
+								"WHERE c.externalId IN {classes} AND u.mergedWith IS NULL  " +
 								"MERGE u-[:IN]->g";
 						JsonObject p0 = new JsonObject()
 								.put("userExternalId", externalId)
@@ -851,7 +851,7 @@ public class Importer {
 				if (externalId != null) {
 					String q =
 							"MATCH (u:User {externalId : {userExternalId}})-[r:IN]-(g:Group)-[:DEPENDS]->(c:Class) " +
-							"WHERE NOT(c.externalId IN {classes}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+							"WHERE NOT(c.externalId IN {classes}) AND (r.source IS NULL OR r.source = {source}) " +
 							"DELETE r ";
 					JsonObject p = new JsonObject()
 							.put("userExternalId", externalId)
@@ -869,7 +869,7 @@ public class Importer {
 					// if (studentsRelationshipsNotExists(externalId, CheckRelationshipsTypes.GROUPS, groups)) {
 						String query =
 								"MATCH (u:User { externalId: {userExternalId}}) " +
-								"WHERE NOT(HAS(u.mergedWith)) " +
+								"WHERE u.mergedWith IS NULL " +
 								"WITH u " +
 								"MATCH (g:Group) " +
 								"WHERE (g:FunctionalGroup OR g:FunctionGroup) AND g.externalId IN {groups} AND g.source = {source} " +
@@ -884,7 +884,7 @@ public class Importer {
 				if (externalId != null) {
 					final String qdfg =
 							"MATCH (u:User {externalId : {userExternalId}})-[r:IN]-(g:FunctionalGroup) " +
-							"WHERE (NOT(HAS(r.source)) OR r.source = {source}) " +
+							"WHERE (r.source IS NULL OR r.source = {source}) " +
 							"AND (NOT(g.externalId IN {groups}) OR (g.source <> {source})) " +
 							"DELETE r ";
 					final JsonObject pdfg = new JsonObject()
@@ -919,7 +919,7 @@ public class Importer {
 				if (externalId != null && relative != null && relative.size() > 0) {
 					String query2 =
 							"MATCH (:User {externalId:{userExternalId}})-[r:RELATED|COMMUNIQUE_DIRECT]-(p:User) " +
-							"WHERE NOT(p.externalId IN {relatives}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+							"WHERE NOT(p.externalId IN {relatives}) AND (r.source IS NULL OR r.source = {source}) " +
 							"DELETE r ";
 					JsonObject p2 = new JsonObject()
 							.put("userExternalId", externalId)
@@ -931,7 +931,7 @@ public class Importer {
 						String query =
 								"MATCH (u:User {externalId:{userExternalId}}), " +
 								"(:User {externalId:{user}})-[:MERGED*0..1]->(r:User) " +
-								"WHERE NOT(HAS(r.mergedWith)) " +
+								"WHERE r.mergedWith IS NULL " +
 								"MERGE u-[:RELATED]->r " +
 								"WITH r, u " +
 								"WHERE {user} <> r.externalId AND LENGTH(FILTER(eId IN u.relative WHERE eId STARTS WITH r.externalId)) = 0 " +
@@ -1059,13 +1059,13 @@ public class Importer {
 		// prevent difference between relationships and properties
 		String query2 =
 				"MATCH (u:User) " +
-				"WHERE NOT(HAS(u.deleteDate)) AND has(u.groups) AND LENGTH(u.groups) > 0 " +
+				"WHERE u.deleteDate IS NULL AND u.groups IS NOT NULL AND LENGTH(u.groups) > 0 " +
 				"AND NOT(u-[:IN]->(:FunctionalGroup)) " +
 				"SET u.groups = [];";
 		transactionHelper.add(query2, null);
 		String query3 =
 				"MATCH (u:User)-[:IN]->(g:FunctionalGroup) " +
-				"WHERE has(u.groups) " +
+				"WHERE u.groups IS NOT NULL " +
 				"WITH u, collect(g.externalId) as groups " +
 				"SET u.groups = groups";
 		transactionHelper.add(query3, null);
@@ -1082,13 +1082,13 @@ public class Importer {
 		// prevent difference between relationships and properties
 		String query2 =
 				"MATCH (u:User) " +
-				"WHERE NOT(HAS(u.deleteDate)) AND has(u.classes) AND LENGTH(u.classes) > 0 " +
+				"WHERE u.deleteDate IS NULL AND u.classes IS NOT NULL AND LENGTH(u.classes) > 0 " +
 				"AND NOT(u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Class)) " +
 				"SET u.classes = [];";
 		transactionHelper.add(query2, null);
 		String query3 =
 				"MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
-				"WHERE has(u.classes) " +
+				"WHERE u.classes IS NOT NULL " +
 				"WITH u, collect(c.externalId) as classes " +
 				"SET u.classes = classes";
 		transactionHelper.add(query3, null);
@@ -1110,7 +1110,7 @@ public class Importer {
 
 		final String query =
 				"MATCH (u:User) " +
-				"WHERE u.source = {currentSource} AND HAS(u.removedFromStructures) AND u.removedFromStructures <> [] " + filter +
+				"WHERE u.source = {currentSource} AND u.removedFromStructures IS NOT NULL AND u.removedFromStructures <> [] " + filter +
 				"RETURN u.externalId as externalId";
 		TransactionManager.getNeo4jHelper().execute(query, params, new Handler<Message<JsonObject>>() {
 			@Override
@@ -1136,7 +1136,7 @@ public class Importer {
 	public void addRelativeProperties(String source) {
 		String query =
 				"MATCH (u:User {source: {source}})-[:RELATED]->(u2:User) " +
-				"WHERE HEAD(u.profiles) = 'Student' AND NOT(HAS(u.relative)) " +
+				"WHERE HEAD(u.profiles) = 'Student' AND u.relative IS NULL " +
 				"SET u.relative = coalesce(u.relative, []) + (u2.externalId + '$10$1$1$0$0')";
 		transactionHelper.add(query, new JsonObject().put("source", source));
 	}
@@ -1207,7 +1207,7 @@ public class Importer {
 					existingUser.removeAll(userImportedExternalId); // set difference
 					String q = // mark missing users
 							"START u=node:node_auto_index(externalId={externalId}) " +
-									"WHERE NOT(HAS(u.disappearanceDate)) " +
+									"WHERE u.disappearanceDate IS NULL " +
 									"SET u.disappearanceDate = {date} ";
 					JsonObject p = new JsonObject()
 							.put("date", System.currentTimeMillis());
@@ -1216,7 +1216,7 @@ public class Importer {
 					}
 					String q2 = // remove mark of imported users
 							"START u=node:node_auto_index(externalId={externalId}) " +
-									"WHERE HAS(u.disappearanceDate) " +
+									"WHERE u.disappearanceDate IS NOT NULL " +
 									"REMOVE u.disappearanceDate " +
 									"RETURN u.id AS id, u.login AS login";
 					for (String eId : userImportedExternalId) {
@@ -1262,17 +1262,17 @@ public class Importer {
 	public static void restorePreDeletedUsers(String currentSource, TransactionHelper transactionHelper) {
 		String query =
 				"MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Structure) " +
-				"WHERE has(u.deleteDate) AND NOT(HAS(u.disappearanceDate)) AND u.source = {source} " +
+				"WHERE u.deleteDate IS NOT NULL AND u.disappearanceDate IS NULL AND u.source = {source} " +
 				"REMOVE u.deleteDate ";
 		transactionHelper.add(query, new JsonObject().put("source", currentSource));
 		String query2 =
 				"MATCH (u:User)-[r:IN]->(:DeleteGroup) " +
-				"WHERE not(has(u.deleteDate)) " +
+				"WHERE u.deleteDate IS NULL " +
 				"DELETE r ";
 		transactionHelper.add(query2, new JsonObject());
 		String query3 =
 				"MATCH (u1:User)-[r:DUPLICATE]->(u2:User) " +
-				"WHERE u1.source = {source} and u2.source = {source} AND NOT(HAS(u1.disappearanceDate)) and NOT(HAS(u2.disappearanceDate)) " +
+				"WHERE u1.source = {source} and u2.source = {source} AND u1.disappearanceDate IS NULL and u2.disappearanceDate IS NULL " +
 				"DELETE r";
 		transactionHelper.add(query3, new JsonObject().put("source", currentSource));
 	}
@@ -1296,7 +1296,7 @@ public class Importer {
 		}
 		final String query =
 				"MATCH (s:Structure)<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(pg:ProfileGroup) " +
-				"WHERE NOT(HAS(pg.structureName)) OR pg.structureName <> s.name " + filter +
+				"WHERE pg.structureName IS NULL OR pg.structureName <> s.name " + filter +
 				"SET pg.structureName = s.name";
 		transactionHelper.add(query, params);
 	}

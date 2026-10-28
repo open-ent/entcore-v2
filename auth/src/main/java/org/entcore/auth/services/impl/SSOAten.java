@@ -59,7 +59,7 @@ public class SSOAten extends AbstractSSOProvider {
 			String query = "MATCH (student:User)-[:RELATED]->(u:User)-[:IN]->(:ProfileGroup)" +
 					"-[:DEPENDS]->(s:Structure) " +
 					"WHERE HEAD(u.profiles) = 'Relative' AND s.UAI IN {UAI} AND student.attachmentId IN {attachmentId} " +
-					"AND u.firstName IN {firstName} AND u.lastName IN {lastName} AND NOT(HAS(u.mergedWith)) ";
+					"AND u.firstName IN {firstName} AND u.lastName IN {lastName} AND u.mergedWith IS NULL ";
 			JsonObject params = new JsonObject()
 					.put("attachmentId", attachmentId)
 					.put("UAI", uais)

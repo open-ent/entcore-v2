@@ -548,7 +548,7 @@ public class ManualFeeder extends BusModBase {
 				.put("structureId", newStructureId != null ? newStructureId : newStructureExternalId)
 				.put("userId", userId != null ? userId : userExternalId);
 		final String matchUser = "MATCH (u:User { " + (userId != null ? "id" : "externalId") + " : {userId}}) " +
-								(addNewStruct == false ? "WHERE HAS(u.removedFromStructures) AND u.removedFromStructures <> [] WITH u " : "");
+								(addNewStruct == false ? "WHERE u.removedFromStructures IS NOT NULL AND u.removedFromStructures <> [] WITH u " : "");
 		final String matchStructure = addNewStruct == true
 		  ? "MATCH (s:Structure { " + (newStructureId != null ? "id" : "externalId") + ": {structureId} }) "
 			: "MATCH (s:Structure) " +
@@ -573,7 +573,7 @@ public class ManualFeeder extends BusModBase {
 				matchUser +
 				matchStructure +
 				"MATCH u-[r:HAS_FUNCTION]->() " +
-				"WHERE s.id IN r.scope AND (NOT(HAS(r.source)) OR r.source <> 'MANUAL') " +
+				"WHERE s.id IN r.scope AND (r.source IS NULL OR r.source <> 'MANUAL') " +
 				"OPTIONAL MATCH (s)-[:HAS_ATTACHMENT*1..]->(ss:Structure) " +
 						"WITH s, r, count(CASE WHEN ss.id IN r.scope THEN 1 ELSE NULL END) as parentADML " +
 						"WHERE parentADML = 0 " +
@@ -585,7 +585,7 @@ public class ManualFeeder extends BusModBase {
 				matchUser +
 				matchStructure +
 				"MATCH u-[r:IN|COMMUNIQUE]-(:Group)-[:DEPENDS]->s " +
-						"WHERE NOT(HAS(r.source)) OR r.source <> 'MANUAL' " +
+						"WHERE r.source IS NULL OR r.source <> 'MANUAL' " +
 						"DELETE r";
 		final String removeDefaultGroup =
 				matchUser +
@@ -1118,8 +1118,8 @@ public class ManualFeeder extends BusModBase {
 	private void deleteUnlockedUsers(final Message<JsonObject> message, final JsonArray users) {
 		String query =
 				"MATCH (u:User)" +
-				"WHERE u.id IN {users} AND (u.source IN ['MANUAL', 'CSV', 'CLASS_PARAM', 'BE1D', 'SSO'] OR HAS(u.disappearanceDate)) " +
-				"return u.id as id, u.externalId AS externalId, u.login as login, u.loginAlias as loginAlias, has(u.activationCode) as inactive ";
+				"WHERE u.id IN {users} AND (u.source IN ['MANUAL', 'CSV', 'CLASS_PARAM', 'BE1D', 'SSO'] OR u.disappearanceDate IS NOT NULL) " +
+				"return u.id as id, u.externalId AS externalId, u.login as login, u.loginAlias as loginAlias, u.activationCode IS NOT NULL as inactive ";
 		neo4j.execute(query, new JsonObject().put("users", users), new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> event) {

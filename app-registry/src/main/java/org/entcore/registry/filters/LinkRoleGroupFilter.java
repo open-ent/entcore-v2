@@ -69,7 +69,7 @@ public class LinkRoleGroupFilter implements ResourcesProvider {
 						roleIds.size() > 0 && !groupId.trim().isEmpty()) {
 					String query =
 							"MATCH (s:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS]-(:Group {id : {groupId}}), (r:Role) " +
-							"WHERE s.id IN {structures} AND r.id IN {roles} AND (NOT(HAS(r.structureId)) OR r.structureId IN {structures}) " +
+							"WHERE s.id IN {structures} AND r.id IN {roles} AND (r.structureId IS NULL OR r.structureId IN {structures}) " +
 							"RETURN count(distinct r) = {nb} as exists ";
 					params.put("groupId", groupId);
 					params.put("roles", roleIds);

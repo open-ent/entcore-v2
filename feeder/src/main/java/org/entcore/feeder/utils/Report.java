@@ -301,15 +301,15 @@ public class Report {
 				params.put("prefixAcademy", prefixAcademy.get());
 			}
 			tx.add("MATCH (u:User {source:{source}}) "
-					+ "WHERE HAS(u.created) AND u.created >= {startTime} AND u.created < {endTime} "
+					+ "WHERE u.created IS NOT NULL AND u.created >= {startTime} AND u.created < {endTime} "
 					+ (prefixAcademy.isPresent() ? " AND u.externalId STARTS WITH {prefixAcademy} " : "")//
 					+ "RETURN count(*) as createdCount", params);
 			tx.add("MATCH (u:User {source:{source}}) "
-					+ "WHERE HAS(u.modified) AND u.modified >= {startTime} AND u.modified < {endTime} "
+					+ "WHERE u.modified IS NOT NULL AND u.modified >= {startTime} AND u.modified < {endTime} "
 					+ (prefixAcademy.isPresent() ? " AND u.externalId STARTS WITH {prefixAcademy} " : "")//
 					+ "RETURN count(*) as modifiedCount", params);
 			tx.add("MATCH (u:User {source:{source}}) "
-					+ "WHERE HAS(u.disappearanceDate) AND u.disappearanceDate >= {start} AND u.disappearanceDate < {end} "
+					+ "WHERE u.disappearanceDate IS NOT NULL AND u.disappearanceDate >= {start} AND u.disappearanceDate < {end} "
 					+ (prefixAcademy.isPresent() ? " AND u.externalId STARTS WITH {prefixAcademy} " : "")//
 					+ "RETURN count(*) as disappearanceCount", params);
 			tx.commit(new Handler<Message<JsonObject>>() {

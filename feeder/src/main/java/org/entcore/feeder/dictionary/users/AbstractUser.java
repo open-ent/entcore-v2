@@ -63,7 +63,7 @@ public abstract class AbstractUser {
 		if (object.containsKey("email")) {
 			final String queryUpdateEmail =
 					"MATCH (u:User {externalId: {externalId}}) " +
-					"WHERE NOT(HAS(u.email)) OR (HAS(u.activationCode) AND u.email <> {email}) " +
+					"WHERE u.email IS NULL OR (u.activationCode IS NOT NULL AND u.email <> {email}) " +
 					"SET u.email = {email}, u.emailSearchField = {emailSearchField}";
 			transactionHelper.add(queryUpdateEmail, object);
 		}

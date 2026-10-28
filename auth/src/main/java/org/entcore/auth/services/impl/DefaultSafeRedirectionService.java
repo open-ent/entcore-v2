@@ -92,7 +92,7 @@ public class DefaultSafeRedirectionService implements SafeRedirectionService {
     }
 
     private void loadDomains() {
-        final String query = "MATCH (a:Application) WHERE HAS(a.address) RETURN a.address as address";
+        final String query = "MATCH (a:Application) WHERE a.address IS NOT NULL RETURN a.address as address";
         neo.execute(query, new JsonObject(), Neo4jResult.validResultHandler(res -> {
             if (res.isRight()) {
                 final Set<String> addresses = res.right().getValue().stream().map(e -> (JsonObject) e)

@@ -576,7 +576,7 @@ public class CsvValidator extends CsvReport implements ImportValidator {
 			final String q2 =
 					"MATCH (u:User) " +
 					"WHERE u.externalId IN {externalIds} AND u.source IN ['AAF', 'AAF1D'] " +
-					"AND NOT(HAS(u.deleteDate)) AND NOT(HAS(u.disappearanceDate)) " +
+					"AND u.deleteDate IS NULL AND u.disappearanceDate IS NULL " +
 					"RETURN COLLECT(u.externalId) as ids";
 			tx.add(q2, params);
 			if (admlStructures != null && admlStructures.size() > 0) {

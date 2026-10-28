@@ -240,7 +240,7 @@ public class User {
 			}
 			String query =
 					"MATCH (u:User) " +
-					"WHERE HAS(u.disappearanceDate) AND NOT(HAS(u.deleteDate)) AND u.disappearanceDate < {date} " +
+					"WHERE u.disappearanceDate IS NOT NULL AND u.deleteDate IS NULL AND u.disappearanceDate < {date} " +
 					filter +
 					"RETURN u.id as id, TOSTRING(ID(u)) AS nodeId " +
 					"LIMIT {limit} ";
@@ -266,7 +266,7 @@ public class User {
 			}
 			String query =
 					"MATCH (u:User) " +
-					"WHERE HAS(u.disappearanceDate) AND NOT(HAS(u.deleteDate)) AND u.disappearanceDate < {date} " +
+					"WHERE u.disappearanceDate IS NOT NULL AND u.deleteDate IS NULL AND u.disappearanceDate < {date} " +
 					filter +
 					"RETURN u.id as id, u.disappearanceDate as disappearanceDate ";
 			TransactionManager.getInstance().getNeo4j().execute(query, params, message -> {
@@ -391,49 +391,49 @@ public class User {
 		}
 		String query =
 				"MATCH (u:User { id : {userId}})-[r:IN]->(n) " +
-				"WHERE HAS(n.id) AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
+				"WHERE n.id IS NOT NULL AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
 				"WITH u, COLLECT(n.id) as ids " +
 				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
 				"SET b.IN_OUTGOING = coalesce(b.IN_OUTGOING, []) + ids ";
 		transaction.add(query, params);
 		query =
 				"MATCH (u:User { id : {userId}})-[r:COMMUNIQUE]->(n) " +
-				"WHERE HAS(n.id) AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
+				"WHERE n.id IS NOT NULL AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
 				"WITH u, COLLECT(n.id) as ids " +
 				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
 				"SET b.COMMUNIQUE_OUTGOING = ids ";
 		transaction.add(query, params);
 		query =
 				"MATCH (u:User { id : {userId}})<-[r:COMMUNIQUE]-(n) " +
-				"WHERE HAS(n.id) AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
+				"WHERE n.id IS NOT NULL AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
 				"WITH u, COLLECT(n.id) as ids " +
 				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
 				"SET b.COMMUNIQUE_INCOMING = ids ";
 		transaction.add(query, params);
 		query =
 				"MATCH (u:User { id : {userId}})-[r:COMMUNIQUE_DIRECT]->(n) " +
-				"WHERE HAS(n.id) " +
+				"WHERE n.id IS NOT NULL " +
 				"WITH u, COLLECT(n.id) as ids " +
 				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
 				"SET b.COMMUNIQUE_DIRECT_OUTGOING = ids ";
 		transaction.add(query, params);
 		query =
 				"MATCH (u:User { id : {userId}})<-[r:COMMUNIQUE_DIRECT]-(n) " +
-				"WHERE HAS(n.id) " +
+				"WHERE n.id IS NOT NULL " +
 				"WITH u, COLLECT(n.id) as ids " +
 				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
 				"SET b.COMMUNIQUE_DIRECT_INCOMING = ids ";
 		transaction.add(query, params);
 		query =
 				"MATCH (u:User { id : {userId}})-[r:RELATED]->(n) " +
-				"WHERE HAS(n.id) " +
+				"WHERE n.id IS NOT NULL " +
 				"WITH u, COLLECT(n.id) as ids " +
 				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
 				"SET b.RELATED_OUTGOING = ids ";
 		transaction.add(query, params);
 		query =
 				"MATCH (u:User { id : {userId}})<-[r:RELATED]-(n) " +
-				"WHERE HAS(n.id) " +
+				"WHERE n.id IS NOT NULL " +
 				"WITH u, COLLECT(n.id) as ids " +
 				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
 				"SET b.RELATED_INCOMING = ids ";
@@ -500,7 +500,7 @@ public class User {
 		String mQuery =
 				"MATCH (u:User { id : {userId}})<-[r:MERGED]-(um:User), " +
 				"u<-[:RELATED]-(us:User) " +
-				"WHERE has(us.relative) AND LENGTH(FILTER(eId IN us.relative WHERE eId STARTS WITH um.externalId)) > 0 " +
+				"WHERE us.relative IS NOT NULL AND LENGTH(FILTER(eId IN us.relative WHERE eId STARTS WITH um.externalId)) > 0 " +
 				"CREATE UNIQUE um<-[:RELATED]-us " +
 				"DELETE r " +
 				"WITH um, us " +
@@ -568,11 +568,11 @@ public class User {
 				"DELETE r ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}}) WHERE HAS(u.headTeacherManual) " +
+				"MATCH (u:User { id : {userId}}) WHERE u.headTeacherManual IS NOT NULL " +
 				"REMOVE u.headTeacherManual ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}}) WHERE HAS(u.directionManual) " +
+				"MATCH (u:User { id : {userId}}) WHERE u.directionManual IS NOT NULL " +
 				"REMOVE u.directionManual ";
 		transaction.add(query, params);
 	}
@@ -583,7 +583,7 @@ public class User {
 				.put("limit", limit);
 		String query =
 				"MATCH (:DeleteGroup)<-[:IN]-(u:User) " +
-				"WHERE HAS(u.deleteDate) AND u.deleteDate < {date} WITH DISTINCT u LIMIT {limit} " +
+				"WHERE u.deleteDate IS NOT NULL AND u.deleteDate < {date} WITH DISTINCT u LIMIT {limit} " +
 				"OPTIONAL MATCH (u)-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 				 GET_DELETE_OPTIONS;
 		transactionHelper.add(query, params);
@@ -593,7 +593,7 @@ public class User {
 		JsonObject params = new JsonObject().put("deleteUsers", deleteUsers);
 		String query =
 				"MATCH (:DeleteGroup)<-[:IN]-(u:User) " +
-				"WHERE HAS(u.deleteDate) AND u.id IN {deleteUsers} " +
+				"WHERE u.deleteDate IS NOT NULL AND u.id IN {deleteUsers} " +
 				"OPTIONAL MATCH (u)-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 				GET_DELETE_OPTIONS;
 		transactionHelper.add(query, params);
@@ -604,7 +604,7 @@ public class User {
 				.put("date", System.currentTimeMillis() - delay);
 		String query =
 				"MATCH (:DeleteGroup)<-[:IN]-(u:User) " +
-				"WHERE HAS(u.deleteDate) AND u.deleteDate < {date} AND NOT(HAS(u.id))" +
+				"WHERE u.deleteDate IS NOT NULL AND u.deleteDate < {date} AND u.id IS NULL" +
 				"OPTIONAL MATCH u-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
 				"OPTIONAL MATCH u-[r]-() " +
 				"DELETE u,b,r,rb ";
@@ -670,7 +670,7 @@ public class User {
 
 		String query =
 				"MATCH (u:User) " +
-				"WHERE HAS(u.headTeacherManual) AND u.id = {userId} " +
+				"WHERE u.headTeacherManual IS NOT NULL AND u.id = {userId} " +
 				"SET u.headTeacherManual = FILTER(x IN u.headTeacherManual WHERE x <> {classExternalId}) " +
 				"RETURN u.headTeacherManual";
 
@@ -727,7 +727,7 @@ public class User {
 
 		String query =
 				"MATCH (u:User) " +
-				"WHERE HAS(u.directionManual) AND u.id = {userId} " +
+				"WHERE u.directionManual IS NOT NULL AND u.id = {userId} " +
 				"SET u.directionManual = FILTER(x IN u.directionManual WHERE x <> {structureExternalId}) " +
 				"RETURN u.directionManual";
 
@@ -763,7 +763,7 @@ public class User {
 					"OPTIONAL MATCH (s:Structure) WHERE s.id IN {scope} " +
 					"OPTIONAL MATCH (f:Function { externalId : {functionCode}}) " +
 					"MERGE (fg:Group:FunctionGroup { externalId : s.id + '-' + {functionCode}}) " +
-					"ON CREATE SET fg.id = id(fg) + '-' + timestamp(), fg.name = s.name + '-' + f.name, fg.displayNameSearchField = lower(s.name) + lower(f.name), fg.filter = f.name\n" +
+					"ON CREATE SET fg.id = id(fg) + '-' + timestamp(), fg.name = s.name + '-' + f.name, fg.displayNameSearchField = toLower(s.name) + toLower(f.name), fg.filter = f.name\n" +
 					"CREATE UNIQUE s<-[:DEPENDS]-fg<-[:IN {source:'MANUAL'}]-u " +
 					"RETURN fg.id as groupId ";
 			JsonObject p2 = new JsonObject()
@@ -851,7 +851,7 @@ public class User {
 			}
 		}
 		if (isNotEmpty(exportType)) {
-			query += "HAS(s.exports) AND {exportType} IN s.exports ";
+			query += "s.exports IS NOT NULL AND {exportType} IN s.exports ";
 			params.put("exportType", exportType);
 		}
 		query += "RETURN count(distinct u) as nb";
@@ -865,7 +865,7 @@ public class User {
 		String filter = "";
 		String unionManualGroups = "as functionalGroups ";
 		if (isNotEmpty(exportType)) {
-			filter = "AND HAS(s0.exports) AND {exportType} IN s0.exports ";
+			filter = "AND s0.exports IS NOT NULL AND {exportType} IN s0.exports ";
 			params.put("exportType", exportType);
 		}
 		if (attributes != null && attributes.contains("manualAndFunctionalGroups")) {
@@ -873,7 +873,7 @@ public class User {
 		}
 		if (profiles != null && profiles.size() > 0) {
 			query.append("MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s0:Structure) " +
-			"WHERE HEAD(u.profiles) IN {profiles} AND NOT(HAS(u.deleteDate)) ").append(filter).append(
+			"WHERE HEAD(u.profiles) IN {profiles} AND u.deleteDate IS NULL ").append(filter).append(
 			"OPTIONAL MATCH u-[:IN]->(g:ManualGroup)-[:DEPENDS]->(s:Structure) ").append(
 			(attributes != null && (attributes.contains("functionalGroups") || attributes.contains("manualAndFunctionalGroups"))) ?
 					"OPTIONAL MATCH u-[:IN]->(fg:FunctionalGroup)-[:DEPENDS]->(s1:Structure) " : "")
@@ -884,7 +884,7 @@ public class User {
 			;
 			params.put("profiles", profiles);
 		} else {
-			query.append("MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s0:Structure) WHERE NOT(HAS(u.deleteDate)) ")
+			query.append("MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s0:Structure) WHERE u.deleteDate IS NULL ")
 					.append(filter);
 		}
 		if (attributes != null && attributes.size() > 0) {
@@ -918,7 +918,7 @@ public class User {
 		String filter;
 		if(isNotEmpty(exportType)) {
 			filter = "-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-					"WHERE f.externalId IN {functions} AND HAS(s.exports) AND {exportType} IN s.exports ";
+					"WHERE f.externalId IN {functions} AND s.exports IS NOT NULL AND {exportType} IN s.exports ";
 			params.put("exportType", exportType);
 		} else {
 			filter = " WHERE f.externalId IN {functions} ";
@@ -998,7 +998,7 @@ public class User {
 			final String query0 = "MATCH (g:" + type + ") SET g.nbUsers = 0;";
 			tx.add(query0, params);
 		} else {
-			final String query0 = "MATCH (g:" + type + ") WHERE (NOT(HAS(g.nbUsers)) OR g.nbUsers > 0) AND NOT(g<-[:IN]-(:User)) SET g.nbUsers = 0;";
+			final String query0 = "MATCH (g:" + type + ") WHERE (g.nbUsers IS NULL OR g.nbUsers > 0) AND NOT(g<-[:IN]-(:User)) SET g.nbUsers = 0;";
 			tx.add(query0, params);
 		}
 		final String query = "MATCH (g:" + type + filter + ")<-[:IN]-(u:User) WITH g, count(u) as cu SET g.nbUsers = cu;";
@@ -1059,8 +1059,8 @@ public class User {
 			j.put("lastName", Validator.sanitize((String) j.remove("lastName")));
 		}
 		query +=
-				"HAS(u.activationCode) AND head(u.profiles) = {profile} " +
-				"AND NOT(HAS(u.deleteDate)) AND NOT(HAS(u.disappearanceDate)) " +
+				"u.activationCode IS NOT NULL AND head(u.profiles) = {profile} " +
+				"AND u.deleteDate IS NULL AND u.disappearanceDate IS NULL " +
 				"WITH COLLECT(DISTINCT u) as users " +
 				"WHERE LENGTH(users) = 1 " +
 				"UNWIND users as u " +

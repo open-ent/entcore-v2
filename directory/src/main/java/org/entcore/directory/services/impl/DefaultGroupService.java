@@ -115,7 +115,7 @@ public class DefaultGroupService implements GroupService {
 				"CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures, " +
 				"CASE WHEN (g: ProfileGroup)-[:DEPENDS]-(:Structure) THEN 'StructureGroup' " +
 					" WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
-					" WHEN HAS(g.subType) THEN g.subType " +
+					" WHEN g.subType IS NOT NULL THEN g.subType " +
 					" WHEN (g: ManualGroup) AND (" +
 						" g.autolinkTargetAllStructs = true " +
 						" OR size(coalesce(g.autolinkUsersFromGroups, [])) > 0 " +
@@ -224,7 +224,7 @@ public class DefaultGroupService implements GroupService {
 				"RETURN g.id as id, g.name as name, g.nbUsers as nbUsers, coalesce(struct.id, classStruct.id) as structureId, " +
 				"CASE WHEN (g: ProfileGroup)-[:DEPENDS]->(:Structure) THEN 'StructureGroup' " +
 				"     WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
-				"     WHEN HAS(g.subType) THEN g.subType END as type ";
+				"     WHEN g.subType IS NOT NULL THEN g.subType END as type ";
 		final JsonObject params = new JsonObject().put("id", groupId);
 		neo.execute(query, params, validUniqueResultHandler(handler));
 	}
@@ -252,7 +252,7 @@ public class DefaultGroupService implements GroupService {
 			(withTypeSubType ? ", type, CASE " +
 				" WHEN (g: ProfileGroup)-[:DEPENDS]-(:Structure) THEN 'StructureGroup' " +
 				" WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
-				" WHEN HAS(g.subType) THEN g.subType " +
+				" WHEN g.subType IS NOT NULL THEN g.subType " +
 				" WHEN (g: ManualGroup) AND (" +
 					" g.autolinkTargetAllStructs = true " +
 					" OR size(coalesce(g.autolinkUsersFromGroups, [])) > 0 " +

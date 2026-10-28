@@ -139,7 +139,7 @@ public class SSOEduConnect extends AbstractSSOProvider {
 			}
 			String query =
 					"MATCH (u:User) " +
-					"WHERE u.externalId IN {joinKeys} AND NOT(HAS(u.mergedWith)) " +
+					"WHERE u.externalId IN {joinKeys} AND u.mergedWith IS NULL " +
 					"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) ";
 			JsonObject params = new JsonObject()
 					.put("joinKeys", joinKeys);

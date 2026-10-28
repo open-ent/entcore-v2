@@ -157,7 +157,7 @@ public class ScimFeeder {
         final String externalId = resource.getString("externalId");
         final JsonObject check = new JsonObject().put("id", id).put("externalId", externalId);
         return exec("OPTIONAL MATCH (u:User) WHERE u.id = {id} OR (u.scimExternalId IS NOT NULL AND u.scimExternalId = {externalId}) " +
-                "RETURN u.id AS id, u.source AS source, HAS(u.deleteDate) AS pending ", check, "scim.read.error").compose(r -> {
+                "RETURN u.id AS id, u.source AS source, u.deleteDate IS NOT NULL AS pending ", check, "scim.read.error").compose(r -> {
             final JsonObject existing = r.getJsonArray("result").getJsonObject(0);
             final String existingId = existing.getString("id");
             if (existingId == null) {
@@ -619,7 +619,7 @@ public class ScimFeeder {
 
     /** Restaure un User mis en attente de suppression (deleteDate) qui est de nouveau provisionné. */
     private Future<JsonObject> restoreIfPreDeleted(String eid) {
-        return exec("OPTIONAL MATCH (u:User {externalId:{eid}}) WHERE HAS(u.deleteDate) RETURN u.id AS id ",
+        return exec("OPTIONAL MATCH (u:User {externalId:{eid}}) WHERE u.deleteDate IS NOT NULL RETURN u.id AS id ",
                 new JsonObject().put("eid", eid), "scim.restore.error")
                 .compose(r -> {
                     final String userId = firstId(r);

@@ -84,7 +84,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = null;
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE NOT(HAS(n.structureId)) OR n.structureId = {structure} ";
+			filter = "WHERE n.structureId IS NULL OR n.structureId = {structure} ";
 			params = new JsonObject().put("structure", structureId);
 		}
 		String query =
@@ -111,7 +111,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = null;
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE NOT(HAS(n.structureId)) OR n.structureId = {structure} ";
+			filter = "WHERE n.structureId IS NULL OR n.structureId = {structure} ";
 			params = new JsonObject().put("structure", structureId);
 		}
 		String query =
@@ -125,7 +125,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = null;
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE NOT(HAS(n.structureId)) OR n.structureId = {structure} ";
+			filter = "WHERE n.structureId IS NULL OR n.structureId = {structure} ";
 			params = new JsonObject().put("structure", structureId);
 		}
 		String query =
@@ -169,7 +169,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = null;
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE NOT(HAS(app.structureId)) OR app.structureId = {structure} ";
+			filter = "WHERE app.structureId IS NULL OR app.structureId = {structure} ";
 			params = new JsonObject().put("structure", structureId);
 		}
 		String query = "MATCH (app:Application) " +
@@ -201,7 +201,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = new JsonObject();
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE NOT(HAS(n.structureId)) OR n.structureId = {structure} ";
+			filter = "WHERE n.structureId IS NULL OR n.structureId = {structure} ";
 			params.put("structure", structureId);
 		}
 		String query =
@@ -659,7 +659,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	public void listCasConnectors(final Handler<Either<String, JsonArray>> handler) {
 		String query =
 				"MATCH (app:Application) " +
-				"WHERE has(app.casType) and app.casType <> '' " +
+				"WHERE app.casType IS NOT NULL and app.casType <> '' " +
 				"RETURN app.inherits as inherits, app.casType as service, app.address as address, app.structureId as structureId, app.statCasType as statCasType, COLLECT(app.pattern) as patterns";
 		neo.execute(query, (JsonObject) null, validResultHandler(new Handler<Either<String, JsonArray>>(){
 			public void handle(Either<String, JsonArray> event) {
@@ -874,7 +874,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	@Override
 	public void getDefaultBookmarks(final String structureId, final Handler<Either<String, JsonObject>> handler) {
 		final String query = "MATCH (s:Structure {id: {structureId}}) " +
-				"RETURN CASE WHEN HAS(s.defaultBookmarks) THEN s.defaultBookmarks ELSE \"{}\" END AS defaultBookmarks";
+				"RETURN CASE WHEN s.defaultBookmarks IS NOT NULL THEN s.defaultBookmarks ELSE \"{}\" END AS defaultBookmarks";
 		final JsonObject params = new JsonObject().put("structureId", structureId);
 		neo.execute(query, params, validUniqueResultHandler(handler));
 	}
@@ -895,7 +895,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	@Override
 	public void applyDefaultBookmarks(final String userId, Handler<Either<String, JsonObject>> eitherHandler) {
 		final String query = "MATCH (u:User {id: {userId}})-[:IN]-(:ProfileGroup)-[:DEPENDS]-(s:Structure) " +
-				"WITH u, COLLECT(CASE WHEN HAS(s.defaultBookmarks) THEN s.defaultBookmarks ELSE \"{}\" END) AS defaultBookmarks " +
+				"WITH u, COLLECT(CASE WHEN s.defaultBookmarks IS NOT NULL THEN s.defaultBookmarks ELSE \"{}\" END) AS defaultBookmarks " +
 				"RETURN u.profiles[0] AS userProfile, defaultBookmarks";
 		final JsonObject params = new JsonObject().put("userId", userId);
 		neo.execute(query, params, event -> {

@@ -108,7 +108,7 @@ public class DefaultClassService implements ClassService {
 					: "") +
 				"m.passwordResetRequested as passwordResetRequested, m.passwordResetRequestDate as passwordResetRequestDate, " +
 				"p.name as type, m.blocked as blocked, m.source as source, relativeList, " +
-				" (HAS(m.federatedIDP) AND NOT(m.federatedIDP IS NULL) AND HAS(m.federated) AND m.federated = true) OR " +
+				" (m.federatedIDP IS NOT NULL AND NOT(m.federatedIDP IS NULL) AND m.federated IS NOT NULL AND m.federated = true) OR " +
 				"  (size(auths) > 0 AND (m.source in ['AAF', 'AAF1D']) AND m.activationCode IS NOT NULL) as hasFederatedIdentity " +
 				"ORDER BY type, lastName ";
 		neo.execute(query, params, validResultHandler(results));

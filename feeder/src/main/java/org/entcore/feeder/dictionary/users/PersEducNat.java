@@ -150,7 +150,7 @@ public class PersEducNat extends AbstractUser {
 								.put("structures", structuresByFunctions);
 						final String daa =
 								"MATCH (u:User {externalId : {userExternalId}})-[r:ADMINISTRATIVE_ATTACHMENT]->(s:Structure) " +
-										"WHERE NOT(s.externalId IN {structures}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+										"WHERE NOT(s.externalId IN {structures}) AND (r.source IS NULL OR r.source = {source}) " +
 										"DELETE r";
 						transactionHelper.add(daa, ps.copy().put("structures", getOrElse(structures, new JsonArray())));
 					}
@@ -177,7 +177,7 @@ public class PersEducNat extends AbstractUser {
 							"MATCH (c:Class)<-[:DEPENDS]-(g:ProfileGroup)" +
 							"-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {externalId : {profileExternalId}}), " +
 							"(u:User { externalId : {userExternalId}}) " +
-							"WHERE c.externalId IN {classes} AND NOT(HAS(u.mergedWith)) " +
+							"WHERE c.externalId IN {classes} AND u.mergedWith IS NULL " +
 							"MERGE u-[:IN]->g";
 					JsonObject p0 = new JsonObject()
 							.put("userExternalId", externalId)
@@ -189,7 +189,7 @@ public class PersEducNat extends AbstractUser {
 				if (externalId != null) {
 					String q =
 							"MATCH (u:User {externalId : {userExternalId}})-[r:IN]-(g:Group)-[:DEPENDS]->(c:Class) " +
-							"WHERE NOT(c.externalId IN {classes}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+							"WHERE NOT(c.externalId IN {classes}) AND (r.source IS NULL OR r.source = {source}) " +
 							"DELETE r ";
 					JsonObject p = new JsonObject()
 							.put("userExternalId", externalId)
@@ -198,7 +198,7 @@ public class PersEducNat extends AbstractUser {
 					transactionHelper.add(q, p);
 					final String removeOldFoslc =
 							"MATCH (u:User {externalId : {userExternalId}})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
-							"WHERE NOT(f.externalId IN {fos}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+							"WHERE NOT(f.externalId IN {fos}) AND (r.source IS NULL OR r.source = {source}) " +
 							"SET r.classes = null ";
 					transactionHelper.add(removeOldFoslc, p.copy().put("fos", new JsonArray(new ArrayList<>(fcm.fieldNames()))));
 					for (String fos: fcm.fieldNames()) {
@@ -245,7 +245,7 @@ public class PersEducNat extends AbstractUser {
 						final String qdfg =
 								"MATCH (u:User {externalId : {userExternalId}})-[r:IN]-(g:Group) " +
 										"WHERE (g:FunctionalGroup OR g:FunctionGroup OR g:HTGroup OR g:DirectionGroup) AND " +
-										"NOT(g.externalId IN {groups}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+										"NOT(g.externalId IN {groups}) AND (r.source IS NULL OR r.source = {source}) " +
 										"DELETE r ";
 
 						transactionHelper.add(qdfg, pdfg);
@@ -254,12 +254,12 @@ public class PersEducNat extends AbstractUser {
 					fosm.mergeIn(fgm);
 					final String deleteOldFoslg =
 							"MATCH (u:User {externalId : {userExternalId}})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
-							"WHERE NOT(f.externalId IN {fos}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+							"WHERE NOT(f.externalId IN {fos}) AND (r.source IS NULL OR r.source = {source}) " +
 							"DELETE r";
 					transactionHelper.add(deleteOldFoslg, pdfg.copy().put("fos", new JsonArray(new ArrayList<>(fosm.fieldNames()))));
 					final String removeOldFoslg =
 							"MATCH (u:User {externalId : {userExternalId}})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
-							"WHERE NOT(f.externalId IN {fos}) AND (NOT(HAS(r.source)) OR r.source = {source}) " +
+							"WHERE NOT(f.externalId IN {fos}) AND (r.source IS NULL OR r.source = {source}) " +
 							"SET r.groups = null ";
 					transactionHelper.add(removeOldFoslg, pdfg.copy().put("fos", new JsonArray(new ArrayList<>(fgm.fieldNames()))));
 					for (String fos: fgm.fieldNames()) {
@@ -318,13 +318,13 @@ public class PersEducNat extends AbstractUser {
 		transactionHelper.add(deleteOldSubjects, params);
 		final String deleteOldTeaches =
 				"MATCH " + filter2 + "(sub:Subject)<-[r1:TEACHES {source : {source}}]-(u:User) " +
-				"WHERE r1.lastUpdated <> {now} AND (NOT(HAS(r1.timetableClasses)) OR r1.timetableClasses = []) " +
-				"AND (NOT(HAS(r1.timetableGroups)) OR r1.timetableGroups = []) " +
+				"WHERE r1.lastUpdated <> {now} AND (r1.timetableClasses IS NULL OR r1.timetableClasses = []) " +
+				"AND (r1.timetableGroups IS NULL OR r1.timetableGroups = []) " +
 				"delete r1";
 		transactionHelper.add(deleteOldTeaches, params);
 		final String syncNotTimetableArrays =
 				"MATCH (s:Structure" + filter + ")<-[:SUBJECT]-(sub:Subject)<-[r1:TEACHES {source : {source}}]-(u:User) " +
-				"WHERE (NOT(HAS(s.timetable)) OR s.timetable = '' OR s.timetable = 'NOP') " +
+				"WHERE (s.timetable IS NULL OR s.timetable = '' OR s.timetable = 'NOP') " +
 				"SET r1.classes = r1.aafClasses, r1.groups = r1.aafGroups ";
 		transactionHelper.add(syncNotTimetableArrays, params);
 		mergeTeachesArrays(params, filter, transactionHelper);
@@ -347,8 +347,8 @@ public class PersEducNat extends AbstractUser {
 	public static void deleteEmptyTeaches(JsonObject params, String filter, TransactionHelper transactionHelper) {
 		final String query =
 				"MATCH (s:Structure" + filter + ")<-[:SUBJECT]-(sub:Subject)<-[r:TEACHES]-(:User) " +
-				"WHERE (not(has(r.groups)) OR r.groups = []) and (not(has(r.classes)) OR r.classes = []) and " +
-				"(NOT(HAS(r.source)) OR r.source <> 'MANUAL') " +
+				"WHERE (r.groups IS NULL OR r.groups = []) and (r.classes IS NULL OR r.classes = []) and " +
+				"(r.source IS NULL OR r.source <> 'MANUAL') " +
 				"DELETE r ";
 		transactionHelper.add(query, params);
 	}

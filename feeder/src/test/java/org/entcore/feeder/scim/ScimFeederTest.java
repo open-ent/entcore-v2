@@ -164,7 +164,7 @@ public class ScimFeederTest {
                         "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
                         "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup) WHERE NOT pg:DeleteGroup " +
                         "OPTIONAL MATCH (u)-[:HAS_RELATIONSHIPS]->(b:Backup) " +
-                        "RETURN HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg, " +
+                        "RETURN u.deleteDate IS NOT NULL AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg, " +
                         "b.IN_OUTGOING AS backup", new JsonObject()))
                 .onComplete(context.asyncAssertSuccess(rows -> {
                     context.assertEquals(1, rows.size(), "le compte est conservé jusqu'à la purge");
@@ -192,7 +192,7 @@ public class ScimFeederTest {
                         "MATCH (u:User {source:'SCIM'}) " +
                         "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
                         "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(:Structure) " +
-                        "RETURN HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
+                        "RETURN u.deleteDate IS NOT NULL AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
                         new JsonObject()))
                 .onComplete(context.asyncAssertSuccess(rows -> {
                     context.assertEquals(1, rows.size(), "un seul compte (pas de doublon)");
@@ -273,7 +273,7 @@ public class ScimFeederTest {
                             "MATCH (u:User {scimExternalId:'iam-42'}) " +
                             "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
                             "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(:Structure {id:'s-aaf'}) " +
-                            "RETURN u.id AS id, u.firstName AS fn, HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
+                            "RETURN u.id AS id, u.firstName AS fn, u.deleteDate IS NOT NULL AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
                             new JsonObject());
                 })
                 .onComplete(context.asyncAssertSuccess(rows -> {
