@@ -76,7 +76,7 @@ export const CommentsModal = ({
               <strong>{c.authorName}</strong> <small>{parseDate(c.posted)?.toLocaleString("fr-FR") ?? ""}</small>
               <p className="mb-4 text-break">{c.comment}</p>
               {canDeleteComment(c, rights, userId) && (
-                <button type="button" className="btn btn-link text-danger p-0" disabled={busy} data-comment-delete onClick={() => remove(c)}>
+                <button type="button" className="btn btn-outline-danger btn-sm" disabled={busy} data-comment-delete onClick={() => remove(c)}>
                   {t("workspace.react.comments.delete")}
                 </button>
               )}

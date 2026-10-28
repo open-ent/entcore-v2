@@ -1,0 +1,90 @@
+/*
+ * Bascule PERMANENTE entre l'ancienne (AngularJS) et la nouvelle (React) interface, pour tout module à
+ * double interface. Fichier GÉNÉRIQUE, identique dans chaque module : il se repère à l'adresse de la page
+ * (`/diary`, `/edt`…) et se crée lui-même — une simple balise <script> suffit dans la vue.
+ *
+ * Règles :
+ *  - bouton flottant en bas à droite, sans compteur : on peut aller et venir autant qu'on veut ;
+ *  - AUCUNE préférence écrite (dérogation d'URL `?ui=` seule) ;
+ *  - toujours affiché, même quand l'usager a posé une préférence dans « Paramètres du compte » (clé `<app>Ui`) :
+ *    la dérogation d'URL `?ui=` passe avant la préférence, on peut donc revenir à l'autre interface à tout moment ;
+ *  - laisse la place au bandeau d'invitation / de retour d'expérience du module tant qu'il est affiché
+ *    (élément dont la classe se termine par `-ui-switch`, ou `[data-ui-banner]`), puis prend le relais.
+ * Même logique dans le socle React (Layout/UiSwitchFab).
+ */
+(function () {
+  'use strict';
+
+  // Modules à double interface (adresse). La clé de préférence du compte est `<adresse>Ui` sans caractère non
+  // alphanumérique (entcore les retire) : `diary` → `diaryUi`, `statistics-presences` → `statisticspresencesUi`.
+  var APPS = ['workspace', 'diary', 'edt', 'calendar', 'exercizer', 'competences', 'forum', 'pages', 'stats', 'rbs', 'searchengine',
+    'communities', 'timelinegenerator', 'incidents', 'massmailing', 'statistics-presences'];
+  var app = (window.location.pathname.split('/')[1] || '');
+  if (APPS.indexOf(app) < 0 || document.getElementById('openent-ui-fab')) return;
+
+  var fr = /^fr/i.test(document.documentElement.lang || navigator.language || 'fr');
+  var T = fr
+    ? { label: "Version de l'interface", next: 'Nouvelle version', prev: 'Ancienne version', current: 'actuelle' }
+    : { label: 'Interface version', next: 'New version', prev: 'Previous version', current: 'current' };
+  var BANNERS = '[class*="-ui-switch"], [data-ui-banner]';
+
+  // Un bandeau est « affiché » s'il n'est ni masqué ni sans boîte : `offsetParent` vaut null pour TOUT élément
+  // en position fixe (c'est le cas des bandeaux), il ne peut donc pas servir de test.
+  function shown(el) {
+    if (el.hidden || el.id === 'openent-ui-fab') return false;
+    var style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && el.getClientRects().length > 0;
+  }
+
+  function bannerVisible() {
+    var list = document.querySelectorAll(BANNERS);
+    for (var i = 0; i < list.length; i++) { if (shown(list[i])) return true; }
+    return false;
+  }
+
+  function build() {
+    var style = document.createElement('style');
+    style.textContent =
+      '#openent-ui-fab{position:fixed;right:16px;bottom:16px;z-index:9500;font:14px/1.3 sans-serif}' +
+      '#openent-ui-fab[hidden]{display:none}' +
+      '#openent-ui-fab>button{border:0;border-radius:20px;padding:8px 14px;background:#243242;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)}' +
+      '#openent-ui-fab .menu{position:absolute;right:0;bottom:44px;min-width:200px;background:#fff;color:#243242;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:6px}' +
+      '#openent-ui-fab .menu[hidden]{display:none}' +
+      '#openent-ui-fab .menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:6px;cursor:pointer;color:inherit;font:inherit}' +
+      '#openent-ui-fab .menu button:hover{background:#eef1f4}' +
+      '#openent-ui-fab .menu button[aria-current="true"]{font-weight:700}';
+    document.head.appendChild(style);
+    var fab = document.createElement('div');
+    fab.id = 'openent-ui-fab';
+    fab.hidden = true;
+    fab.innerHTML =
+      '<div class="menu" role="menu" hidden>' +
+      '<button type="button" role="menuitem" data-ui="react">' + T.next + '</button>' +
+      '<button type="button" role="menuitem" data-ui="angular" aria-current="true">' + T.prev + ' (' + T.current + ')</button>' +
+      '</div>' +
+      '<button type="button" aria-haspopup="menu">⇄ ' + T.label + '</button>';
+    var menu = fab.querySelector('.menu');
+    fab.querySelector('[aria-haspopup]').addEventListener('click', function () { menu.hidden = !menu.hidden; });
+    Array.prototype.forEach.call(menu.querySelectorAll('[data-ui]'), function (item) {
+      item.addEventListener('click', function () {
+        var ui = item.getAttribute('data-ui');
+        if (ui === 'angular') { menu.hidden = true; return; }
+        window.location.href = window.location.pathname + '?ui=' + ui;
+      });
+    });
+    document.body.appendChild(fab);
+    return fab;
+  }
+
+  Promise.resolve().then(function () {
+    var fab = build();
+    // N'écrit que si l'état change : réaffecter `hidden` avec la même valeur crée tout de même un enregistrement de
+    // mutation, que l'observateur relirait aussitôt — boucle sans fin qui gèle la page.
+    var refresh = function () { var h = bannerVisible(); if (fab.hidden !== h) fab.hidden = h; };
+    // Le bandeau du module apparaît après sa propre lecture de la préférence : on laisse un instant puis on suit ses changements.
+    setTimeout(function () {
+      refresh();
+      new MutationObserver(refresh).observe(document.body, { attributes: true, attributeFilter: ['hidden'], subtree: true, childList: true });
+    }, 1200);
+  });
+})();

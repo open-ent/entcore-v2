@@ -7,10 +7,13 @@ import { elementActions } from "../services/workspace.service";
 /** Publier un document sur le portail public (réservé aux administrateurs ; le serveur contrôle aussi). */
 export const PublishModal = ({
   element,
+  published = false,
   onChanged,
   onClose,
 }: {
   element: WorkspaceElement | null;
+  /** Le document est déjà publié (la liste ordinaire ne l'indique pas : l'état vient de la liste des publications). */
+  published?: boolean;
   onChanged: () => void;
   onClose: () => void;
 }) => {
@@ -19,9 +22,9 @@ export const PublishModal = ({
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    setUrl(element?.portalPublication ? `/workspace/pub/document/${element._id}` : null);
+    setUrl(element && (element.portalPublication || published) ? `/workspace/pub/document/${element._id}` : null);
     setFailed(false);
-  }, [element]);
+  }, [element, published]);
 
   const run = async (publish: boolean) => {
     if (!element) return;

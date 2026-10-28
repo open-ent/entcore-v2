@@ -396,5 +396,22 @@
   "workspace.react.nc.open": "Ouvrir dans NextCloud",
   "workspace.react.nc.edit": "Modifier dans NextCloud",
   "workspace.react.nc.copy.workspace": "Copier dans l'espace documentaire",
-  "workspace.react.nc.move.workspace": "Déplacer dans l'espace documentaire"
+  "workspace.react.nc.move.workspace": "Déplacer dans l'espace documentaire",
+  "workspace.react.viewer.preview.unavailable": "L'aperçu de ce document est momentanément indisponible. Vous pouvez le télécharger.",
+  "workspace.react.ui.label": "Version de l'interface",
+  "workspace.react.ui.new": "Nouvelle version",
+  "workspace.react.ui.old": "Ancienne version",
+  "workspace.react.ui.current": "actuelle",
+  "workspace.react.create.folder": "Créer un dossier",
+  "workspace.react.edit.image": "Modifier l'image",
+  "workspace.react.viewer.fullscreen": "Plein écran",
+  "workspace.react.nc.edit.error": "Impossible d'ouvrir l'éditeur en ligne de ce document.",
+  "workspace.react.nc.create.document": "Créer un document",
+  "workspace.react.nc.create.step1": "1. Choisissez le type de document",
+  "workspace.react.nc.create.step2": "2. Donnez-lui un nom",
+  "workspace.react.nc.create.placeholder": "Nom du document",
+  "workspace.react.nc.create.validate": "Créer",
+  "workspace.react.nc.create.type.docx": "Texte",
+  "workspace.react.nc.create.type.xlsx": "Tableur",
+  "workspace.react.nc.create.type.pptx": "Présentation"
 }

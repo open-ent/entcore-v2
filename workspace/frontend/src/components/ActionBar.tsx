@@ -44,7 +44,7 @@ export const ActionBar = ({
           {t(LABEL[a])}
         </button>
       ))}
-      <button type="button" className="btn btn-link btn-sm" onClick={onClear}>
+      <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onClear}>
         {t("workspace.react.select.none")}
       </button>
     </div>

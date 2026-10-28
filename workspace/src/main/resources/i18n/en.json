@@ -395,5 +395,22 @@
   "workspace.react.nc.open": "Open in NextCloud",
   "workspace.react.nc.edit": "Edit in NextCloud",
   "workspace.react.nc.copy.workspace": "Copy to the document space",
-  "workspace.react.nc.move.workspace": "Move to the document space"
+  "workspace.react.nc.move.workspace": "Move to the document space",
+  "workspace.react.viewer.preview.unavailable": "The preview of this document is temporarily unavailable. You can download it.",
+  "workspace.react.ui.label": "Interface version",
+  "workspace.react.ui.new": "New version",
+  "workspace.react.ui.old": "Previous version",
+  "workspace.react.ui.current": "current",
+  "workspace.react.create.folder": "Create a folder",
+  "workspace.react.edit.image": "Edit image",
+  "workspace.react.viewer.fullscreen": "Full screen",
+  "workspace.react.nc.edit.error": "The online editor could not be opened for this document.",
+  "workspace.react.nc.create.document": "Create a document",
+  "workspace.react.nc.create.step1": "1. Choose the document type",
+  "workspace.react.nc.create.step2": "2. Give it a name",
+  "workspace.react.nc.create.placeholder": "Document name",
+  "workspace.react.nc.create.validate": "Create",
+  "workspace.react.nc.create.type.docx": "Text",
+  "workspace.react.nc.create.type.xlsx": "Spreadsheet",
+  "workspace.react.nc.create.type.pptx": "Presentation"
 }

@@ -63,13 +63,13 @@ export const toSyncDocument = (raw: NextcloudRaw, userId: string): SyncDocument 
   };
 };
 
-/** Dossiers techniques du serveur sans intérêt pour l'usager (gabarits, dossier de synchronisation d'établissement, fichiers cachés). */
+/** Dossiers techniques du serveur sans intérêt comme DESTINATION d'un envoi (gabarits, synchronisation d'établissement, fichiers cachés) : écartés du seul sélecteur de dossier. */
 export const HIDDEN_FOLDER = /^(Templates|ENT_PARTAGE_UAI_.*|\..*)$/i;
 
-/** Contenu d'un dossier : sans le dossier lui-même (renvoyé en tête par le serveur), sans dossiers techniques ; dossiers d'abord. */
+/** Contenu d'un dossier : sans le dossier lui-même (renvoyé en tête par le serveur) ; dossiers d'abord. */
 export const visibleChildren = (docs: SyncDocument[], currentPath: string): SyncDocument[] =>
   docs
-    .filter((d) => d.path !== trimSlashes(currentPath) && !HIDDEN_FOLDER.test(d.name))
+    .filter((d) => d.path !== trimSlashes(currentPath))
     .sort((a, b) => (a.isFolder === b.isFolder ? a.name.localeCompare(b.name, "fr", { sensitivity: "base", numeric: true }) : a.isFolder ? -1 : 1));
 
 /** Chemin du dossier parent : "Cours/6e" → "Cours", "Cours" → "" (racine). */
@@ -85,12 +85,19 @@ export const pathCrumbs = (path: string): Array<{ name: string; path: string }> 
 };
 
 /** Téléchargement d'un fichier ou d'un dossier (archive). */
-export const downloadUrl = (userId: string, d: Pick<SyncDocument, "name" | "path" | "contentType" | "isFolder">): string => {
+export const downloadUrl = (userId: string, d: Pick<SyncDocument, "name" | "path" | "contentType" | "isFolder">, inline = false): string => {
   const pathParam = d.path ? `?path=${d.path}` : "";
   const type = d.path && d.contentType ? `&contentType=${d.contentType}` : "";
   const folder = pathParam ? `&isFolder=${d.isFolder}` : `?isFolder=${d.isFolder}`;
-  return `/nextcloud/files/user/${userId}/file/${encodeURI(d.name)}/download${pathParam}${type}${folder}`;
+  return `/nextcloud/files/user/${userId}/file/${encodeURI(d.name)}/download${pathParam}${type}${folder}${inline ? "&inline=true" : ""}`;
 };
+
+/** Types de documents vierges que le serveur sait créer à partir d'un modèle. */
+export const NEW_DOCUMENT_TYPES = ["docx", "xlsx", "pptx"] as const;
+export type NewDocumentType = (typeof NEW_DOCUMENT_TYPES)[number];
+
+/** Nom saisi pour un document vierge : on n'ajoute pas l'extension, le serveur s'en charge. Vide ou fait d'espaces → refusé. */
+export const newDocumentNameError = (raw: string): "empty" | null => (raw.trim() ? null : "empty");
 
 /** Téléchargement groupé (archive) de plusieurs éléments d'un même dossier. */
 export const multiDownloadUrl = (userId: string, parent: string, names: string[]): string =>
@@ -104,13 +111,13 @@ export const openInNextcloudUrl = (baseUrl: string, d: Pick<SyncDocument, "path"
 
 export const editInNextcloudUrl = (baseUrl: string, d: Pick<SyncDocument, "fileId">): string => `${baseUrl}/index.php/apps/onlyoffice/${d.fileId}`;
 
-export type NextcloudActionId = "download" | "open" | "edit" | "rename" | "trash" | "copyToWorkspace" | "moveToWorkspace" | "restore" | "deleteForever";
+export type NextcloudActionId = "download" | "edit" | "rename" | "trash" | "copyToWorkspace" | "moveToWorkspace" | "restore" | "deleteForever";
 
 /**
  * Actions de la sélection dans NextCloud :
  *  - corbeille : restaurer, supprimer définitivement ;
  *  - sinon : télécharger, déplacer ou copier vers l'espace documentaire (fichiers seulement), mettre à la corbeille, et pour un
- *    seul élément : renommer, ouvrir dans NextCloud et, si le format le permet, modifier.
+ *    seul élément : renommer et, si le format le permet, éditer (éditeur en ligne de NextCloud).
  */
 export const nextcloudActions = (selection: SyncDocument[], inTrash: boolean): NextcloudActionId[] => {
   if (selection.length === 0) return [];
@@ -118,7 +125,6 @@ export const nextcloudActions = (selection: SyncDocument[], inTrash: boolean): N
   const single = selection.length === 1;
   const onlyFiles = selection.every((d) => !d.isFolder);
   const actions: NextcloudActionId[] = ["download"];
-  if (single && !selection[0].isFolder) actions.push("open");
   if (single && selection[0].editable) actions.push("edit");
   if (single) actions.push("rename");
   if (onlyFiles) actions.push("copyToWorkspace", "moveToWorkspace");

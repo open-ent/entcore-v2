@@ -26,7 +26,7 @@ export interface ActionContext {
  *  - corbeille : restaurer, supprimer définitivement ;
  *  - autres arbres (applis, publics) : copier dans mes documents et télécharger.
  * « Historique des versions » (un seul document) et « Commentaires » (un seul élément) en « Mes documents » et « Documents partagés ».
- * « Publier au portail » : un seul document, par un administrateur. Aucune sélection → aucune action.
+ * « Publier au portail » : un seul document, par un administrateur ; un document publié se retrouve (et se retire) dans « Documents publics ». Aucune sélection → aucune action.
  */
 export const availableActions = (tree: TreeName, selection: WorkspaceElement[], ctx: ActionContext = {}): ActionId[] => {
   if (selection.length === 0) return [];
@@ -38,7 +38,7 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   actions.push("copy");
   if (tree === "owner") actions.push("move", "trash");
   actions.push("download");
-  if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file" && ctx.canPublish) actions.push("publish");
+  if ((tree === "owner" || tree === "shared" || tree === "public") && single && selection[0].eType === "file" && ctx.canPublish) actions.push("publish");
   if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file") actions.push("history");
   if ((tree === "owner" || tree === "shared") && single) actions.push("comments");
   if (single && ctx.integration?.lool) actions.push("openLool");

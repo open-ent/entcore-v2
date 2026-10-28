@@ -101,7 +101,7 @@ export const VersionsModal = ({
                 <td>{formatSize(r.metadata?.size)}</td>
                 <td>
                   {canDeleteRevision(r, rights, userId, list.length) && (
-                    <button type="button" className="btn btn-link text-danger p-0" disabled={busy} data-version-delete onClick={() => run(() => revisionService.remove(r.documentId, r._id))}>
+                    <button type="button" className="btn btn-outline-danger btn-sm" disabled={busy} data-version-delete onClick={() => run(() => revisionService.remove(r.documentId, r._id))}>
                       {t("workspace.delete.version")}
                     </button>
                   )}

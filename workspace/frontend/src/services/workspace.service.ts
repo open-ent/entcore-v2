@@ -37,6 +37,29 @@ export const workspaceService = {
 
 const xsrfToken = (): string => decodeURIComponent(document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)?.[1] ?? "");
 
+/**
+ * POST d'un formulaire, avec son type de contenu explicite. Le serveur lit ces routes comme un formulaire : sans en-tête de type
+ * (ce que le client HTTP partagé peut laisser selon le navigateur), il répond « multipart sans type » et l'action échoue.
+ * Rejette avec une erreur dont le message est le code d'erreur du serveur (ex. « workspace.folder.already.exists »), sinon le statut.
+ */
+const postForm = async <R>(url: string, form: URLSearchParams): Promise<R> => {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-XSRF-TOKEN": xsrfToken(), Accept: "application/json" },
+    body: form.toString(),
+  });
+  const text = await res.text();
+  let body: unknown = {};
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    /* corps non JSON */
+  }
+  if (!res.ok) throw new Error((body as { error?: string }).error || String(res.status));
+  return body as R;
+};
+
 /** Clé de traduction de l'erreur d'envoi : 413 → fichier trop gros, 403 → pas de droit, sinon le code du serveur. */
 export const uploadErrorKey = (status: number, body?: string): string => {
   if (status === 413) return "file.too.large.limit";
@@ -53,7 +76,7 @@ export const createFolder = (name: string, parentId?: string) => {
   // Le serveur lit un formulaire (un corps JSON lui donne une erreur 500).
   const form = new URLSearchParams({ name });
   if (parentId) form.set("parentFolderId", parentId);
-  return odeServices.http().post<{ _id: string }>("/workspace/folder", form);
+  return postForm<{ _id: string }>("/workspace/folder", form);
 };
 
 /**
@@ -131,11 +154,34 @@ export const revisionService = {
 export const commentService = {
   /** Commentaire d'un document ou d'un dossier ; renvoie l'identifiant du commentaire créé. */
   add: (el: { _id: string; eType: string }, comment: string) =>
-    odeServices
-      .http()
-      .post<{ id: string }>(el.eType === "folder" ? `/workspace/folder/${el._id}/comment` : `/workspace/document/${el._id}/comment`, new URLSearchParams({ comment })),
+    postForm<{ id: string }>(el.eType === "folder" ? `/workspace/folder/${el._id}/comment` : `/workspace/document/${el._id}/comment`, new URLSearchParams({ comment })),
   remove: (docId: string, commentId: string) => odeServices.http().delete(`/workspace/document/${docId}/comment/${commentId}`),
 };
 
 /** Recherche côté serveur (index texte). Rejette si l'index est absent ou indisponible. */
 export const searchElements = (queryString: string) => odeServices.http().get<WorkspaceElement[]>(`/workspace/documents?${queryString}`);
+
+/** Identifiants des documents publiés sur le portail public pour ces établissements (la liste ordinaire n'indique pas l'état de publication). */
+export const publishedIds = async (structureIds: string[]): Promise<string[]> => {
+  const lists = await Promise.all(structureIds.map((id) => odeServices.http().get<Array<{ _id: string }>>(`/workspace/pub/structure/${id}/documents`).catch(() => [])));
+  return [...new Set(lists.flat().map((d) => d._id))];
+};
+
+/**
+ * Remplace le contenu d'une image modifiée (même appel que l'ancienne interface : qualité d'origine conservée, texte alternatif et
+ * légende transmis). Rejette avec la clé de traduction de l'erreur.
+ */
+export const updateImage = (id: string, blob: Blob, filename: string, alt: string, legend: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append("file", blob, filename);
+    const args = ["quality=1"];
+    if (alt) args.push(`alt=${encodeURIComponent(alt)}`);
+    if (legend) args.push(`legend=${encodeURIComponent(legend)}`);
+    xhr.open("PUT", `/workspace/document/${id}?${args.join("&")}`);
+    xhr.setRequestHeader("X-XSRF-TOKEN", xsrfToken());
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 400 ? resolve() : reject(uploadErrorKey(xhr.status, xhr.responseText)));
+    xhr.onerror = () => reject("workspace.react.upload.failed");
+    xhr.send(form);
+  });

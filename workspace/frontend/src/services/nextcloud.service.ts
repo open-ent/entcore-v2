@@ -9,7 +9,18 @@ const params = (name: string, values: string[]) => {
 const root = (userId: string) => `/nextcloud/files/user/${userId}`;
 const xsrf = () => decodeURIComponent(document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)?.[1] ?? "");
 
+export interface NextcloudQuota {
+  used: number;
+  total: number;
+}
+
 export const nextcloudService = {
+  /** Espace utilisé et alloué sur le compte NextCloud (octets). */
+  quota: async (userId: string): Promise<NextcloudQuota> => {
+    const u = await odeServices.http().get<{ quota?: { used?: number; quota?: number; total?: number } }>(`/nextcloud/user/${userId}`);
+    return { used: u?.quota?.used ?? 0, total: u?.quota?.quota ?? u?.quota?.total ?? 0 };
+  },
+
   url: () => odeServices.http().get<{ url: string }>("/nextcloud/config/url").then((r) => r.url),
   urlHidden: () => odeServices.http().get<{ isNextcloudUrlHidden: boolean }>("/nextcloud/config/isNextcloudUrlHidden").then((r) => r.isNextcloudUrlHidden),
 
@@ -22,6 +33,13 @@ export const nextcloudService = {
     const res = await odeServices.http().get<NextcloudRaw[]>(`${root(userId)}/trash`);
     return (res ?? []).map((r) => toSyncDocument(r, userId));
   },
+
+  /** URL d'édition en ligne (jeton de l'usager, sans connexion NextCloud) pour un document bureautique. */
+  editUrl: (userId: string, path: string) =>
+    odeServices.http().get<{ url: string }>(`${root(userId)}/edit?path=${encodeURIComponent(`/${path}`)}`).then((r) => r.url),
+  /** Crée un document vierge (modèle docx, xlsx ou pptx) dans un dossier NextCloud. */
+  createDocument: (userId: string, type: string, name: string, path: string) =>
+    odeServices.http().post(`${root(userId)}/create/document?type=${type}&name=${encodeURIComponent(name)}${path ? `&path=${encodeURIComponent(path)}` : ""}`),
 
   createFolder: (userId: string, path: string) => odeServices.http().post(`${root(userId)}/create/folder?path=${encodeURIComponent(path)}`),
   move: (userId: string, path: string, destPath: string) =>

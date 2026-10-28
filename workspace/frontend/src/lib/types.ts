@@ -61,3 +61,12 @@ export interface Quota {
 }
 
 export type ViewMode = "icons" | "list";
+
+/** Clé de traduction (déjà utilisée par l'ancienne interface) du nom d'un arbre racine : « Documents personnels », « Corbeille »… */
+export const TREE_LABEL_KEY: Record<TreeName, string> = {
+  owner: "documents",
+  shared: "shared",
+  protected: "appDocuments",
+  public: "workspace.react.tree.public",
+  trash: "trash",
+};

@@ -7,6 +7,7 @@ import { ActionBar } from "../components/ActionBar";
 import { CommentsModal } from "../components/CommentsModal";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { LoolCreateModal } from "../components/LoolCreateModal";
+import { NextcloudNav } from "../components/NextcloudNav";
 import { NextcloudPicker } from "../components/NextcloudPicker";
 import { ElementList } from "../components/ElementList";
 import { FolderPicker } from "../components/FolderPicker";
@@ -26,13 +27,14 @@ import { canOpenInGeogebra, canOpenInLool, canOpenInScratch, geogebraUrl, LOOL_C
 import { NEXTCLOUD_VIEW } from "../lib/nextcloud";
 import { rightsOn } from "../lib/rights";
 import { cloudDriveAvailable, downloadFromDrive, openPicker, requestAccessToken, uploadToDrive } from "../lib/cloudDrive";
+import { canDropOn, DRAG_TYPE, draggedElements, encodeDrag, isInternalDrag } from "../lib/dnd";
 import { clientFilter, locationOf, searchQuery } from "../lib/search";
 import { isZip, planUpload, remainingLabel } from "../lib/upload";
-import { ViewMode, WorkspaceElement } from "../lib/types";
+import { TREE_LABEL_KEY, ViewMode, WorkspaceElement } from "../lib/types";
 import { useUploads } from "../services/useUploads";
 import { nextcloudService } from "../services/nextcloud.service";
 import { elementActions } from "../services/workspace.service";
-import { useContent, useFolders, useLoolContext, useQuota, useSearch, useViewModePreference } from "../services/queries";
+import { useContent, useFolders, useLoolContext, useNextcloudList, useNextcloudQuota, usePublishedIds, useQuota, useSearch, useViewModePreference } from "../services/queries";
 
 /** Navigation dans l'espace documentaire : arbres, dossiers, fil d'Ariane, liste en icônes ou en tableau, jauge d'espace. */
 export const Browser = () => {
@@ -49,6 +51,7 @@ export const Browser = () => {
   const validTree = isTreeName(tree) ? tree : "owner";
   const content = useContent(validTree, folderId);
   const folders = useFolders();
+  const publicRoot = useContent("public");
   const { user } = useEdificeClient();
   const quota = useQuota(user?.userId);
 
@@ -63,6 +66,12 @@ export const Browser = () => {
   const ncAvailable = flags.enableNextcloud && workflows.has(NEXTCLOUD_VIEW);
   const canCreateOnline = flags.enableLool && workflows.has(LOOL_CREATE);
   const lool = useLoolContext(canOpenOnline);
+  const ncRoot = useNextcloudList(user?.userId, "", false, ncAvailable);
+  const ncQuota = useNextcloudQuota(user?.userId, ncAvailable);
+  // Établissements dont l'usager est administrateur local (portée de sa fonction), puis ceux auxquels il est rattaché.
+  const adminScope = ((functions["ADMIN_LOCAL"] as { scope?: string[] } | undefined)?.scope ?? []).concat((functions["SUPER_ADMIN"] as { scope?: string[] } | undefined)?.scope ?? []);
+  const structureIds = [...new Set([...adminScope, ...(((user as { structures?: string[] } | undefined)?.structures) ?? [])])];
+  const published = usePublishedIds(structureIds, canPublishToPortal);
   const currentFolder = (folders.data ?? []).find((f) => f._id === folderId);
   // « Mes documents » et ses dossiers ; dans « Documents partagés », seulement un dossier où l'on a le droit de contribuer.
   const canWrite = validTree === "owner" || (validTree === "shared" && !!currentFolder && rightsOn(currentFolder, user?.userId, groupIds).contrib);
@@ -102,6 +111,7 @@ export const Browser = () => {
   const [versions, setVersions] = useState<WorkspaceElement | null>(null);
   const [commenting, setCommenting] = useState<WorkspaceElement | null>(null);
   const [loolCreate, setLoolCreate] = useState(false);
+  const dragged = useRef<WorkspaceElement[]>([]);
   const [ncPicker, setNcPicker] = useState<"copy" | "move" | null>(null);
   useEffect(() => setSelected(new Set()), [tree, folderId]);
 
@@ -138,6 +148,21 @@ export const Browser = () => {
       setNotice(t("workspace.react.action.failed"));
       return false;
     }
+  };
+
+  // Glisser-déposer interne : saisir un élément (ou la sélection) et le lâcher sur un dossier pour l'y déplacer
+  const onDragStart = (el: WorkspaceElement, ev: globalThis.DragEvent) => {
+    const items = draggedElements(el, selection);
+    dragged.current = items;
+    ev.dataTransfer?.setData(DRAG_TYPE, encodeDrag(items));
+    if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "move";
+  };
+  const canDrop = (targetId: string | null, ev: globalThis.DragEvent) =>
+    isInternalDrag([...(ev.dataTransfer?.types ?? [])]) && canDropOn(targetId, dragged.current, folders.data ?? []);
+  const moveDragged = (targetId: string | null) => {
+    const items = dragged.current;
+    dragged.current = [];
+    if (items.length) void run(() => elementActions.move(items, targetId ?? undefined));
   };
 
   const onAction = (a: ActionId) => {
@@ -234,6 +259,7 @@ export const Browser = () => {
   };
 
   const onDrop = (e: DragEvent) => {
+    if (isInternalDrag([...e.dataTransfer.types])) return;
     e.preventDefault();
     setDragging(false);
     if (!canWrite) return;
@@ -258,14 +284,24 @@ export const Browser = () => {
         </h1>
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
-        <aside style={{ minWidth: 240 }}>
-          <TreeNav tree={validTree} folderId={folderId} folders={folders.data ?? []} nextcloud={ncAvailable} />
-          {quota.data && <QuotaGauge quota={quota.data} />}
+        <aside style={{ flex: "0 0 260px", maxWidth: "100%" }}>
+          <TreeNav
+            tree={validTree}
+            folderId={folderId}
+            folders={folders.data ?? []}
+            publicVisible={(publicRoot.data ?? []).length > 0}
+            onCreateFolder={canWrite ? () => setNewFolderOpen(true) : undefined}
+            drop={validTree === "owner" ? { canDrop, onDrop: (id) => moveDragged(id) } : undefined}
+          >
+            {quota.data && <QuotaGauge quota={quota.data} />}
+          </TreeNav>
+          {ncAvailable && <NextcloudNav active={false} trash={false} folders={(ncRoot.data ?? []).filter((d) => d.isFolder)} currentPath="" quota={ncQuota.data} />}
         </aside>
         <main
-          style={{ flex: 1, minWidth: 0, outline: dragging && canWrite ? "2px dashed #2a9cc8" : undefined }}
+          style={{ flex: "1 1 320px", minWidth: 0, outline: dragging && canWrite ? "2px dashed #2a9cc8" : undefined }}
           data-workspace-dropzone
           onDragOver={(e) => {
+            if (isInternalDrag([...e.dataTransfer.types])) return;
             e.preventDefault();
             setDragging(true);
           }}
@@ -273,7 +309,7 @@ export const Browser = () => {
           onDrop={onDrop}
         >
           <nav aria-label={t("workspace.react.breadcrumb")} data-workspace-breadcrumb className="mb-12">
-            <Link to={`/${validTree}`}>{t(`workspace.react.tree.${validTree}`)}</Link>
+            <Link to={`/${validTree}`}>{t(TREE_LABEL_KEY[validTree])}</Link>
             {path.map((f) => (
               <span key={f._id}>
                 {" / "}
@@ -306,7 +342,7 @@ export const Browser = () => {
             {query && (
               <button
                 type="button"
-                className="btn btn-link"
+                className="btn btn-outline-secondary btn-sm"
                 data-search-reset
                 onClick={() => {
                   setQuery(null);
@@ -319,9 +355,9 @@ export const Browser = () => {
           </form>
           {query && (
             <div className="mb-16" data-search-banner>
-              <strong>{query.everywhere ? t("workspace.search.results.inworkspace") : `${t("workspace.search.results.infolder")} ${path.length ? path[path.length - 1].name : t(`workspace.react.tree.${validTree}`)}`}</strong>
+              <strong>{query.everywhere ? t("workspace.search.results.inworkspace") : `${t("workspace.search.results.infolder")} ${path.length ? path[path.length - 1].name : t(TREE_LABEL_KEY[validTree])}`}</strong>
               {!query.everywhere && (
-                <button type="button" className="btn btn-link" data-search-everywhere onClick={() => setQuery({ ...query, everywhere: true })}>
+                <button type="button" className="btn btn-outline-secondary btn-sm" data-search-everywhere onClick={() => setQuery({ ...query, everywhere: true })}>
                   {t("workspace.search.inworkspace")}
                 </button>
               )}
@@ -361,9 +397,6 @@ export const Browser = () => {
           )}
           {canWrite && (
             <div className="d-flex gap-12 mb-16" data-workspace-toolbar>
-              <button type="button" className="btn btn-primary" onClick={() => setNewFolderOpen(true)} data-action="new-folder">
-                {t("folder.new")}
-              </button>
               <button type="button" className="btn btn-outline-primary" onClick={() => fileInput.current?.click()} data-action="import">
                 {t("import.file")}
               </button>
@@ -400,13 +433,23 @@ export const Browser = () => {
           {content.isError && (
             <div className="alert alert-danger" role="alert" data-workspace-error>
               {t("workspace.react.error")}{" "}
-              <button type="button" className="btn btn-link p-0" onClick={() => content.refetch()}>
+              <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => content.refetch()}>
                 {t("workspace.react.retry")}
               </button>
             </div>
           )}
           {content.isSuccess && elements.length === 0 && <p data-workspace-empty>{t("workspace.react.empty")}</p>}
-          {content.isSuccess && elements.length > 0 && <ElementList tree={validTree} elements={elements} view={view} selected={selected} onToggle={toggle} onToggleAll={toggleAll} />}
+          {content.isSuccess && elements.length > 0 && <ElementList
+              tree={validTree}
+              elements={elements}
+              view={view}
+              selected={selected}
+              onToggle={toggle}
+              onToggleAll={toggleAll}
+              onDragStart={validTree === "owner" ? onDragStart : undefined}
+              onDropOnFolder={validTree === "owner" ? (f) => moveDragged(f._id) : undefined}
+              canDropOn={(f, ev) => canDrop(f._id, ev)}
+            />}
         </main>
       </div>
       <ShareWarning
@@ -481,8 +524,9 @@ export const Browser = () => {
       />
       <PublishModal
         element={publishing}
+        published={!!publishing && !!published.data?.includes(publishing._id)}
         onClose={() => setPublishing(null)}
-        onChanged={() => void qc.invalidateQueries({ queryKey: ["workspace", "content"] })}
+        onChanged={() => void Promise.all(["content", "published"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] })))}
       />
       <FolderPicker
         isOpen={picker !== null}

@@ -2,7 +2,7 @@ import { Button, Modal } from "@open-ent/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { parentPath } from "../lib/nextcloud";
+import { HIDDEN_FOLDER, parentPath } from "../lib/nextcloud";
 import { nextcloudService } from "../services/nextcloud.service";
 
 /** Choix d'un dossier NextCloud de destination (les dossiers de l'espace documentaire ne conviennent pas ici). */
@@ -23,7 +23,7 @@ export const NextcloudPicker = ({
   const [path, setPath] = useState("");
   const folders = useQuery({
     queryKey: ["workspace", "nextcloud-picker", userId, path],
-    queryFn: async () => (await nextcloudService.list(userId as string, path)).filter((d) => d.isFolder),
+    queryFn: async () => (await nextcloudService.list(userId as string, path)).filter((d) => d.isFolder && !HIDDEN_FOLDER.test(d.name)),
     enabled: isOpen && !!userId,
   });
   return (
@@ -32,7 +32,7 @@ export const NextcloudPicker = ({
       <Modal.Body>
         <p data-nc-picker-path>/{path}</p>
         {path && (
-          <button type="button" className="btn btn-link p-0 mb-8" onClick={() => setPath(parentPath(path))} data-nc-picker-up>
+          <button type="button" className="btn btn-outline-secondary btn-sm mb-8" onClick={() => setPath(parentPath(path))} data-nc-picker-up>
             ↑ {t("workspace.react.nc.up")}
           </button>
         )}
@@ -45,7 +45,7 @@ export const NextcloudPicker = ({
         <ul className="list-unstyled">
           {(folders.data ?? []).map((f) => (
             <li key={f.path}>
-              <button type="button" className="btn btn-link p-0" data-nc-picker-folder={f.path} onClick={() => setPath(f.path)}>
+              <button type="button" className="btn btn-outline-secondary btn-sm" data-nc-picker-folder={f.path} onClick={() => setPath(f.path)}>
                 📁 {f.name}
               </button>
             </li>

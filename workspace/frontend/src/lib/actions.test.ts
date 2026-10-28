@@ -43,6 +43,9 @@ describe("availableActions", () => {
     expect(availableActions("owner", [el({ eType: "folder" })], { cloudDrive: true })).not.toContain("driveExport");
     expect(availableActions("owner", one)).not.toContain("driveExport");
   });
+  it("un document publié se retire depuis « Documents publics »", () => {
+    expect(availableActions("public", [el({})], { canPublish: true })).toContain("publish");
+  });
   it("publier au portail : un seul document, par un administrateur", () => {
     expect(availableActions("owner", one, { canPublish: true })).toContain("publish");
     expect(availableActions("owner", two, { canPublish: true })).not.toContain("publish");

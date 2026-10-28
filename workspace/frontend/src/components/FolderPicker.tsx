@@ -22,7 +22,7 @@ const Branch = ({
       <li key={f._id}>
         <button
           type="button"
-          className="btn btn-link p-0"
+          className="btn btn-outline-secondary btn-sm"
           disabled={forbidden.has(f._id)}
           aria-pressed={chosen === f._id}
           data-picker-folder={f._id}
@@ -59,9 +59,9 @@ export const FolderPicker = ({
     <Modal id="workspace-folder-picker" isOpen={isOpen} onModalClose={onClose} scrollable>
       <Modal.Header onModalClose={onClose}>{title}</Modal.Header>
       <Modal.Body>
-        <button type="button" className="btn btn-link p-0" aria-pressed={chosen === null} data-picker-root onClick={() => setChosen(null)}>
+        <button type="button" className="btn btn-outline-secondary btn-sm" aria-pressed={chosen === null} data-picker-root onClick={() => setChosen(null)}>
           {chosen === null ? "✔ " : ""}
-          {t("workspace.react.tree.owner")}
+          {t("documents")}
         </button>
         <Branch folders={folders} parentId={null} forbidden={forbidden} chosen={chosen} onChoose={setChosen} />
       </Modal.Body>

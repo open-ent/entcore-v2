@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LoolContext } from "../lib/integrations";
 import { nextcloudService } from "./nextcloud.service";
 import { TreeName } from "../lib/types";
-import { fetchText, getElement, searchElements, workspaceService } from "./workspace.service";
+import { fetchText, getElement, publishedIds, searchElements, workspaceService } from "./workspace.service";
 
 export const useContent = (tree: TreeName, parentId?: string) =>
   useQuery({
@@ -56,3 +56,9 @@ export const useNextcloudUrl = (enabled: boolean) =>
     enabled,
     staleTime: 1000 * 60 * 10,
   });
+
+export const usePublishedIds = (structureIds: string[], enabled: boolean) =>
+  useQuery({ queryKey: ["workspace", "published", structureIds], queryFn: () => publishedIds(structureIds), enabled: enabled && structureIds.length > 0 });
+
+export const useNextcloudQuota = (userId: string | undefined, enabled: boolean) =>
+  useQuery({ queryKey: ["workspace", "nextcloud-quota", userId], queryFn: () => nextcloudService.quota(userId as string), enabled: enabled && !!userId });

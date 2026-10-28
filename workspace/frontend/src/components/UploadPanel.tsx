@@ -21,7 +21,7 @@ export const UploadPanel = ({ items, onClear }: { items: UploadItem[]; onClear: 
           </li>
         ))}
       </ul>
-      <button type="button" className="btn btn-link p-0" onClick={onClear}>
+      <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onClear}>
         {t("workspace.react.upload.clear")}
       </button>
     </section>

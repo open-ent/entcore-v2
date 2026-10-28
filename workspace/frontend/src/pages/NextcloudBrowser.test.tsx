@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({ list: {} as Record<string, unknown> }));
 vi.mock("../services/queries", () => ({
   useNextcloudList: () => state.list,
   useNextcloudUrl: () => ({ data: { url: "https://nc.example", hidden: false } }),
+  useNextcloudQuota: () => ({ data: { used: 10, total: 100 } }),
   useFolders: () => ({ data: [] }),
 }));
 
@@ -41,12 +42,23 @@ describe("NextcloudBrowser", () => {
     expect([...document.querySelectorAll("[data-nc-item]")].map((n) => n.getAttribute("data-nc-item"))).toEqual(["folder", "file"]);
     expect(document.querySelector("[data-nc-url]")?.textContent).toContain("https://nc.example");
     expect(document.querySelector('[data-nc-action="new-folder"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-nc-action="create-document"]')).toBeInTheDocument();
+  });
+
+  it("créer un document : choix du type, nom obligatoire", () => {
+    show({ isLoading: false, isError: false, isSuccess: true, data: [] });
+    fireEvent.click(document.querySelector('[data-nc-action="create-document"]')!);
+    expect(document.querySelector("[data-nc-create-dialog]")).toBeInTheDocument();
+    expect([...document.querySelectorAll("[data-nc-new-type]")].map((r) => r.getAttribute("data-nc-new-type"))).toEqual(["docx", "xlsx", "pptx"]);
+    expect((document.querySelector("[data-nc-create-submit]") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(document.querySelector("#nc-new-name")!, { target: { value: "Devoir" } });
+    expect((document.querySelector("[data-nc-create-submit]") as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("la sélection d'un fichier propose les actions NextCloud", () => {
     show({ isLoading: false, isError: false, isSuccess: true, data: [d({})] });
     fireEvent.click(document.querySelector("[data-nc-select]")!);
-    expect(actions()).toEqual(["download", "open", "rename", "copyToWorkspace", "moveToWorkspace", "trash"]);
+    expect(actions()).toEqual(["download", "rename", "copyToWorkspace", "moveToWorkspace", "trash"]);
   });
 
   it("dans la corbeille NextCloud : restaurer, supprimer, vider ; pas d'envoi", () => {

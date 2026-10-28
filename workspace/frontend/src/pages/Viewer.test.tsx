@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Viewer } from "./Viewer";
 import { WorkspaceElement } from "../lib/types";
@@ -6,24 +8,47 @@ import { WorkspaceElement } from "../lib/types";
 vi.mock("@open-ent/react", () => ({
   AppHeader: ({ children }: { children: unknown }) => <div>{children as never}</div>,
   LoadingScreen: () => <div data-loading />,
+  ImageEditor: () => <div data-image-editor />,
+  useEdificeClient: () => ({ user: { userId: "u", authorizedActions: [] } }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 const state = vi.hoisted(() => ({ element: {} as Record<string, unknown>, text: {} as Record<string, unknown> }));
-vi.mock("../services/queries", () => ({ useElement: () => state.element, useTextContent: () => state.text }));
+vi.mock("../services/queries", () => ({ useElement: () => state.element, useTextContent: () => state.text, useLoolContext: () => ({ data: undefined }) }));
+vi.mock("../services/workspace.service", () => ({ updateImage: vi.fn() }));
 
 const file = (name: string, type: string): WorkspaceElement => ({ _id: "f1", name, eType: "file", eParent: null, owner: "u", ownerName: "Moi", metadata: { "content-type": type } });
 const show = (el: WorkspaceElement, text: Record<string, unknown> = { isLoading: false, isError: false, data: "" }, ids?: string[], at = "f1") => {
   state.element = { isLoading: false, isError: false, data: el };
   state.text = text;
   return render(
-    <MemoryRouter initialEntries={[{ pathname: `/view/${at}`, state: ids ? { ids } : undefined }]}>
-      <Routes>
-        <Route path="/view/:id" element={<Viewer />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[{ pathname: `/view/${at}`, state: ids ? { ids } : undefined }]}>
+        <Routes>
+          <Route path="/view/:id" element={<Viewer />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 };
+
+describe("Viewer — aperçu converti", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const docx = () => file("a.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+  it("affiche l'aperçu quand le service de conversion répond un PDF", async () => {
+    vi.stubGlobal("fetch", async () => new Response("%PDF", { status: 200, headers: { "content-type": "application/pdf" } }));
+    show(docx());
+    await waitFor(() => expect(document.querySelector('[data-viewer="office"]')).toBeInTheDocument());
+  });
+
+  it("si le service de conversion est arrêté (erreur JSON), propose le téléchargement au lieu d'afficher l'erreur", async () => {
+    vi.stubGlobal("fetch", async () => new Response('{"error":"closed.pdf.response"}', { status: 500, headers: { "content-type": "application/json" } }));
+    show(docx());
+    await waitFor(() => expect(document.querySelector("[data-viewer-unavailable]")).toBeInTheDocument());
+    expect(document.querySelector('[data-viewer="office"]')).not.toBeInTheDocument();
+  });
+});
 
 describe("Viewer", () => {
   it("affiche une image", () => {
@@ -58,6 +83,14 @@ describe("Viewer", () => {
     expect(screen.getByText("workspace.react.viewer.previous")).not.toBeDisabled();
     expect(screen.getByText("workspace.react.viewer.next")).not.toBeDisabled();
     fireEvent.click(screen.getByText("workspace.react.viewer.next"));
+  });
+
+  it("le propriétaire d'une image peut la modifier, pas un lecteur", () => {
+    show({ ...file("a.png", "image/png"), owner: "u" });
+    expect(document.querySelector("[data-viewer-edit-image]")).toBeInTheDocument();
+    cleanup();
+    show({ ...file("b.png", "image/png"), owner: "autre" });
+    expect(document.querySelector("[data-viewer-edit-image]")).not.toBeInTheDocument();
   });
 
   it("sans liste de documents, pas de précédent ni de suivant", () => {
