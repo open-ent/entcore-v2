@@ -43,7 +43,7 @@ public class AdmlOfStructuresByExternalId extends AdmlResourcesProvider {
 				"MATCH (s:Structure) " +
 				"WHERE s.externalId IN $structures " +
 				"WITH COLLECT(s.id) as sIds " +
-				"RETURN LENGTH(FILTER(sId IN sIds WHERE sId IN $scope)) = LENGTH(sIds) as exists ";
+				"RETURN LENGTH([sId IN sIds WHERE sId IN $scope]) = LENGTH(sIds) as exists ";
 		JsonObject params = new JsonObject()
 				.put("structures", new JsonArray(structures))
 				.put("scope", new JsonArray(adminLocal.getScope()));

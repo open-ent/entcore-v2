@@ -45,7 +45,7 @@ public class AdmlOfStructures extends AdmlResourcesProvider {
 					"MATCH (s:Structure)<-[:HAS_ATTACHMENT*0..]-(so:Structure) " +
 					"WHERE s.id IN $structures " +
 					"WITH COLLECT(so.id) as sIds " +
-					"RETURN LENGTH(FILTER(sId IN sIds WHERE sId IN $scope)) = LENGTH(sIds) as exists ";
+					"RETURN LENGTH([sId IN sIds WHERE sId IN $scope]) = LENGTH(sIds) as exists ";
 			JsonObject params = new JsonObject()
 					.put("structures", new JsonArray(structures))
 					.put("scope", new JsonArray(adminLocal.getScope()));

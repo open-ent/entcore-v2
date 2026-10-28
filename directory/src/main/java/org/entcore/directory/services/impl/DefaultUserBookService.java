@@ -664,7 +664,7 @@ public class DefaultUserBookService implements UserBookService {
 		params.put("relation", relationship);
 		final StringBuilder query = new StringBuilder();
 		query.append("MATCH (u:User)-[:USERBOOK]->(ub) WHERE u.id=$id ");
-		query.append("WITH ub, FILTER(x IN COALESCE(ub.visibleInfos, []) WHERE x <> $relation) as newVisibilities ");
+		query.append("WITH ub, [x IN COALESCE(ub.visibleInfos, []) WHERE x <> $relation] as newVisibilities ");
 		if ("public".equals(state)) {
 			query.append("WITH ub, (newVisibilities + $relation) as newVisibilities2 ");
 			query.append("SET ub.visibleInfos = newVisibilities2 ");

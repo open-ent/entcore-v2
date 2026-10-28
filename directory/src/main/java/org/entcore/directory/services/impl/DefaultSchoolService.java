@@ -368,8 +368,8 @@ public class DefaultSchoolService implements SchoolService {
 				"MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s)," +
 				"(pg)-[:HAS_PROFILE]->(p:Profile) " +
 				"WITH p, collect(distinct u) as allUsers " +
-				"WITH p, FILTER(u IN allUsers WHERE u.activationCode IS NULL) as active, " +
-				"FILTER(u IN allUsers WHERE NOT(u.activationCode IS NULL)) as inactive " +
+				"WITH p, [u IN allUsers WHERE u.activationCode IS NULL] as active, " +
+				"[u IN allUsers WHERE NOT(u.activationCode IS NULL)] as inactive " +
 				"WITH p, length (active) as active, length(inactive) as inactive " +
 				"RETURN collect({profile: p.name, active: active, inactive: inactive}) as metrics";
 
@@ -516,10 +516,10 @@ public class DefaultSchoolService implements SchoolService {
 
 		if (getClassesForMonoEtabOnly) {
 			if (structures != null && structures.size() == 1) {
-				query.append("FILTER(c IN COLLECT(DISTINCT { id: c.id, name: c.name}) WHERE NOT(c.id IS NULL)) as classes, ");
+				query.append("[c IN COLLECT(DISTINCT { id: c.id, name: c.name}) WHERE NOT(c.id IS NULL)] as classes, ");
 			}
 		} else {
-			query.append("FILTER(c IN COLLECT(DISTINCT { id: c.id, name: c.name}) WHERE NOT(c.id IS NULL)) as classes, ");
+			query.append("[c IN COLLECT(DISTINCT { id: c.id, name: c.name}) WHERE NOT(c.id IS NULL)] as classes, ");
 		}
 
 		query.append("COLLECT(DISTINCT fg.filter) " +
@@ -536,7 +536,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void getClasses(String structureId, Handler<Either<String, JsonObject>> handler) {
 		String query = "MATCH (s: Structure {id: $structureId})<-[:BELONGS]-(c:Class) " +
-				"RETURN FILTER(c IN COLLECT(DISTINCT { id: c.id, label: c.name }) WHERE NOT(c.id IS NULL)) as classes";
+				"RETURN [c IN COLLECT(DISTINCT { id: c.id, label: c.name }) WHERE NOT(c.id IS NULL)] as classes";
 		neo.execute(query, new JsonObject().put("structureId", structureId), validUniqueResultHandler(handler));
 	}
 

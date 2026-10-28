@@ -823,7 +823,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
         returnStr += ", classes, classname, isInClass ";
 
         withStr += ", CASE count(child) WHEN 0 THEN null ELSE collect(distinct {firstName: child.firstName, lastName: child.lastName, classname: c.name}) END as children ";
-        returnStr += ", filter(c IN children WHERE not(c.firstName is null)) as children, (u.federatedIDP IS NOT NULL AND NOT(u.federatedIDP IS NULL) AND u.federated IS NOT NULL AND u.federated = true) OR " +
+        returnStr += ", [c IN children WHERE not(c.firstName is null)] as children, (u.federatedIDP IS NOT NULL AND NOT(u.federatedIDP IS NULL) AND u.federated IS NOT NULL AND u.federated = true) OR " +
                 " (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D'] AND u.activationCode IS NOT NULL ))  as hasFederatedIdentity ";
 
         String sort = "ORDER BY lastName";

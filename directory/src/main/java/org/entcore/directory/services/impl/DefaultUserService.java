@@ -410,13 +410,13 @@ public class DefaultUserService implements UserService {
 		
 		if(filterNullReturn){
 			query += "RETURN DISTINCT u.profiles as type, structureNodes, " +
-					"filter(x IN functions WHERE filter(y IN x WHERE y IS NOT NULL)) as functions, u.functions as aafFunctions," +
-					"filter(x IN coalesce(children, []) WHERE x.id IS NOT NULL) as children, " +
-					"filter(x IN coalesce(parents, []) WHERE x.id IS NOT NULL) as parents, " +
-					"filter(x IN coalesce(admGroups, []) WHERE x.id IS NOT NULL) as functionalGroups, " +
-					"filter(x IN coalesce(admStruct, []) WHERE x.id IS NOT NULL) as administrativeStructures, " +
-					"filter(x IN coalesce(subjectCodes, []) WHERE x IS NOT NULL) as subjectCodes, " +
-					"filter(x IN coalesce(userPositions, []) WHERE x IS NOT NULL) as userPositions, ";
+					"[x IN functions WHERE [y IN x WHERE y IS NOT NULL]] as functions, u.functions as aafFunctions," +
+					"[x IN coalesce(children, []) WHERE x.id IS NOT NULL] as children, " +
+					"[x IN coalesce(parents, []) WHERE x.id IS NOT NULL] as parents, " +
+					"[x IN coalesce(admGroups, []) WHERE x.id IS NOT NULL] as functionalGroups, " +
+					"[x IN coalesce(admStruct, []) WHERE x.id IS NOT NULL] as administrativeStructures, " +
+					"[x IN coalesce(subjectCodes, []) WHERE x IS NOT NULL] as subjectCodes, " +
+					"[x IN coalesce(userPositions, []) WHERE x IS NOT NULL] as userPositions, ";
 		} else {
 			query += "RETURN DISTINCT u.profiles as type, structureNodes, functions, " +
 					"CASE WHEN children IS NULL THEN [] ELSE children END as children, " +
@@ -616,7 +616,7 @@ public class DefaultUserService implements UserService {
 				+ "WITH s, c, g, "
 				+ "collect( distinct {name: c.name, id: c.id}) as classes, "
 				+ "collect( distinct {name: s.name, id: s.id}) as structures, "
-				+ "HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type "
+				+ "HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type "
 				+ "RETURN DISTINCT "
 				+ "g.id as id, "
 				+ "g.name as name, "

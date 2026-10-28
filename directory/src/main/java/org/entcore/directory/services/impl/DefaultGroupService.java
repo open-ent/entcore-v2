@@ -100,7 +100,7 @@ public class DefaultGroupService implements GroupService {
 				"MATCH (s:Structure)" + recursion + "<-[:BELONGS*0..1]-()<-[:DEPENDS]-(g) " + condition +
 				"OPTIONAL MATCH (g)-[:DEPENDS]->(c:Class) " +
 				"WITH g, collect({name: c.name, id: c.id}) as classes, collect( distinct {name: s.name, id: s.id}) as structures, " +
-				"HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type " +
+				"HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type " +
 				"RETURN DISTINCT g.id as id, g.name as name, g.displayName as displayName, g.filter as filter, labels(g) as labels, " +
 				"g.createdAt as createdAt, g.createdByName as createdByName, g.modifiedAt as modifiedAt, g.modifiedByName as modifiedByName, " +
                         "g.manualGroupAutolinkUsersPositions as manualGroupAutolinkUsersPositions, " +
@@ -240,7 +240,7 @@ public class DefaultGroupService implements GroupService {
 		final String query =
 			"MATCH (g:Group) WHERE g.id IN $groupIds " +
 			"WITH g " +
-			(withTypeSubType ? ", HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type " : "") +
+			(withTypeSubType ? ", HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type " : "") +
 			// cf. commentaire dans getInfos() : ClassGroup dépend d'une Class, pas directement
 			// d'une Structure — la classe est rattachée via (:Class)-[:BELONGS]->(:Structure).
 			(withStructureId ? "OPTIONAL MATCH (g)-[:DEPENDS]->(struct:Structure) " +
@@ -329,7 +329,7 @@ public class DefaultGroupService implements GroupService {
 		}
 
 		query = query +
-				"HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type " +
+				"HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type " +
 				"RETURN DISTINCT g.id as id, g.name as name, g.displayName as displayName, g.filter as filter, labels(g) as labels, type, " +
 				"g.lockDelete AS lockDelete, coalesce(g.nbUsers,0) as nbUsers" +
 				returnStructure;
