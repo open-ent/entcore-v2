@@ -974,8 +974,8 @@ public class DefaultCommunicationService implements CommunicationService {
 			+ "type, "
 			+ "CASE WHEN any(x in classes where x <> {name: null, id: null}) THEN classes END as classes, "
 			+ "CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures, "
-			+ "CASE WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Structure) } THEN 'StructureGroup' "
-			+ "     WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Class) } THEN 'ClassGroup' "
+			+ "CASE WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]->(:Structure)) THEN 'StructureGroup' "
+			+ "     WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]->(:Class)) THEN 'ClassGroup' "
 			+ "     WHEN g.subType IS NOT NULL THEN g.subType END as subType";
 
 	@Override
@@ -1046,8 +1046,8 @@ public class DefaultCommunicationService implements CommunicationService {
 				+ "g.displayName as displayName, "
 				+ "g.users as internalCommunicationRule, "
 				+ "type, "
-				+ "CASE WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Structure) } THEN 'StructureGroup' "
-				+ "     WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Class) } THEN 'ClassGroup' "
+				+ "CASE WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]->(:Structure)) THEN 'StructureGroup' "
+				+ "     WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]->(:Class)) THEN 'ClassGroup' "
 				+ "     WHEN g.subType IS NOT NULL THEN g.subType END as subType";
 
 		JsonArray groups = new JsonArray(Arrays.asList(groupIds));
@@ -1338,9 +1338,9 @@ public class DefaultCommunicationService implements CommunicationService {
 		// le droit de communication quelle que soit la visibilité héritée des groupes.
 		String query = "MATCH (s:User), (r:User) "
 				+ "where s.id = $senderId and r.id = $recipientId "
-				+ "return (EXISTS { (r)<-[:COMMUNIQUE*1..2]-()<-[:COMMUNIQUE]-(s) } OR "
-				+ "EXISTS { (r)<-[:COMMUNIQUE_DIRECT]-(s) }) "
-				+ "AND NOT EXISTS { (s)-[:BLOCKED_COMMUNICATION]-(r) } as " + CAN_COMMUNICATE_VERIFY;
+				+ "return (exists((r)<-[:COMMUNIQUE*1..2]-()<-[:COMMUNIQUE]-(s)) OR "
+				+ "exists((r)<-[:COMMUNIQUE_DIRECT]-(s))) "
+				+ "AND NOT exists((s)-[:BLOCKED_COMMUNICATION]-(r)) as " + CAN_COMMUNICATE_VERIFY;
 
 		JsonObject params = new JsonObject()
 				.put("senderId", senderId)
@@ -1354,9 +1354,9 @@ public class DefaultCommunicationService implements CommunicationService {
 
 				String queryGroup = "MATCH (s:User), (r:Group) "
 						+ "where s.id = $senderId and r.id = $recipientId "
-						+ "return EXISTS { (s)-[:COMMUNIQUE*1..2]->()<-[:DEPENDS]-(r) } OR "
-						+ "EXISTS { (r)<-[:COMMUNIQUE]-()<-[:COMMUNIQUE]-(s) } OR "
-						+ "(EXISTS { (r)<-[:COMMUNIQUE]-(s) } AND r.users <> 'INCOMING') as " + CAN_COMMUNICATE_VERIFY;
+						+ "return exists((s)-[:COMMUNIQUE*1..2]->()<-[:DEPENDS]-(r)) OR "
+						+ "exists((r)<-[:COMMUNIQUE]-()<-[:COMMUNIQUE]-(s)) OR "
+						+ "(exists((r)<-[:COMMUNIQUE]-(s)) AND r.users <> 'INCOMING') as " + CAN_COMMUNICATE_VERIFY;
 
 				JsonObject paramsGroup = new JsonObject()
 						.put("senderId", senderId)
@@ -1927,8 +1927,8 @@ public class DefaultCommunicationService implements CommunicationService {
 				"WHEN HEAD(visibles.profiles) = 'Guest' THEN 5 " +
 				"WHEN visibles.subType = 'BroadcastGroup' THEN 12 " +
 				"WHEN 'ManualGroup' IN labels(visibles) THEN 6 " +
-				"WHEN visibles:ProfileGroup AND EXISTS { (visibles)-[:DEPENDS]->(:Class) } THEN 7 " +
-				"WHEN visibles:ProfileGroup AND EXISTS { (visibles)-[:DEPENDS]->(:Structure) } THEN 11 " +
+				"WHEN visibles:ProfileGroup AND exists((visibles)-[:DEPENDS]->(:Class)) THEN 7 " +
+				"WHEN visibles:ProfileGroup AND exists((visibles)-[:DEPENDS]->(:Structure)) THEN 11 " +
 				"WHEN 'FunctionalGroup' IN labels(visibles) THEN 8 " +
 				"WHEN 'FuncGroup' IN labels(visibles) OR 'FunctionGroup' IN labels(visibles) OR 'DirectionGroup' IN labels(visibles) THEN 9 " +
 				"WHEN 'DisciplineGroup' IN labels(visibles) THEN 10 " +

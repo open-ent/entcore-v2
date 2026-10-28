@@ -184,7 +184,7 @@ public class DefaultSchoolService implements SchoolService {
 
 	@Override
 	public void isParent(String structureId, String parentStructureId, Handler<Either<String, Boolean>> handler) {
-		final String query = "MATCH (s:Structure {id: $structureId}) RETURN EXISTS { (s)-[:HAS_ATTACHMENT*1..]->(:Structure {id: $parentStructureId}) } AS exists";
+		final String query = "MATCH (s:Structure {id: $structureId}) RETURN exists((s)-[:HAS_ATTACHMENT*1..]->(:Structure {id: $parentStructureId})) AS exists";
 		JsonObject params = new JsonObject().put("structureId", structureId).put("parentStructureId", parentStructureId);
 		neo.execute(query.toString(), params, validUniqueResultHandler(exists -> {
 			if (exists.isRight()) {

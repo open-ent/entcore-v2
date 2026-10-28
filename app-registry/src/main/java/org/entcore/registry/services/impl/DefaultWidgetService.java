@@ -95,8 +95,11 @@ public class DefaultWidgetService implements WidgetService {
 		String query =
 			"MATCH (w:Widget) OPTIONAL MATCH (w)<-[:HAS_WIDGET]-(a:Application) "+
 			// length() sur une expression de motif comptait les chemins correspondants en
-			// Cypher 2.3. Le test portant sur « > 0 », EXISTS { } en est la traduction directe.
-			"WITH w, a, EXISTS { (a)-[:PROVIDE]->(:WorkflowAction) } as workflowLinked " +
+			// Cypher 2.3. Aucune forme d'expression de motif ne convient ici aux deux moteurs :
+			// ArcadeDB les refuse dans un WITH, Neo4j 3.1 ne connaît pas EXISTS { }. L'OPTIONAL
+			// MATCH agrégé dit la même chose et passe partout.
+			"OPTIONAL MATCH (a)-[:PROVIDE]->(wa:WorkflowAction) " +
+			"WITH w, a, count(wa) > 0 as workflowLinked " +
 			"RETURN collect({id: w.id, name: w.name, js: w.js, path: w.path, i18n: w.i18n, " +
 			"distributions: coalesce(w.distributions, []), " +
 			"levelsOfEducation: coalesce(w.levelsOfEducation, CASE " +
