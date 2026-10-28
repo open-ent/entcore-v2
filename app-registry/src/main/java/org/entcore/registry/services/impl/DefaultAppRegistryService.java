@@ -447,25 +447,38 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			for (Object o: actions) {
 				JsonObject json = (JsonObject) o;
 				String type;
-				List<String> removeLabels = new ArrayList<>();
-				removeLabels.add("ResourceAction");
-				removeLabels.add("AuthenticatedAction");
-				removeLabels.add("WorkflowAction");
 				switch (json.getString("type", "WORKFLOW")) {
 					case "RESOURCE" : type = "Resource"; break;
 					case "AUTHENTICATED" : type = "Authenticated"; break;
 					default: type = "Workflow"; break;
 				}
-				removeLabels.remove(type + "Action");
+				// Le nœud est créé d'emblée avec son étiquette définitive, jamais retypé
+				// après coup. Sur ArcadeDB les étiquettes forment le type du nœud
+				// (Action~ResourceAction) : un nœud dont une propriété porte un index
+				// unique ne peut pas changer de type, car la clé est réinsérée avant
+				// d'être retirée — « Duplicated key ... found on index Action[name] ».
+				// L'ancienne forme (MERGE sur :Action puis SET a:<type>Action) échouait
+				// donc, et toute la transaction d'enregistrement était annulée : aucune
+				// action du module n'était posée. Scinder en deux instructions ne suffit
+				// pas, elles sont dans la même transaction.
+				//
+				// Une action qui change de type d'une version à l'autre ne peut plus être
+				// retypée : on supprime celle qui porte l'ancienne étiquette. Ses liens
+				// AUTHORIZE sont perdus, ce que removeNotWorkflowInRole ci-dessous fait de
+				// toute façon pour les actions Resource et Authenticated.
+				//
+				// Sur Neo4j les deux formes donnent le même résultat.
+				String dropMistyped =
+						"MATCH (a:Action {name:$name}) WHERE NOT a:" + type + "Action DETACH DELETE a";
 				String createAction =
-						"MERGE (a:Action {name:$name}) " +
-						"REMOVE a:" + Joiner.on(":").join(removeLabels) + " " +
-						"SET a.displayName = $displayName, a.type = $type, a:" + type + "Action " +
+						"MERGE (a:Action:" + type + "Action {name:$name}) " +
+						"SET a.displayName = $displayName, a.type = $type " +
 						"WITH a " +
 						"MATCH (n:Application) " +
 						"WHERE n.name = $applicationName " +
 						"MERGE (n)-[r:PROVIDE]->(a) " +
 						"RETURN a.name as name";
+				b.add(dropMistyped, new JsonObject().put("name", json.getString("name")));
 				b.add(createAction, json
 						.put("applicationName", applicationName)
 						.put("type", "SECURED_ACTION_" + json.getString("type", "WORKFLOW")));
