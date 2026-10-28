@@ -619,7 +619,7 @@ public class Structure {
 				"MATCH (s:Structure { id : $structureId})<-[:DEPENDS]-(:FunctionGroup {externalId: s.id + '-ADMIN_LOCAL'})" +
 				"<-[r:IN]-(u:User)-[rf:HAS_FUNCTION]-(:Function {name : 'AdminLocal'}) " +
 				"WHERE NOT(u.id IN ids) " +
-				"SET rf.scope = FILTER(sId IN rf.scope WHERE sId <> s.id) " +
+				"SET rf.scope = [sId IN rf.scope WHERE sId <> s.id] " +
 				"DELETE r";
 		JsonObject params = new JsonObject()
 				.put("structureId", structureId)

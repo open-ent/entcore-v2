@@ -66,8 +66,8 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 	private static final String LINK_SUBJECT =
 			"MATCH (s:TimetableSubject {id : $subjectId}), (u:User {id: $teacherId}) " +
 			"MERGE (u)-[r:TEACHES]->(s) " +
-			"SET r.classes = FILTER(c IN coalesce(r.classes, []) where NOT(c IN $classes)) + $classes, " +
-			"r.groups = FILTER(g IN coalesce(r.groups, []) where NOT(g IN $groups)) + $groups, " +
+			"SET r.classes = [c IN coalesce(r.classes, []) where NOT(c IN $classes)] + $classes, " +
+			"r.groups = [g IN coalesce(r.groups, []) where NOT(g IN $groups)] + $groups, " +
 			"r.lastUpdated = $now, r.source = $source ";
 	private static final String DELETE_SUBJECT =
 			"MATCH (s:Structure {externalId : $structureExternalId})<-[:SUBJECT]-(sub:TimetableSubject {source: $source}) " +
@@ -84,7 +84,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 			"MATCH (s:Structure {UAI : $UAI}) " +
 			"WHERE exists = 0 " +
 			"MERGE (cm:ClassesMapping { UAI : $UAI, source: $source }) " +
-			"SET cm.unknownClasses = coalesce(FILTER(cn IN cm.unknownClasses WHERE cn <> $className), []) + $className " +
+			"SET cm.unknownClasses = coalesce([cn IN cm.unknownClasses WHERE cn <> $className], []) + $className " +
 			"MERGE (s)<-[:MAPPING]-(cm) ";
 	protected static final String UNKNOWN_GROUPS =
 			"MATCH (s:Structure {UAI : $UAI})<-[:DEPENDS]-(fg:Group:FunctionalGroup) " +
@@ -93,7 +93,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 			"MATCH (s:Structure {UAI : $UAI}) " +
 			"WHERE exists = 0 " +
 			"MERGE (cm:ClassesMapping { UAI : $UAI, source: $source }) " +
-			"SET cm.unknownGroups = coalesce(FILTER(gn IN cm.unknownGroups WHERE gn <> $groupName), []) + $groupName " +
+			"SET cm.unknownGroups = coalesce([gn IN cm.unknownGroups WHERE gn <> $groupName], []) + $groupName " +
 			"MERGE (s)<-[:MAPPING]-(cm) ";
 	protected static final String CREATE_GROUPS =
 			"MATCH (s:Structure {externalId : $structureExternalId}) " +
@@ -122,7 +122,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 	private static final String DELETE_GROUPS_2 =
 			"WITH COLLECT(distinct g.id) as usedFunctionalGroup, COLLECT(DISTINCT g.name) as usedFunctionalGroupNames " +
 			"OPTIONAL MATCH (:Structure {externalId : $structureExternalId})<-[:MAPPING]-(cm:ClassesMapping) " +
-			"SET cm.unknownGroups = coalesce(FILTER(gn IN cm.unknownGroups WHERE gn IN usedFunctionalGroupNames OR gn IN $mappedGroups), []) " +
+			"SET cm.unknownGroups = coalesce([gn IN cm.unknownGroups WHERE gn IN usedFunctionalGroupNames OR gn IN $mappedGroups], []) " +
 			"WITH usedFunctionalGroup " +
 			"MATCH (:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(g:FunctionalGroup {source:$source}) " +
 			"WHERE NOT(g.id IN usedFunctionalGroup) " +

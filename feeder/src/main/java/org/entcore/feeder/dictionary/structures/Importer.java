@@ -934,7 +934,7 @@ public class Importer {
 								"WHERE r.mergedWith IS NULL " +
 								"MERGE (u)-[:RELATED]->(r) " +
 								"WITH r, u " +
-								"WHERE $user <> r.externalId AND LENGTH(FILTER(eId IN u.relative WHERE eId STARTS WITH r.externalId)) = 0 " +
+								"WHERE $user <> r.externalId AND LENGTH([eId IN u.relative WHERE eId STARTS WITH r.externalId]) = 0 " +
 								"SET u.relative = coalesce(u.relative, []) + (r.externalId + '$10$1$1$0$0') ";
 						JsonObject p = new JsonObject()
 								.put("userExternalId", externalId)

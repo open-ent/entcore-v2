@@ -564,8 +564,8 @@ public class ManualFeeder extends BusModBase {
 						"(pg:ProfileGroup)-[:DEPENDS]->(s), " +
 						"(pg)-[:HAS_PROFILE]->(p:Profile), (p)<-[:HAS_PROFILE]-(dpg:DefaultProfileGroup) " +
 						"MERGE (dpg)<-[:IN]-(u) " +
-						"SET u.structures = FILTER(sId IN u.structures WHERE sId <> s.externalId), " +
-						"u.classes = FILTER(cId IN u.classes WHERE NOT(cId =~ (s.externalId + '.*'))) " +
+						"SET u.structures = [sId IN u.structures WHERE sId <> s.externalId], " +
+						"u.classes = [cId IN u.classes WHERE NOT(cId =~ (s.externalId + '.*'))] " +
 						addToRemoved +
 						"DELETE r " +
 						"RETURN DISTINCT u.id as id";
@@ -577,7 +577,7 @@ public class ManualFeeder extends BusModBase {
 				"OPTIONAL MATCH (s)-[:HAS_ATTACHMENT*1..]->(ss:Structure) " +
 						"WITH s, r, count(CASE WHEN ss.id IN r.scope THEN 1 ELSE NULL END) as parentADML " +
 						"WHERE parentADML = 0 " +
-						"SET r.scope = FILTER(sId IN r.scope WHERE sId <> s.id) " +
+						"SET r.scope = [sId IN r.scope WHERE sId <> s.id] " +
 						"WITH r " +
 						"WHERE LENGTH(r.scope) = 0 " +
 						"DELETE r";
@@ -803,7 +803,7 @@ public class ManualFeeder extends BusModBase {
 					.put("userId", userId);
 			String query =
 					"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS]->(c:Class  {id : $classId}) " +
-							"SET u.classes = FILTER(cId IN u.classes WHERE cId <> c.externalId) , u.headTeacherManual = FILTER(x IN u.headTeacherManual WHERE x <> c.externalId) " +
+							"SET u.classes = [cId IN u.classes WHERE cId <> c.externalId] , u.headTeacherManual = [x IN u.headTeacherManual WHERE x <> c.externalId] " +
 							"DELETE r " +
 							"RETURN DISTINCT u.id as id";
 
@@ -873,7 +873,7 @@ public class ManualFeeder extends BusModBase {
 						.put("userId", userId);
 				String query =
 						"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS]->(c:Class  {id : $classId}) " +
-								"SET u.classes = FILTER(cId IN u.classes WHERE cId <> c.externalId) , u.headTeacherManual = FILTER(x IN u.headTeacherManual WHERE x <> c.externalId) " +
+								"SET u.classes = [cId IN u.classes WHERE cId <> c.externalId] , u.headTeacherManual = [x IN u.headTeacherManual WHERE x <> c.externalId] " +
 								"DELETE r " +
 								"RETURN DISTINCT u.id as id";
 

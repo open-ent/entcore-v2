@@ -500,7 +500,7 @@ public class User {
 		String mQuery =
 				"MATCH (u:User { id : $userId})<-[r:MERGED]-(um:User), " +
 				"(u)<-[:RELATED]-(us:User) " +
-				"WHERE us.relative IS NOT NULL AND LENGTH(FILTER(eId IN us.relative WHERE eId STARTS WITH um.externalId)) > 0 " +
+				"WHERE us.relative IS NOT NULL AND LENGTH([eId IN us.relative WHERE eId STARTS WITH um.externalId]) > 0 " +
 				"CREATE UNIQUE (um)<-[:RELATED]-(us) " +
 				"DELETE r " +
 				"WITH um, us " +
@@ -671,7 +671,7 @@ public class User {
 		String query =
 				"MATCH (u:User) " +
 				"WHERE u.headTeacherManual IS NOT NULL AND u.id = $userId " +
-				"SET u.headTeacherManual = FILTER(x IN u.headTeacherManual WHERE x <> $classExternalId) " +
+				"SET u.headTeacherManual = [x IN u.headTeacherManual WHERE x <> $classExternalId] " +
 				"RETURN u.headTeacherManual";
 
 		transactionHelper.add(query, params);
@@ -728,7 +728,7 @@ public class User {
 		String query =
 				"MATCH (u:User) " +
 				"WHERE u.directionManual IS NOT NULL AND u.id = $userId " +
-				"SET u.directionManual = FILTER(x IN u.directionManual WHERE x <> $structureExternalId) " +
+				"SET u.directionManual = [x IN u.directionManual WHERE x <> $structureExternalId] " +
 				"RETURN u.directionManual";
 
 		transactionHelper.add(query, params);
@@ -813,7 +813,7 @@ public class User {
 				"CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(f) " +
 				"WITH f, u " +
 				"WHERE 'FunctionalGroup' IN labels(f) OR 'FunctionGroup' IN labels(f) " +
-				"SET u.groups = FILTER(gId IN coalesce(u.groups, []) WHERE gId <> f.externalId) + f.externalId ";
+				"SET u.groups = [gId IN coalesce(u.groups, []) WHERE gId <> f.externalId] + f.externalId ";
 		JsonObject params = new JsonObject()
 				.put("userId", userId)
 				.put("groupId", groupId);
@@ -825,7 +825,7 @@ public class User {
 		String query =
 				"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]-(f:Group {id : $groupId}) " +
 				"WHERE 'ManualGroup' IN labels(f) OR 'FunctionalGroup' IN labels(f) OR 'FunctionGroup' IN labels(f) " +
-				"SET u.groups = FILTER(gId IN coalesce(u.groups, []) WHERE gId <> f.externalId) " +
+				"SET u.groups = [gId IN coalesce(u.groups, []) WHERE gId <> f.externalId] " +
 				"DELETE r ";
 		JsonObject params = new JsonObject()
 				.put("userId", userId)
@@ -970,7 +970,7 @@ public class User {
 				"WITH r " +
 				"MATCH (s:User {id : $studentId})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Student'}), " +
 				"(s)-[relations]-(r) " +
-				"SET s.relative = FILTER(rId IN s.relative WHERE NOT(rId =~ (r.externalId + '.*'))) " +
+				"SET s.relative = [rId IN s.relative WHERE NOT(rId =~ (r.externalId + '.*'))] " +
 				"DELETE relations";
 		String query2 =
 				"MATCH (s:User {id : $studentId})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class), " +

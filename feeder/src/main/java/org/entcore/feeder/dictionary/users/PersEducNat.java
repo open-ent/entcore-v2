@@ -95,10 +95,10 @@ public class PersEducNat extends AbstractUser {
 							"displayNameSearchField", "email", "emailSearchField", "created", "structures", "functions"));
 
 					if (object.getJsonArray("structures") != null && object.getJsonArray("structures").size() > 0) {
-						sb.append(", u.structures = FILTER (s IN coalesce(u.structures, []) WHERE NOT s IN $structures) + $structures");
+						sb.append(", u.structures = [s IN coalesce(u.structures, []) WHERE NOT s IN $structures] + $structures");
 					}
 					if (object.getJsonArray("functions") != null && object.getJsonArray("functions").size() > 0) {
-						sb.append(", u.functions = FILTER (f IN coalesce(u.functions, []) WHERE NOT f IN $functions) + $functions");
+						sb.append(", u.functions = [f IN coalesce(u.functions, []) WHERE NOT f IN $functions] + $functions");
 					}
 
 				} else {
@@ -309,8 +309,8 @@ public class PersEducNat extends AbstractUser {
 				"SET sub.label = f.name, sub.lastUpdated = $now, sub.source = $source " +
 				"WITH r, sub, u, s.externalId as sExternalId " +
 				"MERGE (u)-[r1:TEACHES]->(sub) " +
-				"SET r1.aafClasses = FILTER(cId IN coalesce(r.classes, []) WHERE cId starts with sExternalId), " +
-				"r1.aafGroups = FILTER(gId IN coalesce(r.groups, []) WHERE gId starts with sExternalId), " +
+				"SET r1.aafClasses = [cId IN coalesce(r.classes, []) WHERE cId starts with sExternalId], " +
+				"r1.aafGroups = [gId IN coalesce(r.groups, []) WHERE gId starts with sExternalId], " +
 				"r1.lastUpdated = $now, r1.source = $source ";
 		transactionHelper.add(query, params);
 		final String deleteOldSubjects =
@@ -335,11 +335,11 @@ public class PersEducNat extends AbstractUser {
 		final String syncTimetableArrays =
 				"MATCH (s:Structure" + filter + ")<-[:SUBJECT]-(sub:Subject)<-[r1:TEACHES]-(u:User) " +
 				"WHERE (s.timetable = 'EDT' OR s.timetable = 'UDT') " +
-				"SET r1.tmpClasses = FILTER(gId IN coalesce(r1.classes, []) WHERE NOT(gId IN coalesce(r1.aafClasses, [])))" +
+				"SET r1.tmpClasses = [gId IN coalesce(r1.classes, []) WHERE NOT(gId IN coalesce(r1.aafClasses, []))]" +
 				" + coalesce(r1.aafClasses, []), " +
-				"r1.classes = FILTER(gId IN coalesce(r1.tmpClasses, []) WHERE NOT(gId IN coalesce(r1.timetableClasses, [])))" +
+				"r1.classes = [gId IN coalesce(r1.tmpClasses, []) WHERE NOT(gId IN coalesce(r1.timetableClasses, []))]" +
 				" + coalesce(r1.timetableClasses, []), " +
-				"r1.groups = FILTER(gId IN coalesce(r1.groups, []) WHERE NOT(gId IN coalesce(r1.timetableGroups, [])))" +
+				"r1.groups = [gId IN coalesce(r1.groups, []) WHERE NOT(gId IN coalesce(r1.timetableGroups, []))]" +
 				" + coalesce(r1.timetableGroups, []) ";
 		transactionHelper.add(syncTimetableArrays, params);
 	}

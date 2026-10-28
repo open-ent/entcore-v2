@@ -77,10 +77,10 @@ public class DuplicateUsers {
 					"MATCH (u1:User {id: $userId1})-[r:DUPLICATE]-(u2:User {id: $userId2})-[r2]-() " +
 					"OPTIONAL MATCH (u2)-[ain:IN]->(afg: FunctionGroup) " +
 					"WHERE afg.name ENDS WITH 'AdminLocal' " +
-					"SET u1.ignoreDuplicates = FILTER(uId IN u1.ignoreDuplicates WHERE uId <> $userId2) " +
+					"SET u1.ignoreDuplicates = [uId IN u1.ignoreDuplicates WHERE uId <> $userId2] " +
 					"WITH u1, u2, r, r2, u2.IDPN as IDPN, u2.id as oldId, u2.externalId as u2ExternalId, ain.source AS ainSource, afg " +
-					"SET u1.mergedIds = FILTER(oldIdF IN coalesce(u1.mergedIds, []) WHERE oldIdF <> oldId) + oldId, " +
-					"u1.mergedExternalIds = FILTER(u2ExternalIdF IN coalesce(u1.mergedExternalIds, []) WHERE u2ExternalIdF <> u2ExternalId) + u2ExternalId " +
+					"SET u1.mergedIds = [oldIdF IN coalesce(u1.mergedIds, []) WHERE oldIdF <> oldId] + oldId, " +
+					"u1.mergedExternalIds = [u2ExternalIdF IN coalesce(u1.mergedExternalIds, []) WHERE u2ExternalIdF <> u2ExternalId] + u2ExternalId " +
 					"DELETE r, r2, u2 " +
 					"MERGE (u1)-[nin:IN {source:ainSource}]->(afg) " +
 					"WITH u1, IDPN, oldId, u2ExternalId " +
@@ -95,9 +95,9 @@ public class DuplicateUsers {
 					"DELETE r, r2, u2 " +
 					"MERGE (u1)-[nin:IN {source:ainSource}]->(afg) " +
 					"WITH u1, source, externalId, IDPN, oldId, u1.externalId as u1ExternalId " +
-					"SET u1.ignoreDuplicates = FILTER(uId IN u1.ignoreDuplicates WHERE uId <> $userId2), " +
-					"u1.mergedIds = FILTER(oldIdF IN coalesce(u1.mergedIds, []) WHERE oldIdF <> oldId) + oldId, " +
-					"u1.mergedExternalIds = FILTER(u1ExternalIdF IN coalesce(u1.mergedExternalIds, []) WHERE u1ExternalIdF <> u1ExternalId) + u1ExternalId, " +
+					"SET u1.ignoreDuplicates = [uId IN u1.ignoreDuplicates WHERE uId <> $userId2], " +
+					"u1.mergedIds = [oldIdF IN coalesce(u1.mergedIds, []) WHERE oldIdF <> oldId] + oldId, " +
+					"u1.mergedExternalIds = [u1ExternalIdF IN coalesce(u1.mergedExternalIds, []) WHERE u1ExternalIdF <> u1ExternalId] + u1ExternalId, " +
 					"u1.externalId = externalId, u1.source = source, u1.disappearanceDate = null " +
 					"WITH u1, IDPN, oldId " +
 					"WHERE u1.IDPN IS NULL AND NOT(IDPN IS NULL) " +
@@ -634,7 +634,7 @@ public class DuplicateUsers {
 										"MATCH (u:User {id: $userId}), (mu:User) " +
 												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
 												"SET mu.mergedWith = $userId, mu.mergeKey = null, u.mergedLogins = coalesce(u.mergedLogins, []) + mu.login " +
-//					", u.joinKey =  FILTER(eId IN u.joinKey WHERE eId <> mu.externalId) + mu.externalId " +
+//					", u.joinKey =  [eId IN u.joinKey WHERE eId <> mu.externalId] + mu.externalId " +
 												"MERGE (mu)-[:MERGED]->(u) " +
 												"RETURN u.mergedLogins as mergedLogins ", params);
 								tx.commit(new Handler<Message<JsonObject>>() {

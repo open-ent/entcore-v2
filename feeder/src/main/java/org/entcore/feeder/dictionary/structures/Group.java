@@ -132,7 +132,7 @@ public class Group {
 				"CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(g) " +
 				"WITH g, u " +
 				"WHERE 'FunctionalGroup' IN labels(g) " +
-				"SET u.groups = FILTER(gId IN coalesce(u.groups, []) WHERE gId <> g.externalId) + g.externalId ";
+				"SET u.groups = [gId IN coalesce(u.groups, []) WHERE gId <> g.externalId] + g.externalId ";
 		
 		JsonObject params = new JsonObject()
 				.put("groupId", groupId)
@@ -147,7 +147,7 @@ public class Group {
 				"MATCH (u:User)-[r:IN|COMMUNIQUE]-(g:Group) " +
 				"WHERE g.id = $groupId AND u.id IN $userIds " +
 				"AND ('ManualGroup' IN labels(g) OR 'FunctionalGroup' IN labels(g)) " +
-				"SET u.groups = FILTER(gId IN coalesce(u.groups, []) WHERE gId <> g.externalId) " +
+				"SET u.groups = [gId IN coalesce(u.groups, []) WHERE gId <> g.externalId] " +
 				"DELETE r ";
 				
 		JsonObject params = new JsonObject()
