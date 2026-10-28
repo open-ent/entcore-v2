@@ -97,3 +97,16 @@ export const elementActions = {
       .http()
       .putJson(el.eType === "folder" ? `/workspace/folder/rename/${el._id}` : `/workspace/rename/${el._id}`, { name }),
 };
+
+/** Un élément par son identifiant (la visionneuse peut être ouverte par un lien direct, sans passer par la liste). */
+export const getElement = async (id: string): Promise<WorkspaceElement | undefined> => {
+  const list = await odeServices.http().get<WorkspaceElement[]>(`/workspace/documents?${query({ filter: "all", id })}`);
+  return list.find((e) => e._id === id);
+};
+
+/** Contenu texte d'un fichier (aperçu texte, CSV, HTML). Rejette si le serveur répond une erreur. */
+export const fetchText = async (url: string): Promise<string> => {
+  const res = await fetch(url, { credentials: "same-origin" });
+  if (!res.ok) throw new Error(String(res.status));
+  return res.text();
+};

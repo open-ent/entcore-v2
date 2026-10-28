@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { TreeName } from "../lib/types";
-import { workspaceService } from "./workspace.service";
+import { fetchText, getElement, workspaceService } from "./workspace.service";
 
 export const useContent = (tree: TreeName, parentId?: string) =>
   useQuery({
@@ -20,3 +20,9 @@ export const useQuota = (userId?: string) =>
 
 export const useViewModePreference = () =>
   useQuery({ queryKey: ["workspace", "view-mode"], queryFn: workspaceService.getViewMode });
+
+export const useElement = (id?: string) =>
+  useQuery({ queryKey: ["workspace", "element", id], queryFn: () => getElement(id as string), enabled: !!id });
+
+export const useTextContent = (url?: string) =>
+  useQuery({ queryKey: ["workspace", "text", url], queryFn: () => fetchText(url as string), enabled: !!url });

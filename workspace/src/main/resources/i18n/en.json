@@ -375,5 +375,11 @@
   "workspace.react.picker.copy": "Copy to",
   "workspace.react.picker.move": "Move to",
   "workspace.react.confirm.delete": "These items will be permanently deleted.",
-  "workspace.react.action.share": "Share"
+  "workspace.react.action.share": "Share",
+  "workspace.react.viewer.back": "Back",
+  "workspace.react.viewer.previous": "Previous",
+  "workspace.react.viewer.next": "Next",
+  "workspace.react.viewer.unavailable": "This document cannot be displayed.",
+  "workspace.react.viewer.empty": "This file is empty.",
+  "workspace.react.viewer.truncated": "Only the first [[count]] rows are shown."
 }

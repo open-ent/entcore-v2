@@ -1,6 +1,7 @@
 import { Navigate, RouteObject, createHashRouter } from "react-router-dom";
 import { Browser } from "./pages/Browser";
 import { Root } from "./pages/Root";
+import { Viewer } from "./pages/Viewer";
 
 export const routes: RouteObject[] = [
   {
@@ -8,6 +9,7 @@ export const routes: RouteObject[] = [
     element: <Root />,
     children: [
       { index: true, element: <Navigate to="/owner" replace /> },
+      { path: "view/:id", element: <Viewer /> },
       { path: ":tree", element: <Browser /> },
       { path: ":tree/:folderId", element: <Browser /> },
     ],

@@ -376,5 +376,11 @@
   "workspace.react.picker.copy": "Copier vers",
   "workspace.react.picker.move": "Déplacer vers",
   "workspace.react.confirm.delete": "Ces éléments seront supprimés définitivement.",
-  "workspace.react.action.share": "Partager"
+  "workspace.react.action.share": "Partager",
+  "workspace.react.viewer.back": "Retour",
+  "workspace.react.viewer.previous": "Précédent",
+  "workspace.react.viewer.next": "Suivant",
+  "workspace.react.viewer.unavailable": "Ce document ne peut pas être affiché.",
+  "workspace.react.viewer.empty": "Ce fichier est vide.",
+  "workspace.react.viewer.truncated": "Seules les [[count]] premières lignes sont affichées."
 }

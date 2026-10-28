@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { fileKind, formatSize, parseDate } from "../lib/elements";
 import { TreeName, ViewMode, WorkspaceElement } from "../lib/types";
@@ -38,6 +38,7 @@ export const ElementList = ({
   onToggleAll?: () => void;
 }) => {
   const { t } = useTranslation("workspace");
+  const { pathname } = useLocation();
 
   const open = (e: WorkspaceElement) =>
     e.eType === "folder" ? (
@@ -45,9 +46,9 @@ export const ElementList = ({
         {e.name}
       </Link>
     ) : (
-      <a href={`/workspace/document/${e._id}`} data-element-open>
+      <Link to={`/view/${e._id}`} state={{ ids: elements.filter((x) => x.eType === "file").map((x) => x._id), from: pathname }} data-element-open>
         {e.name}
-      </a>
+      </Link>
     );
 
   const checkbox = (e: WorkspaceElement) =>
