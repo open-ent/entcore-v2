@@ -17,6 +17,8 @@ const LABEL: Record<ActionId, string> = {
   openLool: "workspace.external.open",
   openScratch: "workspace.external.open",
   openGeogebra: "workspace.external.open",
+  ncCopy: "nextcloud.share.copy.action",
+  ncMove: "nextcloud.share.move.action",
 };
 
 /** Barre d'actions de la sélection (les actions viennent de `availableActions`). */

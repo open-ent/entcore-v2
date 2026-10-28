@@ -58,10 +58,13 @@ export const TreeNav = ({
   tree,
   folderId,
   folders,
+  nextcloud = false,
 }: {
   tree: TreeName;
   folderId?: string;
   folders: WorkspaceElement[];
+  /** Affiche l'entrée « Documents synchronisés » (NextCloud activé et accessible). */
+  nextcloud?: boolean;
 }) => {
   const { t } = useTranslation("workspace");
   return (
@@ -81,6 +84,13 @@ export const TreeNav = ({
             )}
           </li>
         ))}
+        {nextcloud && (
+          <li>
+            <Link to="/nextcloud" data-tree-root="nextcloud">
+              {t("nextcloud.documents")}
+            </Link>
+          </li>
+        )}
       </ul>
     </nav>
   );

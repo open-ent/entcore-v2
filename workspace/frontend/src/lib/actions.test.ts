@@ -32,6 +32,12 @@ describe("availableActions", () => {
     expect(availableActions("owner", two, { integration: { lool: true } })).not.toContain("openLool");
     expect(availableActions("owner", one)).not.toContain("openLool");
   });
+  it("envoyer vers NextCloud : documents seulement, si NextCloud est disponible", () => {
+    expect(availableActions("owner", one, { nextcloud: true })).toEqual(expect.arrayContaining(["ncCopy", "ncMove"]));
+    expect(availableActions("owner", [el({ eType: "folder" })], { nextcloud: true })).not.toContain("ncCopy");
+    expect(availableActions("owner", one)).not.toContain("ncCopy");
+    expect(availableActions("trash", one, { nextcloud: true })).not.toContain("ncCopy");
+  });
   it("publier au portail : un seul document, par un administrateur", () => {
     expect(availableActions("owner", one, { canPublish: true })).toContain("publish");
     expect(availableActions("owner", two, { canPublish: true })).not.toContain("publish");

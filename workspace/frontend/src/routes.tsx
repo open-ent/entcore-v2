@@ -1,5 +1,6 @@
 import { Navigate, RouteObject, createHashRouter } from "react-router-dom";
 import { Browser } from "./pages/Browser";
+import { NextcloudBrowser } from "./pages/NextcloudBrowser";
 import { Root } from "./pages/Root";
 import { Viewer } from "./pages/Viewer";
 
@@ -10,6 +11,8 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="/owner" replace /> },
       { path: "view/:id", element: <Viewer /> },
+      { path: "nextcloud", element: <NextcloudBrowser /> },
+      { path: "nextcloud-trash", element: <NextcloudBrowser trash /> },
       { path: ":tree", element: <Browser /> },
       { path: ":tree/:folderId", element: <Browser /> },
     ],

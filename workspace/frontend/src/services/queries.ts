@@ -1,6 +1,7 @@
 import { odeServices } from "@open-ent/client";
 import { useQuery } from "@tanstack/react-query";
 import { LoolContext } from "../lib/integrations";
+import { nextcloudService } from "./nextcloud.service";
 import { TreeName } from "../lib/types";
 import { fetchText, getElement, searchElements, workspaceService } from "./workspace.service";
 
@@ -37,6 +38,21 @@ export const useLoolContext = (enabled: boolean) =>
   useQuery({
     queryKey: ["workspace", "lool-context"],
     queryFn: () => odeServices.http().get<LoolContext>("/lool/providers/context"),
+    enabled,
+    staleTime: 1000 * 60 * 10,
+  });
+
+export const useNextcloudList = (userId: string | undefined, path: string, trash: boolean, enabled: boolean) =>
+  useQuery({
+    queryKey: ["workspace", "nextcloud", userId, trash ? "trash" : path],
+    queryFn: () => (trash ? nextcloudService.listTrash(userId as string) : nextcloudService.list(userId as string, path)),
+    enabled: enabled && !!userId,
+  });
+
+export const useNextcloudUrl = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["workspace", "nextcloud-url"],
+    queryFn: async () => ({ url: await nextcloudService.url(), hidden: await nextcloudService.urlHidden() }),
     enabled,
     staleTime: 1000 * 60 * 10,
   });

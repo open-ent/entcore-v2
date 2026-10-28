@@ -1,6 +1,6 @@
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra";
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove";
 
 /** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
 export interface ActionContext {
@@ -12,6 +12,8 @@ export interface ActionContext {
   searching?: boolean;
   /** Intégrations disponibles pour le document sélectionné (éditeur en ligne, Scratch, GeoGebra). */
   integration?: { lool?: boolean; scratch?: boolean; geogebra?: boolean };
+  /** NextCloud activé et accessible à l'usager : propose d'y envoyer des documents. */
+  nextcloud?: boolean;
 }
 
 /**
@@ -40,6 +42,7 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if (single && ctx.integration?.lool) actions.push("openLool");
   if (single && ctx.integration?.scratch) actions.push("openScratch");
   if (single && ctx.integration?.geogebra) actions.push("openGeogebra");
+  if (ctx.nextcloud && (tree === "owner" || tree === "shared") && selection.every((e) => e.eType === "file")) actions.push("ncCopy", "ncMove");
   if (ctx.searching && single) actions.push("location");
   return actions;
 };

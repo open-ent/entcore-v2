@@ -16,6 +16,7 @@ vi.mock("../components/ZipDialog", () => ({ ZipDialog: () => null }));
 vi.mock("../components/VersionsModal", () => ({ VersionsModal: () => null }));
 vi.mock("../components/CommentsModal", () => ({ CommentsModal: () => null }));
 vi.mock("../components/LoolCreateModal", () => ({ LoolCreateModal: () => null }));
+vi.mock("../components/NextcloudPicker", () => ({ NextcloudPicker: () => null }));
 vi.mock("../components/PublishModal", () => ({ PublishModal: () => null }));
 vi.mock("../components/ShareWarning", () => ({ ShareWarning: () => null }));
 vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));

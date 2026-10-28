@@ -7,6 +7,7 @@ import { ActionBar } from "../components/ActionBar";
 import { CommentsModal } from "../components/CommentsModal";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { LoolCreateModal } from "../components/LoolCreateModal";
+import { NextcloudPicker } from "../components/NextcloudPicker";
 import { ElementList } from "../components/ElementList";
 import { FolderPicker } from "../components/FolderPicker";
 import { PublishModal } from "../components/PublishModal";
@@ -22,11 +23,13 @@ import { ActionId, availableActions, downloadUrl, forbiddenTargets } from "../li
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
 import { readFlags } from "../lib/flags";
 import { canOpenInGeogebra, canOpenInLool, canOpenInScratch, geogebraUrl, LOOL_CREATE, LOOL_OPEN, loolUrl, scratchUrl } from "../lib/integrations";
+import { NEXTCLOUD_VIEW } from "../lib/nextcloud";
 import { rightsOn } from "../lib/rights";
 import { clientFilter, locationOf, searchQuery } from "../lib/search";
 import { isZip, planUpload, remainingLabel } from "../lib/upload";
 import { ViewMode, WorkspaceElement } from "../lib/types";
 import { useUploads } from "../services/useUploads";
+import { nextcloudService } from "../services/nextcloud.service";
 import { elementActions } from "../services/workspace.service";
 import { useContent, useFolders, useLoolContext, useQuota, useSearch, useViewModePreference } from "../services/queries";
 
@@ -55,6 +58,7 @@ export const Browser = () => {
   const flags = useMemo(() => readFlags(), []);
   const workflows = new Set(((user as { authorizedActions?: Array<{ name: string }> } | undefined)?.authorizedActions ?? []).map((a) => a.name));
   const canOpenOnline = flags.enableLool && workflows.has(LOOL_OPEN);
+  const ncAvailable = flags.enableNextcloud && workflows.has(NEXTCLOUD_VIEW);
   const canCreateOnline = flags.enableLool && workflows.has(LOOL_CREATE);
   const lool = useLoolContext(canOpenOnline);
   const currentFolder = (folders.data ?? []).find((f) => f._id === folderId);
@@ -96,6 +100,7 @@ export const Browser = () => {
   const [versions, setVersions] = useState<WorkspaceElement | null>(null);
   const [commenting, setCommenting] = useState<WorkspaceElement | null>(null);
   const [loolCreate, setLoolCreate] = useState(false);
+  const [ncPicker, setNcPicker] = useState<"copy" | "move" | null>(null);
   useEffect(() => setSelected(new Set()), [tree, folderId]);
 
   const selection = useMemo(() => elements.filter((e) => selected.has(e._id)), [elements, selected]);
@@ -103,6 +108,7 @@ export const Browser = () => {
     canManage: selection.length === 1 && rightsOn(selection[0], user?.userId, groupIds).manager,
     canPublish: canPublishToPortal,
     searching: !!query,
+    nextcloud: ncAvailable,
     integration: {
       lool: canOpenOnline && selection.length === 1 && selection[0].eType === "file" && canOpenInLool(lool.data, selection[0]),
       scratch: flags.enableScratch && selection.length === 1 && canOpenInScratch(selection[0]),
@@ -141,6 +147,8 @@ export const Browser = () => {
     else if (a === "history") setVersions(selection[0]);
     else if (a === "comments") setCommenting(selection[0]);
     else if (a === "location") navigate(locationOf(selection[0]));
+    else if (a === "ncCopy") setNcPicker("copy");
+    else if (a === "ncMove") setNcPicker("move");
     else if (a === "openLool") window.open(loolUrl(selection[0]._id));
     else if (a === "openScratch") window.open(scratchUrl(selection[0]._id));
     else if (a === "openGeogebra") window.open(geogebraUrl(selection[0]));
@@ -195,7 +203,7 @@ export const Browser = () => {
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
         <aside style={{ minWidth: 240 }}>
-          <TreeNav tree={validTree} folderId={folderId} folders={folders.data ?? []} />
+          <TreeNav tree={validTree} folderId={folderId} folders={folders.data ?? []} nextcloud={ncAvailable} />
           {quota.data && <QuotaGauge quota={quota.data} />}
         </aside>
         <main
@@ -378,6 +386,17 @@ export const Browser = () => {
           }}
         />
       )}
+      <NextcloudPicker
+        isOpen={ncPicker !== null}
+        userId={user?.userId}
+        title={t(ncPicker === "move" ? "nextcloud.share.move.action" : "nextcloud.share.copy.action")}
+        onClose={() => setNcPicker(null)}
+        onPick={(dest) => {
+          const verb = ncPicker === "move" ? "move" : "copy";
+          setNcPicker(null);
+          if (user?.userId) void run(() => nextcloudService.fromWorkspace(user.userId, verb, selection.map((e) => e._id), dest || undefined));
+        }}
+      />
       <LoolCreateModal
         isOpen={loolCreate}
         folderId={folderId}

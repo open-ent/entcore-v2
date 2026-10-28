@@ -390,5 +390,10 @@
   "workspace.react.close": "Close",
   "workspace.react.search": "Search",
   "workspace.react.search.reset": "Clear search",
-  "workspace.react.search.degraded": "Full-text search is unavailable: only the names of the displayed items are filtered."
+  "workspace.react.search.degraded": "Full-text search is unavailable: only the names of the displayed items are filtered.",
+  "workspace.react.nc.up": "Parent folder",
+  "workspace.react.nc.open": "Open in NextCloud",
+  "workspace.react.nc.edit": "Edit in NextCloud",
+  "workspace.react.nc.copy.workspace": "Copy to the document space",
+  "workspace.react.nc.move.workspace": "Move to the document space"
 }
