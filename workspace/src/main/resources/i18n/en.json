@@ -374,5 +374,6 @@
   "workspace.react.select.none": "Clear selection",
   "workspace.react.picker.copy": "Copy to",
   "workspace.react.picker.move": "Move to",
-  "workspace.react.confirm.delete": "These items will be permanently deleted."
+  "workspace.react.confirm.delete": "These items will be permanently deleted.",
+  "workspace.react.action.share": "Share"
 }

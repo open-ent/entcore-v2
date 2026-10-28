@@ -9,6 +9,8 @@ const LABEL: Record<ActionId, string> = {
   restore: "workspace.trash.restore",
   delete: "workspace.react.action.delete",
   download: "workspace.react.action.download",
+  share: "workspace.react.action.share",
+  publish: "workspace.document.publish",
 };
 
 /** Barre d'actions de la sélection (les actions viennent de `availableActions`). */

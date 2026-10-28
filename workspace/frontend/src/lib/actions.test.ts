@@ -8,11 +8,20 @@ describe("availableActions", () => {
   const two = [el({ _id: "a" }), el({ _id: "b" })];
   it("sans sélection, aucune action", () => expect(availableActions("owner", [])).toEqual([]));
   it("Mes documents : renommer seulement pour un élément", () => {
-    expect(availableActions("owner", one)).toEqual(["rename", "copy", "move", "trash", "download"]);
+    expect(availableActions("owner", one)).toEqual(["rename", "share", "copy", "move", "trash", "download"]);
     expect(availableActions("owner", two)).toEqual(["copy", "move", "trash", "download"]);
   });
   it("corbeille : restaurer et supprimer définitivement", () => expect(availableActions("trash", one)).toEqual(["restore", "delete"]));
-  it("partagés : copier et télécharger", () => expect(availableActions("shared", one)).toEqual(["copy", "download"]));
+  it("partagés : copier et télécharger, partager seulement si gestionnaire", () => {
+    expect(availableActions("shared", one)).toEqual(["copy", "download"]);
+    expect(availableActions("shared", one, { canManage: true })).toEqual(["share", "copy", "download"]);
+  });
+  it("publier au portail : un seul document, par un administrateur", () => {
+    expect(availableActions("owner", one, { canPublish: true })).toContain("publish");
+    expect(availableActions("owner", two, { canPublish: true })).not.toContain("publish");
+    expect(availableActions("owner", [el({ eType: "folder" })], { canPublish: true })).not.toContain("publish");
+    expect(availableActions("owner", one)).not.toContain("publish");
+  });
 });
 
 describe("dossiers", () => {

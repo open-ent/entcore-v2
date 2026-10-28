@@ -9,6 +9,13 @@ export interface ElementMetadata {
   role?: string;
 }
 
+/** Entrée de partage : un utilisateur (`userId`) ou un groupe (`groupId`) et ses droits, clés `…WorkspaceController|action` → true. */
+export interface ShareEntry {
+  userId?: string;
+  groupId?: string;
+  [right: string]: string | boolean | undefined;
+}
+
 /** Document ou dossier tel que le renvoient `GET /workspace/documents` et `GET /workspace/folders/list`. */
 export interface WorkspaceElement {
   _id: string;
@@ -20,7 +27,9 @@ export interface WorkspaceElement {
   created?: string;
   modified?: string;
   metadata?: ElementMetadata;
-  shared?: unknown[];
+  shared?: ShareEntry[];
+  inheritedShares?: ShareEntry[];
+  portalPublication?: { publishedAt?: string };
   isShared?: boolean;
   protected?: boolean;
   trasher?: string;

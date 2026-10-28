@@ -1,20 +1,36 @@
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download";
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish";
+
+/** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
+export interface ActionContext {
+  /** Vrai si l'usager gère (partage) l'élément sélectionné — toujours vrai dans « Mes documents ». */
+  canManage?: boolean;
+  /** Administrateur local ou super-administrateur : peut publier un document sur le portail public. */
+  canPublish?: boolean;
+}
 
 /**
  * Actions proposées pour la sélection, selon l'arbre :
- *  - « Mes documents » : renommer (un seul), copier, déplacer, mettre à la corbeille, télécharger ;
+ *  - « Mes documents » : renommer (un seul), partager (un seul), copier, déplacer, mettre à la corbeille, télécharger ;
+ *  - « Documents partagés » : partager (un seul, si gestionnaire), copier dans mes documents, télécharger — déplacer, renommer et
+ *    supprimer y dépendent d'autres droits, non repris ici ;
  *  - corbeille : restaurer, supprimer définitivement ;
- *  - autres arbres (partagés, applis, publics) : copier dans mes documents et télécharger — déplacer, renommer et
- *    supprimer y dépendent des droits de partage (lot W4).
- * Aucune sélection → aucune action.
+ *  - autres arbres (applis, publics) : copier dans mes documents et télécharger.
+ * « Publier au portail » : un seul document, par un administrateur. Aucune sélection → aucune action.
  */
-export const availableActions = (tree: TreeName, selection: WorkspaceElement[]): ActionId[] => {
+export const availableActions = (tree: TreeName, selection: WorkspaceElement[], ctx: ActionContext = {}): ActionId[] => {
   if (selection.length === 0) return [];
   if (tree === "trash") return ["restore", "delete"];
-  if (tree === "owner") return [...(selection.length === 1 ? (["rename"] as ActionId[]) : []), "copy", "move", "trash", "download"];
-  return ["copy", "download"];
+  const single = selection.length === 1;
+  const actions: ActionId[] = [];
+  if (tree === "owner" && single) actions.push("rename");
+  if ((tree === "owner" || (tree === "shared" && ctx.canManage)) && single) actions.push("share");
+  actions.push("copy");
+  if (tree === "owner") actions.push("move", "trash");
+  actions.push("download");
+  if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file" && ctx.canPublish) actions.push("publish");
+  return actions;
 };
 
 /** Tous les dossiers sous `folderId`, à tous les niveaux (jamais de boucle infinie sur une parenté circulaire). */

@@ -1,4 +1,4 @@
-import { AppHeader, LoadingScreen, SegmentedControl, useEdificeClient } from "@open-ent/react";
+import { AppHeader, LoadingScreen, SegmentedControl, ShareModal, useEdificeClient } from "@open-ent/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,7 +7,9 @@ import { ActionBar } from "../components/ActionBar";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { ElementList } from "../components/ElementList";
 import { FolderPicker } from "../components/FolderPicker";
+import { PublishModal } from "../components/PublishModal";
 import { RenameModal } from "../components/RenameModal";
+import { ShareWarning } from "../components/ShareWarning";
 import { NewFolderModal } from "../components/NewFolderModal";
 import { UploadPanel } from "../components/UploadPanel";
 import { ZipDialog } from "../components/ZipDialog";
@@ -15,6 +17,7 @@ import { QuotaGauge } from "../components/QuotaGauge";
 import { TreeNav } from "../components/TreeNav";
 import { ActionId, availableActions, downloadUrl, forbiddenTargets } from "../lib/actions";
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
+import { rightsOn } from "../lib/rights";
 import { isZip, planUpload, remainingLabel } from "../lib/upload";
 import { ViewMode, WorkspaceElement } from "../lib/types";
 import { useUploads } from "../services/useUploads";
@@ -40,7 +43,12 @@ export const Browser = () => {
   const quota = useQuota(user?.userId);
 
   // Création et import : dans « Mes documents » et ses dossiers (le partage au dépôt arrive avec le lot W4).
-  const canWrite = validTree === "owner";
+  const groupIds = (user as { groupsIds?: string[] } | undefined)?.groupsIds ?? [];
+  const functions = ((user as { functions?: Record<string, unknown> } | undefined)?.functions ?? {}) as Record<string, unknown>;
+  const canPublishToPortal = !!(functions["ADMIN_LOCAL"] || functions["SUPER_ADMIN"]);
+  const currentFolder = (folders.data ?? []).find((f) => f._id === folderId);
+  // « Mes documents » et ses dossiers ; dans « Documents partagés », seulement un dossier où l'on a le droit de contribuer.
+  const canWrite = validTree === "owner" || (validTree === "shared" && !!currentFolder && rightsOn(currentFolder, user?.userId, groupIds).contrib);
   const uploads = useUploads(folderId);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [pendingZip, setPendingZip] = useState<File | null>(null);
@@ -57,10 +65,17 @@ export const Browser = () => {
   const [renaming, setRenaming] = useState<WorkspaceElement | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"delete" | "empty" | null>(null);
+  const [warnShare, setWarnShare] = useState<WorkspaceElement | null>(null);
+  const [sharing, setSharing] = useState<WorkspaceElement | null>(null);
+  const [copyingForShare, setCopyingForShare] = useState(false);
+  const [publishing, setPublishing] = useState<WorkspaceElement | null>(null);
   useEffect(() => setSelected(new Set()), [tree, folderId]);
 
   const selection = useMemo(() => elements.filter((e) => selected.has(e._id)), [elements, selected]);
-  const actions = availableActions(validTree, selection);
+  const actions = availableActions(validTree, selection, {
+    canManage: selection.length === 1 && rightsOn(selection[0], user?.userId, groupIds).manager,
+    canPublish: canPublishToPortal,
+  });
   const toggle = (id: string) =>
     setSelected((cur) => {
       const next = new Set(cur);
@@ -88,10 +103,12 @@ export const Browser = () => {
     else if (a === "trash") void run(() => elementActions.trash(selection));
     else if (a === "restore") void run(() => elementActions.restore(selection));
     else if (a === "delete") setConfirm("delete");
+    else if (a === "share") (validTree === "owner" ? setWarnShare : setSharing)(selection[0]);
+    else if (a === "publish") setPublishing(selection[0]);
     else if (a === "rename") {
       setRenameError(null);
       setRenaming(selection[0]);
-    } else setPicker(a);
+    } else if (a === "copy" || a === "move") setPicker(a);
   };
 
   const importFiles = (list: File[]) => {
@@ -227,6 +244,49 @@ export const Browser = () => {
           {content.isSuccess && elements.length > 0 && <ElementList tree={validTree} elements={elements} view={view} selected={selected} onToggle={toggle} onToggleAll={toggleAll} />}
         </main>
       </div>
+      <ShareWarning
+        element={warnShare}
+        busy={copyingForShare}
+        onClose={() => setWarnShare(null)}
+        onShare={() => {
+          setSharing(warnShare);
+          setWarnShare(null);
+        }}
+        onShareCopy={async () => {
+          if (!warnShare) return;
+          const original = warnShare;
+          setCopyingForShare(true);
+          try {
+            const copies = await elementActions.copy([original]);
+            const copy = copies.find((c) => c.copyFromId === original._id) ?? copies[0];
+            await Promise.all(["content", "folders", "quota"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] })));
+            if (copy) setSharing({ ...original, ...copy });
+            setWarnShare(null);
+          } catch {
+            setNotice(t("workspace.react.action.failed"));
+            setWarnShare(null);
+          } finally {
+            setCopyingForShare(false);
+          }
+        }}
+      />
+      {sharing && (
+        <ShareModal
+          isOpen
+          shareOptions={{ resourceId: sharing._id, resourceRights: [], resourceCreatorId: sharing.owner, resourceCreatorDisplayName: sharing.ownerName }}
+          onCancel={() => setSharing(null)}
+          onSuccess={() => {
+            setSharing(null);
+            setSelected(new Set());
+            void Promise.all(["content", "folders"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] })));
+          }}
+        />
+      )}
+      <PublishModal
+        element={publishing}
+        onClose={() => setPublishing(null)}
+        onChanged={() => void qc.invalidateQueries({ queryKey: ["workspace", "content"] })}
+      />
       <FolderPicker
         isOpen={picker !== null}
         title={picker === "copy" ? t("workspace.react.picker.copy") : t("workspace.react.picker.move")}

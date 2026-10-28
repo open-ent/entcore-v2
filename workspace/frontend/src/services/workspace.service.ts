@@ -87,8 +87,11 @@ export const elementActions = {
   /** Destination absente = racine de « Mes documents ». */
   move: (els: Array<{ _id: string }>, destId?: string) =>
     odeServices.http().putJson(`/workspace/documents/move/${destId ?? "root"}`, ids(els)),
+  /** Renvoie les copies créées ; chacune porte `copyFromId` (identifiant de l'original). */
   copy: (els: Array<{ _id: string }>, destId?: string) =>
-    odeServices.http().postJson(`/workspace/documents/copy/${destId ?? "root"}`, ids(els)),
+    odeServices.http().postJson<Array<{ _id: string; name: string; eType: "file" | "folder"; copyFromId?: string; owner: string }>>(`/workspace/documents/copy/${destId ?? "root"}`, ids(els)),
+  publish: (id: string) => odeServices.http().put<{ url?: string }>(`/workspace/document/${id}/portal-publish`),
+  unpublish: (id: string) => odeServices.http().delete(`/workspace/document/${id}/portal-publish`),
   rename: (el: { _id: string; eType: string }, name: string) =>
     odeServices
       .http()

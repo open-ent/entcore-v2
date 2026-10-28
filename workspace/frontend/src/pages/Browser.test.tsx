@@ -8,10 +8,13 @@ vi.mock("@open-ent/react", () => ({
   AppHeader: ({ children }: { children: unknown }) => <div>{children as never}</div>,
   LoadingScreen: () => <div data-loading />,
   SegmentedControl: ({ value }: { value: string }) => <div data-segmented={value} />,
+  ShareModal: () => null,
   useEdificeClient: () => ({ user: { userId: "u1" } }),
 }));
 vi.mock("../components/NewFolderModal", () => ({ NewFolderModal: () => null }));
 vi.mock("../components/ZipDialog", () => ({ ZipDialog: () => null }));
+vi.mock("../components/PublishModal", () => ({ PublishModal: () => null }));
+vi.mock("../components/ShareWarning", () => ({ ShareWarning: () => null }));
 vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
 vi.mock("../components/RenameModal", () => ({ RenameModal: () => null }));
 vi.mock("../components/ConfirmModal", () => ({ ConfirmModal: () => null }));
@@ -77,7 +80,7 @@ describe("Browser", () => {
     expect(document.querySelector("[data-action-bar]")).not.toBeInTheDocument();
     fireEvent.click(document.querySelector("[data-element-select]")!);
     const actions = [...document.querySelectorAll("[data-action-bar] [data-action]")].map((b) => b.getAttribute("data-action"));
-    expect(actions).toEqual(["rename", "copy", "move", "trash", "download"]);
+    expect(actions).toEqual(["rename", "share", "copy", "move", "trash", "download"]);
   });
 
   it("dans la corbeille, la sélection propose restaurer et supprimer, et le vidage est proposé", () => {
