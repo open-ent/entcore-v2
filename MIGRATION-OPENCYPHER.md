@@ -77,6 +77,54 @@ compilent.
 Périmètre : code Java et `infra/src/main/resources/neo4j/*.cypher`. Les scripts `migration/*`
 historiques sont laissés en l'état, ils ne sont pas rejoués sur une base neuve.
 
+## Validation contre un serveur ArcadeDB réel
+
+Faite le 28/10/2026 contre **ArcadeDB 26.11.1** (conteneur `arcadedata/arcadedb:latest`).
+
+### L'adaptateur
+
+`ArcadeDbRestProbe` (dans `libs/edifice-entcore-libs`) exerce `ArcadeDbRest` de bout en bout.
+**9 sondes sur 9 passent** : lecture simple, écriture paramétrée, `executeBatch` avec index
+préservé, transaction ouverte puis reprise et validée, persistance vérifiée après commit,
+rollback effectif, et remontée d'erreur au contrat `{message}` attendu par `Neo4jResult`.
+
+Trois hypothèses de conception sont confirmées par l'exécution :
+
+- `opencypher` est bien l'identifiant de langage à employer ;
+- `POST /api/v1/begin` répond **204 sans corps**, l'identifiant de session étant porté par
+  l'en-tête `arcadedb-session-id` ;
+- la réponse de `/command` expose déjà `result` comme une liste d'objets `{colonne: valeur}`,
+  il n'y a donc pas de transposition `columns`/`data` à faire, et `stats` reprend la forme
+  des compteurs Neo4j (`nodesCreated`, `propertiesSet`, …).
+
+### Le dialecte
+
+`compat-matrix.py` interroge le moteur sur les constructions effectivement utilisées par
+entcore : **44 sur 49 passent**. Les 5 échecs recoupent exactement l'inventaire ci-dessous,
+ce qui est plutôt rassurant : aucune mauvaise surprise hors de ce qui était déjà identifié.
+
+| Construction | Verdict | Remplacement validé |
+|---|---|---|
+| `length()` sur une liste | échec | `size()` — `length()` reste valide sur un chemin |
+| `filter(x IN l WHERE …)` | échec | `[x IN l WHERE …]` |
+| `extract(x IN l \| …)` | échec | `[x IN l \| …]` |
+| `CREATE INDEX ON :L(p)` | échec | `CREATE INDEX FOR (n:L) ON (n.p)` |
+| `CREATE CONSTRAINT ON … ASSERT` | échec | `CREATE CONSTRAINT FOR (n:L) REQUIRE n.p IS UNIQUE` |
+
+Passent notamment sans réserve : `OPTIONAL MATCH`, `MERGE` avec `ON CREATE` / `ON MATCH`,
+`UNWIND`, `UNION`, `FOREACH`, `DETACH DELETE`, `CASE WHEN`, `STARTS WITH` / `ENDS WITH` /
+`CONTAINS`, les chemins de longueur variable `[:R*1..3]`, les projections de map,
+`collect`, `head`, `last`, `coalesce`, `labels`, `id`, `type`, `split`, `substring`,
+`replace`, `timestamp`, `any`, `all`, et `EXISTS { }`.
+
+Deux remarques utiles pour la suite :
+
+- `exists(prop)` fonctionne encore chez ArcadeDB alors que Neo4j l'a retiré en 5.0. La
+  conversion déjà faite vers `IS [NOT] NULL` reste donc le bon choix : elle vaut pour les
+  deux moteurs.
+- Les syntaxes d'index et de contrainte attendues sont celles de Neo4j 4/5. Les 52
+  occurrences concernées sont donc à reprendre de toute façon, quelle que soit la base visée.
+
 ## Reste à faire
 
 Comptage restreint aux chaînes effectivement Cypher (les appels Java `.filter(` sont exclus) :
