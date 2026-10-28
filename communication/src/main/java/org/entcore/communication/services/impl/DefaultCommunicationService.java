@@ -974,8 +974,8 @@ public class DefaultCommunicationService implements CommunicationService {
 			+ "type, "
 			+ "CASE WHEN any(x in classes where x <> {name: null, id: null}) THEN classes END as classes, "
 			+ "CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures, "
-			+ "CASE WHEN (g: ProfileGroup)-[:DEPENDS]->(:Structure) THEN 'StructureGroup' "
-			+ "     WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' "
+			+ "CASE WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Structure) } THEN 'StructureGroup' "
+			+ "     WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Class) } THEN 'ClassGroup' "
 			+ "     WHEN g.subType IS NOT NULL THEN g.subType END as subType";
 
 	@Override
@@ -1046,8 +1046,8 @@ public class DefaultCommunicationService implements CommunicationService {
 				+ "g.displayName as displayName, "
 				+ "g.users as internalCommunicationRule, "
 				+ "type, "
-				+ "CASE WHEN (g: ProfileGroup)-[:DEPENDS]->(:Structure) THEN 'StructureGroup' "
-				+ "     WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' "
+				+ "CASE WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Structure) } THEN 'StructureGroup' "
+				+ "     WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Class) } THEN 'ClassGroup' "
 				+ "     WHEN g.subType IS NOT NULL THEN g.subType END as subType";
 
 		JsonArray groups = new JsonArray(Arrays.asList(groupIds));
@@ -1927,8 +1927,8 @@ public class DefaultCommunicationService implements CommunicationService {
 				"WHEN HEAD(visibles.profiles) = 'Guest' THEN 5 " +
 				"WHEN visibles.subType = 'BroadcastGroup' THEN 12 " +
 				"WHEN 'ManualGroup' IN labels(visibles) THEN 6 " +
-				"WHEN (visibles:ProfileGroup)-[:DEPENDS]->(:Class) THEN 7 " +
-				"WHEN (visibles:ProfileGroup)-[:DEPENDS]->(:Structure) THEN 11 " +
+				"WHEN visibles:ProfileGroup AND EXISTS { (visibles)-[:DEPENDS]->(:Class) } THEN 7 " +
+				"WHEN visibles:ProfileGroup AND EXISTS { (visibles)-[:DEPENDS]->(:Structure) } THEN 11 " +
 				"WHEN 'FunctionalGroup' IN labels(visibles) THEN 8 " +
 				"WHEN 'FuncGroup' IN labels(visibles) OR 'FunctionGroup' IN labels(visibles) OR 'DirectionGroup' IN labels(visibles) THEN 9 " +
 				"WHEN 'DisciplineGroup' IN labels(visibles) THEN 10 " +

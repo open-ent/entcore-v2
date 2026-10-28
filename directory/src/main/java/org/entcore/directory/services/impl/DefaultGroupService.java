@@ -113,8 +113,8 @@ public class DefaultGroupService implements GroupService {
 				"g.lockDelete AS lockDelete, g.lockCompose AS lockCompose, coalesce(g.nbUsers,0) as nbUsers, " +
 				"CASE WHEN any(x in classes where x <> {name: null, id: null}) THEN classes END as classes," +
 				"CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures, " +
-				"CASE WHEN (g: ProfileGroup)-[:DEPENDS]-(:Structure) THEN 'StructureGroup' " +
-					" WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
+				"CASE WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]-(:Structure) } THEN 'StructureGroup' " +
+					" WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Class) } THEN 'ClassGroup' " +
 					" WHEN g.subType IS NOT NULL THEN g.subType " +
 					" WHEN (g: ManualGroup) AND (" +
 						" g.autolinkTargetAllStructs = true " +
@@ -222,8 +222,8 @@ public class DefaultGroupService implements GroupService {
 				"OPTIONAL MATCH (g)-[:DEPENDS]->(struct:Structure) " +
 				"OPTIONAL MATCH (g)-[:DEPENDS]->(:Class)-[:BELONGS]->(classStruct:Structure) " +
 				"RETURN g.id as id, g.name as name, g.nbUsers as nbUsers, coalesce(struct.id, classStruct.id) as structureId, " +
-				"CASE WHEN (g: ProfileGroup)-[:DEPENDS]->(:Structure) THEN 'StructureGroup' " +
-				"     WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
+				"CASE WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Structure) } THEN 'StructureGroup' " +
+				"     WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Class) } THEN 'ClassGroup' " +
 				"     WHEN g.subType IS NOT NULL THEN g.subType END as type ";
 		final JsonObject params = new JsonObject().put("id", groupId);
 		neo.execute(query, params, validUniqueResultHandler(handler));
@@ -250,8 +250,8 @@ public class DefaultGroupService implements GroupService {
 			(withNbUsers ? ", coalesce(g.nbUsers,0) as nbUsers " : "") +
 			(withStructureId ? ", coalesce(struct.id, classStruct.id) as structureId " : "") +
 			(withTypeSubType ? ", type, CASE " +
-				" WHEN (g: ProfileGroup)-[:DEPENDS]-(:Structure) THEN 'StructureGroup' " +
-				" WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
+				" WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]-(:Structure) } THEN 'StructureGroup' " +
+				" WHEN g:ProfileGroup AND EXISTS { (g)-[:DEPENDS]->(:Class) } THEN 'ClassGroup' " +
 				" WHEN g.subType IS NOT NULL THEN g.subType " +
 				" WHEN (g: ManualGroup) AND (" +
 					" g.autolinkTargetAllStructs = true " +
