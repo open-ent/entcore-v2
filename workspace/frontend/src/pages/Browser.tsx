@@ -6,6 +6,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { ActionBar } from "../components/ActionBar";
 import { CommentsModal } from "../components/CommentsModal";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { LoolCreateModal } from "../components/LoolCreateModal";
 import { ElementList } from "../components/ElementList";
 import { FolderPicker } from "../components/FolderPicker";
 import { PublishModal } from "../components/PublishModal";
@@ -20,13 +21,14 @@ import { TreeNav } from "../components/TreeNav";
 import { ActionId, availableActions, downloadUrl, forbiddenTargets } from "../lib/actions";
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
 import { readFlags } from "../lib/flags";
+import { canOpenInGeogebra, canOpenInLool, canOpenInScratch, geogebraUrl, LOOL_CREATE, LOOL_OPEN, loolUrl, scratchUrl } from "../lib/integrations";
 import { rightsOn } from "../lib/rights";
 import { clientFilter, locationOf, searchQuery } from "../lib/search";
 import { isZip, planUpload, remainingLabel } from "../lib/upload";
 import { ViewMode, WorkspaceElement } from "../lib/types";
 import { useUploads } from "../services/useUploads";
 import { elementActions } from "../services/workspace.service";
-import { useContent, useFolders, useQuota, useSearch, useViewModePreference } from "../services/queries";
+import { useContent, useFolders, useLoolContext, useQuota, useSearch, useViewModePreference } from "../services/queries";
 
 /** Navigation dans l'espace documentaire : arbres, dossiers, fil d'Ariane, liste en icônes ou en tableau, jauge d'espace. */
 export const Browser = () => {
@@ -50,6 +52,11 @@ export const Browser = () => {
   const groupIds = (user as { groupsIds?: string[] } | undefined)?.groupsIds ?? [];
   const functions = ((user as { functions?: Record<string, unknown> } | undefined)?.functions ?? {}) as Record<string, unknown>;
   const canPublishToPortal = !!(functions["ADMIN_LOCAL"] || functions["SUPER_ADMIN"]);
+  const flags = useMemo(() => readFlags(), []);
+  const workflows = new Set(((user as { authorizedActions?: Array<{ name: string }> } | undefined)?.authorizedActions ?? []).map((a) => a.name));
+  const canOpenOnline = flags.enableLool && workflows.has(LOOL_OPEN);
+  const canCreateOnline = flags.enableLool && workflows.has(LOOL_CREATE);
+  const lool = useLoolContext(canOpenOnline);
   const currentFolder = (folders.data ?? []).find((f) => f._id === folderId);
   // « Mes documents » et ses dossiers ; dans « Documents partagés », seulement un dossier où l'on a le droit de contribuer.
   const canWrite = validTree === "owner" || (validTree === "shared" && !!currentFolder && rightsOn(currentFolder, user?.userId, groupIds).contrib);
@@ -62,7 +69,6 @@ export const Browser = () => {
 
   // Recherche : critère saisi, recherche active (dans le dossier courant ou dans tout l'espace)
   const navigate = useNavigate();
-  const flags = useMemo(() => readFlags(), []);
   const [criteria, setCriteria] = useState("");
   const [query, setQuery] = useState<{ criteria: string; everywhere: boolean } | null>(null);
   useEffect(() => {
@@ -89,6 +95,7 @@ export const Browser = () => {
   const [publishing, setPublishing] = useState<WorkspaceElement | null>(null);
   const [versions, setVersions] = useState<WorkspaceElement | null>(null);
   const [commenting, setCommenting] = useState<WorkspaceElement | null>(null);
+  const [loolCreate, setLoolCreate] = useState(false);
   useEffect(() => setSelected(new Set()), [tree, folderId]);
 
   const selection = useMemo(() => elements.filter((e) => selected.has(e._id)), [elements, selected]);
@@ -96,6 +103,11 @@ export const Browser = () => {
     canManage: selection.length === 1 && rightsOn(selection[0], user?.userId, groupIds).manager,
     canPublish: canPublishToPortal,
     searching: !!query,
+    integration: {
+      lool: canOpenOnline && selection.length === 1 && selection[0].eType === "file" && canOpenInLool(lool.data, selection[0]),
+      scratch: flags.enableScratch && selection.length === 1 && canOpenInScratch(selection[0]),
+      geogebra: flags.enableGeogebra && selection.length === 1 && canOpenInGeogebra(selection[0]),
+    },
   });
   const toggle = (id: string) =>
     setSelected((cur) => {
@@ -129,6 +141,9 @@ export const Browser = () => {
     else if (a === "history") setVersions(selection[0]);
     else if (a === "comments") setCommenting(selection[0]);
     else if (a === "location") navigate(locationOf(selection[0]));
+    else if (a === "openLool") window.open(loolUrl(selection[0]._id));
+    else if (a === "openScratch") window.open(scratchUrl(selection[0]._id));
+    else if (a === "openGeogebra") window.open(geogebraUrl(selection[0]));
     else if (a === "rename") {
       setRenameError(null);
       setRenaming(selection[0]);
@@ -288,6 +303,11 @@ export const Browser = () => {
               <button type="button" className="btn btn-outline-primary" onClick={() => fileInput.current?.click()} data-action="import">
                 {t("import.file")}
               </button>
+              {canCreateOnline && (
+                <button type="button" className="btn btn-outline-primary" onClick={() => setLoolCreate(true)} data-action="lool-create">
+                  {t("workspace.lool.create-document")}
+                </button>
+              )}
               <input
                 ref={fileInput}
                 type="file"
@@ -358,6 +378,12 @@ export const Browser = () => {
           }}
         />
       )}
+      <LoolCreateModal
+        isOpen={loolCreate}
+        folderId={folderId}
+        onClose={() => setLoolCreate(false)}
+        onResync={() => void Promise.all(["content", "folders", "quota"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] })))}
+      />
       <VersionsModal
         element={versions}
         rights={versions ? rightsOn(versions, user?.userId, groupIds) : { read: false, contrib: false, manager: false, comment: false }}

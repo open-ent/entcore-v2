@@ -26,6 +26,12 @@ describe("availableActions", () => {
     expect(availableActions("owner", two, { searching: true })).not.toContain("location");
     expect(availableActions("owner", one)).not.toContain("location");
   });
+  it("les intégrations ne sont proposées que pour un seul document et si elles sont disponibles", () => {
+    const a = availableActions("owner", one, { integration: { lool: true, scratch: true, geogebra: true } });
+    expect(a).toEqual(expect.arrayContaining(["openLool", "openScratch", "openGeogebra"]));
+    expect(availableActions("owner", two, { integration: { lool: true } })).not.toContain("openLool");
+    expect(availableActions("owner", one)).not.toContain("openLool");
+  });
   it("publier au portail : un seul document, par un administrateur", () => {
     expect(availableActions("owner", one, { canPublish: true })).toContain("publish");
     expect(availableActions("owner", two, { canPublish: true })).not.toContain("publish");

@@ -14,6 +14,9 @@ const LABEL: Record<ActionId, string> = {
   history: "workspace.versions.list",
   comments: "workspace.react.action.comments",
   location: "workspace.open.location",
+  openLool: "workspace.external.open",
+  openScratch: "workspace.external.open",
+  openGeogebra: "workspace.external.open",
 };
 
 /** Barre d'actions de la sélection (les actions viennent de `availableActions`). */

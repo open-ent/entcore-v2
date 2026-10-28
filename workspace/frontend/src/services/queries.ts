@@ -1,4 +1,6 @@
+import { odeServices } from "@open-ent/client";
 import { useQuery } from "@tanstack/react-query";
+import { LoolContext } from "../lib/integrations";
 import { TreeName } from "../lib/types";
 import { fetchText, getElement, searchElements, workspaceService } from "./workspace.service";
 
@@ -29,3 +31,12 @@ export const useTextContent = (url?: string) =>
 
 export const useSearch = (queryString?: string) =>
   useQuery({ queryKey: ["workspace", "search", queryString], queryFn: () => searchElements(queryString as string), enabled: !!queryString });
+
+/** Capacités du serveur d'édition en ligne (connecteur lool) ; non demandées si l'édition en ligne est désactivée. */
+export const useLoolContext = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["workspace", "lool-context"],
+    queryFn: () => odeServices.http().get<LoolContext>("/lool/providers/context"),
+    enabled,
+    staleTime: 1000 * 60 * 10,
+  });

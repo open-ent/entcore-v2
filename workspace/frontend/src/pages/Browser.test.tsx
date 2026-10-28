@@ -15,6 +15,7 @@ vi.mock("../components/NewFolderModal", () => ({ NewFolderModal: () => null }));
 vi.mock("../components/ZipDialog", () => ({ ZipDialog: () => null }));
 vi.mock("../components/VersionsModal", () => ({ VersionsModal: () => null }));
 vi.mock("../components/CommentsModal", () => ({ CommentsModal: () => null }));
+vi.mock("../components/LoolCreateModal", () => ({ LoolCreateModal: () => null }));
 vi.mock("../components/PublishModal", () => ({ PublishModal: () => null }));
 vi.mock("../components/ShareWarning", () => ({ ShareWarning: () => null }));
 vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
@@ -27,6 +28,7 @@ const content = vi.hoisted(() => ({ value: {} as Record<string, unknown>, search
 vi.mock("../services/queries", () => ({
   useContent: () => content.value,
   useSearch: () => content.search,
+  useLoolContext: () => ({ data: undefined }),
   useFolders: () => ({ data: [{ _id: "f1", name: "Cours", eType: "folder", eParent: null, owner: "u1" }] }),
   useQuota: () => ({ data: { quota: 1000, storage: 250 } }),
   useViewModePreference: () => ({ data: "icons" }),

@@ -1,6 +1,6 @@
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location";
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra";
 
 /** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
 export interface ActionContext {
@@ -10,6 +10,8 @@ export interface ActionContext {
   canPublish?: boolean;
   /** Résultats de recherche affichés : propose d'ouvrir l'emplacement d'un résultat. */
   searching?: boolean;
+  /** Intégrations disponibles pour le document sélectionné (éditeur en ligne, Scratch, GeoGebra). */
+  integration?: { lool?: boolean; scratch?: boolean; geogebra?: boolean };
 }
 
 /**
@@ -35,6 +37,9 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file" && ctx.canPublish) actions.push("publish");
   if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file") actions.push("history");
   if ((tree === "owner" || tree === "shared") && single) actions.push("comments");
+  if (single && ctx.integration?.lool) actions.push("openLool");
+  if (single && ctx.integration?.scratch) actions.push("openScratch");
+  if (single && ctx.integration?.geogebra) actions.push("openGeogebra");
   if (ctx.searching && single) actions.push("location");
   return actions;
 };
