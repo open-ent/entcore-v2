@@ -53,7 +53,7 @@ public class JwtVerifier {
     }
 
     public void getUserByExternalId(String id, final Handler<JsonObject> handler) {
-        String query = "Match (u:User {id:{id}}) OPTIONAL MATCH (p:Profile) WHERE u.profiles IS NOT NULL AND p.name = head(u.profiles) RETURN DISTINCT u.id as id, u.activationCode as activationCode, u.login as login, u.email as email, u.mobile as mobile, u.federated, u.blocked as blockedUser, p.blocked as blockedProfile, u.source as source";
+        String query = "Match (u:User {id:$id}) OPTIONAL MATCH (p:Profile) WHERE u.profiles IS NOT NULL AND p.name = head(u.profiles) RETURN DISTINCT u.id as id, u.activationCode as activationCode, u.login as login, u.email as email, u.mobile as mobile, u.federated, u.blocked as blockedUser, p.blocked as blockedProfile, u.source as source";
         Map<String, Object> params = new HashMap<>();
         params.put("id", id);
         neo4j.execute(query, params, new io.vertx.core.Handler<Message<JsonObject>>() {

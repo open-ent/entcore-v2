@@ -60,8 +60,8 @@ public class AdmlOfStructureOrClass implements ResourcesProvider {
         }
         if (adminLocal != null && classId != null && adminLocal.getScope() != null) {
             String query =
-                    "MATCH (s:Structure)<-[:BELONGS]-(c:Class {id : {classId}}) " +
-                            "WHERE s.id IN {ids} " +
+                    "MATCH (s:Structure)<-[:BELONGS]-(c:Class {id : $classId}) " +
+                            "WHERE s.id IN $ids " +
                             "RETURN count(*) > 0 as exists";
             JsonObject params = new JsonObject()
                     .put("classId", classId)

@@ -243,9 +243,9 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		Set<String> ids = prevalidateAndGetIds(user, handler);
 		if (ids == null) return;
 		String query =
-				"MATCH (g:Group {id : {id}})-[:DEPENDS]->()-[:BELONGS*0..1]->s, " +
-				"(u:User {id : {userId}})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->s2 " +
-				"WHERE s.id IN {ids} AND s2.id IN {ids} " +
+				"MATCH (g:Group {id : $id})-[:DEPENDS]->()-[:BELONGS*0..1]->s, " +
+				"(u:User {id : $userId})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->s2 " +
+				"WHERE s.id IN $ids AND s2.id IN $ids " +
 				"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()
 				.put("id", request.params().get("groupId"))
@@ -258,8 +258,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		Set<String> ids = prevalidateAndGetIds(user, handler);
 		if (ids == null) return;
 		String query =
-				"MATCH (g:Group {id : {id}})-[:DEPENDS]->c-[:BELONGS*0..1]->s " +
-				"WHERE s.id IN {ids} " +
+				"MATCH (g:Group {id : $id})-[:DEPENDS]->c-[:BELONGS*0..1]->s " +
+				"WHERE s.id IN $ids " +
 				"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()
 				.put("id", request.params().get("groupId"))
@@ -341,8 +341,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 			handler.handle(true);
 		} else if (adminLocal != null && classId != null && adminLocal.getScope() != null) {
 			String query =
-					"MATCH (s:Structure)<-[:BELONGS]-(c:Class {id : {classId}}) " +
-					"WHERE s.id IN {ids} " +
+					"MATCH (s:Structure)<-[:BELONGS]-(c:Class {id : $classId}) " +
+					"WHERE s.id IN $ids " +
 					"RETURN count(*) > 0 as exists";
 			JsonObject params = new JsonObject()
 					.put("classId", classId)
@@ -381,8 +381,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 					handler.handle(true);
 				} else if (adminLocal != null && classId != null && adminLocal.getScope() != null) {
 					String query =
-							"MATCH (s:Structure)<-[:BELONGS]-(c:Class {id : {classId}}) " +
-									"WHERE s.id IN {ids} " +
+							"MATCH (s:Structure)<-[:BELONGS]-(c:Class {id : $classId}) " +
+									"WHERE s.id IN $ids " +
 									"RETURN count(*) > 0 as exists";
 					JsonObject params = new JsonObject()
 							.put("classId", classId)
@@ -420,8 +420,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		}
 		if (adminLocal != null && classId != null && adminLocal.getScope() != null) {
 			String query =
-					"MATCH (s:Structure)<-[:BELONGS]-(c:Class {id : {classId}}) " +
-					"WHERE s.id IN {ids} " +
+					"MATCH (s:Structure)<-[:BELONGS]-(c:Class {id : $classId}) " +
+					"WHERE s.id IN $ids " +
 					"RETURN count(*) > 0 as exists";
 			JsonObject params = new JsonObject()
 					.put("classId", classId)
@@ -481,8 +481,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 			Set<String> ids = getIds(user);
 			if (ids == null) return;
 			String query =
-					"MATCH (u:User {id : {userId}})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->s2 " +
-					"WHERE s2.id IN {ids} " +
+					"MATCH (u:User {id : $userId})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->s2 " +
+					"WHERE s2.id IN $ids " +
 					"RETURN count(*) > 0 as exists";
 			JsonObject params = new JsonObject()
 					.put("id", request.params().get("groupId"))
@@ -511,11 +511,11 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 			return;
 		}
 		String query =
-				"MATCH (t:User { id : {teacherId}})-[:IN]->(g:ProfileGroup)-[:DEPENDS]->(c:Class) " +
+				"MATCH (t:User { id : $teacherId})-[:IN]->(g:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 				"WITH c " +
 				"MATCH c<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User) " +
-				"WHERE u.id IN {userIds} " +
-				"RETURN count(distinct u) = {size} as exists ";
+				"WHERE u.id IN $userIds " +
+				"RETURN count(distinct u) = $size as exists ";
 		JsonObject params = new JsonObject()
 				.put("userIds", new JsonArray(userIds))
 				.put("teacherId", user.getUserId())
@@ -532,8 +532,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		}
 		Set<String> ids = getIds(user);
 		String query =
-				"MATCH (c:Class {id : {classId}})-[:BELONGS]->s2 " +
-						"WHERE s2.id IN {ids} " +
+				"MATCH (c:Class {id : $classId})-[:BELONGS]->s2 " +
+						"WHERE s2.id IN $ids " +
 						"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()
 				.put("classId", classId)
@@ -548,8 +548,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 					handler.handle(true);
 				} else if ("Teacher".equals(user.getType()) || "Personnel".equals(user.getType())) {
 					String query =
-							"MATCH (c:`Class` { id : {classId}})<-[:DEPENDS]-(pg:ProfileGroup)" +
-									"<-[:IN]-(t:`User` { id : {teacherId}}) " +
+							"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(pg:ProfileGroup)" +
+									"<-[:IN]-(t:`User` { id : $teacherId}) " +
 									"RETURN count(*) > 0 as exists ";
 					JsonObject params = new JsonObject()
 							.put("classId", classId)
@@ -573,9 +573,9 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 			handler.handle(false);
 			return;
 		}
-		String query = "MATCH (n:User { id : {teacherId}}) " +
+		String query = "MATCH (n:User { id : $teacherId}) " +
 				"WITH n MATCH (s:Structure)<-[:DEPENDS]-(Group)<-[:IN]-(n) " +
-				"WITH s MATCH (u:User { id : {userId}})-[:IN]->(Group)-[:DEPENDS]->(s) " +
+				"WITH s MATCH (u:User { id : $userId})-[:IN]->(Group)-[:DEPENDS]->(s) " +
 				"RETURN count(*) > 0 as exists";
 
 		JsonObject params = new JsonObject()
@@ -607,9 +607,9 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 					handler.handle(false);
 					return;
 				}
-				String query = "MATCH (:User {id: {teacherId}})-[:IN]->(:Group)-[:DEPENDS]->(:Structure)<-[:DEPENDS]-(:Group)<-[:IN]-(u:User) USING INDEX u:User(id) " +
-						"WHERE u.id in {ids} " +
-						"RETURN count(distinct u) = {size} as exists";
+				String query = "MATCH (:User {id: $teacherId})-[:IN]->(:Group)-[:DEPENDS]->(:Structure)<-[:DEPENDS]-(:Group)<-[:IN]-(u:User) USING INDEX u:User(id) " +
+						"WHERE u.id in $ids " +
+						"RETURN count(distinct u) = $size as exists";
 				JsonObject params = new JsonObject()
 						.put("teacherId", user.getUserId())
 						.put("ids", userIds)
@@ -637,8 +637,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		}
 		Set<String> ids = getIds(user);
 		String query =
-				"MATCH (c:Class {id : {classId}})-[:BELONGS]->s2 " +
-				"WHERE s2.id IN {ids} " +
+				"MATCH (c:Class {id : $classId})-[:BELONGS]->s2 " +
+				"WHERE s2.id IN $ids " +
 				"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()
 				.put("classId", classId)
@@ -653,8 +653,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 					handler.handle(true);
 				} else {
 					String query =
-							"MATCH (c:`Class` { id : {classId}})<-[:DEPENDS]-(pg:ProfileGroup)" +
-									"<-[:IN]-(t:`User` { id : {teacherId}}) " +
+							"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(pg:ProfileGroup)" +
+									"<-[:IN]-(t:`User` { id : $teacherId}) " +
 									"RETURN count(*) > 0 as exists ";
 					JsonObject params = new JsonObject()
 							.put("classId", classId)
@@ -675,7 +675,7 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		// structureId may be either the Structure's internal id or its UAI : resolve it to the
 		// canonical id first, so that the ADML scope check below (which only stores real ids)
 		// also works when the resource is addressed by UAI.
-		String resolveQuery = "MATCH (c:`Structure`) WHERE c.id = {structureId} OR c.UAI = {structureId} RETURN c.id as id";
+		String resolveQuery = "MATCH (c:`Structure`) WHERE c.id = $structureId OR c.UAI = $structureId RETURN c.id as id";
 		JsonObject resolveParams = new JsonObject().put("structureId", structureId);
 		neo.execute(resolveQuery, resolveParams, new Handler<Message<JsonObject>>() {
 			@Override
@@ -696,8 +696,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 					return;
 				}
 				String query =
-						"MATCH (c:`Structure` { id : {structureId}})<-[:DEPENDS]-(pg:ProfileGroup)" +
-								"<-[:IN]-(t:`User` { id : {teacherId}}) " +
+						"MATCH (c:`Structure` { id : $structureId})<-[:DEPENDS]-(pg:ProfileGroup)" +
+								"<-[:IN]-(t:`User` { id : $teacherId}) " +
 								"RETURN count(*) > 0 as exists ";
 				JsonObject params = new JsonObject()
 						.put("structureId", realStructureId)

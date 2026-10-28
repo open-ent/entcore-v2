@@ -62,7 +62,7 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 		if (structureId != null && !structureId.trim().isEmpty()) {
 			filter =
 				", (s:Structure)-[:HAS_ATTACHMENT*0..]->(p:Structure) " +
-				"WHERE app.structureId IS NOT NULL AND s.id = {structure} AND p.id = app.structureId AND r.structureId = app.structureId " +
+				"WHERE app.structureId IS NOT NULL AND s.id = $structure AND p.id = app.structureId AND r.structureId = app.structureId " +
 				"AND (app.inherits = true OR p = s) ";
 			params = new JsonObject().put("structure", structureId);
 		}
@@ -125,8 +125,8 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 	@Override
 	public void listExternalApplicationRolesWithGroups(String structureId, String connectorId, Handler<Either<String, JsonArray>> handler) {
 		String query =
-            "MATCH (e:External{id: {connectorId}})-[:PROVIDE]->()<-[:AUTHORIZE]-(r:Role) " +
-                "OPTIONAL MATCH (r)<-[:AUTHORIZED]-(g:Group)-[:DEPENDS*1..2]->(s:Structure {id: {structureId}}) " +
+            "MATCH (e:External{id: $connectorId})-[:PROVIDE]->()<-[:AUTHORIZE]-(r:Role) " +
+                "OPTIONAL MATCH (r)<-[:AUTHORIZED]-(g:Group)-[:DEPENDS*1..2]->(s:Structure {id: $structureId}) " +
                 "OPTIONAL MATCH (s)<-[:HAS_ATTACHMENT]-(subStruct:Structure)<-[:DEPENDS]-()-[:AUTHORIZED]-(r) " +
             "WITH r,e,subStruct, COLLECT(DISTINCT{id: g.id, name: g.name}) as groups " +
             "RETURN r.id as id, r.name as name, e.id as connectorId, " +
@@ -142,7 +142,7 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 	@Override
 	public void deleteExternalApplication(String applicationId,  Handler<Either<String, JsonObject>> handler) {
 		String query =
-			"MATCH (n:Application:External {id : {id}}) " +
+			"MATCH (n:Application:External {id : $id}) " +
 			"WHERE coalesce(n.locked, false) = false " +
 			"MATCH n-[r1:PROVIDE]->(a:Action) " +
 			"OPTIONAL MATCH a<-[r2:AUTHORIZE]-(r:Role) " +
@@ -172,10 +172,10 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 		/* App creation query */
 		final String createApplicationQuery =
 				"MATCH (n:Application) " +
-				"WHERE n.name = {applicationName} " +
+				"WHERE n.name = $applicationName " +
 				"WITH count(*) AS exists " +
 				"WHERE exists=0 " +
-				"CREATE (m:Application:External {props}) " +
+				"CREATE (m:Application:External $props) " +
 				"RETURN m.id as id";
 
 		final StatementsBuilder b = new StatementsBuilder()
@@ -185,11 +185,11 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 		/* Underlying action & role creation query */
 		String createActionsAndRolesQuery =
 				"MATCH (n:Application) " +
-				"WHERE n.id = {id} " +
-				"CREATE UNIQUE n-[r:PROVIDE]->(a:Action:WorkflowAction {type: {type}, " +
-				"name:{name}, displayName:{displayName}}) " +
+				"WHERE n.id = $id " +
+				"CREATE UNIQUE n-[r:PROVIDE]->(a:Action:WorkflowAction {type: $type, " +
+				"name:$name, displayName:$displayName}) " +
 				"WITH a " +
-				"CREATE UNIQUE (r:Role {id: {roleId}, name: {roleName}, structureId: {structureId}})-[:AUTHORIZE]->(a) " +
+				"CREATE UNIQUE (r:Role {id: $roleId, name: $roleName, structureId: $structureId})-[:AUTHORIZE]->(a) " +
 				"RETURN r.id as roleId";
 		b.add(createActionsAndRolesQuery, new JsonObject()
 				.put("id", id)
@@ -222,7 +222,7 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 	public void toggleLock(String structureId, Handler<Either<String, JsonObject>> handler) {
 		if (defaultValidationParamsNull(handler, structureId)) return;
 		String query =
-				"MATCH (app:Application:External) WHERE app.id = {structureId} " +
+				"MATCH (app:Application:External) WHERE app.id = $structureId " +
 				"SET app.locked = NOT coalesce(app.locked, false) " +
 				"RETURN app.locked as locked";
 		neo.execute(query, new JsonObject().put("structureId", structureId), validUniqueResultHandler(handler));
@@ -230,14 +230,14 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 
 	@Override
 	public void massAuthorize(String structureId, String appId, List<String> profiles, final Handler<Either<String, JsonObject>> handler){
-		final String matchRole = "(app:Application:External {id: {appId}})-[:PROVIDE]->(act:Action)<-[:AUTHORIZE]-(r:Role) ";
-		final String matchStructures = "(inputStructure: Structure {id: {inputStructureId}})<-[:HAS_ATTACHMENT*0..]-(subStructure: Structure) ";
+		final String matchRole = "(app:Application:External {id: $appId})-[:PROVIDE]->(act:Action)<-[:AUTHORIZE]-(r:Role) ";
+		final String matchStructures = "(inputStructure: Structure {id: $inputStructureId})<-[:HAS_ATTACHMENT*0..]-(subStructure: Structure) ";
 		final String whereClause = "coalesce(app.locked, false) = false AND r.structureId = app.structureId ";
 		final String queryAdml = "MATCH " + matchRole + ", " + matchStructures + "<-[:DEPENDS]-(fg:FunctionGroup) " +
 		"WHERE " + whereClause + " AND fg.name ENDS WITH 'AdminLocal' AND NOT((fg)-[:AUTHORIZED]->(r)) " +
 		"RETURN DISTINCT id(fg) as pgId, id(r) as rId ";
 		final String queryProfile = "MATCH " + matchRole + ", " + matchStructures + "<-[:DEPENDS]-(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-		"WHERE " + whereClause + " AND p.name IN {profiles} AND NOT((pg)-[:AUTHORIZED]->(r)) " +
+		"WHERE " + whereClause + " AND p.name IN $profiles AND NOT((pg)-[:AUTHORIZED]->(r)) " +
 		"RETURN DISTINCT id(pg) as pgId, id(r) as rId ";
 		String query = "";
 		if (profiles.contains("AdminLocal")) {
@@ -331,14 +331,14 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 
 	@Override
 	public void massUnauthorize(String structureId, String appId, List<String> profiles, final Handler<Either<String, JsonObject>> handler){
-		final String matchRole = "(app:Application:External {id: {appId}})-[:PROVIDE]->(act:Action)<-[:AUTHORIZE]-(r:Role) ";
-		final String matchStructures = "(inputStructure: Structure {id: {inputStructureId}})<-[:HAS_ATTACHMENT*0..]-(subStructure: Structure) ";
+		final String matchRole = "(app:Application:External {id: $appId})-[:PROVIDE]->(act:Action)<-[:AUTHORIZE]-(r:Role) ";
+		final String matchStructures = "(inputStructure: Structure {id: $inputStructureId})<-[:HAS_ATTACHMENT*0..]-(subStructure: Structure) ";
 		final String whereClause = "coalesce(app.locked, false) = false AND r.structureId = app.structureId ";
 		final String queryAdml = "MATCH " + matchRole + ", " + matchStructures + "<-[:DEPENDS]-(fg:FunctionGroup) " +
 		"WHERE " + whereClause + " AND fg.name ENDS WITH 'AdminLocal' " +
 		"MATCH (r)<-[auth:AUTHORIZED]-(fg) RETURN DISTINCT id(auth) as authId ";
 		final String queryProfile = "MATCH " + matchRole + ", " + matchStructures + "<-[:DEPENDS]-(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-		"WHERE " + whereClause + " AND p.name IN {profiles} " +
+		"WHERE " + whereClause + " AND p.name IN $profiles " +
 		"MATCH (r)<-[auth:AUTHORIZED]-(pg) RETURN DISTINCT id(auth) as authId ";
 
 		String query = "";

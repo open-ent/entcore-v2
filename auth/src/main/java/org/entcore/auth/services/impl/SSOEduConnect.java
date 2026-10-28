@@ -139,7 +139,7 @@ public class SSOEduConnect extends AbstractSSOProvider {
 			}
 			String query =
 					"MATCH (u:User) " +
-					"WHERE u.externalId IN {joinKeys} AND u.mergedWith IS NULL " +
+					"WHERE u.externalId IN $joinKeys AND u.mergedWith IS NULL " +
 					"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) ";
 			JsonObject params = new JsonObject()
 					.put("joinKeys", joinKeys);
@@ -148,7 +148,7 @@ public class SSOEduConnect extends AbstractSSOProvider {
 			final String joinKey = getJoinKey(vectors.get(0));
 			if (isNotEmpty(joinKey)) {
 				final JsonObject params = new JsonObject();
-				final String querySingle = "MATCH (u:User {externalId:{joinKey}}) ";
+				final String querySingle = "MATCH (u:User {externalId:$joinKey}) ";
 				params.put("joinKey", joinKey);
 
 				executeQuery(querySingle, params, assertion, handler);

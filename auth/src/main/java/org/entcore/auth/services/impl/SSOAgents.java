@@ -41,7 +41,7 @@ public class SSOAgents extends AbstractSSOProvider {
 		}
 
 		if (StringValidation.isEmail(mail)) { // PersEducNat
-			executeQuery("MATCH (u:User {emailAcademy:{email}}) ", new JsonObject().put("email", mail),
+			executeQuery("MATCH (u:User {emailAcademy:$email}) ", new JsonObject().put("email", mail),
 					assertion, handler);
 		} else {
 			handler.handle(new Either.Left<String, Object>("invalid.email"));

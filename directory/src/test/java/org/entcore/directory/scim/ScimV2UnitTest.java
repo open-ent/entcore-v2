@@ -14,7 +14,7 @@ public class ScimV2UnitTest {
     @Test
     public void filterEqualityIsCaseInsensitiveAndParameterized() throws Exception {
         final ScimFilter.Clause c = ScimFilter.toCypher("userName eq \"Sabine.Seguin\"", ScimMapper.USER_FILTER);
-        assertEquals("toLower(u.login) = {f0}", c.where);
+        assertEquals("toLower(u.login) = $f0", c.where);
         assertEquals("sabine.seguin", c.params.getString("f0"));
     }
 
@@ -23,8 +23,8 @@ public class ScimV2UnitTest {
         final ScimFilter.Clause c = ScimFilter.toCypher(
                 "urn:ietf:params:scim:schemas:core:2.0:User:externalId sw \"urn:x\" and emails pr and name.familyName co \"and\"",
                 ScimMapper.USER_FILTER);
-        assertEquals("toLower(coalesce(u.scimExternalId, u.externalId)) STARTS WITH {f0} AND u.email IS NOT NULL"
-                + " AND toLower(u.lastName) CONTAINS {f2}", c.where);
+        assertEquals("toLower(coalesce(u.scimExternalId, u.externalId)) STARTS WITH $f0 AND u.email IS NOT NULL"
+                + " AND toLower(u.lastName) CONTAINS $f2", c.where);
         assertEquals("and", c.params.getString("f2"));
     }
 

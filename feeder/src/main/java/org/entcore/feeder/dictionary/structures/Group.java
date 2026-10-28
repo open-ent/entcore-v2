@@ -43,7 +43,7 @@ public class Group {
 	private static final Logger log = LoggerFactory.getLogger(Group.class);
 	private static final String TX_RUN_LINK_RULES = "TX_RUN_LINK_RULES";
 	private final static String QUERY_FROM_GROUP =
-			"MATCH (g:ManualGroup {id: {groupId}})-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
+			"MATCH (g:ManualGroup {id: $groupId})-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
 			"WHERE EXISTS(g.autolinkUsersFromGroups) "+
 			"WITH g, struct " +
 			"MATCH (u:User)-[:IN]->(target:Group)-[:DEPENDS]->(struct) " +
@@ -54,14 +54,14 @@ public class Group {
 			"  )" +
 			"WITH g, u ";
 
-	private final static String QUERY_FROM_POSITION = "MATCH (g:ManualGroup {id: {groupId}})-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
+	private final static String QUERY_FROM_POSITION = "MATCH (g:ManualGroup {id: $groupId})-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
 			"UNWIND COALESCE(g.autolinkUsersFromPositions, []) AS targetPosition "+
 			"MATCH (position:UserPosition {name: targetPosition})<-[:HAS_POSITION]-(u:User)-[:IN]->(:Group)-[:DEPENDS]->(struct)" +
 			" WHERE  "+
 			" ( g.autolinkTargetAllStructs = true OR struct.id IN g.autolinkTargetStructs )" +
 			" with distinct g, u ";
 
-	private static final String QUERY_MANUAL_GROUP_AUTOLINK_POSITIONS = "MATCH (g:ManualGroup {id: {groupId}})-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
+	private static final String QUERY_MANUAL_GROUP_AUTOLINK_POSITIONS = "MATCH (g:ManualGroup {id: $groupId})-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
 			"UNWIND COALESCE(g.manualGroupAutolinkUsersPositions, []) AS targetPosition " +
 			"MATCH (position:UserPosition {name: targetPosition})<-[:HAS_POSITION]-(u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(struct) " +
 			"WITH DISTINCT g, u ";
@@ -86,16 +86,16 @@ public class Group {
 			}
 
 			String query =
-					"MERGE (t:Group:ManualGroup:Visible { id : {id}}) " +
+					"MERGE (t:Group:ManualGroup:Visible { id : $id}) " +
 					"SET " + Neo4jUtils.nodeSetPropertiesFromJson("t", object, "id", "name", "displayNameSearchField", "create") +
-					", t.name = CASE WHEN EXISTS(t.lockDelete) AND t.lockDelete = true AND {create} = false THEN t.name ELSE {name} END " +
-					", t.displayNameSearchField = CASE WHEN EXISTS(t.lockDelete) AND t.lockDelete = true AND {create} = false THEN t.displayNameSearchField ELSE {displayNameSearchField} END " +
+					", t.name = CASE WHEN EXISTS(t.lockDelete) AND t.lockDelete = true AND $create = false THEN t.name ELSE $name END " +
+					", t.displayNameSearchField = CASE WHEN EXISTS(t.lockDelete) AND t.lockDelete = true AND $create = false THEN t.displayNameSearchField ELSE $displayNameSearchField END " +
 					"RETURN t.id as id, t.createdAt as createdAt, t.createdByName as createdByName, t.modifiedAt as modifiedAt, t.modifiedByName as modifiedByName ";
 			transactionHelper.add(query, object);
 			if (create) {
 				if (structureId != null && !structureId.trim().isEmpty()) {
 					String qs =
-							"MATCH (s:Structure {id : {structureId}}), (g:Group {id : {groupId}}) " +
+							"MATCH (s:Structure {id : $structureId}), (g:Group {id : $groupId}) " +
 							"CREATE UNIQUE s<-[:DEPENDS]-g";
 					JsonObject ps = new JsonObject()
 							.put("groupId", id)
@@ -104,7 +104,7 @@ public class Group {
 				}
 				if (classId != null && !classId.trim().isEmpty()) {
 					String qs =
-							"MATCH (s:Class {id : {classId}}), (g:Group {id : {groupId}}) " +
+							"MATCH (s:Class {id : $classId}), (g:Group {id : $groupId}) " +
 							"CREATE UNIQUE s<-[:DEPENDS]-g";
 					JsonObject ps = new JsonObject()
 							.put("groupId", id)
@@ -117,7 +117,7 @@ public class Group {
 
 	public static void manualDelete(String id, TransactionHelper transactionHelper) {
 		String query =
-				"MATCH (g:ManualGroup {id : {id}}) " +
+				"MATCH (g:ManualGroup {id : $id}) " +
 				"WHERE NOT(EXISTS(g.lockDelete)) OR g.lockDelete <> true " +
 				"OPTIONAL MATCH g-[r]-() " +
 				"DELETE g, r";
@@ -127,7 +127,7 @@ public class Group {
 	public static void addUsers(String groupId, JsonArray userIds, TransactionHelper transactionHelper) {
 		String query =
 				"MATCH (u:User), (g:Group) " +
-				"WHERE g.id = {groupId} AND u.id IN {userIds} " +
+				"WHERE g.id = $groupId AND u.id IN $userIds " +
 				"AND ('ManualGroup' IN labels(g) OR 'FunctionalGroup' IN labels(g)) " +
 				"CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(g) " +
 				"WITH g, u " +
@@ -145,7 +145,7 @@ public class Group {
 	public static void removeUsers(String groupId, JsonArray userIds, TransactionHelper transactionHelper) {
 		String query =
 				"MATCH (u:User)-[r:IN|COMMUNIQUE]-(g:Group) " +
-				"WHERE g.id = {groupId} AND u.id IN {userIds} " +
+				"WHERE g.id = $groupId AND u.id IN $userIds " +
 				"AND ('ManualGroup' IN labels(g) OR 'FunctionalGroup' IN labels(g)) " +
 				"SET u.groups = FILTER(gId IN coalesce(u.groups, []) WHERE gId <> g.externalId) " +
 				"DELETE r ";
@@ -167,7 +167,7 @@ public class Group {
             final String updateQuery =
                     "MATCH (g:ManualGroup) " +
                         "WHERE EXISTS(g.manualGroupAutolinkUsersPositions) " +
-                        "  AND {userPosition} IN g.manualGroupAutolinkUsersPositions " +
+                        "  AND $userPosition IN g.manualGroupAutolinkUsersPositions " +
                         "WITH g " +
                         "MATCH (g)-[:DEPENDS]->(:Structure)<-[:HAS_ATTACHMENT*0..]-(struct:Structure) " +
                         "UNWIND g.manualGroupAutolinkUsersPositions AS targetPosition " +
@@ -175,17 +175,17 @@ public class Group {
                         "WITH DISTINCT g, u " +
                         "MERGE (u)-[new:IN]->(g) " +
                         "ON CREATE SET new.source = 'AUTO' " +
-                        "SET new.updated = {now}";
+                        "SET new.updated = $now";
 
             transactionHelper.add(updateQuery, params);
 
             final String cleanupQuery =
                     "MATCH (g:ManualGroup) " +
                         "WHERE EXISTS(g.manualGroupAutolinkUsersPositions) " +
-                        "  AND {userPosition} IN g.manualGroupAutolinkUsersPositions " +
+                        "  AND $userPosition IN g.manualGroupAutolinkUsersPositions " +
                         "MATCH (g)<-[old:IN]-(u:User) " +
                         "WHERE old.source = 'AUTO' " +
-                        "  AND (NOT EXISTS(old.updated) OR old.updated <> {now}) " +
+                        "  AND (NOT EXISTS(old.updated) OR old.updated <> $now) " +
                         "DELETE old";
 
             transactionHelper.add(cleanupQuery, params);
@@ -198,8 +198,8 @@ public class Group {
 				.put("now", System.currentTimeMillis())
 				.put("userPositions", userPositions);
 
-		final String updateGroupQuery = "MATCH (g:ManualGroup {id: {groupId}}) " +
-				"SET g.manualGroupAutolinkUsersPositions = {userPositions}";
+		final String updateGroupQuery = "MATCH (g:ManualGroup {id: $groupId}) " +
+				"SET g.manualGroupAutolinkUsersPositions = $userPositions";
 
 		transactionHelper.add(updateGroupQuery, params);
 
@@ -207,13 +207,13 @@ public class Group {
 			final String linkQuery = QUERY_MANUAL_GROUP_AUTOLINK_POSITIONS +
 					"MERGE (u)-[new:IN]->(g) " +
 					"ON CREATE SET new.source = 'AUTO' " +
-					"SET new.updated = {now} ";
+					"SET new.updated = $now ";
 			transactionHelper.add(linkQuery, params);
 		}
 
 		final String removeQuery =
-				"MATCH (g:ManualGroup {id: {groupId}})<-[old:IN]-(:User) " +
-						"WHERE old.source = 'AUTO' AND (NOT EXISTS(old.updated) OR old.updated <> {now}) " +
+				"MATCH (g:ManualGroup {id: $groupId})<-[old:IN]-(:User) " +
+						"WHERE old.source = 'AUTO' AND (NOT EXISTS(old.updated) OR old.updated <> $now) " +
 						"DELETE old ";
 		transactionHelper.add(removeQuery, params);
 
@@ -226,8 +226,8 @@ public class Group {
 		if(!StringValidation.isEmail(emailInternal)) {
 			throw new ValidationException("invalid.email");
 		} else {
-			String query =  "MERGE (g:Group { id : {id}}) " +
-					"SET g.emailInternal = {email}";
+			String query =  "MERGE (g:Group { id : $id}) " +
+					"SET g.emailInternal = $email";
 
 			JsonObject params = new JsonObject()
 					.put("id", groupId)
@@ -319,12 +319,12 @@ public class Group {
 		linkQuery.append(
 				"MERGE (u)-[new:IN]->(g) " +
 				"ON CREATE SET new.source = 'AUTO' " +
-				"SET new.updated = {now} ");
+				"SET new.updated = $now ");
 
 		final String removeQuery =
-				"MATCH (g:ManualGroup {id: {groupId}})<-[old:IN]-(:User) " +
+				"MATCH (g:ManualGroup {id: $groupId})<-[old:IN]-(:User) " +
 						"WHERE (EXISTS(g.autolinkUsersFromGroups) OR EXISTS(g.autolinkUsersFromPositions) OR EXISTS(g.manualGroupAutolinkUsersPositions)) " +
-				" AND old.source = 'AUTO' AND (NOT EXISTS(old.updated) OR old.updated <> {now}) " +
+				" AND old.source = 'AUTO' AND (NOT EXISTS(old.updated) OR old.updated <> $now) " +
 				"DELETE old ";
 
 

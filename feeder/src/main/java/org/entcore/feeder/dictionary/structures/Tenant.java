@@ -50,10 +50,10 @@ public class Tenant {
 			throw new ValidationException(error);
 		} else {
 			String query =
-						"MERGE (t:Tenant { externalId : {externalId}}) " +
-						"ON CREATE SET t.id = {id} " +
+						"MERGE (t:Tenant { externalId : $externalId}) " +
+						"ON CREATE SET t.id = $id " +
 						"WITH t " +
-						"WHERE t.checksum IS NULL OR t.checksum <> {checksum} " +
+						"WHERE t.checksum IS NULL OR t.checksum <> $checksum " +
 						"SET " + Neo4jUtils.nodeSetPropertiesFromJson("t", object, "id") +
 						"RETURN t.id as id ";
 			transactionHelper.add(query, object);
@@ -81,8 +81,8 @@ public class Tenant {
 		}
 		if (skip != null && limit != null) {
 			query.append("ORDER BY externalId ASC " +
-					"SKIP {skip} " +
-					"LIMIT {limit} ");
+					"SKIP $skip " +
+					"LIMIT $limit ");
 			params.put("skip", skip);
 			params.put("limit", limit);
 		}
@@ -98,11 +98,11 @@ public class Tenant {
 			if ("ok".equals(r.body().getString("status"))) {
 				final JsonArray t = r.body().getJsonArray("result");
 				if (t != null) {
-					final String baseLink = "MATCH (t:Tenant {id:{id}}), (s:Structure) ";
+					final String baseLink = "MATCH (t:Tenant {id:$id}), (s:Structure) ";
 					final String mergeLink =
 							"MERGE t<-[r:HAS_STRUCT]-s " +
-							"ON CREATE SET r.created = {now} " +
-							"SET r.lastUpdated = {now} ";
+							"ON CREATE SET r.created = $now " +
+							"SET r.lastUpdated = $now ";
 					final long now = System.currentTimeMillis();
 					final JsonObject params = new JsonObject().put("now", now);
 					try {
@@ -116,12 +116,12 @@ public class Tenant {
 						}
 						final String created =
 								"MATCH (t:Tenant)<-[r:HAS_STRUCT]-(s:Structure) " +
-								"WHERE r.created = {now} " +
+								"WHERE r.created = $now " +
 								"RETURN t.id as tenant, COLLECT(DISTINCT s.id) as structures";
 						tx.add(created, params);
 						final String deleteOld =
 								"MATCH (t:Tenant)<-[r:HAS_STRUCT]-(s:Structure) " +
-								"WHERE r.lastUpdated <> {now} " +
+								"WHERE r.lastUpdated <> $now " +
 								"DELETE r " +
 								"RETURN t.id as tenant, COLLECT(DISTINCT s.id) as structures";
 						tx.add(deleteOld, params);
@@ -170,19 +170,19 @@ public class Tenant {
 				if (o2.size() < 2) continue;
 				switch (o2.getString(0)) {
 					case "source" :
-						sb.append("s.source = {source} AND ");
+						sb.append("s.source = $source AND ");
 						p.put("source", o2.getString(1));
 						break;
 					case "prefix" :
-						sb.append("(s.externalId STARTS WITH {prefix} OR head(s.joinKey) STARTS WITH {prefix}) AND ");
+						sb.append("(s.externalId STARTS WITH $prefix OR head(s.joinKey) STARTS WITH $prefix) AND ");
 						p.put("prefix", o2.getString(1));
 						break;
 					case "UAIRegex" :
-						sb.append("s.UAI =~ {UAIRegex} AND ");
+						sb.append("s.UAI =~ $UAIRegex AND ");
 						p.put("UAIRegex", o2.getString(1));
 						break;
 					case "UAIList" :
-						sb.append("s.UAI IN {UAIList} AND ");
+						sb.append("s.UAI IN $UAIList AND ");
 						final JsonArray a = o2.copy();
 						a.remove(0);
 						p.put("UAIList", a);

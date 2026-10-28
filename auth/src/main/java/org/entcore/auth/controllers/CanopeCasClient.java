@@ -264,8 +264,8 @@ public class CanopeCasClient extends CasClientController
             return;
         }
 
-        String query = "MATCH (u:User {id: {id}}) " +
-                        "SET u.password = {password}, u.activationCode = NULL";
+        String query = "MATCH (u:User {id: $id}) " +
+                        "SET u.password = $password, u.activationCode = NULL";
         JsonObject params = new JsonObject()
                                 .put("id", user.account.id)
                                 .put("password", BCrypt.hashpw(UUID.randomUUID().toString(), BCrypt.gensalt()));
@@ -291,7 +291,7 @@ public class CanopeCasClient extends CasClientController
     private void loginOrCreateUser(HttpServerRequest request, CanopeUser user)
     {
         String query = "MATCH (u:User) " +
-                        "WHERE (u.email = {email} OR u.emailAcademy = {email} OR u.externalId = {externalId}) AND HEAD(u.profiles) = {profile} " +
+                        "WHERE (u.email = $email OR u.emailAcademy = $email OR u.externalId = $externalId) AND HEAD(u.profiles) = $profile " +
                         "RETURN u.id AS id, u.login AS login";
         JsonObject params = user.toJson();
 

@@ -186,7 +186,7 @@ public class SmartSchoolRegisteredService extends AbstractCas20ExtensionRegister
 
     private Future<JsonArray> getUserFunctions(AuthCas authCas) {
         Promise<JsonArray> promise = Promise.promise();
-        String query = "MATCH(u:User) WHERE u.id = {id} " +
+        String query = "MATCH(u:User) WHERE u.id = $id " +
                 "OPTIONAL MATCH (u)-[:IN]->(f:FunctionGroup)-[:DEPENDS]->(s: Structure) " +
                 "OPTIONAL MATCH (u)-[:HAS_FUNCTION]->(func:Function) " +
                 "RETURN COLLECT(Distinct(func.name)) + COLLECT(Distinct(f.filter)) as functions, s.name as structureName;";

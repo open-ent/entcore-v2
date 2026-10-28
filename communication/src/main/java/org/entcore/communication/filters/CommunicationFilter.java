@@ -60,17 +60,17 @@ public class CommunicationFilter implements ResourcesProvider {
 		params.put("structures", new JsonArray(adminLocal.getScope()));
 		if (groupId != null && !groupId.trim().isEmpty()) {
 			String query =
-					"MATCH (s:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS*1..2]-(:Group {id : {groupId}}) " +
-					"WHERE s.id IN {structures} " +
+					"MATCH (s:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS*1..2]-(:Group {id : $groupId}) " +
+					"WHERE s.id IN $structures " +
 					"RETURN count(*) > 0 as exists ";
 			params.put("groupId", groupId);
 			check(query, params, handler);
 		} else if (startGroupId != null && endGroupId != null &&
 				!startGroupId.trim().isEmpty() && !endGroupId.trim().isEmpty()) {
 			String query =
-					"MATCH (s1:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS*1..2]-(:Group {id : {startGroupId}}), " +
-					"(s2:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS*1..2]-(:Group {id : {endGroupId}}) " +
-					"WHERE s1.id IN {structures} AND s2.id IN {structures} " +
+					"MATCH (s1:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS*1..2]-(:Group {id : $startGroupId}), " +
+					"(s2:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS*1..2]-(:Group {id : $endGroupId}) " +
+					"WHERE s1.id IN $structures AND s2.id IN $structures " +
 					"RETURN count(*) > 0 as exists ";
 			params.put("startGroupId", startGroupId);
 			params.put("endGroupId", endGroupId);

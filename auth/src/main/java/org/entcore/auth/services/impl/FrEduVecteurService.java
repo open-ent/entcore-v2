@@ -38,7 +38,7 @@ public class FrEduVecteurService implements SamlVectorService {
     }
 
     public void getVectors(final String userId, final Handler<Either<String, JsonArray>> handler) {
-        String queryGetUserProfile ="MATCH (u:User) WHERE u.id = {userId} RETURN u.profiles";
+        String queryGetUserProfile ="MATCH (u:User) WHERE u.id = $userId RETURN u.profiles";
         neo4j.execute(queryGetUserProfile, new JsonObject().put("userId", userId), Neo4jResult.validUniqueResultHandler(new Handler<Either<String, JsonObject>>() {
             @Override
             public void handle(final Either<String, JsonObject> event) {
@@ -52,14 +52,14 @@ public class FrEduVecteurService implements SamlVectorService {
                             if (profiles.contains("Student")) {
                                 // Get student vectors for saml response : "4|"+u.lastName+"|"+u.firstName+"|"+u.externalId+"|"+s.UAI
                                 String query = "MATCH u-[:IN]->()-[:DEPENDS]->(s:Structure) " +
-                                        "WHERE u.id = {userId} " +
+                                        "WHERE u.id = $userId " +
                                         "RETURN DISTINCT '4|'+u.lastName+'|'+u.firstName+'|'+u.attachmentId+'|'+s.UAI as FrEduVecteur";
 
                                 neo4j.execute(query, new JsonObject().put("userId", userId), validResultHandler(handler));
                             } else if (profiles.contains("Relative")) {
                                 // Get parent vectors for saml response : '2|'+u.lastName+'|'+u.firstName+'|'+ child.externalId+'|'+s.UAI"
                                 String query = "MATCH (child: User)-[:RELATED]->u-[:IN]->()-[:DEPENDS]->(s:Structure) " +
-                                        "WHERE u.id = {userId} " +
+                                        "WHERE u.id = $userId " +
                                         "RETURN DISTINCT '2|'+u.lastName+'|'+u.firstName+'|'+ child.attachmentId+'|'+s.UAI as FrEduVecteur";
 
                                 neo4j.execute(query, new JsonObject().put("userId", userId), validResultHandler(handler));

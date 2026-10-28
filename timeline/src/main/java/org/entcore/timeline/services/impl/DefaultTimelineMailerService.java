@@ -842,7 +842,7 @@ public class DefaultTimelineMailerService extends Renders implements TimelineMai
 		}
 		final String query =
 				"MATCH (u:User)-[:IN]->(g:Group)-[:AUTHORIZED]->(r:Role)-[:AUTHORIZE]->(act:WorkflowAction) " +
-				"WHERE u.id IN {notifiedUsers} AND u.activationCode IS NULL AND u.email IS NOT NULL AND length(u.email) > 0 " +
+				"WHERE u.id IN $notifiedUsers AND u.activationCode IS NULL AND u.email IS NOT NULL AND length(u.email) > 0 " +
 				"AND act.name = \"org.entcore.timeline.controllers.TimelineController|mixinConfig\"" +
 				"RETURN DISTINCT u.email as mail, u.id as id ";
 		JsonObject params = new JsonObject()

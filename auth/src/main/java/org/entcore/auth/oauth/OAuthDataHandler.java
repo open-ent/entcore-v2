@@ -125,10 +125,10 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 			String grantType, final Handler<Boolean> handler) {
 
 		String query = "MATCH (n:Application) " +
-				"WHERE n.name = {clientId} " +
-				"AND n.secret = {secret} ";
+				"WHERE n.name = $clientId " +
+				"AND n.secret = $secret ";
 		if (!"refresh_token".equals(grantType)) {
-			query += " AND n.grantType = {grantType} ";
+			query += " AND n.grantType = $grantType ";
 		}
 		query += "RETURN count(n) as nb";
 		Map<String, Object> params = new HashMap<>();
@@ -188,7 +188,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	private void getUserIdNeo4j(final String username, final String password,
 			final Handler<Try<AccessDenied, String>> handler) {
 		String query = "MATCH (n:User) " +
-				"WHERE n.login={login}";
+				"WHERE n.login=$login";
 		// "AND (n.blocked IS NULL OR n.blocked = false) ";
 		if (checkFederatedLogin) {
 			query += "AND (n.federated IS NULL OR n.federated = false) ";
@@ -393,7 +393,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	}
 
 	private void removeOTP(String username) {
-		final String query = "MATCH (u:User {login: {login}}) " +
+		final String query = "MATCH (u:User {login: $login}) " +
 				"SET u.otp = null, u.otpiat = null ";
 		final JsonObject params = new JsonObject().put("login", username);
 		neo.execute(query, params, event -> {
@@ -404,7 +404,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	}
 
 	private void upgradeOldPassword(final String username, String password) {
-		String query = "MATCH (u:User {login: {login}}) SET u.password = {password} " +
+		String query = "MATCH (u:User {login: $login}) SET u.password = $password " +
 				"RETURN u.id as id, HEAD(u.profiles) as profile ";
 		JsonObject params = new JsonObject()
 				.put("login", username)
@@ -444,7 +444,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 		if (clientId != null && userId != null &&
 				!clientId.trim().isEmpty() && !userId.trim().isEmpty()) {
 			if (scope != null && !scope.trim().isEmpty()) {
-				String query = "MATCH (app:`Application` {name:{clientId}}) RETURN app.scope as scope , app.logoutUrl as logoutUrl";
+				String query = "MATCH (app:`Application` {name:$clientId}) RETURN app.scope as scope , app.logoutUrl as logoutUrl";
 				neo.execute(query, new JsonObject().put("clientId", clientId),
 						new io.vertx.core.Handler<Message<JsonObject>>() {
 							@Override
@@ -693,7 +693,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	public void validateClientById(String clientId, final Handler<Boolean> handler) {
 		if (clientId != null && !clientId.trim().isEmpty()) {
 			String query = "MATCH (n:Application) " +
-					"WHERE n.name = {clientId} " +
+					"WHERE n.name = $clientId " +
 					"RETURN count(n) as nb";
 			Map<String, Object> params = new HashMap<>();
 			params.put("clientId", clientId);
@@ -719,7 +719,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 	public void validateUserById(String userId, final Handler<Boolean> handler) {
 		if (userId != null && !userId.trim().isEmpty()) {
 			String query = "MATCH (n:User) " +
-					"WHERE n.id = {userId} " +
+					"WHERE n.id = $userId " +
 					"RETURN count(n) as nb";
 			Map<String, Object> params = new HashMap<>();
 			params.put("userId", userId);
@@ -802,7 +802,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 
 	private void getUserIdByLoginAlias(String username, String password, Handler<Try<AccessDenied, String>> handler) {
 		String query = "MATCH (n:User) " +
-				"WHERE n.loginAlias={loginAlias} ";
+				"WHERE n.loginAlias=$loginAlias ";
 				// "AND (n.blocked IS NULL OR n.blocked = false) " +
 		if (checkFederatedLogin) {
 			query += "AND (n.federated IS NULL OR n.federated = false) ";
@@ -843,7 +843,7 @@ public class OAuthDataHandler extends DataHandler implements OpenIdDataHandler {
 
 	public void getClientsByGrantType(Vertx vertx, JwtVerifier jwtVerifier) {
 		String grantType = "urn:ietf:params:oauth:grant-type:jwt-bearer";
-		String query = "MATCH (n:External) WHERE n.grantType = {grantType} " +
+		String query = "MATCH (n:External) WHERE n.grantType = $grantType " +
 				"RETURN DISTINCT  n.certUri as certUri, n.name as name";
 		Map<String, Object> params = new HashMap<>();
 		params.put("grantType", grantType);

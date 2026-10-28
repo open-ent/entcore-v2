@@ -223,7 +223,7 @@ public class CommunicationController extends BaseController {
 										where += "AND ";
 									}
 									match += "(visibles)-[:IN*0..1]->()-[:DEPENDS]->(n) ";
-									where += "n.id IN {nIds} ";
+									where += "n.id IN $nIds ";
 								}
 								if ("structures".equals(criteria)) {
 									match = match.replaceFirst("\\[:DEPENDS]", "[:DEPENDS*1..2]");
@@ -249,10 +249,10 @@ public class CommunicationController extends BaseController {
 								}
 								if (!match.contains("(visibles)-[:IN*0..1]->(g)")) {
 									match += "(visibles)-[:IN*0..1]->(g)";
-									where += "g.filter IN {filters} ";
+									where += "g.filter IN $filters ";
 								} else {
 									match += "(visibles)-[:IN*0..1]->(g2) ";
-									where += "g2.filter IN {filters2} ";
+									where += "g2.filter IN $filters2 ";
 								}
 								break;
 							case "positions":
@@ -264,12 +264,12 @@ public class CommunicationController extends BaseController {
 								} else {
 									where += "AND ";
 								}
-								where += "  ANY(id IN positionIds WHERE id IN {positionIds}) ";
+								where += "  ANY(id IN positionIds WHERE id IN $positionIds) ";
                 break;
 							case "search":
 								final String search = filter.getString(criteria);
 								if (isNotEmpty(search)) {
-									preFilter = "AND m.displayNameSearchField CONTAINS {search} ";
+									preFilter = "AND m.displayNameSearchField CONTAINS $search ";
 
 									String sanitizedSearch = StringValidation.sanitize(search);
 									params.put("search", sanitizedSearch);
@@ -331,7 +331,7 @@ public class CommunicationController extends BaseController {
 						"UNWIND vIds AS vId "+
 						"MATCH (u:User { id: vId }) "+
 						"USING INDEX u:User(id) " +
-						"MATCH (s:Group { id : {groupId}})<-[:IN]-(u:User) " +
+						"MATCH (s:Group { id : $groupId})<-[:IN]-(u:User) " +
 						"USING INDEX s:Group(id) "+
 						"RETURN DISTINCT HEAD(u.profiles) as type, u.id as id, " +
 						"u.displayName as displayName, u.login as login " +

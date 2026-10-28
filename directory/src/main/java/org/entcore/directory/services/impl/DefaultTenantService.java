@@ -52,7 +52,7 @@ public class DefaultTenantService implements TenantService {
 
 	@Override
 	public void get(String id, Handler<Either<String, JsonObject>> handler) {
-		final String filter = "WHERE t.id = {id} ";
+		final String filter = "WHERE t.id = $id ";
 		getOrList(filter, new JsonObject().put("id", id), validUniqueResultHandler(handler));
 	}
 

@@ -329,7 +329,7 @@ public class DirectoryController extends BaseController {
 		Map<String, Object> params = new HashMap<>();
 		params.put("id",request.params().get("id"));
 		neo.send("MATCH (n:Structure)<-[:BELONGS]-(m:Class) " +
-				"WHERE n.id = {id} " +
+				"WHERE n.id = $id " +
 				"RETURN distinct m.name as name, m.id as classId, n.id as schoolId",
 				params, request.response());
 	}
@@ -342,12 +342,12 @@ public class DirectoryController extends BaseController {
 		params.put("classId", request.params().get("id"));
 		String types = "";
 		if (expectedTypes != null && !expectedTypes.isEmpty()) {
-			types = "AND p.name IN {expectedTypes} ";
+			types = "AND p.name IN $expectedTypes ";
 			params.put("expectedTypes", new JsonArray(expectedTypes));
 		}
 		neo.send("MATCH (n:Class)<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(m:User), "
 				+ "g-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) "
-				+ "WHERE n.id = {classId} " + types
+				+ "WHERE n.id = $classId " + types
 				+ "RETURN distinct m.id as userId, p.name as type, "
 				+ "m.activationCode as code, m.firstName as firstName,"
 				+ "m.lastName as lastName, n.id as classId "
@@ -369,7 +369,7 @@ public class DirectoryController extends BaseController {
 		Map<String, Object> params = new HashMap<>();
 		params.put("id", request.params().get("id"));
 		neo.send("MATCH (n:User) " +
-				"WHERE n.id = {id} " +
+				"WHERE n.id = $id " +
 				"RETURN distinct n.id as id, n.login as login, n.address as address, n.activationCode as code;"
 				, params, request.response());
 	}
@@ -491,7 +491,7 @@ public class DirectoryController extends BaseController {
 		} else if (request.params().get("id") != null) {
 			neoRequest =
 					"MATCH (m:User)-[:IN]->g-[:DEPENDS]->n " +
-					"WHERE (n:Structure OR n:Class) AND n.id = {id} AND NOT(m.activationCode IS NULL) " +
+					"WHERE (n:Structure OR n:Class) AND n.id = $id AND NOT(m.activationCode IS NULL) " +
 					"OPTIONAL MATCH g-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 					"RETURN distinct m.lastName as lastName, m.firstName as firstName, " +
 					"m.login as login, m.activationCode as activationCode, " +

@@ -33,7 +33,7 @@ public class CommunicationDiscoverVisibleFilter implements ResourcesProvider {
 
         String groupId = resourceRequest.params().get("groupId");
         if(groupId != null && !groupId.trim().isEmpty()) {
-            String query = "MATCH (g:CommunityGroup:Group:Visible {id: {groupId}})<-[:IN|COMMUNIQUE]-(u:User {id: {userId}}) " +
+            String query = "MATCH (g:CommunityGroup:Group:Visible {id: $groupId})<-[:IN|COMMUNIQUE]-(u:User {id: $userId}) " +
                             "RETURN COUNT(u) > 0 as exists";
 
             JsonObject params = new JsonObject().put("userId", user.getUserId()).put("groupId", groupId);

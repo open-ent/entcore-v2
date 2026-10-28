@@ -87,13 +87,13 @@ public class DefaultGroupService implements GroupService {
 			UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				condition += "AND s.id IN {structures} ";
+				condition += "AND s.id IN $structures ";
 				params.put("structures", new JsonArray(scope));
 			}
 		}
 
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			condition += " AND s.id = {structure} ";
+			condition += " AND s.id = $structure ";
 			params.put("structure", structureId);
 		}
 		String query =
@@ -170,7 +170,7 @@ public class DefaultGroupService implements GroupService {
 		String condition = "";
 		JsonObject params = new JsonObject();
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			condition = "WHERE s.id = {structureId} ";
+			condition = "WHERE s.id = $structureId ";
 			params.put("structureId", structureId);
 		}
 		if (type == null || type.trim().isEmpty()) {
@@ -218,7 +218,7 @@ public class DefaultGroupService implements GroupService {
 		// est rattachée à son établissement via (:Class)-[:BELONGS]->(:Structure) (vérifié en
 		// base), d'où le second OPTIONAL MATCH + coalesce pour couvrir les deux cas.
 		final String query =
-				"MATCH (g:Group {id:{id}}) " +
+				"MATCH (g:Group {id:$id}) " +
 				"OPTIONAL MATCH (g)-[:DEPENDS]->(struct:Structure) " +
 				"OPTIONAL MATCH (g)-[:DEPENDS]->(:Class)-[:BELONGS]->(classStruct:Structure) " +
 				"RETURN g.id as id, g.name as name, g.nbUsers as nbUsers, coalesce(struct.id, classStruct.id) as structureId, " +
@@ -238,7 +238,7 @@ public class DefaultGroupService implements GroupService {
 		// jointure Neo4j supplémentaire aux appelants existants qui n'en ont pas besoin.
 		final boolean withStructureId = Field.STRUCTURE_ID.isSetIn(fieldMask);
 		final String query =
-			"MATCH (g:Group) WHERE g.id IN {groupIds} " +
+			"MATCH (g:Group) WHERE g.id IN $groupIds " +
 			"WITH g " +
 			(withTypeSubType ? ", HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type " : "") +
 			// cf. commentaire dans getInfos() : ClassGroup dépend d'une Class, pas directement
@@ -287,13 +287,13 @@ public class DefaultGroupService implements GroupService {
 			UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				structureCondition += " AND s.id IN {structures} ";
+				structureCondition += " AND s.id IN $structures ";
 				params.put("structures", new JsonArray(scope));
 			}
 		}
 
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			structureCondition += " AND s.id = {structure} ";
+			structureCondition += " AND s.id = $structure ";
 			params.put("structure", structureId);
 		}
 
@@ -321,7 +321,7 @@ public class DefaultGroupService implements GroupService {
 		JsonObject params = new JsonObject();
 
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			query = "MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u:User), u-[:IN]->(g:CommunityGroup) WHERE s.id = {structureId} WITH g, collect( distinct {name: s.name, id: s.id}) as structures, ";
+			query = "MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u:User), u-[:IN]->(g:CommunityGroup) WHERE s.id = $structureId WITH g, collect( distinct {name: s.name, id: s.id}) as structures, ";
 			returnStructure = ", CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures";
 			params.put("structureId", structureId);
 		} else {
@@ -341,7 +341,7 @@ public class DefaultGroupService implements GroupService {
 	public Future<JsonObject> getGroupByExternalId(String externalId) {
 		final Promise<JsonObject> promise = Promise.promise();
 		final String query =
-				"MATCH (g:Group {externalId:{externalId}}) RETURN g.id as id, g.name as name";
+				"MATCH (g:Group {externalId:$externalId}) RETURN g.id as id, g.name as name";
 		final JsonObject params = new JsonObject().put("externalId", externalId);
 		neo.execute(query, params, validUniqueResultHandler(event -> {
 			if (event.isLeft()) {
@@ -391,7 +391,7 @@ public class DefaultGroupService implements GroupService {
 			setClause.append("g:").append(sanitizedLabels.get(i));
 		}
 		
-		final String query = "MATCH (g:Group {id:{groupId}}) " +
+		final String query = "MATCH (g:Group {id:$groupId}) " +
 					 setClause.toString() + " " +
 					 "RETURN g.id as id, g.name as name, g.displayName as displayName, " +
 					 "labels(g) as labels";

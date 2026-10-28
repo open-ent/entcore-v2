@@ -112,8 +112,8 @@ public class AuthResourcesProvider implements ResourcesProvider {
 		String query = "";
 		if (user.getFunctions() != null && user.getFunctions().containsKey(DefaultFunctions.ADMIN_LOCAL)) {
 			query =
-					"MATCH (t:User { id : {teacherId}})-[:IN]->(fg:FunctionGroup)-[:DEPENDS]->(s:Structure)" +
-					"<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User {id : {id}}) " +
+					"MATCH (t:User { id : $teacherId})-[:IN]->(fg:FunctionGroup)-[:DEPENDS]->(s:Structure)" +
+					"<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User {id : $id}) " +
 					"WHERE fg.name =~ \".*AdminLocal.*\" " +
 					"RETURN count(*) >= 1 as exists ";
 		} else {
@@ -159,11 +159,11 @@ public class AuthResourcesProvider implements ResourcesProvider {
 						return;
 					}
 
-					String query = "MATCH (c:Class)<-[:DEPENDS]-(Group)<-[:IN]-(t:User { id : {teacherId}}) " +
+					String query = "MATCH (c:Class)<-[:DEPENDS]-(Group)<-[:IN]-(t:User { id : $teacherId}) " +
 							"WHERE head(t.profiles) IN ['Teacher', 'Personnel'] " +
 							"WITH c MATCH (u:User)-[:IN]->(Group)-[:DEPENDS]->(c) " +
-							"WHERE u.id in {ids} " +
-							"RETURN count(distinct u) = {size} as exists";
+							"WHERE u.id in $ids " +
+							"RETURN count(distinct u) = $size as exists";
 					JsonObject params = new JsonObject()
 							.put("teacherId", user.getUserId())
 							.put("ids", userIds)
@@ -208,15 +208,15 @@ public class AuthResourcesProvider implements ResourcesProvider {
 					String query;
 					if (user.getFunctions() != null && user.getFunctions().containsKey(DefaultFunctions.ADMIN_LOCAL)) {
 						query =
-							"MATCH (t:User { id : {teacherId}})-[:IN]->(fg:FunctionGroup)-[:DEPENDS]->" +
+							"MATCH (t:User { id : $teacherId})-[:IN]->(fg:FunctionGroup)-[:DEPENDS]->" +
 							"(:Structure)<-[:HAS_ATTACHMENT*0..]-(s:Structure)" +
-							"<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User {login : {login}}) " +
+							"<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User {login : $login}) " +
 							"WHERE fg.name =~ \".*AdminLocal.*\"" +
 							"RETURN count(*) >= 1 as exists ";
 					} else {
 						query =
-							"MATCH (t:User { id : {teacherId}})-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(c:Class)" +
-							"<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User {login : {login}}) " +
+							"MATCH (t:User { id : $teacherId})-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(c:Class)" +
+							"<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User {login : $login}) " +
 							"WHERE head(t.profiles) IN ['Teacher', 'Personnel'] " +
 							"RETURN count(*) >= 1 as exists ";
 					}

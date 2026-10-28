@@ -87,7 +87,7 @@ public class DefaultProfileService implements ProfileService {
 
 	@Override
 	public void blockProfiles(JsonObject profiles, Handler<Either<String, JsonObject>> handler) {
-		final String query = "MATCH (p:Profile {name : {name}}) set p.blocked = {blocked}";
+		final String query = "MATCH (p:Profile {name : $name}) set p.blocked = $blocked";
 		final StatementsBuilder sb =  new StatementsBuilder();
 		for (String profile : profiles.fieldNames()) {
 			sb.add(query, new JsonObject().put("name", profile)

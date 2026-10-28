@@ -281,7 +281,7 @@ public class PostImport {
 	private void applyComRules(final Handler<Void> handler, Set<String> structureExternalIds) {
 		if (config.getBoolean("apply-communication-rules", false)) {
 			logger.info(e-> "START get ids for applyComRules");
-			String q = "MATCH (s:Structure) " + (structureExternalIds != null ? "WHERE s.externalId IN {externalIds}" : "") + " return COLLECT(s.id) as ids";
+			String q = "MATCH (s:Structure) " + (structureExternalIds != null ? "WHERE s.externalId IN $externalIds" : "") + " return COLLECT(s.id) as ids";
 			JsonArray eIds = new JsonArray();
 			if(structureExternalIds != null)
 				for(String eId : structureExternalIds)

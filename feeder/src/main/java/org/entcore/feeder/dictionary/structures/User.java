@@ -236,14 +236,14 @@ public class User {
 			String filter = "";
 			if (profile != null) {
 				params.put("profile", profile);
-				filter = "AND head(u.profiles) = {profile} ";
+				filter = "AND head(u.profiles) = $profile ";
 			}
 			String query =
 					"MATCH (u:User) " +
-					"WHERE u.disappearanceDate IS NOT NULL AND u.deleteDate IS NULL AND u.disappearanceDate < {date} " +
+					"WHERE u.disappearanceDate IS NOT NULL AND u.deleteDate IS NULL AND u.disappearanceDate < $date " +
 					filter +
 					"RETURN u.id as id, TOSTRING(ID(u)) AS nodeId " +
-					"LIMIT {limit} ";
+					"LIMIT $limit ";
 			TransactionManager.getInstance().getNeo4j().execute(query, params, new Handler<Message<JsonObject>>() {
 				@Override
 				public void handle(Message<JsonObject> message) {
@@ -262,11 +262,11 @@ public class User {
 			String filter = "";
 			if (profile != null) {
 				params.put("profile", profile);
-				filter = "AND head(u.profiles) = {profile} ";
+				filter = "AND head(u.profiles) = $profile ";
 			}
 			String query =
 					"MATCH (u:User) " +
-					"WHERE u.disappearanceDate IS NOT NULL AND u.deleteDate IS NULL AND u.disappearanceDate < {date} " +
+					"WHERE u.disappearanceDate IS NOT NULL AND u.deleteDate IS NULL AND u.disappearanceDate < $date " +
 					filter +
 					"RETURN u.id as id, u.disappearanceDate as disappearanceDate ";
 			TransactionManager.getInstance().getNeo4j().execute(query, params, message -> {
@@ -289,8 +289,8 @@ public class User {
 		public void findMissingUsersInStructure(String structureExternalId, String source, JsonArray existingUsers,
 				JsonArray profiles, Handler<Message<JsonObject>> handler) {
 			final String query =
-					"MATCH (s:Structure {externalId : {structureExternalId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
-					"WHERE u.source = {source} AND HEAD(u.profiles) IN {profiles} AND NOT(u.externalId IN {existingUsers}) " +
+					"MATCH (s:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+					"WHERE u.source = $source AND HEAD(u.profiles) IN $profiles AND NOT(u.externalId IN $existingUsers) " +
 					"RETURN u.id as id, u.externalId as externalId, u.lastName as lastName, " +
 							"u.firstName as firstName, HEAD(u.profiles) as profile, TOSTRING(ID(u)) AS nodeId";
 			final JsonObject params = new JsonObject()
@@ -335,7 +335,7 @@ public class User {
 				if(nullIdUserNodes.size() > 0)
 				{
 					String deleteNullQuery = "MATCH (u:User) " +
-												"WHERE ID(u) IN {nodeIds} AND u.id IS NULL " +
+												"WHERE ID(u) IN $nodeIds AND u.id IS NULL " +
 												"DETACH DELETE u";
 					tx.add(deleteNullQuery, new JsonObject().put("nodeIds", nullIdUserNodes));
 				}
@@ -390,56 +390,56 @@ public class User {
 			filterGroupsToBeBackedUp = " AND NOT n.filter ='AdminLocal' ";
 		}
 		String query =
-				"MATCH (u:User { id : {userId}})-[r:IN]->(n) " +
+				"MATCH (u:User { id : $userId})-[r:IN]->(n) " +
 				"WHERE n.id IS NOT NULL AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
 				"WITH u, COLLECT(n.id) as ids " +
-				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
+				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: $userId}) " +
 				"SET b.IN_OUTGOING = coalesce(b.IN_OUTGOING, []) + ids ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}})-[r:COMMUNIQUE]->(n) " +
+				"MATCH (u:User { id : $userId})-[r:COMMUNIQUE]->(n) " +
 				"WHERE n.id IS NOT NULL AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
 				"WITH u, COLLECT(n.id) as ids " +
-				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
+				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: $userId}) " +
 				"SET b.COMMUNIQUE_OUTGOING = ids ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}})<-[r:COMMUNIQUE]-(n) " +
+				"MATCH (u:User { id : $userId})<-[r:COMMUNIQUE]-(n) " +
 				"WHERE n.id IS NOT NULL AND NOT(n:DeleteGroup) " + filterGroupsToBeBackedUp +
 				"WITH u, COLLECT(n.id) as ids " +
-				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
+				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: $userId}) " +
 				"SET b.COMMUNIQUE_INCOMING = ids ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}})-[r:COMMUNIQUE_DIRECT]->(n) " +
+				"MATCH (u:User { id : $userId})-[r:COMMUNIQUE_DIRECT]->(n) " +
 				"WHERE n.id IS NOT NULL " +
 				"WITH u, COLLECT(n.id) as ids " +
-				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
+				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: $userId}) " +
 				"SET b.COMMUNIQUE_DIRECT_OUTGOING = ids ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}})<-[r:COMMUNIQUE_DIRECT]-(n) " +
+				"MATCH (u:User { id : $userId})<-[r:COMMUNIQUE_DIRECT]-(n) " +
 				"WHERE n.id IS NOT NULL " +
 				"WITH u, COLLECT(n.id) as ids " +
-				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
+				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: $userId}) " +
 				"SET b.COMMUNIQUE_DIRECT_INCOMING = ids ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}})-[r:RELATED]->(n) " +
+				"MATCH (u:User { id : $userId})-[r:RELATED]->(n) " +
 				"WHERE n.id IS NOT NULL " +
 				"WITH u, COLLECT(n.id) as ids " +
-				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
+				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: $userId}) " +
 				"SET b.RELATED_OUTGOING = ids ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}})<-[r:RELATED]-(n) " +
+				"MATCH (u:User { id : $userId})<-[r:RELATED]-(n) " +
 				"WHERE n.id IS NOT NULL " +
 				"WITH u, COLLECT(n.id) as ids " +
-				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: {userId}}) " +
+				"MERGE u-[:HAS_RELATIONSHIPS]->(b:Backup {userId: $userId}) " +
 				"SET b.RELATED_INCOMING = ids ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}})-[:IN]->(pg: ProfileGroup)-[:DEPENDS]->(s: Structure), " +
+				"MATCH (u:User { id : $userId})-[:IN]->(pg: ProfileGroup)-[:DEPENDS]->(s: Structure), " +
 				" (u)-[:HAS_RELATIONSHIPS]->(b: Backup) " +
 				"WITH b, COLLECT(s.id) as sIds " +
 				"SET b.structureIds = sIds";
@@ -450,37 +450,37 @@ public class User {
 		JsonObject params = new JsonObject().put("mergedUserLogin", mergedUserLogin);
 
 		String query =
-			"MATCH (u:User {login: {mergedUserLogin}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {login: $mergedUserLogin})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (g:Group) WHERE g.id IN b.IN_OUTGOING MERGE (u)-[:IN]->(g)";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {login: {mergedUserLogin}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {login: $mergedUserLogin})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (g:Group) WHERE g.id IN b.COMMUNIQUE_OUTGOING MERGE (u)-[:COMMUNIQUE]->(g)";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {login: {mergedUserLogin}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {login: $mergedUserLogin})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (g:Group) WHERE g.id IN b.COMMUNIQUE_INCOMING MERGE (u)<-[:COMMUNIQUE]-(g)";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {login: {mergedUserLogin}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {login: $mergedUserLogin})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (n:User) WHERE n.id IN b.COMMUNIQUE_DIRECT_OUTGOING MERGE (u)-[:COMMUNIQUE_DIRECT]->(n)";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {login: {mergedUserLogin}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {login: $mergedUserLogin})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (n:User) WHERE n.id IN b.COMMUNIQUE_DIRECT_INCOMING MERGE (u)<-[:COMMUNIQUE_DIRECT]-(n)";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {login: {mergedUserLogin}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {login: $mergedUserLogin})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (n:User) WHERE n.id IN b.RELATED_OUTGOING MERGE (u)-[:RELATED]->(n)";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {login: {mergedUserLogin}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {login: $mergedUserLogin})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (n:User) WHERE n.id IN b.RELATED_INCOMING MERGE (u)<-[:RELATED]-(n)";
 		transaction.add(query, params);
 	}
@@ -491,14 +491,14 @@ public class User {
 
 		// Nettoyage des attributs de fusion pour éviter les références orphelines lors de la suppression
 		String cleanupMergeQuery =
-				"MATCH (u:User {id: {userId}})<-[:MERGED]-(um:User) " +
+				"MATCH (u:User {id: $userId})<-[:MERGED]-(um:User) " +
 				"WHERE um.mergedWith = u.id " +
 				"REMOVE um.mergedWith, u.mergedLogins";
 		transaction.add(cleanupMergeQuery, params);
 
 		// Restauration conditionnelle des liens entre utilisateur fusionné et élèves (profils Relative)
 		String mQuery =
-				"MATCH (u:User { id : {userId}})<-[r:MERGED]-(um:User), " +
+				"MATCH (u:User { id : $userId})<-[r:MERGED]-(um:User), " +
 				"u<-[:RELATED]-(us:User) " +
 				"WHERE us.relative IS NOT NULL AND LENGTH(FILTER(eId IN us.relative WHERE eId STARTS WITH um.externalId)) > 0 " +
 				"CREATE UNIQUE um<-[:RELATED]-us " +
@@ -509,7 +509,7 @@ public class User {
 				"CREATE UNIQUE um-[:IN]->rcg ";
 		transaction.add(mQuery, params);
 		String query =
-				"MATCH (u:User { id : {userId}}), (dg:DeleteGroup) " +
+				"MATCH (u:User { id : $userId}), (dg:DeleteGroup) " +
 				"OPTIONAL MATCH u-[r:IN|COMMUNIQUE|COMMUNIQUE_DIRECT|RELATED|DUPLICATE|TEACHES_FOS|TEACHES|HAS_FUNCTION]-() " +
 				"SET u.deleteDate = timestamp(), u.IDPN = null " +
 				"DELETE r " +
@@ -521,22 +521,22 @@ public class User {
 		JsonObject params = new JsonObject().put("userId", userId);
 
 		String query =
-			"MATCH (u:User {id: {userId}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {id: $userId})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (g:Group) WHERE g.id IN b.IN_OUTGOING CREATE UNIQUE u-[:IN]->g";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {id: {userId}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {id: $userId})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (g:Group) WHERE g.id IN b.COMMUNIQUE_OUTGOING CREATE UNIQUE u-[:COMMUNIQUE]->g";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {id: {userId}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {id: $userId})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"MATCH (g:Group) WHERE g.id IN b.COMMUNIQUE_INCOMING CREATE UNIQUE u<-[:COMMUNIQUE]-g";
 		transaction.add(query, params);
 
 		query =
-			"MATCH (u:User {id: {userId}})-[r:IN]->(:DeleteGroup), u-[r2:HAS_RELATIONSHIPS]->(b:Backup) " +
+			"MATCH (u:User {id: $userId})-[r:IN]->(:DeleteGroup), u-[r2:HAS_RELATIONSHIPS]->(b:Backup) " +
 			"REMOVE u.disappearanceDate, u.deleteDate " +
 			"DELETE r, r2, b";
 		transaction.add(query, params, new Handler<Either<String, JsonArray>>()
@@ -560,19 +560,19 @@ public class User {
 	public static void transition(String userId, TransactionHelper transaction) {
 		JsonObject params = new JsonObject().put("userId", userId);
 		String query =
-				"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]-(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
+				"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]-(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 				"DELETE r ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]-(:FunctionalGroup)-[:DEPENDS]->(c:Structure) " +
+				"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]-(:FunctionalGroup)-[:DEPENDS]->(c:Structure) " +
 				"DELETE r ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}}) WHERE u.headTeacherManual IS NOT NULL " +
+				"MATCH (u:User { id : $userId}) WHERE u.headTeacherManual IS NOT NULL " +
 				"REMOVE u.headTeacherManual ";
 		transaction.add(query, params);
 		query =
-				"MATCH (u:User { id : {userId}}) WHERE u.directionManual IS NOT NULL " +
+				"MATCH (u:User { id : $userId}) WHERE u.directionManual IS NOT NULL " +
 				"REMOVE u.directionManual ";
 		transaction.add(query, params);
 	}
@@ -583,7 +583,7 @@ public class User {
 				.put("limit", limit);
 		String query =
 				"MATCH (:DeleteGroup)<-[:IN]-(u:User) " +
-				"WHERE u.deleteDate IS NOT NULL AND u.deleteDate < {date} WITH DISTINCT u LIMIT {limit} " +
+				"WHERE u.deleteDate IS NOT NULL AND u.deleteDate < $date WITH DISTINCT u LIMIT $limit " +
 				"OPTIONAL MATCH (u)-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 				 GET_DELETE_OPTIONS;
 		transactionHelper.add(query, params);
@@ -593,7 +593,7 @@ public class User {
 		JsonObject params = new JsonObject().put("deleteUsers", deleteUsers);
 		String query =
 				"MATCH (:DeleteGroup)<-[:IN]-(u:User) " +
-				"WHERE u.deleteDate IS NOT NULL AND u.id IN {deleteUsers} " +
+				"WHERE u.deleteDate IS NOT NULL AND u.id IN $deleteUsers " +
 				"OPTIONAL MATCH (u)-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 				GET_DELETE_OPTIONS;
 		transactionHelper.add(query, params);
@@ -604,7 +604,7 @@ public class User {
 				.put("date", System.currentTimeMillis() - delay);
 		String query =
 				"MATCH (:DeleteGroup)<-[:IN]-(u:User) " +
-				"WHERE u.deleteDate IS NOT NULL AND u.deleteDate < {date} AND u.id IS NULL" +
+				"WHERE u.deleteDate IS NOT NULL AND u.deleteDate < $date AND u.id IS NULL" +
 				"OPTIONAL MATCH u-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
 				"OPTIONAL MATCH u-[r]-() " +
 				"DELETE u,b,r,rb ";
@@ -617,13 +617,13 @@ public class User {
 		// Nettoyage des références mergedWith orphelines avant suppression définitive
 		final String cleanupOrphanMergesQuery =
 				"MATCH (um:User) " +
-				"WHERE um.mergedWith IN {deleteUsers} " +
+				"WHERE um.mergedWith IN $deleteUsers " +
 				"REMOVE um.mergedWith";
 		transactionHelper.add(cleanupOrphanMergesQuery, params);
 
 		final String query =
 				"MATCH (:DeleteGroup)<-[:IN]-(u:User) " +
-				"WHERE u.id IN {deleteUsers} " +
+				"WHERE u.id IN $deleteUsers " +
 				"OPTIONAL MATCH u-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
 				"OPTIONAL MATCH u-[r]-() " +
 				"DELETE u,b,r,rb ";
@@ -637,23 +637,23 @@ public class User {
 				.put("structureExternalId", structureExternalId);
 
 		String query =
-				"MERGE (u:User { id: {userId} })" +
-				"FOREACH(x in CASE WHEN {classExternalId} in u.headTeacherManual THEN [] ELSE [1] END | " +
-				"SET u.headTeacherManual = coalesce(u.headTeacherManual,[]) + {classExternalId} " +
+				"MERGE (u:User { id: $userId })" +
+				"FOREACH(x in CASE WHEN $classExternalId in u.headTeacherManual THEN [] ELSE [1] END | " +
+				"SET u.headTeacherManual = coalesce(u.headTeacherManual,[]) + $classExternalId " +
 				") " +
 				"RETURN u.headTeacherManual";
 
 		transactionHelper.add(query, params);
 
 		String query2 =
-				"MATCH (u:User { id : {userId}}), (c:Class {externalId : {classExternalId}})<-[:DEPENDS]-(g:Group:HTGroup)  " +
+				"MATCH (u:User { id : $userId}), (c:Class {externalId : $classExternalId})<-[:DEPENDS]-(g:Group:HTGroup)  " +
 				"MERGE u-[:IN {source:'MANUAL'}]->g ";
 
 
 		transactionHelper.add(query2, params);
 
 		String query3 =
-				"MATCH (u:User { id : {userId}}), (s:Structure {externalId : {structureExternalId}})<-[:DEPENDS]-(g:Group:HTGroup) " +
+				"MATCH (u:User { id : $userId}), (s:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(g:Group:HTGroup) " +
 				"MERGE u-[r:IN]->g " +
 				"SET r.source = 'MANUAL'";
 		;
@@ -670,27 +670,27 @@ public class User {
 
 		String query =
 				"MATCH (u:User) " +
-				"WHERE u.headTeacherManual IS NOT NULL AND u.id = {userId} " +
-				"SET u.headTeacherManual = FILTER(x IN u.headTeacherManual WHERE x <> {classExternalId}) " +
+				"WHERE u.headTeacherManual IS NOT NULL AND u.id = $userId " +
+				"SET u.headTeacherManual = FILTER(x IN u.headTeacherManual WHERE x <> $classExternalId) " +
 				"RETURN u.headTeacherManual";
 
 		transactionHelper.add(query, params);
 
 		String query2 =
-				"MATCH (u:User { id : {userId}})-[r:IN]->(g:Group:HTGroup)-[:DEPENDS]->(c:Class {externalId : {classExternalId}}) " +
+				"MATCH (u:User { id : $userId})-[r:IN]->(g:Group:HTGroup)-[:DEPENDS]->(c:Class {externalId : $classExternalId}) " +
 				"DELETE r ";
 
 		transactionHelper.add(query2, params);
 
 		String query3 =
-				"MATCH (u:User { id : {userId}})-[r:IN |COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure {externalId : {structureExternalId}}) " +
+				"MATCH (u:User { id : $userId})-[r:IN |COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure {externalId : $structureExternalId}) " +
 				"WHERE length(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR length(u.headTeacher) = 0) " +
 				"DELETE r ";;
 
 		transactionHelper.add(query3, params);
 
 		String query4 =
-				"MATCH (u:User { id : {userId}})-[r:IN |COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure {externalId : {structureExternalId}}) " +
+				"MATCH (u:User { id : $userId})-[r:IN |COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure {externalId : $structureExternalId}) " +
 				"WHERE length(u.headTeacherManual) = 0 AND length(u.headTeacher) > 0 " +
 				"REMOVE r.source ";;
 
@@ -703,16 +703,16 @@ public class User {
 				.put("structureExternalId", structureExternalId);
 
 		String query =
-				"MERGE (u:User { id: {userId} })" +
-				"FOREACH(x in CASE WHEN {structureExternalId} in u.directionManual THEN [] ELSE [1] END | " +
-				"SET u.directionManual = coalesce(u.directionManual,[]) + {structureExternalId} " +
+				"MERGE (u:User { id: $userId })" +
+				"FOREACH(x in CASE WHEN $structureExternalId in u.directionManual THEN [] ELSE [1] END | " +
+				"SET u.directionManual = coalesce(u.directionManual,[]) + $structureExternalId " +
 				") " +
 				"RETURN u.directionManual";
 
 		transactionHelper.add(query, params);
 
 		String query3 =
-				"MATCH (u:User { id : {userId}}), (s:Structure {externalId : {structureExternalId}})<-[:DEPENDS]-(g:Group:DirectionGroup) " +
+				"MATCH (u:User { id : $userId}), (s:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(g:Group:DirectionGroup) " +
 				"MERGE u-[r:IN]->g " +
 				"SET r.source = 'MANUAL'";
 		;
@@ -727,14 +727,14 @@ public class User {
 
 		String query =
 				"MATCH (u:User) " +
-				"WHERE u.directionManual IS NOT NULL AND u.id = {userId} " +
-				"SET u.directionManual = FILTER(x IN u.directionManual WHERE x <> {structureExternalId}) " +
+				"WHERE u.directionManual IS NOT NULL AND u.id = $userId " +
+				"SET u.directionManual = FILTER(x IN u.directionManual WHERE x <> $structureExternalId) " +
 				"RETURN u.directionManual";
 
 		transactionHelper.add(query, params);
 
 		String query3 =
-				"MATCH (u:User { id : {userId}})-[r:IN |COMMUNIQUE]->(g:Group:DirectionGroup)-[:DEPENDS]->(s:Structure {externalId : {structureExternalId}}) " +
+				"MATCH (u:User { id : $userId})-[r:IN |COMMUNIQUE]->(g:Group:DirectionGroup)-[:DEPENDS]->(s:Structure {externalId : $structureExternalId}) " +
 				"DELETE r ";;
 
 		transactionHelper.add(query3, params);
@@ -743,8 +743,8 @@ public class User {
 	public static void addFunction(String userId, String functionCode, JsonArray s,
 			TransactionHelper transactionHelper) {
 		String query =
-				"MATCH (u:User { id : {userId}}) " +
-				"OPTIONAL MATCH (f:Function { externalId : {functionCode}}) " +
+				"MATCH (u:User { id : $userId}) " +
+				"OPTIONAL MATCH (f:Function { externalId : $functionCode}) " +
 				"MERGE u-[rf:HAS_FUNCTION]->f ";
 
 		JsonArray scope = null;
@@ -752,17 +752,17 @@ public class User {
 				.put("userId", userId)
 				.put("functionCode", functionCode);
 		if (s != null) {
-			query += "SET rf.scope = {scope} ";
+			query += "SET rf.scope = $scope ";
 			scope = new JsonArray(new ArrayList<>(new HashSet<String>(s.getList())));
 			params.put("scope", scope);
 		}
 		transactionHelper.add(query, params);
 		if(scope != null){
 			String query2 =
-					"MATCH (u:User { id : {userId}}) " +
-					"OPTIONAL MATCH (s:Structure) WHERE s.id IN {scope} " +
-					"OPTIONAL MATCH (f:Function { externalId : {functionCode}}) " +
-					"MERGE (fg:Group:FunctionGroup { externalId : s.id + '-' + {functionCode}}) " +
+					"MATCH (u:User { id : $userId}) " +
+					"OPTIONAL MATCH (s:Structure) WHERE s.id IN $scope " +
+					"OPTIONAL MATCH (f:Function { externalId : $functionCode}) " +
+					"MERGE (fg:Group:FunctionGroup { externalId : s.id + '-' + $functionCode}) " +
 					"ON CREATE SET fg.id = id(fg) + '-' + timestamp(), fg.name = s.name + '-' + f.name, fg.displayNameSearchField = toLower(s.name) + toLower(f.name), fg.filter = f.name\n" +
 					"CREATE UNIQUE s<-[:DEPENDS]-fg<-[:IN {source:'MANUAL'}]-u " +
 					"RETURN fg.id as groupId ";
@@ -783,8 +783,8 @@ public class User {
 	public static void setFunctionGrant(String userId, String functionCode, Long validUntil, String grantedBy,
 			String reason, TransactionHelper transactionHelper) {
 		final String query =
-				"MATCH (u:User { id : {userId}})-[rf:HAS_FUNCTION]->(:Function { externalId : {functionCode}}) " +
-				"SET rf.grantedBy = {grantedBy}, rf.grantedAt = timestamp(), rf.reason = {reason}, rf.validUntil = {validUntil} ";
+				"MATCH (u:User { id : $userId})-[rf:HAS_FUNCTION]->(:Function { externalId : $functionCode}) " +
+				"SET rf.grantedBy = $grantedBy, rf.grantedAt = timestamp(), rf.reason = $reason, rf.validUntil = $validUntil ";
 		final JsonObject params = new JsonObject()
 				.put("userId", userId)
 				.put("functionCode", functionCode)
@@ -796,8 +796,8 @@ public class User {
 
 	public static void removeFunction(String userId, String functionCode, TransactionHelper transactionHelper) {
 		String query =
-				"MATCH (u:User { id : {userId}})-[hasFunction:HAS_FUNCTION]->(f:Function {externalId : {functionCode}}), (u)-[inOrComm:IN|COMMUNIQUE]-(fg:FunctionGroup) " +
-				"WHERE fg.externalId ENDS WITH {functionCode} " +
+				"MATCH (u:User { id : $userId})-[hasFunction:HAS_FUNCTION]->(f:Function {externalId : $functionCode}), (u)-[inOrComm:IN|COMMUNIQUE]-(fg:FunctionGroup) " +
+				"WHERE fg.externalId ENDS WITH $functionCode " +
 				"DELETE hasFunction, inOrComm";
 		JsonObject params = new JsonObject()
 				.put("userId", userId)
@@ -808,7 +808,7 @@ public class User {
 
 	public static void addGroup(String userId, String groupId, TransactionHelper transactionHelper) {
 		String query =
-				"MATCH (u:User { id : {userId}}), (f:Group {id : {groupId}}) " +
+				"MATCH (u:User { id : $userId}), (f:Group {id : $groupId}) " +
 				"WHERE 'ManualGroup' IN labels(f) OR 'FunctionalGroup' IN labels(f) OR 'FunctionGroup' IN labels(f) " +
 				"CREATE UNIQUE u-[:IN {source:'MANUAL'}]->f " +
 				"WITH f, u " +
@@ -823,7 +823,7 @@ public class User {
 
 	public static void removeGroup(String userId, String groupId, TransactionHelper transactionHelper) {
 		String query =
-				"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]-(f:Group {id : {groupId}}) " +
+				"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]-(f:Group {id : $groupId}) " +
 				"WHERE 'ManualGroup' IN labels(f) OR 'FunctionalGroup' IN labels(f) OR 'FunctionGroup' IN labels(f) " +
 				"SET u.groups = FILTER(gId IN coalesce(u.groups, []) WHERE gId <> f.externalId) " +
 				"DELETE r ";
@@ -839,7 +839,7 @@ public class User {
 		JsonObject params = new JsonObject();
 		if (profiles != null && profiles.size() > 0) {
 			query = "MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-					"WHERE HEAD(u.profiles) IN {profiles} ";
+					"WHERE HEAD(u.profiles) IN $profiles ";
 			params.put("profiles", profiles);
 			if (isNotEmpty(exportType)) {
 				query += "AND ";
@@ -851,7 +851,7 @@ public class User {
 			}
 		}
 		if (isNotEmpty(exportType)) {
-			query += "s.exports IS NOT NULL AND {exportType} IN s.exports ";
+			query += "s.exports IS NOT NULL AND $exportType IN s.exports ";
 			params.put("exportType", exportType);
 		}
 		query += "RETURN count(distinct u) as nb";
@@ -865,7 +865,7 @@ public class User {
 		String filter = "";
 		String unionManualGroups = "as functionalGroups ";
 		if (isNotEmpty(exportType)) {
-			filter = "AND s0.exports IS NOT NULL AND {exportType} IN s0.exports ";
+			filter = "AND s0.exports IS NOT NULL AND $exportType IN s0.exports ";
 			params.put("exportType", exportType);
 		}
 		if (attributes != null && attributes.contains("manualAndFunctionalGroups")) {
@@ -873,7 +873,7 @@ public class User {
 		}
 		if (profiles != null && profiles.size() > 0) {
 			query.append("MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s0:Structure) " +
-			"WHERE HEAD(u.profiles) IN {profiles} AND u.deleteDate IS NULL ").append(filter).append(
+			"WHERE HEAD(u.profiles) IN $profiles AND u.deleteDate IS NULL ").append(filter).append(
 			"OPTIONAL MATCH u-[:IN]->(g:ManualGroup)-[:DEPENDS]->(s:Structure) ").append(
 			(attributes != null && (attributes.contains("functionalGroups") || attributes.contains("manualAndFunctionalGroups"))) ?
 					"OPTIONAL MATCH u-[:IN]->(fg:FunctionalGroup)-[:DEPENDS]->(s1:Structure) " : "")
@@ -904,8 +904,8 @@ public class User {
 		}
 		if (skip != null && limit != null) {
 			query.append("ORDER BY externalId ASC " +
-					"SKIP {skip} " +
-					"LIMIT {limit} ");
+					"SKIP $skip " +
+					"LIMIT $limit ");
 			params.put("skip", skip);
 			params.put("limit", limit);
 		}
@@ -918,10 +918,10 @@ public class User {
 		String filter;
 		if(isNotEmpty(exportType)) {
 			filter = "-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-					"WHERE f.externalId IN {functions} AND s.exports IS NOT NULL AND {exportType} IN s.exports ";
+					"WHERE f.externalId IN $functions AND s.exports IS NOT NULL AND $exportType IN s.exports ";
 			params.put("exportType", exportType);
 		} else {
-			filter = " WHERE f.externalId IN {functions} ";
+			filter = " WHERE f.externalId IN $functions ";
 		}
 		String query =
 				"MATCH (f:Function)<-[rf:HAS_FUNCTION]-u" +
@@ -937,9 +937,9 @@ public class User {
 
 	public static void relativeStudent(String relativeId, String studentId, TransactionHelper tx) {
 		String query =
-				"MATCH (r:User {id : {relativeId}})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Relative'}) " +
+				"MATCH (r:User {id : $relativeId})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Relative'}) " +
 				"WITH DISTINCT r " +
-				"MATCH (s:User {id : {studentId}})-[:IN]->(spg:ProfileGroup)-[:DEPENDS]->(st:Structure), " +
+				"MATCH (s:User {id : $studentId})-[:IN]->(spg:ProfileGroup)-[:DEPENDS]->(st:Structure), " +
 				"(spg)-[:HAS_PROFILE]->(:Profile { name : 'Student'}), " +
 				"(st)<-[:DEPENDS]-(rspg:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Relative'}) " +
 				"MERGE s-[rrc:RELATED]->r " +
@@ -951,9 +951,9 @@ public class User {
 				"s.relative ELSE coalesce(s.relative, []) + (r.externalId + '$10$1$1$0$0') END " +
 				"RETURN COLLECT(st.id) as structures "; 
 		String query2 =
-				"MATCH (r:User {id : {relativeId}})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Relative'}) " +
+				"MATCH (r:User {id : $relativeId})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Relative'}) " +
 				"WITH DISTINCT r " +
-				"MATCH (s:User {id : {studentId}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class)-[:BELONGS]->(st:Structure), " +
+				"MATCH (s:User {id : $studentId})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class)-[:BELONGS]->(st:Structure), " +
 				"(s)-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Student'}), " +
 				"(c)<-[:DEPENDS]-(rcpg:ProfileGroup)-[:DEPENDS]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Relative'}) " +
 				"MERGE r-[:IN]->rcpg";
@@ -966,15 +966,15 @@ public class User {
 
 	public static void unlinkRelativeStudent(String relativeId, String studentId, TransactionHelper tx){
 		String query =
-				"MATCH (r:User {id : {relativeId}})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Relative'}) " +
+				"MATCH (r:User {id : $relativeId})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Relative'}) " +
 				"WITH r " +
-				"MATCH (s:User {id : {studentId}})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Student'}), " +
+				"MATCH (s:User {id : $studentId})-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile { name : 'Student'}), " +
 				"s-[relations]-r " +
 				"SET s.relative = FILTER(rId IN s.relative WHERE NOT(rId =~ (r.externalId + '.*'))) " +
 				"DELETE relations";
 		String query2 =
-				"MATCH (s:User {id : {studentId}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class), " +
-				"(r:User {id : {relativeId}})-[r2:IN]->(:ProfileGroup)-[:DEPENDS]->c " +
+				"MATCH (s:User {id : $studentId})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class), " +
+				"(r:User {id : $relativeId})-[r2:IN]->(:ProfileGroup)-[:DEPENDS]->c " +
 				"WHERE NOT(r<-[:RELATED]-(:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->c) " +
 				"DELETE r2";
 		JsonObject params = new JsonObject()
@@ -989,9 +989,9 @@ public class User {
 		String filter = "";
 		String type = "Group";
 		if (isNotEmpty(groupId)) {
-			filter = " {id: {id}}";
+			filter = " {id: $id}";
 			params.put("id", groupId);
-			final String query0 = "MATCH (g:Group {id: {id}}) SET g.nbUsers = 0;";
+			final String query0 = "MATCH (g:Group {id: $id}) SET g.nbUsers = 0;";
 			tx.add(query0, params);
 		} else if (isNotEmpty(groupType)) {
 			type = groupType;
@@ -1042,24 +1042,24 @@ public class User {
 		String query;
 		if ("Relative".equals(j.getString("profile"))) {
 			query =
-					"MATCH (s:User {ine:{ine}})-[:RELATED]->(u:User) " +
-					"WHERE u.firstNameSearchField = {firstName} AND u.lastNameSearchField = {lastName} AND ";
+					"MATCH (s:User {ine:$ine})-[:RELATED]->(u:User) " +
+					"WHERE u.firstNameSearchField = $firstName AND u.lastNameSearchField = $lastName AND ";
 			j.put("firstName", Validator.sanitize((String) j.remove("firstName")));
 			j.put("lastName", Validator.sanitize((String) j.remove("lastName")));
 		} else if ("Student".equals(j.getString("profile"))) {
 			query =
-					"MATCH (u:User {ine:{ine}}) " +
+					"MATCH (u:User {ine:$ine}) " +
 					"WHERE ";
 		}
 		else
 		{
 			query = "MATCH (u:User) " +
-					"WHERE u.firstNameSearchField = {firstName} AND u.lastNameSearchField = {lastName} AND u.birthDate = {birthDate} AND ";
+					"WHERE u.firstNameSearchField = $firstName AND u.lastNameSearchField = $lastName AND u.birthDate = $birthDate AND ";
 			j.put("firstName", Validator.sanitize((String) j.remove("firstName")));
 			j.put("lastName", Validator.sanitize((String) j.remove("lastName")));
 		}
 		query +=
-				"u.activationCode IS NOT NULL AND head(u.profiles) = {profile} " +
+				"u.activationCode IS NOT NULL AND head(u.profiles) = $profile " +
 				"AND u.deleteDate IS NULL AND u.disappearanceDate IS NULL " +
 				"WITH COLLECT(DISTINCT u) as users " +
 				"WHERE LENGTH(users) = 1 " +

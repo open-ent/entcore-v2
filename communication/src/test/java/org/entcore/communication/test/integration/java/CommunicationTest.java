@@ -255,7 +255,7 @@
 //	}
 //
 //	private void personaliseComRules(final Handler<Void> handler) {
-//		String query = "MATCH (g:ProfileGroup) WHERE g.name IN {groups} RETURN g.id as id, g.name as name ";
+//		String query = "MATCH (g:ProfileGroup) WHERE g.name IN $groups RETURN g.id as id, g.name as name ";
 //		JsonObject params = new JsonObject().put("groups", new fr.wseduc.webutils.collections.JsonArray()
 //				.add("TPS-Student").add("TPS-Teacher")
 //				.add("Ecole primaire Emile Zola-Student").add("Ecole primaire Emile Zola-Teacher"));
@@ -432,7 +432,7 @@
 //
 //	private void userCanCommunicateWith(String fromUserLogin, final String toUserLogin, final boolean assertion,
 //			final Handler<Void> handler) {
-//		String query = "MATCH (u:User {login : {login}}) RETURN u.id as id";
+//		String query = "MATCH (u:User {login : $login}) RETURN u.id as id";
 //		JsonObject params = new JsonObject().put("login", fromUserLogin);
 //		neo4j.execute(query, params, new Handler<Message<JsonObject>>() {
 //			@Override

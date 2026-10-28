@@ -38,9 +38,9 @@ public class PimExpiryJobTest {
                 "CREATE (adml:Function {externalId:'ADMIN_LOCAL', name:'AdminLocal'}) " +
                 "CREATE (sa:Function {externalId:'SUPER_ADMIN', name:'SuperAdmin'}) " +
                 "CREATE (fg:Group:FunctionGroup {id:'fg1', externalId:'s1-ADMIN_LOCAL'})-[:DEPENDS]->(s) " +
-                "CREATE (expired:User {id:'expired'})-[:HAS_FUNCTION {scope:['s1'], validUntil:{past}}]->(adml) " +
+                "CREATE (expired:User {id:'expired'})-[:HAS_FUNCTION {scope:['s1'], validUntil:$past}]->(adml) " +
                 "CREATE (expired)-[:IN {source:'MANUAL'}]->(fg) " +
-                "CREATE (valid:User {id:'valid'})-[:HAS_FUNCTION {scope:['s1'], validUntil:{future}}]->(adml) " +
+                "CREATE (valid:User {id:'valid'})-[:HAS_FUNCTION {scope:['s1'], validUntil:$future}]->(adml) " +
                 "CREATE (valid)-[:IN {source:'MANUAL'}]->(fg) " +
                 "CREATE (:User {id:'permanent'})-[:HAS_FUNCTION]->(sa)",
                 new JsonObject().put("past", now - 1000).put("future", now + 3_600_000))

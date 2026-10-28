@@ -48,7 +48,7 @@ public class MappingFinder {
 
 	private static final Logger log = LoggerFactory.getLogger(MappingFinder.class);
 	private final Vertx vertx;
-	private static final String NOP_QUERY = "MATCH (u:User {externalId:{externalId}}) return u.externalId as externalId";
+	private static final String NOP_QUERY = "MATCH (u:User {externalId:$externalId}) return u.externalId as externalId";
 
 	public MappingFinder(Vertx vertx) {
 		this.vertx = vertx;
@@ -73,11 +73,11 @@ public class MappingFinder {
 		final JsonArray errors = new JsonArray();
 		String filter = "";
 		if ("Student".equals(profile)) {
-			filter = "AND u.birthDate = {birthDate} ";
+			filter = "AND u.birthDate = $birthDate ";
 		}
 		final String query =
-				"MATCH (s:Structure {externalId : {id}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
-				"WHERE u.firstNameSearchField = {firstName} AND u.lastNameSearchField = {lastName} AND head(u.profiles) = {profile} " +
+				"MATCH (s:Structure {externalId : $id})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+				"WHERE u.firstNameSearchField = $firstName AND u.lastNameSearchField = $lastName AND head(u.profiles) = $profile " +
 				filter +
 				"RETURN DISTINCT u.externalId as externalId";
 		final List<String[]> lines = new ArrayList<>();
@@ -249,9 +249,9 @@ public class MappingFinder {
 			appendIdx =  childLastNameIndex.getInteger(0);
 		}
 		final String query =
-				"MATCH (s:Structure {externalId : {id}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
-				"WHERE u.firstNameSearchField = {firstName} AND u.lastNameSearchField = {lastName} AND head(u.profiles) = 'Student' " +
-				"RETURN DISTINCT u.externalId as externalId, {rowIdx} as line, {itemIdx} as item ";
+				"MATCH (s:Structure {externalId : $id})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+				"WHERE u.firstNameSearchField = $firstName AND u.lastNameSearchField = $lastName AND head(u.profiles) = 'Student' " +
+				"RETURN DISTINCT u.externalId as externalId, $rowIdx as line, $itemIdx as item ";
 		final TransactionHelper tx;
 		try {
 			tx = TransactionManager.getTransaction();

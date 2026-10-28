@@ -111,7 +111,7 @@ public class DefaultMassMessagingService implements MassMessagingService {
 	public void getSenderDisplayName(HttpServerRequest request, JsonObject messageConfig, Handler<Either<JsonObject, String>> handler) {
 
 		String senderId = messageConfig.getString("sender-id");
-		String query = "MATCH (v:Visible) WHERE v.id = {id} RETURN v.displayName AS displayName";
+		String query = "MATCH (v:Visible) WHERE v.id = $id RETURN v.displayName AS displayName";
 		JsonObject param = new JsonObject().put("id", senderId);
 
 		neo4j.execute(query, param, new Handler<Message<JsonObject>>() {
@@ -206,7 +206,7 @@ public class DefaultMassMessagingService implements MassMessagingService {
 							log.info("Sender not found, using fallback: " + senderUsername);
 						}
 						String query = "MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-                            "WHERE u.login IN {logins} "+
+                            "WHERE u.login IN $logins "+
                             "RETURN DISTINCT u.id as id, u.login as login";
 
 						JsonObject params = new JsonObject().put("logins", loginList);

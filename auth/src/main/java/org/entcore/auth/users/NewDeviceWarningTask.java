@@ -243,7 +243,7 @@ public class NewDeviceWarningTask extends TemplatedEmailRenders implements Handl
             user.addNewConnection(conn);
         }
 
-        String getUsersEmail = "MATCH (u:User) WHERE u.id IN {users} " +
+        String getUsersEmail = "MATCH (u:User) WHERE u.id IN $users " +
                                 "OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
                                 "RETURN u.id AS id, u.email AS email, u.displayName AS displayName, u.lastScheme AS lastScheme, u.lastDomain AS lastDomain, u.federated AS federated, " +
                                 "uac.theme AS theme, uac.language AS language";
@@ -427,7 +427,7 @@ public class NewDeviceWarningTask extends TemplatedEmailRenders implements Handl
         UserUtils.getUserInfos(vertx.eventBus(), request, user -> {
             if (user != null) {
                 // Need the email address, theme.... :-(
-                String getUserEmail = "MATCH (u:User{id:{user}}) " +
+                String getUserEmail = "MATCH (u:User{id:$user}) " +
                     "OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
                     "RETURN u.email AS email, u.displayName AS displayName, u.lastScheme AS lastScheme, u.lastDomain AS lastDomain, u.federated AS federated, " +
                     "uac.theme AS theme, uac.language AS language";

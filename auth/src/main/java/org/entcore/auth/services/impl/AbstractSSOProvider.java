@@ -145,11 +145,11 @@ public abstract class AbstractSSOProvider implements SamlServiceProvider {
 							handler.handle(new Either.Left<String, Object>("blocked.user"));
 						} else if (setFederated &&  event.isRight() && event.right().getValue().getBoolean("federated") == null &&
 								event.right().getValue().getString("id") != null) {
-							String query = "MATCH (u:User {id: {id}}) SET u.federated = true, u.changePw=null ";
+							String query = "MATCH (u:User {id: $id}) SET u.federated = true, u.changePw=null ";
 							JsonObject params = new JsonObject().put("id", event.right().getValue().getString("id"));
 							if (assertion != null && assertion.getIssuer() != null &&
 									assertion.getIssuer().getValue() != null && !assertion.getIssuer().getValue().trim().isEmpty()) {
-								query += ", u.federatedIDP = {idp} ";
+								query += ", u.federatedIDP = $idp ";
 								params.put("idp", assertion.getIssuer().getValue());
 							}
 							Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {
@@ -195,11 +195,11 @@ public abstract class AbstractSSOProvider implements SamlServiceProvider {
 					}
 					if (userIds.size() > 0) {
 						if (userIds.size() == 1) {
-							String query = "MATCH (u:User) WHERE u.id IN {ids} SET u.federated = true, u.changePw=null ";
+							String query = "MATCH (u:User) WHERE u.id IN $ids SET u.federated = true, u.changePw=null ";
 							JsonObject params = new JsonObject().put("ids", userIds);
 							if (assertion != null && assertion.getIssuer() != null &&
 									assertion.getIssuer().getValue() != null && !assertion.getIssuer().getValue().trim().isEmpty()) {
-								query += ", u.federatedIDP = {idp} ";
+								query += ", u.federatedIDP = $idp ";
 								params.put("idp", assertion.getIssuer().getValue());
 							}
 							Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {
@@ -211,7 +211,7 @@ public abstract class AbstractSSOProvider implements SamlServiceProvider {
 						} else {
 							if (assertion != null && assertion.getIssuer() != null &&
 								assertion.getIssuer().getValue() != null && !assertion.getIssuer().getValue().trim().isEmpty()) {
-									String query = "MATCH (u:User) WHERE u.id IN {ids} SET u.federatedIDP = {idp} ";
+									String query = "MATCH (u:User) WHERE u.id IN $ids SET u.federatedIDP = $idp ";
 									JsonObject params = new JsonObject().put("ids", userIds);
 									params.put("idp", assertion.getIssuer().getValue());
 									Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {

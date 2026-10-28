@@ -270,7 +270,7 @@ public class DefaultStructureImportService implements StructureImportService {
 				return;
 			}
 			// Contrôle 3 : le compte existe encore, et n'est pas en attente de suppression.
-			neo.execute("MATCH (u:User {id: {userId}}) "
+			neo.execute("MATCH (u:User {id: $userId}) "
 							+ "RETURN u.login as login, u.displayName as displayName, "
 							+ "       exists(u.deleteDate) as deletePending",
 					new JsonObject().put("userId", userId), res -> {

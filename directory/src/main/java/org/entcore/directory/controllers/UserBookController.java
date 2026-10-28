@@ -203,14 +203,14 @@ public class UserBookController extends BaseController {
 			return;
 		}
 		if(profile != null && !profile.trim().isEmpty()){
-			filter += "AND HEAD(m.profiles) = {profile} ";
+			filter += "AND HEAD(m.profiles) = $profile ";
 			params.put("profile", profile);
 		}
 		if(structure != null && !structure.trim().isEmpty()){
-			filter += "AND (m)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Structure {id: {structureId}}) ";
+			filter += "AND (m)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Structure {id: $structureId}) ";
 			params.put("structureId", structure);
 		}
-		String preFilter = "AND m.displayNameSearchField CONTAINS {search} " + filter;
+		String preFilter = "AND m.displayNameSearchField CONTAINS $search " + filter;
 		params.put("search", StringValidation.sanitize(name));
 		//FIXME should be optimized by removing unecessary optionals
 		String customReturn =
@@ -271,7 +271,7 @@ public class UserBookController extends BaseController {
 	public void showStructure(final HttpServerRequest request) {
 		String structureId = request.params().get("structId");
 		String customReturn =
-				"MATCH (s:Structure { id : {structId}})<-[:DEPENDS]-(pg:ProfileGroup)" +
+				"MATCH (s:Structure { id : $structId})<-[:DEPENDS]-(pg:ProfileGroup)" +
 				"-[:HAS_PROFILE]->(p:Profile {name : 'Personnel'}), visibles-[:IN]->pg " +
 				"OPTIONAL MATCH visibles-[:USERBOOK]->(u:UserBook) " +
 				"RETURN DISTINCT p.name as type, visibles.id as id, " +
@@ -284,14 +284,14 @@ public class UserBookController extends BaseController {
 			@Override
 			public void handle(final JsonArray personnel) {
 				String customReturn =
-						"MATCH profileGroup-[:DEPENDS]->(c:Class)-[:BELONGS]->(s:Structure { id : {structId}}) " +
+						"MATCH profileGroup-[:DEPENDS]->(c:Class)-[:BELONGS]->(s:Structure { id : $structId}) " +
 						"RETURN collect(distinct {id: c.id, name: c.name, level: c.level}) as classes, " +
 						"collect(distinct {id: profileGroup.id, name: profileGroup.name, groupDisplayName: profileGroup.groupDisplayName }) as profileGroups";
 				UserUtils.findVisibleProfilsGroups(eb, request, customReturn, params, new Handler<JsonArray>() {
 					@Override
 					public void handle(final JsonArray classesAndProfileGroups) {
 						String customReturn =
-								"MATCH manualGroup-[:DEPENDS]->(c)-[:BELONGS*0..1]->(s:Structure { id : {structId}}) " +
+								"MATCH manualGroup-[:DEPENDS]->(c)-[:BELONGS*0..1]->(s:Structure { id : $structId}) " +
 								"WHERE ALL(label IN labels(c) WHERE label IN [\"Structure\", \"Class\"]) " +
 								"RETURN DISTINCT manualGroup.id as id, manualGroup.name as name, manualGroup.groupDisplayName as groupDisplayName " +
 								"ORDER BY name ASC ";
@@ -322,7 +322,7 @@ public class UserBookController extends BaseController {
 			return;
 		}
 		String customReturn =
-				"MATCH (s:Group { id : {groupId}})<-[:IN]-(visibles) " +
+				"MATCH (s:Group { id : $groupId})<-[:IN]-(visibles) " +
 				"RETURN DISTINCT HEAD(visibles.profiles) as type, visibles.id as id, " +
 				"visibles.displayName as displayName, visibles.login as login " +
 				"ORDER BY type DESC, displayName ";
@@ -348,10 +348,10 @@ public class UserBookController extends BaseController {
 						String matchClass;
 						JsonObject params = new JsonObject();
 						if (classId == null || classId.trim().isEmpty()) {
-							matchClass = "(n:User {id : {userId}})-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(c:Class) ";
+							matchClass = "(n:User {id : $userId})-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(c:Class) ";
 							params.put("userId", userInfos.getUserId());
 						} else {
-							matchClass = "(c:Class {id : {classId}}) ";
+							matchClass = "(c:Class {id : $classId}) ";
 							params.put("classId", classId);
 						}
 
@@ -368,7 +368,7 @@ public class UserBookController extends BaseController {
 								"OPTIONAL MATCH m-[:USERBOOK]->u " +
 								"RETURN distinct head(m.profiles) as type, m.id as id, " +
 								"m.displayName as displayName, u.mood as mood, " +
-								"u.userid as userId, u.picture as photo, (m.id IN {visibles}) as isVisible " +
+								"u.userid as userId, u.picture as photo, (m.id IN $visibles) as isVisible " +
 								"ORDER BY type DESC, displayName ";
 
 						Neo4j.getInstance().execute(
@@ -395,7 +395,7 @@ public class UserBookController extends BaseController {
 						String attr = prop.replaceAll("\\W+", "");
 						String neoRequest =
 								"MATCH (n:User)-[:USERBOOK]->(m:UserBook)" +
-								"WHERE n.id = {id} SET m." + attr + "={value}";
+								"WHERE n.id = $id SET m." + attr + "=$value";
 						Map<String, Object> params = new HashMap<>();
 						params.put("id", user.getUserId());
 						params.put("value", request.params().get("value"));
@@ -575,7 +575,7 @@ public class UserBookController extends BaseController {
 				String query =
 						"MATCH (u:User) " +
 						message.body().getString("additionalMatch", "") +
-						"WHERE u.id IN {userIds} AND u.activationCode IS NULL " +
+						"WHERE u.id IN $userIds AND u.activationCode IS NULL " +
 						message.body().getString("additionalWhere", "") +
 						"OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
 						"WITH DISTINCT u, uac " +
@@ -683,10 +683,10 @@ public class UserBookController extends BaseController {
 					String[] monthRegex = {"01", "02", "03", "04", "05", "06",
 							"07", "08", "09", "10", "11", "12"};
 
-					final String preFilter = "AND HEAD(m.profiles) = 'Student' AND m.birthDate=~{regex} ";
+					final String preFilter = "AND HEAD(m.profiles) = 'Student' AND m.birthDate=~$regex ";
 
 					String query =
-							"MATCH (u:User {id:{userId}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
+							"MATCH (u:User {id:$userId})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 									"WITH DISTINCT c, profile, visibles " +
 									"MATCH visibles-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c) " +
 									"RETURN distinct visibles.id as id, visibles.displayName as username, " +
@@ -737,7 +737,7 @@ public class UserBookController extends BaseController {
 					params.put("id", user.getUserId());
 					String query =
 							"MATCH (n:User)-[:USERBOOK]->u " +
-							"WHERE n.id = {id} " +
+							"WHERE n.id = $id " +
 							"RETURN u.userPreferencesBirthdayClass as userPreferencesBirthdayClass";
 					neo.send(query, params, request.response());
 				} else {
@@ -796,7 +796,7 @@ public class UserBookController extends BaseController {
 
 	private void refreshPreferences(final UserInfos user, final HttpServerRequest request, final Handler<Either<String, JsonObject>> handler){
 		String query =
-				"MATCH (u:User {id:{userId}})-[:PREFERS]->(uac:UserAppConf) RETURN uac AS preferences";
+				"MATCH (u:User {id:$userId})-[:PREFERS]->(uac:UserAppConf) RETURN uac AS preferences";
 
 		neo.execute(query,
 			new JsonObject().put("userId", user.getUserId()),
@@ -867,10 +867,10 @@ public class UserBookController extends BaseController {
 						public void handle(Buffer body) {
 							params.put("conf", body.toString("UTF-8"));
 							String query =
-									"MATCH (u:User {id:{userId}})"
+									"MATCH (u:User {id:$userId})"
 											+"MERGE (u)-[:PREFERS]->(uac:UserAppConf)"
-											+" ON CREATE SET uac."+ application +" = {conf}"
-											+" ON MATCH SET uac."+ application +" = {conf}";
+											+" ON CREATE SET uac."+ application +" = $conf"
+											+" ON MATCH SET uac."+ application +" = $conf";
 							neo.execute(query, params, validUniqueResultHandler(new Handler<Either<String, JsonObject>>() {
 								@Override
 								public void handle(Either<String, JsonObject> result) {

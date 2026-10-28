@@ -58,26 +58,26 @@ public class EDTImporter extends AbstractTimetableImporter implements EDTReader 
 	protected static final Logger log = LoggerFactory.getLogger(EDTImporter.class);
 
 	private static final String MATCH_PERSEDUCNAT_QUERY =
-			"MATCH (:Structure {UAI : {UAI}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
-			"WHERE head(u.profiles) IN ['Teacher','Personnel'] AND toLower(u.lastName) = {lastName} AND toLower(u.firstName) = {firstName} " +
-			"OPTIONAL MATCH (upn:User {IDPN: {IDPN}}) " +
+			"MATCH (:Structure {UAI : $UAI})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+			"WHERE head(u.profiles) IN ['Teacher','Personnel'] AND toLower(u.lastName) = $lastName AND toLower(u.firstName) = $firstName " +
+			"OPTIONAL MATCH (upn:User {IDPN: $IDPN}) " +
 			"WITH COLLECT(DISTINCT u) as user, COUNT(DISTINCT upn) as countUpn " +
 			"WHERE countUpn = 0 AND LENGTH(user) = 1 " +
-			"SET HEAD(user).IDPN = {IDPN} " +
-			"RETURN DISTINCT HEAD(user).id as id, HEAD(user).IDPN as IDPN, {profile} as profile";
+			"SET HEAD(user).IDPN = $IDPN " +
+			"RETURN DISTINCT HEAD(user).id as id, HEAD(user).IDPN as IDPN, $profile as profile";
 	private static final String STUDENTS_TO_GROUPS =
-			"MATCH (u:User {id : {id}}), (fg:FunctionalGroup {externalId:{externalId}}) " +
+			"MATCH (u:User {id : $id}), (fg:FunctionalGroup {externalId:$externalId}) " +
 			"MERGE u-[r:IN]->fg " +
-			"SET r.lastUpdated = {now}, r.source = {source}, r.inDate = {inDate}, r.outDate = {outDate} ";
+			"SET r.lastUpdated = $now, r.source = $source, r.inDate = $inDate, r.outDate = $outDate ";
 	private static final String CLEAN_IDPN =
-			"MATCH (:Structure {UAI : {UAI}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+			"MATCH (:Structure {UAI : $UAI})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
 			"WHERE u.IDPN IS NOT NULL AND HEAD(u.profiles) IN ['Relative','Guest', 'Student'] " +
 			"SET u.IDPN = null";
 	private static final String CLEAN_IDPN_OTHER_STRUCTURE =
 			"MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-			"WHERE u.IDPN  starts with {structureExternalId} " +
+			"WHERE u.IDPN  starts with $structureExternalId " +
 			"WITH u, collect(s.externalId) as struct " +
-			"WHERE NOT({structureExternalId} IN struct) " +
+			"WHERE NOT($structureExternalId IN struct) " +
 			"SET u.IDPN = null";
 	private final String mode;
 	public static final String IDENT = "Ident";
@@ -159,7 +159,7 @@ public class EDTImporter extends AbstractTimetableImporter implements EDTReader 
 
 	private void userExternalId(final Handler<Void> handler) {
 		if (!userImportedPronoteId.isEmpty()) {
-			final String query = "MATCH (u:User) where u.IDPN IN {pronoteIds} RETURN COLLECT(u.externalId) as externalIds";
+			final String query = "MATCH (u:User) where u.IDPN IN $pronoteIds RETURN COLLECT(u.externalId) as externalIds";
 			TransactionManager.getNeo4jHelper().execute(query, new JsonObject().put("pronoteIds",
 					new JsonArray(new ArrayList<>(userImportedPronoteId))), new Handler<Message<JsonObject>>() {
 				@Override

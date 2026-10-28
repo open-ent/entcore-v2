@@ -121,7 +121,7 @@ public class ScimFeeder {
             case "user-replace":
                 return requireScimSource("User", id).compose(x -> replaceUser(id, payload.getJsonObject("resource", new JsonObject())));
             case "user-patch":
-                return requireScimSource("User", id).compose(x -> exec("MATCH (u:User {id:{id}}) SET u += {props} RETURN u.id AS id ",
+                return requireScimSource("User", id).compose(x -> exec("MATCH (u:User {id:$id}) SET u += $props RETURN u.id AS id ",
                         new JsonObject().put("id", id).put("props", userPatchProps(payload.getJsonObject("resource", new JsonObject()))),
                         "scim.patch.error"))
                         .compose(x -> syncUserStructuresFromPatch(id, payload.getJsonObject("resource", new JsonObject())));
@@ -132,7 +132,7 @@ public class ScimFeeder {
             case "group-patch":
                 return requireScimSource("Group", id).compose(x -> patchGroup(id, payload.getJsonObject("resource", new JsonObject())));
             case "group-delete":
-                return requireScimSource("Group", id).compose(x -> exec("MATCH (g:Group {id:{id}}) " +
+                return requireScimSource("Group", id).compose(x -> exec("MATCH (g:Group {id:$id}) " +
                         "OPTIONAL MATCH (g)<-[:DEPENDS]-(cpg:ProfileGroup) DETACH DELETE cpg, g RETURN 1 AS ok ",
                         new JsonObject().put("id", id), "scim.delete.error"));
             default:
@@ -141,7 +141,7 @@ public class ScimFeeder {
     }
 
     private Future<JsonObject> requireScimSource(String label, String id) {
-        return exec("OPTIONAL MATCH (n:" + label + " {id:{id}}) RETURN n.id AS id, n.source AS source ",
+        return exec("OPTIONAL MATCH (n:" + label + " {id:$id}) RETURN n.id AS id, n.source AS source ",
                 new JsonObject().put("id", id), "scim.read.error").compose(r -> {
             final JsonObject row = r.getJsonArray("result", new JsonArray()).isEmpty() ? new JsonObject()
                     : r.getJsonArray("result").getJsonObject(0);
@@ -156,13 +156,13 @@ public class ScimFeeder {
     private Future<JsonObject> createUser(String id, JsonObject resource) {
         final String externalId = resource.getString("externalId");
         final JsonObject check = new JsonObject().put("id", id).put("externalId", externalId);
-        return exec("OPTIONAL MATCH (u:User) WHERE u.id = {id} OR (u.scimExternalId IS NOT NULL AND u.scimExternalId = {externalId}) " +
+        return exec("OPTIONAL MATCH (u:User) WHERE u.id = $id OR (u.scimExternalId IS NOT NULL AND u.scimExternalId = $externalId) " +
                 "RETURN u.id AS id, u.source AS source, u.deleteDate IS NOT NULL AS pending ", check, "scim.read.error").compose(r -> {
             final JsonObject existing = r.getJsonArray("result").getJsonObject(0);
             final String existingId = existing.getString("id");
             if (existingId == null) {
                 return upsertUser(resource.copy().put("id", id))
-                        .compose(x -> exec("MATCH (u:User {id:{id}}) SET u.scimExternalId = {externalId}, u.blocked = {blocked} RETURN u.id AS id ",
+                        .compose(x -> exec("MATCH (u:User {id:$id}) SET u.scimExternalId = $externalId, u.blocked = $blocked RETURN u.id AS id ",
                                 check.copy().put("blocked", Boolean.FALSE.equals(resource.getBoolean("active"))), "scim.user.create.error"))
                         .compose(x -> setUserStructures(id, structureIds(resource)))
                         .map(x -> new JsonObject().put("id", id));
@@ -187,7 +187,7 @@ public class ScimFeeder {
         if (resource.getString("externalId") != null) props.put("scimExternalId", resource.getString("externalId"));
         // PUT remplace : un attribut absent est effacé (email), sauf les identifiants générés par l'ENT.
         props.put("email", primaryEmail(resource));
-        return exec("MATCH (u:User {id:{id}}) SET u += {props} RETURN u.id AS id ",
+        return exec("MATCH (u:User {id:$id}) SET u += $props RETURN u.id AS id ",
                 new JsonObject().put("id", id).put("props", props), "scim.user.replace.error")
                 .compose(x -> setUserStructures(id, structureIds(resource)))
                 .map(x -> new JsonObject().put("id", id));
@@ -233,11 +233,11 @@ public class ScimFeeder {
     private Future<JsonObject> setUserStructures(String userId, JsonArray structureIds) {
         if (structureIds == null) return Future.succeededFuture(new JsonObject());
         final JsonObject params = new JsonObject().put("id", userId).put("structures", structureIds).put("source", SOURCE);
-        return exec("MATCH (u:User {id:{id}})-[r:IN {source:{source}}]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-                "WHERE NOT s.id IN {structures} DELETE r RETURN count(r) AS removed ", params, "scim.user.structures.error")
-                .compose(x -> exec("MATCH (u:User {id:{id}}) MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup) " +
-                        "WHERE s.id IN {structures} AND pg.filter = coalesce(u.profileScim, head(u.profiles)) " +
-                        "MERGE (u)-[:IN {source:{source}}]->(pg) " +
+        return exec("MATCH (u:User {id:$id})-[r:IN {source:$source}]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
+                "WHERE NOT s.id IN $structures DELETE r RETURN count(r) AS removed ", params, "scim.user.structures.error")
+                .compose(x -> exec("MATCH (u:User {id:$id}) MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup) " +
+                        "WHERE s.id IN $structures AND pg.filter = coalesce(u.profileScim, head(u.profiles)) " +
+                        "MERGE (u)-[:IN {source:$source}]->(pg) " +
                         "WITH u, collect(DISTINCT s.externalId) AS eids " +
                         "SET u.structures = eids RETURN u.id AS id ", params, "scim.user.structures.error"));
     }
@@ -247,7 +247,7 @@ public class ScimFeeder {
         final String structureId = ext.getJsonObject("structure", new JsonObject()).getString("value");
         if (structureId == null) return Future.failedFuture("scim.invalid:" + ODE_GROUP_EXT + ":structure required");
         if (resource.getString("displayName") == null) return Future.failedFuture("scim.invalid:displayName required");
-        return exec("OPTIONAL MATCH (g:Group {id:{id}}) OPTIONAL MATCH (s:Structure {id:{structureId}}) " +
+        return exec("OPTIONAL MATCH (g:Group {id:$id}) OPTIONAL MATCH (s:Structure {id:$structureId}) " +
                 "RETURN g.id AS id, s.id AS structureId ", new JsonObject().put("id", id).put("structureId", structureId),
                 "scim.read.error").compose(r -> {
             final JsonObject row = r.getJsonArray("result").getJsonObject(0);
@@ -255,9 +255,9 @@ public class ScimFeeder {
             if (row.getString("structureId") == null) return Future.failedFuture("scim.invalid:unknown structure " + structureId);
             return upsertGroup(resource.copy().put("id", id));
         })
-        .compose(x -> exec("MATCH (g:Group {id:{id}}) SET g.scimExternalId = {externalId} RETURN g.id AS id ",
+        .compose(x -> exec("MATCH (g:Group {id:$id}) SET g.scimExternalId = $externalId RETURN g.id AS id ",
                 new JsonObject().put("id", id).put("externalId", resource.getString("externalId")), "scim.group.create.error"))
-        .compose(x -> linkGroupToStructure("MATCH (g:Group {id:{id}}) MATCH (s:Structure {id:{structureId}}) ",
+        .compose(x -> linkGroupToStructure("MATCH (g:Group {id:$id}) MATCH (s:Structure {id:$structureId}) ",
                 new JsonObject().put("id", id).put("structureId", structureId)))
         .compose(x -> addMembers(id, valuesOf(resource.getJsonArray("members", new JsonArray()))))
         .map(x -> new JsonObject().put("id", id));
@@ -284,8 +284,8 @@ public class ScimFeeder {
                     && ((JsonObject) value).getString("displayName") != null)) {
                 final String name = "displayName".equals(path) ? String.valueOf(firstIfArray(value))
                         : ((JsonObject) value).getString("displayName");
-                chain = chain.compose(x -> exec("MATCH (g:Group {id:{id}}) SET g.name = {name}, g.modified = {now} " +
-                        "WITH g OPTIONAL MATCH (g)<-[:DEPENDS]-(cpg:ProfileGroup) SET cpg.name = {name} + '-' + cpg.filter " +
+                chain = chain.compose(x -> exec("MATCH (g:Group {id:$id}) SET g.name = $name, g.modified = $now " +
+                        "WITH g OPTIONAL MATCH (g)<-[:DEPENDS]-(cpg:ProfileGroup) SET cpg.name = $name + '-' + cpg.filter " +
                         "RETURN g.id AS id ", new JsonObject().put("id", id).put("name", name).put("now", DateTime.now().toString()),
                         "scim.group.patch.error"));
             }
@@ -296,21 +296,21 @@ public class ScimFeeder {
     /** Adhésion (source SCIM) : ProfileGroup de la classe selon le profil, sinon le groupe lui-même. */
     private Future<JsonObject> addMembers(String groupId, JsonArray userIds) {
         if (userIds.isEmpty()) return Future.succeededFuture(new JsonObject());
-        return exec("MATCH (g:Group {id:{id}}) MATCH (u:User) WHERE u.id IN {users} " +
+        return exec("MATCH (g:Group {id:$id}) MATCH (u:User) WHERE u.id IN $users " +
                 "OPTIONAL MATCH (g)<-[:DEPENDS]-(cpg:ProfileGroup) WHERE cpg.filter = coalesce(u.profileScim, head(u.profiles)) " +
-                "FOREACH (_ IN CASE WHEN cpg IS NOT NULL THEN [1] ELSE [] END | MERGE (u)-[:IN {source:{source}}]->(cpg) ) " +
-                "FOREACH (_ IN CASE WHEN cpg IS NULL THEN [1] ELSE [] END | MERGE (u)-[:IN {source:{source}}]->(g) ) " +
+                "FOREACH (_ IN CASE WHEN cpg IS NOT NULL THEN [1] ELSE [] END | MERGE (u)-[:IN {source:$source}]->(cpg) ) " +
+                "FOREACH (_ IN CASE WHEN cpg IS NULL THEN [1] ELSE [] END | MERGE (u)-[:IN {source:$source}]->(g) ) " +
                 "RETURN count(DISTINCT u) AS added ",
                 new JsonObject().put("id", groupId).put("users", userIds).put("source", SOURCE), "scim.group.members.error");
     }
 
     /** Retrait des adhésions de source SCIM (null = toutes) ; les adhésions d'autres sources restent. */
     private Future<JsonObject> removeMembers(String groupId, JsonArray userIds) {
-        final String filter = userIds == null ? "" : "AND u.id IN {users} ";
-        return exec("MATCH (g:Group {id:{id}}) " +
-                "OPTIONAL MATCH (u:User)-[r:IN {source:{source}}]->(g) WHERE true " + filter +
+        final String filter = userIds == null ? "" : "AND u.id IN $users ";
+        return exec("MATCH (g:Group {id:$id}) " +
+                "OPTIONAL MATCH (u:User)-[r:IN {source:$source}]->(g) WHERE true " + filter +
                 "WITH g, collect(r) AS direct " +
-                "OPTIONAL MATCH (u:User)-[r:IN {source:{source}}]->(:ProfileGroup)-[:DEPENDS]->(g) WHERE true " + filter +
+                "OPTIONAL MATCH (u:User)-[r:IN {source:$source}]->(:ProfileGroup)-[:DEPENDS]->(g) WHERE true " + filter +
                 "WITH direct + collect(r) AS rels FOREACH (r IN rels | DELETE r) RETURN size(rels) AS removed ",
                 new JsonObject().put("id", groupId).put("users", userIds == null ? new JsonArray() : userIds).put("source", SOURCE),
                 "scim.group.members.error");
@@ -383,13 +383,13 @@ public class ScimFeeder {
 
         // Idempotent : MERGE par externalId ; ProfileGroups MERGE par externalId dérivé (re-livraison sûre).
         final String query =
-                "MERGE (s:Structure {externalId:{externalId}}) " +
-                "ON CREATE SET s += {props} " +
-                "SET s.source = {source}, s.scimExternalId = {scimExternalId} " +
+                "MERGE (s:Structure {externalId:$externalId}) " +
+                "ON CREATE SET s += $props " +
+                "SET s.source = $source, s.scimExternalId = $scimExternalId " +
                 "WITH s MATCH (p:Profile) " +
                 "MERGE (s)<-[:DEPENDS]-(g:Group:ProfileGroup {externalId: s.externalId + '-' + p.name}) " +
                 "  ON CREATE SET g.id = id(g)+'-'+timestamp(), g.name = s.name+'-'+p.name, " +
-                "                g.displayNameSearchField = {groupSearchField}, g.filter = p.name, g.source = {source} " +
+                "                g.displayNameSearchField = $groupSearchField, g.filter = p.name, g.source = $source " +
                 "MERGE (g)-[:HAS_PROFILE]->(p) " +
                 "RETURN DISTINCT s.id as id ";
         final JsonObject params = new JsonObject()
@@ -428,9 +428,9 @@ public class ScimFeeder {
 
         // Idempotent : MERGE par externalId (re-livraison ne recrée pas ; login/activationCode conservés).
         final String query =
-                "MERGE (u:User {externalId:{externalId}}) " +
-                "ON CREATE SET u += {props} " +
-                "SET u.source = {source}, u.profileScim = {profile}, u.profiles = [{profile}] " +
+                "MERGE (u:User {externalId:$externalId}) " +
+                "ON CREATE SET u += $props " +
+                "SET u.source = $source, u.profileScim = $profile, u.profiles = [$profile] " +
                 "RETURN u.id as id, u.login as login ";
         final JsonObject params = new JsonObject()
                 .put("externalId", user.getString("externalId"))
@@ -479,9 +479,9 @@ public class ScimFeeder {
         // Nœud :Group neutre porteur du type ; la nature (Class vs FunctionalGroup) est décidée lors du
         // rattachement à une organisation (RoleAssignment Group->Organization), qui donne la structure.
         final String query =
-                "MERGE (g:Group {externalId:{externalId}}) " +
-                "ON CREATE SET g.id = {id}, g.created = {now} " +
-                "SET g.name = {name}, g.source = {source}, g.scimType = {scimType}, g.modified = {now} " +
+                "MERGE (g:Group {externalId:$externalId}) " +
+                "ON CREATE SET g.id = $id, g.created = $now " +
+                "SET g.name = $name, g.source = $source, g.scimType = $scimType, g.modified = $now " +
                 "RETURN g.id as id ";
         final JsonObject params = new JsonObject()
                 .put("id", scimGroup.getString("id"))
@@ -505,10 +505,10 @@ public class ScimFeeder {
         if ("User".equals(st) && "Organization".equals(sc)) {
             // Rattachement de l'utilisateur au ProfileGroup de son profil dans la structure.
             final String q =
-                    "MATCH (u:User {externalId:{userEid}}) " +
-                    "MATCH (s:Structure {externalId:{structEid}})<-[:DEPENDS]-(pg:ProfileGroup) " +
+                    "MATCH (u:User {externalId:$userEid}) " +
+                    "MATCH (s:Structure {externalId:$structEid})<-[:DEPENDS]-(pg:ProfileGroup) " +
                     "WHERE pg.filter = u.profileScim " +
-                    "MERGE (u)-[:IN {source:{source}, scimRaId:{raId}}]->(pg) " +
+                    "MERGE (u)-[:IN {source:$source, scimRaId:$raId}]->(pg) " +
                     "SET u.structures = coalesce(u.structures, []) + s.externalId " +
                     "RETURN u.id as id ";
             return exec(q, new JsonObject()
@@ -518,7 +518,7 @@ public class ScimFeeder {
                     .put("source", SOURCE), "scim.ra.user.org.error");
         }
         if ("Group".equals(st) && "Organization".equals(sc)) {
-            return linkGroupToStructure("MATCH (g:Group {externalId:{groupEid}}) MATCH (s:Structure {externalId:{structEid}}) ",
+            return linkGroupToStructure("MATCH (g:Group {externalId:$groupEid}) MATCH (s:Structure {externalId:$structEid}) ",
                     new JsonObject()
                     .put("groupEid", scimEid(subject.getString("value")))
                     .put("structEid", scimEid(scope.getString("value"))));
@@ -527,13 +527,13 @@ public class ScimFeeder {
             // Si le groupe est une Class : adhésion au ProfileGroup de la classe correspondant au profil
             // de l'utilisateur ; sinon adhésion directe au groupe fonctionnel.
             final String q =
-                    "MATCH (u:User {externalId:{userEid}}) " +
-                    "MATCH (g:Group {externalId:{groupEid}}) " +
+                    "MATCH (u:User {externalId:$userEid}) " +
+                    "MATCH (g:Group {externalId:$groupEid}) " +
                     "OPTIONAL MATCH (g)<-[:DEPENDS]-(cpg:ProfileGroup) WHERE cpg.filter = u.profileScim " +
                     "FOREACH (_ IN CASE WHEN cpg IS NOT NULL THEN [1] ELSE [] END | " +
-                    "  MERGE (u)-[:IN {source:{source}, scimRaId:{raId}}]->(cpg) ) " +
+                    "  MERGE (u)-[:IN {source:$source, scimRaId:$raId}]->(cpg) ) " +
                     "FOREACH (_ IN CASE WHEN cpg IS NULL THEN [1] ELSE [] END | " +
-                    "  MERGE (u)-[:IN {source:{source}, scimRaId:{raId}}]->(g) ) " +
+                    "  MERGE (u)-[:IN {source:$source, scimRaId:$raId}]->(g) ) " +
                     "RETURN u.id as id ";
             return exec(q, new JsonObject()
                     .put("userEid", scimEid(subject.getString("value")))
@@ -561,7 +561,7 @@ public class ScimFeeder {
                 "FOREACH (_ IN CASE WHEN spg IS NOT NULL THEN [1] ELSE [] END | " +
                 "  MERGE (g)<-[:DEPENDS]-(cpg:Group:ProfileGroup {externalId: g.externalId + '-' + p.name}) " +
                 "    ON CREATE SET cpg.id = id(cpg)+'-'+timestamp(), cpg.name = g.name+'-'+p.name, " +
-                "                  cpg.filter = p.name, cpg.source = {source} " +
+                "                  cpg.filter = p.name, cpg.source = $source " +
                 "  MERGE (cpg)-[:DEPENDS]->(spg) ) " +
                 "RETURN g.id as id ";
         return exec(q, params.copy().put("source", SOURCE), "scim.ra.group.org.error");
@@ -577,18 +577,18 @@ public class ScimFeeder {
         if ("User".equals(resourceType)) {
             return preDeleteUser(eid);
         } else if ("Group".equals(resourceType)) {
-            q = "OPTIONAL MATCH (g:Group {externalId:{eid}}) " +
+            q = "OPTIONAL MATCH (g:Group {externalId:$eid}) " +
                 "OPTIONAL MATCH (g)<-[:DEPENDS]-(cpg:ProfileGroup) " +
                 "DETACH DELETE cpg, g RETURN 1 AS ok ";
         } else if ("Organization".equals(resourceType)) {
-            q = "OPTIONAL MATCH (s:Structure {externalId:{eid}}) " +
+            q = "OPTIONAL MATCH (s:Structure {externalId:$eid}) " +
                 "OPTIONAL MATCH (s)<-[:DEPENDS]-(pg:ProfileGroup) " +
                 "OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class) OPTIONAL MATCH (c)<-[:DEPENDS]-(cpg:ProfileGroup) " +
                 "DETACH DELETE cpg, c, pg, s RETURN 1 AS ok ";
         } else if ("RoleAssignment".equals(resourceType)) {
             // Retrait de l'appartenance : la relation d'adhésion porte l'id de la RoleAssignment (scimRaId).
             // (scimId est ici l'id brut de la RA, pas un externalId.)
-            return exec("OPTIONAL MATCH ()-[r:IN {scimRaId:{raId}}]->() DELETE r RETURN 1 AS ok ",
+            return exec("OPTIONAL MATCH ()-[r:IN {scimRaId:$raId}]->() DELETE r RETURN 1 AS ok ",
                     new JsonObject().put("raId", scimId), "scim.ra.delete.error");
         } else {
             return Future.succeededFuture(new JsonObject().put("status", "ignored")
@@ -619,7 +619,7 @@ public class ScimFeeder {
 
     /** Restaure un User mis en attente de suppression (deleteDate) qui est de nouveau provisionné. */
     private Future<JsonObject> restoreIfPreDeleted(String eid) {
-        return exec("OPTIONAL MATCH (u:User {externalId:{eid}}) WHERE u.deleteDate IS NOT NULL RETURN u.id AS id ",
+        return exec("OPTIONAL MATCH (u:User {externalId:$eid}) WHERE u.deleteDate IS NOT NULL RETURN u.id AS id ",
                 new JsonObject().put("eid", eid), "scim.restore.error")
                 .compose(r -> {
                     final String userId = firstId(r);
@@ -633,14 +633,14 @@ public class ScimFeeder {
             User.restorePreDeleted(userId, tx);
             // Sans rattachement au moment du delete, aucun Backup n'a été créé et
             // restorePreDeleted ne sort pas le compte du DeleteGroup : on le fait ici.
-            tx.add("MATCH (u:User {id:{userId}})-[r:IN]->(:DeleteGroup) " +
+            tx.add("MATCH (u:User {id:$userId})-[r:IN]->(:DeleteGroup) " +
                    "REMOVE u.deleteDate, u.disappearanceDate DELETE r",
                    new JsonObject().put("userId", userId));
         }, "scim.restore.error");
     }
 
     private Future<String> findUserId(String eid) {
-        return exec("OPTIONAL MATCH (u:User {externalId:{eid}}) RETURN u.id AS id ",
+        return exec("OPTIONAL MATCH (u:User {externalId:$eid}) RETURN u.id AS id ",
                 new JsonObject().put("eid", eid), "scim.user.find.error").map(ScimFeeder::firstId);
     }
 
@@ -652,7 +652,7 @@ public class ScimFeeder {
     /** Activation / désactivation d'un compte (User) -> propriété blocked. */
     public Future<JsonObject> setUserBlocked(String scimId, boolean blocked) {
         if (scimId == null) return Future.failedFuture("scim.activate.no.id");
-        return exec("OPTIONAL MATCH (u:User {externalId:{eid}}) SET u.blocked = {blocked} RETURN 1 AS ok ",
+        return exec("OPTIONAL MATCH (u:User {externalId:$eid}) SET u.blocked = $blocked RETURN 1 AS ok ",
                 new JsonObject().put("eid", scimEid(scimId)).put("blocked", blocked), "scim.activate.error");
     }
 
@@ -663,7 +663,7 @@ public class ScimFeeder {
      */
     public Future<JsonObject> applyUserPatch(String scimId, JsonObject data) {
         if (scimId == null) return Future.failedFuture("scim.patch.no.id");
-        return exec("OPTIONAL MATCH (u:User {externalId:{eid}}) SET u += {props} RETURN 1 AS ok ",
+        return exec("OPTIONAL MATCH (u:User {externalId:$eid}) SET u += $props RETURN 1 AS ok ",
                 new JsonObject().put("eid", scimEid(scimId)).put("props", userPatchProps(data)), "scim.patch.error");
     }
 

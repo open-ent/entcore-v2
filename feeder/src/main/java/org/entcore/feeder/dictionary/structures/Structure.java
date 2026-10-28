@@ -105,9 +105,9 @@ public class Structure {
 			return;
 		}
 		String query =
-				"MATCH (s:Structure { externalId : {externalId}}) " +
+				"MATCH (s:Structure { externalId : $externalId}) " +
 				"WITH s " +
-				"WHERE s.checksum IS NULL OR s.checksum <> {checksum} " +
+				"WHERE s.checksum IS NULL OR s.checksum <> $checksum " +
 				"SET " + Neo4jUtils.nodeSetPropertiesFromJson("s", struct, "id", "externalId", "created", "name");
 		getTransaction().add(query, struct);
 
@@ -115,15 +115,15 @@ public class Structure {
 		Boolean manualName = this.struct.getBoolean("manualName");
 		if (currName != null && !currName.equals(struct.getString("name")) && Boolean.TRUE.equals(manualName) == false) {
 			String updateGroupsStructureName =
-					"MATCH (s:Structure { externalId : {externalId}})<-[:DEPENDS]-(g:Group) " +
-					"WHERE s.checksum = {checksum} and g.structureName IS NOT NULL " +
-					"SET s.name = {name}, g.structureName = {name} ";
+					"MATCH (s:Structure { externalId : $externalId})<-[:DEPENDS]-(g:Group) " +
+					"WHERE s.checksum = $checksum and g.structureName IS NOT NULL " +
+					"SET s.name = $name, g.structureName = $name ";
 			getTransaction().add(updateGroupsStructureName, struct);
 			String updateGroupsName =
-					"MATCH (s:Structure { externalId : {externalId}})<-[:DEPENDS]-(g:Group) " +
-					"WHERE s.checksum = {checksum} and last(split(g.name, '-')) IN " +
+					"MATCH (s:Structure { externalId : $externalId})<-[:DEPENDS]-(g:Group) " +
+					"WHERE s.checksum = $checksum and last(split(g.name, '-')) IN " +
 					"['Student','Teacher','Personnel','Relative','Guest','AdminLocal','HeadTeacher', 'Direction', 'SCOLARITE'] " +
-					"SET g.name = {name} + '-' + last(split(g.name, '-')), g.displayNameSearchField = {sanitizeName} ";
+					"SET g.name = $name + '-' + last(split(g.name, '-')), g.displayNameSearchField = $sanitizeName ";
 			getTransaction().add(updateGroupsName, struct.copy().put("sanitizeName", Validator.sanitize(struct.getString("name"))));
 		}
 		this.struct = struct;
@@ -132,10 +132,10 @@ public class Structure {
 
 	public void create() {
 		String query =
-				"CREATE (s:Structure {props}) " +
+				"CREATE (s:Structure $props) " +
 				"WITH s " +
 				"MATCH (p:Profile) " +
-				"CREATE p<-[:HAS_PROFILE]-(g:Group:ProfileGroup {name : s.name+'-'+p.name, displayNameSearchField: {groupSearchField}, filter: p.name})-[:DEPENDS]->s " +
+				"CREATE p<-[:HAS_PROFILE]-(g:Group:ProfileGroup {name : s.name+'-'+p.name, displayNameSearchField: $groupSearchField, filter: p.name})-[:DEPENDS]->s " +
 				"SET g.id = id(g)+'-'+timestamp() ";
 		JsonObject params = new JsonObject()
 				.put("id", id)
@@ -148,8 +148,8 @@ public class Structure {
 
 	public void setSource(String source)
 	{
-		String query = "MATCH (s:Structure { externalId : {externalId}}) " +
-						"SET s.source = {source} ";
+		String query = "MATCH (s:Structure { externalId : $externalId}) " +
+						"SET s.source = $source ";
 		JsonObject params = new JsonObject().put("externalId", getExternalId()).put("source", source);
 		getTransaction().add(query, params);
 	}
@@ -164,8 +164,8 @@ public class Structure {
 			joinKey.add(externalId);
 			joinKey = new JsonArray(joinKey.stream().distinct().collect(Collectors.toList()));
 			String query =
-					"MATCH (s:Structure {externalId: {externalId}}) " +
-					"SET s.joinKey = {joinKey} ";
+					"MATCH (s:Structure {externalId: $externalId}) " +
+					"SET s.joinKey = $joinKey ";
 			JsonObject params = new JsonObject().put("joinKey", joinKey).put("externalId", getExternalId());
 			getTransaction().add(query, params);
 			return joinKey.getList().toArray();
@@ -181,14 +181,14 @@ public class Structure {
 			String query;
 			if (functionalAttachment.size() == 1) {
 				query =
-						"MATCH (s:Structure { externalId : {externalId}}), " +
-						"(ps:Structure { externalId : {functionalAttachment}}) " +
+						"MATCH (s:Structure { externalId : $externalId}), " +
+						"(ps:Structure { externalId : $functionalAttachment}) " +
 						"CREATE UNIQUE s-[:HAS_ATTACHMENT]->ps";
 				params.put("functionalAttachment", functionalAttachment.getString(0));
 			} else {
 				query =
-						"MATCH (s:Structure { externalId : {externalId}}), (ps:Structure) " +
-						"WHERE ps.externalId IN {functionalAttachment} " +
+						"MATCH (s:Structure { externalId : $externalId}), (ps:Structure) " +
+						"WHERE ps.externalId IN $functionalAttachment " +
 						"CREATE UNIQUE s-[:HAS_ATTACHMENT]->ps";
 				params.put("functionalAttachment", functionalAttachment);
 			}
@@ -198,12 +198,12 @@ public class Structure {
 
 	public void createClassIfAbsent(String classExternalId, String name) {
 			String query =
-					"MATCH (s:Structure { externalId : {structureExternalId}}) " +
-					"CREATE s<-[:BELONGS]-(c:Class {props}) " +
-					"SET c.source = coalesce({importSource}, s.source) " +
+					"MATCH (s:Structure { externalId : $structureExternalId}) " +
+					"CREATE s<-[:BELONGS]-(c:Class $props) " +
+					"SET c.source = coalesce($importSource, s.source) " +
 					"WITH s, c " +
 					"MATCH s<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-					"CREATE c<-[:DEPENDS]-(pg:Group:ProfileGroup {name : c.name+'-'+p.name, displayNameSearchField: {groupSearchField}, filter: p.name})-[:DEPENDS]->g " +
+					"CREATE c<-[:DEPENDS]-(pg:Group:ProfileGroup {name : c.name+'-'+p.name, displayNameSearchField: $groupSearchField, filter: p.name})-[:DEPENDS]->g " +
 					"SET pg.id = id(pg)+'-'+timestamp() ";
 			JsonObject params = new JsonObject()
 					.put("structureExternalId", externalId)
@@ -219,9 +219,9 @@ public class Structure {
 
 	public void updateClassName(String classExternalId, String name) {
 			String query =
-					"MATCH (c:Class { externalId : {externalId}})<-[:DEPENDS]-(g:ProfileGroup) " +
-					"WHERE c.name <> {name} " +
-					"SET c.name = {name}, g.name = {name} +'-'+ g.filter, g.displayNameSearchField = {groupSearchField} ";
+					"MATCH (c:Class { externalId : $externalId})<-[:DEPENDS]-(g:ProfileGroup) " +
+					"WHERE c.name <> $name " +
+					"SET c.name = $name, g.name = $name +'-'+ g.filter, g.displayNameSearchField = $groupSearchField ";
 			JsonObject params = new JsonObject()
 					.put("externalId", classExternalId)
 					.put("name", name)
@@ -236,10 +236,10 @@ public class Structure {
 
 	public void createFunctionalGroupIfAbsent(String groupExternalId, String name, String source) {
 			String query =
-					"MATCH (s:Structure { externalId : {structureExternalId}}) " +
-					(source == null ? "WHERE (s.timetable IS NULL OR s.timetable = '') " : "WHERE s.timetable = {source} ") +
-					"CREATE s<-[:DEPENDS]-(c:Group:FunctionalGroup {props}) " +
-					"SET c.source = coalesce({source}, {importSource}, s.source) ";
+					"MATCH (s:Structure { externalId : $structureExternalId}) " +
+					(source == null ? "WHERE (s.timetable IS NULL OR s.timetable = '') " : "WHERE s.timetable = $source ") +
+					"CREATE s<-[:DEPENDS]-(c:Group:FunctionalGroup $props) " +
+					"SET c.source = coalesce($source, $importSource, s.source) ";
 			JsonObject params = new JsonObject()
 					.put("structureExternalId", externalId)
 					.put("props", new JsonObject()
@@ -263,10 +263,10 @@ public class Structure {
 	public void createFunctionGroupIfAbsent(String groupExternalId, String name, String label, String source) {
 		if (isNotEmpty(label)) {
 			String query =
-					"MATCH (s:Structure { externalId : {structureExternalId}}) " +
+					"MATCH (s:Structure { externalId : $structureExternalId}) " +
 					//(source == null ? "WHERE (s.timetable IS NULL OR s.timetable = '' OR s.timetable = 'NOP') " : "WHERE s.timetable = s.source ") +
-					"CREATE s<-[:DEPENDS]-(c:Group:FunctionGroup:" + label + "Group {props}) " +
-					"SET c.source = coalesce({source}, {importSource}, s.source)";
+					"CREATE s<-[:DEPENDS]-(c:Group:FunctionGroup:" + label + "Group $props) " +
+					"SET c.source = coalesce($source, $importSource, s.source)";
 			JsonObject params = new JsonObject()
 					.put("structureExternalId", externalId)
 					.put("props", new JsonObject()
@@ -308,9 +308,9 @@ public class Structure {
 		if (!areHeadTeacherGroupsEnabled()) return null;
 		String structureGroupExternalId = this.getHeadTeacherGroupExternalId();
 			String query =
-					"MATCH (s:Structure { externalId : {structureExternalId}}) " +
-					"MERGE s<-[:DEPENDS]-(c:Group:HTGroup {externalId: {externalId}}) " +
-					"ON CREATE SET c.id = {id}, c.displayNameSearchField = {displayNameSearchField}, c.name = {name}, c.filter = {filter} " +
+					"MATCH (s:Structure { externalId : $structureExternalId}) " +
+					"MERGE s<-[:DEPENDS]-(c:Group:HTGroup {externalId: $externalId}) " +
+					"ON CREATE SET c.id = $id, c.displayNameSearchField = $displayNameSearchField, c.name = $name, c.filter = $filter " +
 					"SET c.source = s.source";
 			JsonObject params = new JsonObject()
 					.put("structureExternalId", externalId)
@@ -332,10 +332,10 @@ public class Structure {
 		String structureGroupExternalId = this.createHeadTeacherGroupIfAbsent();
 		String classGroupExternalId = this.getClassHeadTeacherGroupExternalId(classExternalId);
 			String query =
-					"MATCH (c:Class { externalId : {classExternalId}}) " +
-					"MERGE c<-[:DEPENDS]-(cg:Group:HTGroup {externalId: {externalId}}) " +
-					"ON CREATE SET cg.id = {id}, cg.displayNameSearchField = COALESCE({displayNameSearchField}, c.displayNameSearchField), " +
-					"cg.name = COALESCE({name}, c.name + '-HeadTeacher'), cg.structureName = {structureName}, cg.filter = {filter} " +
+					"MATCH (c:Class { externalId : $classExternalId}) " +
+					"MERGE c<-[:DEPENDS]-(cg:Group:HTGroup {externalId: $externalId}) " +
+					"ON CREATE SET cg.id = $id, cg.displayNameSearchField = COALESCE($displayNameSearchField, c.displayNameSearchField), " +
+					"cg.name = COALESCE($name, c.name + '-HeadTeacher'), cg.structureName = $structureName, cg.filter = $filter " +
 					"SET cg.source = c.source";
 			JsonObject params = new JsonObject()
 					.put("classExternalId", classExternalId)
@@ -347,7 +347,7 @@ public class Structure {
 					.put("filter", "HeadTeacher");
 			getTransaction().add(query, params);
 			String linkParent =
-					"MATCH (sg:HTGroup {externalId: {structureGroupExternalId}}), (cg:HTGroup {externalId: {classGroupExternalId}}) " +
+					"MATCH (sg:HTGroup {externalId: $structureGroupExternalId}), (cg:HTGroup {externalId: $classGroupExternalId}) " +
 					"MERGE sg<-[:DEPENDS]-cg ";
 			JsonObject pl = new JsonObject()
 					.put("structureGroupExternalId", structureGroupExternalId)
@@ -363,9 +363,9 @@ public class Structure {
 	public String createDirectionGroupIfAbsent() {
 		String groupExternalId = this.getDirectionGroupExternalId();
 			String query =
-					"MATCH (s:Structure { externalId : {structureExternalId}}) " +
-					"MERGE s<-[:DEPENDS]-(c:Group:DirectionGroup {externalId: {externalId}}) " +
-					"ON CREATE SET c.id = {id}, c.displayNameSearchField = {displayNameSearchField}, c.name = {name}, c.filter = {filter} " +
+					"MATCH (s:Structure { externalId : $structureExternalId}) " +
+					"MERGE s<-[:DEPENDS]-(c:Group:DirectionGroup {externalId: $externalId}) " +
+					"ON CREATE SET c.id = $id, c.displayNameSearchField = $displayNameSearchField, c.name = $name, c.filter = $filter " +
 					"SET c.source = s.source";
 			JsonObject params = new JsonObject()
 					.put("structureExternalId", externalId)
@@ -380,8 +380,8 @@ public class Structure {
 
 	public void linkModules(String moduleExternalId) {
 		String query =
-				"MATCH (s:Structure { externalId : {externalId}}), " +
-				"(m:Module { externalId : {moduleExternalId}}) " +
+				"MATCH (s:Structure { externalId : $externalId}), " +
+				"(m:Module { externalId : $moduleExternalId}) " +
 				"CREATE UNIQUE s-[:OFFERS]->m";
 		JsonObject params = new JsonObject()
 				.put("externalId", externalId)
@@ -396,7 +396,7 @@ public class Structure {
 	public void transition(boolean onlyRemoveShare, final Handler<Message<JsonObject>> handler) {
 		final TransactionHelper tx = TransactionManager.getInstance().getTransaction("GraphDataUpdate");
 		String query =
-				"MATCH (s:Structure {id : {id}})<-[:BELONGS]-(c:Class)" +
+				"MATCH (s:Structure {id : $id})<-[:BELONGS]-(c:Class)" +
 				"<-[:DEPENDS]-(cpg:Group)<-[:IN]-(u:User) " +
 				"OPTIONAL MATCH s<-[:DEPENDS]-(fg:FunctionalGroup) " +
 				"RETURN collect(distinct u.id) as users, collect(distinct cpg.id) as profileGroups, " +
@@ -444,17 +444,17 @@ public class Structure {
 			tx = TransactionManager.getInstance().begin();
 			final JsonObject params = new JsonObject().put("id", id);
 			String query =
-					"MATCH (s:Structure {id : {id}})<-[:BELONGS]-(c:Class)" +
+					"MATCH (s:Structure {id : $id})<-[:BELONGS]-(c:Class)" +
 					"<-[:DEPENDS]-(cpg:Group) " +
 					"OPTIONAL MATCH cpg<-[:IN]-(u:User) " +
 					"RETURN cpg.id as group, cpg.name as groupName, collect(u.id) as users " +
 					"UNION " +
-					"MATCH (s:Structure {id : {id}})<-[r:DEPENDS]-(fg:FunctionalGroup) " +
+					"MATCH (s:Structure {id : $id})<-[r:DEPENDS]-(fg:FunctionalGroup) " +
 					"OPTIONAL MATCH fg<-[:IN]-(u:User) " +
 					"RETURN fg.id as group, fg.name as groupName, collect(u.id) as users ";
 			tx.add(query, params);
 			String queryClasses =
-					"MATCH (s:Structure {id : {id}})<-[:BELONGS]-(c:Class)" +
+					"MATCH (s:Structure {id : $id})<-[:BELONGS]-(c:Class)" +
 					"<-[:DEPENDS]-(cpg:ProfileGroup) " +
 					"OPTIONAL MATCH cpg<-[:IN]-(u:User) " +
 					"RETURN c.id as classId, c.name as className, collect(u.id) as users ";
@@ -469,16 +469,16 @@ public class Structure {
 		TransactionHelper tx = TransactionManager.getInstance().getTransaction("GraphDataUpdate");
 		JsonObject params = new JsonObject().put("id", id);
 		String query =
-				"MATCH (s:Structure {id : {id}})<-[r:BELONGS]-(c:Class)" +
+				"MATCH (s:Structure {id : $id})<-[r:BELONGS]-(c:Class)" +
 				"<-[r1:DEPENDS]-(cpg:Group)-[r2]-() " +
 				"OPTIONAL MATCH c-[r3]-() " +
 				"DELETE r, r1, r2, r3, c, cpg ";
 		tx.add(query, params);
-		query = "MATCH (s:Structure {id : {id}})<-[r:DEPENDS]-(ht:HTGroup) " +
+		query = "MATCH (s:Structure {id : $id})<-[r:DEPENDS]-(ht:HTGroup) " +
 				"OPTIONAL MATCH ht-[r1]-() " +
 				"DELETE r, r1, ht";
 		tx.add(query, params);
-		query = "MATCH (s:Structure {id : {id}})<-[r:DEPENDS]-(fg:FunctionalGroup) " +
+		query = "MATCH (s:Structure {id : $id})<-[r:DEPENDS]-(fg:FunctionalGroup) " +
 				"OPTIONAL MATCH fg-[r1]-() " +
 				"DELETE r, r1, fg";
 		tx.add(query, params);
@@ -490,8 +490,8 @@ public class Structure {
 		JsonObject params = new JsonObject().put("externalId", externalId);
 		String query =
 			"MATCH (u:User) " +
-			"WHERE EXISTS(u.removedFromStructures) AND {externalId} IN u.removedFromStructures " +
-			"SET u.removedFromStructures = [removedStruct IN u.removedFromStructures WHERE removedStruct <> {externalId}]";
+			"WHERE EXISTS(u.removedFromStructures) AND $externalId IN u.removedFromStructures " +
+			"SET u.removedFromStructures = [removedStruct IN u.removedFromStructures WHERE removedStruct <> $externalId]";
 		tx.add(query, params);
 	}
 
@@ -511,7 +511,7 @@ public class Structure {
 	public static void load(String externalId, TransactionHelper transactionHelper, Handler<Structure> handler, Handler<Throwable> error)
 	{
 		JsonObject params = new JsonObject().put("externalId", externalId);
-		String query = "MATCH (s:Structure) WHERE s.externalId = {externalId} RETURN s";
+		String query = "MATCH (s:Structure) WHERE s.externalId = $externalId RETURN s";
 
 		final TransactionHelper tx;
 		try {
@@ -548,7 +548,7 @@ public class Structure {
 		JsonObject params = new JsonObject();
 		String query = "MATCH (s:Structure) ";
 		if (isNotEmpty(exportType)) {
-			query += "WHERE s.exports IS NOT NULL AND {exportType} IN s.exports ";
+			query += "WHERE s.exports IS NOT NULL AND $exportType IN s.exports ";
 			params.put("exportType", exportType);
 		}
 		query += "RETURN count(distinct s) as nb";
@@ -559,7 +559,7 @@ public class Structure {
 		StringBuilder query = new StringBuilder("MATCH (s:Structure) ");
 		JsonObject params = new JsonObject();
 		if (isNotEmpty(exportType)) {
-			query.append("WHERE s.exports IS NOT NULL AND {exportType} IN s.exports ");
+			query.append("WHERE s.exports IS NOT NULL AND $exportType IN s.exports ");
 			params.put("exportType", exportType);
 		}
 		if (attributes != null && attributes.size() > 0) {
@@ -574,8 +574,8 @@ public class Structure {
 		}
 		if (skip != null && limit != null) {
 			query.append("ORDER BY externalId ASC " +
-					"SKIP {skip} " +
-					"LIMIT {limit} ");
+					"SKIP $skip " +
+					"LIMIT $limit ");
 			params.put("skip", skip);
 			params.put("limit", limit);
 		}
@@ -585,12 +585,12 @@ public class Structure {
 	public static void addAttachment(String structureId, String parentStructureId,
 			TransactionHelper transactionHelper) {
 		String query =
-				"MATCH (s:Structure { id : {structureId}}), " +
-				"(ps:Structure { id : {parentStructureId}}) " +
+				"MATCH (s:Structure { id : $structureId}), " +
+				"(ps:Structure { id : $parentStructureId}) " +
 				"CREATE UNIQUE s-[r:HAS_ATTACHMENT]->ps " +
 				"RETURN id(r) as id";
 		String query2 =
-				"MATCH (s:Structure { id : {structureId}})-[:HAS_ATTACHMENT*1..]->(ps:Structure)" +
+				"MATCH (s:Structure { id : $structureId})-[:HAS_ATTACHMENT*1..]->(ps:Structure)" +
 				"<-[:DEPENDS]-(fg:FunctionGroup {name : ps.name + '-AdminLocal'})<-[:IN]-(u:User)" +
 				"-[rf:HAS_FUNCTION]-(f:Function {name : 'AdminLocal'}) " +
 				"WHERE NOT (s.id in rf.scope) " +
@@ -610,13 +610,13 @@ public class Structure {
 	public static void removeAttachment(String structureId, String parentStructureId,
 			TransactionHelper transactionHelper) {
 		String query =
-				"MATCH (s:Structure { id : {structureId}})-[r:HAS_ATTACHMENT]->(ps:Structure { id : {parentStructureId}}) " +
+				"MATCH (s:Structure { id : $structureId})-[r:HAS_ATTACHMENT]->(ps:Structure { id : $parentStructureId}) " +
 				"DELETE r";
 		String query2 =
-				"MATCH (s:Structure { id : {structureId}})-[r:HAS_ATTACHMENT*0..]->(s2:Structure)" +
+				"MATCH (s:Structure { id : $structureId})-[r:HAS_ATTACHMENT*0..]->(s2:Structure)" +
 				"<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
 				"WITH COLLECT(distinct u.id) as ids " +
-				"MATCH (s:Structure { id : {structureId}})<-[:DEPENDS]-(:FunctionGroup {externalId: s.id + '-ADMIN_LOCAL'})" +
+				"MATCH (s:Structure { id : $structureId})<-[:DEPENDS]-(:FunctionGroup {externalId: s.id + '-ADMIN_LOCAL'})" +
 				"<-[r:IN]-(u:User)-[rf:HAS_FUNCTION]-(:Function {name : 'AdminLocal'}) " +
 				"WHERE NOT(u.id IN ids) " +
 				"SET rf.scope = FILTER(sId IN rf.scope WHERE sId <> s.id) " +

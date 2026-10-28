@@ -50,7 +50,7 @@ public class DNSFMigration
       params.put("uid", id);
       params.put("dnsf", DNSFMigration.generateDisplayNamePermutations(dn.toString()));
 
-      String r = DNSFMigration.cypherQuery(cypherUri, "MATCH (u:User {id: {uid} }) SET u.displayNameSearchField = {dnsf}", params);
+      String r = DNSFMigration.cypherQuery(cypherUri, "MATCH (u:User {id: $uid }) SET u.displayNameSearchField = $dnsf", params);
     }
   }
 

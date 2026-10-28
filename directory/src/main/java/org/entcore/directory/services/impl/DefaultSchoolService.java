@@ -92,7 +92,7 @@ public class DefaultSchoolService implements SchoolService {
 				// L'amont 6.16 élargit la recherche à l'UAI et renvoie l'adresse postale ; nos champs
 				// de collectivité (codeDepartement, codeAcademie, structureType) sont conservés.
 				// L'espace avant "return" manque dans la version amont ({id}return -> Cypher invalide).
-				"match (s:`Structure`) where s.id = {id} or s.UAI = {id} " +
+				"match (s:`Structure`) where s.id = $id or s.UAI = $id " +
 				"return s.id as id, s.externalId as externalId, s.UAI as UAI, s.name as name, s.city as city, s.address, " +
 						"s.phone as phone , s.email as email, s.zipCode as zipCode, s.type as type, " +
 						"s.codeDepartement as codeDepartement, s.codeAcademie as codeAcademie, " +
@@ -102,7 +102,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void getByClassId(String classId, Handler<Either<String, JsonObject>> result) {
 		String query =
-				"match (c:`Class` {id : {id}})-[:BELONGS]->(s:`Structure`) " +
+				"match (c:`Class` {id : $id})-[:BELONGS]->(s:`Structure`) " +
 				"return s.id as id, s.UAI as UAI, s.name as name, s.externalId as externalId ";
 		neo.execute(query, new JsonObject().put("id", classId), validUniqueResultHandler(result));
 	}
@@ -110,7 +110,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void listByUserId(String userId, Handler<Either<String, JsonArray>> results) {
 		String query =
-				"MATCH (u:User { id: {id}})-[:IN]->(g: Group)-[:DEPENDS]->(s:Structure) " +
+				"MATCH (u:User { id: $id})-[:IN]->(g: Group)-[:DEPENDS]->(s:Structure) " +
 				"OPTIONAL MATCH (s)-[r:HAS_ATTACHMENT]->(ps:Structure) " +
 				"WITH s, COLLECT(DISTINCT {id: ps.id, name: ps.name}) as parents " +
 				"RETURN DISTINCT s.id as id, s.UAI as UAI, s.name as name, " +
@@ -133,7 +133,7 @@ public class DefaultSchoolService implements SchoolService {
 			UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				condition = "WHERE s.id IN {structures} ";
+				condition = "WHERE s.id IN $structures ";
 				params.put("structures", new JsonArray(scope));
 			}
 		}
@@ -184,7 +184,7 @@ public class DefaultSchoolService implements SchoolService {
 
 	@Override
 	public void isParent(String structureId, String parentStructureId, Handler<Either<String, Boolean>> handler) {
-		final String query = "MATCH (s:Structure {id: {structureId}}) RETURN EXISTS(s-[:HAS_ATTACHMENT*1..]->(:Structure {id: {parentStructureId}})) AS exists";
+		final String query = "MATCH (s:Structure {id: $structureId}) RETURN EXISTS(s-[:HAS_ATTACHMENT*1..]->(:Structure {id: $parentStructureId})) AS exists";
 		JsonObject params = new JsonObject().put("structureId", structureId).put("parentStructureId", parentStructureId);
 		neo.execute(query.toString(), params, validUniqueResultHandler(exists -> {
 			if (exists.isRight()) {
@@ -216,7 +216,7 @@ public class DefaultSchoolService implements SchoolService {
 
 	@Override
 	public void listChildren(String structureId, Handler<Either<String, JsonArray>> results) {
-		final String query = "MATCH (Structure {id: {structureId}})<-[r:HAS_ATTACHMENT*1..]-(s:Structure) RETURN COLLECT(s.id) AS children";
+		final String query = "MATCH (Structure {id: $structureId})<-[r:HAS_ATTACHMENT*1..]-(s:Structure) RETURN COLLECT(s.id) AS children";
 		JsonObject params = new JsonObject().put("structureId", structureId);
 		neo.execute(query.toString(), params, validUniqueResultHandler(handler -> {
 			if (handler.isRight()) {
@@ -238,7 +238,7 @@ public class DefaultSchoolService implements SchoolService {
 		StringBuilder query = new StringBuilder();
 		String filter = "";
 		if (structureIds != null && !structureIds.isEmpty()) {
-			filter = " WHERE s.id IN {ids} ";
+			filter = " WHERE s.id IN $ids ";
 			params.put("ids", structureIds);
 		}
 		query.append("MATCH (s:Structure) ").append(filter).append(" RETURN ");
@@ -272,8 +272,8 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void getLevels(String structureId, boolean inherit, UserInfos userInfos, Handler<Either<String, JsonArray>> results){
 		String filter = inherit 
-			  ? "MATCH (parent:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) "
-			  : "MATCH (s:Structure {id: {structureId}})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) ";
+			  ? "MATCH (parent:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) "
+			  : "MATCH (s:Structure {id: $structureId})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) ";
 		String condition =
 				"WHERE u.level IS NOT NULL ";
 		String filter2 =
@@ -293,14 +293,14 @@ public class DefaultSchoolService implements SchoolService {
 			UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				condition += "AND s.id IN {scope} ";
+				condition += "AND s.id IN $scope ";
 				params.put("scope", new JsonArray(scope));
 			}
 		} else if(userInfos.getFunctions().containsKey(CLASS_ADMIN)){
 			UserInfos.Function f = userInfos.getFunctions().get(CLASS_ADMIN);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				condition = "AND class.id IN {scope} ";
+				condition = "AND class.id IN $scope ";
 				params.put("scope", new JsonArray(scope));
 			}
 		}
@@ -313,8 +313,8 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void setLevelsOfEducation(String structureId, List<Integer> levelsOfEducations, Handler<Either<String, JsonObject>> handler) {
 		String query =
-				"MATCH (s:Structure {id: {structureId}}) " +
-				"SET s.levelsOfEducation = {levelsOfEducation} " +
+				"MATCH (s:Structure {id: $structureId}) " +
+				"SET s.levelsOfEducation = $levelsOfEducation " +
 				"RETURN s.id as id, s.levelsOfEducation as levelsOfEducation";
 
 		JsonObject params = new JsonObject()
@@ -327,8 +327,8 @@ public class DefaultSchoolService implements SchoolService {
     @Override
     public void setDistributions(String structureId, List<String> distributions, Handler<Either<String, JsonObject>> handler) {
         String query =
-                "MATCH (s:Structure {id: {structureId}}) " +
-                        "SET s.distributions = {distributions} " +
+                "MATCH (s:Structure {id: $structureId}) " +
+                        "SET s.distributions = $distributions " +
                         "RETURN s.id as id, s.distributions as distributions";
 
         JsonObject params = new JsonObject()
@@ -343,7 +343,7 @@ public class DefaultSchoolService implements SchoolService {
 	public void listSources(String structureId, Handler<Either<String, JsonArray>> result) {
 		String query = 
 			"MATCH (u:User)-[:IN]->(pg: ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-			"WHERE s.id = {structureId} " + 
+			"WHERE s.id = $structureId " + 
 			"RETURN collect(distinct u.source) as sources";
 
 		JsonObject params = new JsonObject().put("structureId", structureId);
@@ -354,7 +354,7 @@ public class DefaultSchoolService implements SchoolService {
 	public void listAafFunctions(String structureId, Handler<Either<String, JsonArray>> result) {
 		String query = 
 			"MATCH (u:User)-[:IN]->(pg: ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-			"WHERE s.id = {structureId} " + 
+			"WHERE s.id = $structureId " + 
 			"RETURN collect(DISTINCT EXTRACT(function IN u.functions | split(function, \"$\"))) as aafFunctions";
 
 		JsonObject params = new JsonObject().put("structureId", structureId);
@@ -364,7 +364,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void getMetrics(String structureId, Handler<Either<String, JsonObject>> results){
 		String query = "MATCH (s:Structure) " +
-				"WHERE s.id = {structureId} " +
+				"WHERE s.id = $structureId " +
 				"MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s)," +
 				"(pg)-[:HAS_PROFILE]->(p:Profile) " +
 				"WITH p, collect(distinct u) as allUsers " +
@@ -382,10 +382,10 @@ public class DefaultSchoolService implements SchoolService {
 	public void quickSearchUsers(String structureId, String input, Handler<Either<String, JsonArray>> handler) {
 		final String search = StringValidation.sanitize(input);
 		String query =
-			"MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id: {id}}) " +
-			"WHERE u.displayNameSearchField CONTAINS {search} " +
-			"OR u.lastNameSearchField CONTAINS {search} " +
-			"OR u.firstNameSearchField CONTAINS {search} " +
+			"MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id: $id}) " +
+			"WHERE u.displayNameSearchField CONTAINS $search " +
+			"OR u.lastNameSearchField CONTAINS $search " +
+			"OR u.firstNameSearchField CONTAINS $search " +
 			"RETURN distinct u.id as id, u.firstName as firstName, u.lastName as lastName, u.displayName as displayName " +
 			"ORDER BY u.lastName";
 
@@ -402,8 +402,8 @@ public class DefaultSchoolService implements SchoolService {
 			filter = (listRemovedUsersInsteadOfNormalUsers ? "AND " : "WHERE ") + EXCLUDE_ADMC_QUERY_FILTER;
 		}
 		String userStructMatcher = listRemovedUsersInsteadOfNormalUsers == false
-			? "MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id:{structureId}}) "
-			: "MATCH (s:Structure {id:{structureId}}), " +
+			? "MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id:$structureId}) "
+			: "MATCH (s:Structure {id:$structureId}), " +
 				"(u:User)-[:IN]->(pg:ProfileGroup) WHERE EXISTS(u.removedFromStructures) AND s.externalId IN (coalesce(u.removedFromStructures, [])) ";
 		String query =
 			userStructMatcher + filter +
@@ -430,7 +430,7 @@ public class DefaultSchoolService implements SchoolService {
 			"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, CASE WHEN mgroup IS NULL THEN [] ELSE COLLECT(distinct mgroup.name) END as manualGroups " +
 			"OPTIONAL MATCH (u)-[rf:HAS_FUNCTION]->(f:Function) " +
 			"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, manualGroups, CASE WHEN f IS NULL THEN [] ELSE COLLECT(distinct [f.externalId, rf.scope]) END as functions " +
-			"OPTIONAL MATCH (u)-[:HAS_POSITION]->(p:UserPosition)-[:IN]->(:Structure {id:{structureId}}) " +
+			"OPTIONAL MATCH (u)-[:HAS_POSITION]->(p:UserPosition)-[:IN]->(:Structure {id:$structureId}) " +
 			"  WITH distinct u, classes, structuresDup, duplicates, structures, functionalGroups, manualGroups, functions, CASE WHEN p IS NULL THEN [] ELSE COLLECT(distinct {id: p.id}) END as userPositions " +
 			"RETURN DISTINCT " +
 			"u.id as id, u.profiles[0] as type, u.activationCode as code, u.login as login," +
@@ -444,8 +444,8 @@ public class DefaultSchoolService implements SchoolService {
 		}else if("mono".equals(listUserMode)){
 			//include presuppressed (mono etab)
 			query += " UNION " +
-					"MATCH (s: Structure) WHERE s.id = {structureId} WITH s " +
-					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) WHERE {structureId} IN b.structureIds AND EXISTS(u.deleteDate)" +
+					"MATCH (s: Structure) WHERE s.id = $structureId WITH s " +
+					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) WHERE $structureId IN b.structureIds AND EXISTS(u.deleteDate)" +
 					"WITH u, b, s " +
 					"RETURN DISTINCT u.id as id, u.profiles[0] as type, u.activationCode as code, u.login as login, u.firstName as firstName, u.lastName as lastName, u.displayName as displayName, " +
 					"u.source as source, u.deleteDate as deleteDate, u.disappearanceDate as disappearanceDate, u.blocked as blocked, u.created as creationDate, u.removedFromStructures as removedFromStructures, " +
@@ -456,7 +456,7 @@ public class DefaultSchoolService implements SchoolService {
 			//include presuppressed (multi etab)
 			query += " UNION " +
 					"MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b: Backup) " +
-					"WHERE {structureId} IN b.structureIds AND EXISTS(u.deleteDate)" +
+					"WHERE $structureId IN b.structureIds AND EXISTS(u.deleteDate)" +
 					"MATCH (s: Structure) " +
 					"WHERE s.id IN b.structureIds " +
 					"WITH u, b, s " +
@@ -477,12 +477,12 @@ public class DefaultSchoolService implements SchoolService {
 			filter = "AND " + EXCLUDE_ADMC_QUERY_FILTER;
 		}
 		String query =
-			"MATCH (s:Structure {id:{structureId}})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) " +
-			"WHERE g.name ENDS WITH {profile} " + filter +
+			"MATCH (s:Structure {id:$structureId})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) " +
+			"WHERE g.name ENDS WITH $profile " + filter +
 			// Un compte de démonstration verrouillé n'est jamais bloqué, même par un blocage en
 			// masse : il est ignoré, les autres comptes du profil sont traités normalement.
-			"AND ({blocked} = false OR coalesce(u.lockedCredentials, false) = false) " +
-			"SET u.blocked = {blocked} " +
+			"AND ($blocked = false OR coalesce(u.lockedCredentials, false) = false) " +
+			"SET u.blocked = $blocked " +
 			"RETURN COLLECT(DISTINCT u.id) as usersId";
 		JsonObject params = new JsonObject()
 				.put("structureId", structureId)
@@ -499,7 +499,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void searchCriteria(List<String> structures, boolean getClassesForMonoEtabOnly, Handler<Either<String, JsonObject>> handler) {
 		final StringBuilder query = new StringBuilder();
-		query.append("MATCH (s:Structure) WHERE s.id IN {structures} ");
+		query.append("MATCH (s:Structure) WHERE s.id IN $structures ");
 
 		if (getClassesForMonoEtabOnly) {
 			if(structures != null && structures.size() == 1) {
@@ -511,7 +511,7 @@ public class DefaultSchoolService implements SchoolService {
 
 		query.append("OPTIONAL MATCH (s)<-[:DEPENDS]-(fg:FunctionGroup) ");
 		query.append("OPTIONAL MATCH (s)<-[:DEPENDS]-(htg:HTGroup) ");
-		query.append("OPTIONAL MATCH (s)<-[:DEPENDS]-(dirg:DirectionGroup) WHERE {1d} IN COALESCE(s.levelsOfEducation, {defLoe})");
+		query.append("OPTIONAL MATCH (s)<-[:DEPENDS]-(dirg:DirectionGroup) WHERE {1d} IN COALESCE(s.levelsOfEducation, $defLoe)");
 		query.append("RETURN COLLECT(DISTINCT { id: s.id, name: s.name}) as structures, ");
 
 		if (getClassesForMonoEtabOnly) {
@@ -535,7 +535,7 @@ public class DefaultSchoolService implements SchoolService {
 
 	@Override
 	public void getClasses(String structureId, Handler<Either<String, JsonObject>> handler) {
-		String query = "MATCH (s: Structure {id: {structureId}})<-[:BELONGS]-(c:Class) " +
+		String query = "MATCH (s: Structure {id: $structureId})<-[:BELONGS]-(c:Class) " +
 				"RETURN FILTER(c IN COLLECT(DISTINCT { id: c.id, label: c.name }) WHERE NOT(c.id IS NULL)) as classes";
 		neo.execute(query, new JsonObject().put("structureId", structureId), validUniqueResultHandler(handler));
 	}
@@ -559,11 +559,11 @@ public class DefaultSchoolService implements SchoolService {
 			Boolean ignoreMFA = jo.getBoolean("ignoreMFA");
 
 			if (structureId != null) {
-				String query = "MATCH (s:Structure {id: {structureId}}) " +
-						"SET s.levelsOfEducation = {levelsOfEducation} " +
-						"SET s.distributions = {distributions} " +
-						"SET s.ignoreMFA = {ignoreMFA} " +
-						"SET s.hasApp = {hasApp}";
+				String query = "MATCH (s:Structure {id: $structureId}) " +
+						"SET s.levelsOfEducation = $levelsOfEducation " +
+						"SET s.distributions = $distributions " +
+						"SET s.ignoreMFA = $ignoreMFA " +
+						"SET s.hasApp = $hasApp";
 
 				JsonObject params = new JsonObject().put("structureId", structureId)
 						.put("levelsOfEducation", education_levels)
@@ -582,7 +582,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void resetName(String structureId, Handler<Either<String, JsonObject>> handler)
 	{
-		String query = "MATCH (s:Structure {id:{structureId}}) SET s.manualName = false, s.name = coalesce(s.feederName, s.name)";
+		String query = "MATCH (s:Structure {id:$structureId}) SET s.manualName = false, s.name = coalesce(s.feederName, s.name)";
 		JsonObject params = new JsonObject().put("structureId", structureId);
 		neo.execute(query, params, validEmptyHandler(handler));
 	}
@@ -590,7 +590,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void getActivationInfos(JsonArray structureIds, Handler<Either<String, JsonArray>> handler) {
 		StringBuilder query = new StringBuilder();
-		query.append("MATCH (s:Structure) WHERE s.id IN {structures} WITH s ");
+		query.append("MATCH (s:Structure) WHERE s.id IN $structures WITH s ");
 		query.append("MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s)" );
 		query.append("WITH s, COLLECT(DISTINCT u) AS uu ");
 		query.append("UNWIND uu AS u ");
@@ -611,7 +611,7 @@ public class DefaultSchoolService implements SchoolService {
 	public void getUsersActivity(JsonArray userIds, Handler<Either<String, JsonArray>> handler) {
 		StringBuilder query = new StringBuilder();
 
-		query.append("MATCH (u:User) WHERE u.id IN {users} ");
+		query.append("MATCH (u:User) WHERE u.id IN $users ");
 		query.append("RETURN u.id as id, u.lastLogin AS lastlogin, ");
 		query.append("(CASE WHEN u.lastLogin IS NULL THEN FALSE ELSE TRUE END) AS isactive");
 
@@ -622,7 +622,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void getStructureNameByUAI(JsonArray uais, Handler<Either<String, JsonArray>> handler) {
 		StringBuilder query = new StringBuilder();
-		query.append("MATCH (s:Structure) WHERE s.UAI IN {uais} ");
+		query.append("MATCH (s:Structure) WHERE s.UAI IN $uais ");
 		query.append("RETURN s.name AS name, s.UAI as UAI");
 		JsonArray uaiUppercase = new JsonArray(uais.stream().map(uai -> uai.toString().toUpperCase()).collect(Collectors.toList()));
 		JsonObject params = new JsonObject().put("uais", uaiUppercase);
@@ -661,8 +661,8 @@ public class DefaultSchoolService implements SchoolService {
 			buildDuplicateDefaultAuthQuery(structureId, targetUAIs, builder);
 		}
 		if (setDistribution || setEducation || setHasApp || setQuietHoursSetting) {
-			String structureUpdateQuery = "MATCH (s:Structure {id:{structureId}}), (s2:Structure) " +
-					"WHERE s2.UAI IN {uais} SET ";
+			String structureUpdateQuery = "MATCH (s:Structure {id:$structureId}), (s2:Structure) " +
+					"WHERE s2.UAI IN $uais SET ";
 			if (setDistribution) {
 				structureUpdateQuery += "s2.distributions = s.distributions,";
 			}
@@ -684,15 +684,15 @@ public class DefaultSchoolService implements SchoolService {
 		if (setQuietHoursSetting) {
 			final String updateQuery =
 					"MATCH (s:Structure) " +
-					"WHERE s.UAI in {uais} AND (s.notificationTimezone IS NOT NULL OR s.notificationQuietHours IS NOT NULL) " +
+					"WHERE s.UAI in $uais AND (s.notificationTimezone IS NOT NULL OR s.notificationQuietHours IS NOT NULL) " +
 					"WITH s " +
 					"MATCH (s)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
 					"WITH s, collect(DISTINCT u) AS allUsers " +
 					"UNWIND allUsers AS u " +
 					"OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
 					"WITH s, u, uac, " +
-					"  (s.notificationTimezone IS NOT NULL AND (uac IS NULL OR uac.timezone IS NULL OR NOT uac.timezone CONTAINS {userManagedMarker})) AS shouldUpdateTimezone, " +
-					"  (s.notificationQuietHours IS NOT NULL AND (uac IS NULL OR uac.quietHours IS NULL OR NOT uac.quietHours CONTAINS {userManagedMarker})) AS shouldUpdateQuietHours " +
+					"  (s.notificationTimezone IS NOT NULL AND (uac IS NULL OR uac.timezone IS NULL OR NOT uac.timezone CONTAINS $userManagedMarker)) AS shouldUpdateTimezone, " +
+					"  (s.notificationQuietHours IS NOT NULL AND (uac IS NULL OR uac.quietHours IS NULL OR NOT uac.quietHours CONTAINS $userManagedMarker)) AS shouldUpdateQuietHours " +
 					"WHERE shouldUpdateTimezone OR shouldUpdateQuietHours " +
 					"MERGE (u)-[:PREFERS]->(uac2:UserAppConf) " +
 					"FOREACH (_ IN CASE WHEN shouldUpdateTimezone THEN [1] ELSE [] END | SET uac2.timezone = s.notificationTimezone) " +
@@ -705,14 +705,14 @@ public class DefaultSchoolService implements SchoolService {
 	private void buildDuplicateQuery(String structureId, JsonArray targetUAIs, StatementsBuilder builder, String nodeType, String groupType) {
 		final JsonObject params = new JsonObject().put("structureId", structureId).put("uais", targetUAIs);
 		final String deleteExistingQuery = "MATCH (r:"+nodeType+")<-[a:AUTHORIZED]-(:"+groupType+")-[:DEPENDS]->(s:Structure) " +
-				"WHERE s.UAI in {uais} " +
+				"WHERE s.UAI in $uais " +
 				"AND NOT (:External)-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r) " +
 				"DELETE a";
 		builder.add(deleteExistingQuery, params);
-		final String duplicateQuery = "MATCH (s:Structure {id:{structureId}})<-[:DEPENDS]-(g1:"+groupType+")-[a:AUTHORIZED]->(r:"+nodeType+"), " +
+		final String duplicateQuery = "MATCH (s:Structure {id:$structureId})<-[:DEPENDS]-(g1:"+groupType+")-[a:AUTHORIZED]->(r:"+nodeType+"), " +
 				"(s2:Structure)<-[:DEPENDS]-(g2:"+groupType+") " +
 				"WHERE NOT (:External)-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r) " +
-				"AND s2.UAI IN {uais} AND g2.name ENDS WITH LAST(SPLIT(g1.name, '-')) AND g1.id <> g2.id " +
+				"AND s2.UAI IN $uais AND g2.name ENDS WITH LAST(SPLIT(g1.name, '-')) AND g1.id <> g2.id " +
 				"MERGE (g2)-[a2:AUTHORIZED]->(r)" +
 				"ON CREATE SET a2.mandatory = a.mandatory";
 		builder.add(duplicateQuery, params);
@@ -721,18 +721,18 @@ public class DefaultSchoolService implements SchoolService {
 	private void buildDuplicateDefaultAuthQuery(String structureId, JsonArray targetUAIs, StatementsBuilder builder) {
 		final JsonObject params = new JsonObject().put("structureId", structureId).put("uais", targetUAIs);
 		final String deleteExistingQuery = "MATCH (s2:Structure)-[:HAS_AUTH_DEFAULT]->(d:AuthDefault) " +
-				"WHERE s2.UAI IN {uais} " +
+				"WHERE s2.UAI IN $uais " +
 				"DETACH DELETE d";
 		builder.add(deleteExistingQuery, params);
-		final String duplicateQuery = "MATCH (s:Structure {id:{structureId}})-[:HAS_AUTH_DEFAULT]->(d:AuthDefault), (s2:Structure) " +
-				"WHERE s2.UAI IN {uais} " +
+		final String duplicateQuery = "MATCH (s:Structure {id:$structureId})-[:HAS_AUTH_DEFAULT]->(d:AuthDefault), (s2:Structure) " +
+				"WHERE s2.UAI IN $uais " +
 				"MERGE (s2)-[:HAS_AUTH_DEFAULT]->(:AuthDefault { profile: d.profile, auth: d.auth })";
 		builder.add(duplicateQuery, params);
 	}
 
 	@Override
 	public void checkGAR(JsonArray uais, Handler<Either<String, JsonArray>> handler) {
-		final String query = "MATCH (s:Structure) WHERE s.source IN ['AAF', 'AAF1D'] AND s.UAI IN {uais} " +
+		final String query = "MATCH (s:Structure) WHERE s.source IN ['AAF', 'AAF1D'] AND s.UAI IN $uais " +
 				"MATCH s<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) " +
 				"WITH s, count(u) as users where users > 0 RETURN DISTINCT s.name AS name, s.UAI as UAI";
 		JsonArray uaiUppercase = new JsonArray(uais.stream().map(uai -> uai.toString().toUpperCase()).collect(Collectors.toList()));
@@ -762,10 +762,10 @@ public class DefaultSchoolService implements SchoolService {
 	}
 
 	private void activateGar(String garId, String uai, String groupName, String appName, String roleName, JsonObject raAssignmentPolicy, Handler<Either<JsonObject, JsonObject>> handler) {
-		final String query = "MATCH (s:Structure {UAI:{uai}}) OPTIONAL MATCH (s)<-[:DEPENDS]-(g:ManualGroup{name:{groupName}}) SET " +
-				"s.exports = CASE WHEN ('GAR-' + {garId}) IN coalesce(s.exports, []) then s.exports " +
-				"WHEN ANY(x IN coalesce(s.exports, []) WHERE x starts WITH 'GAR-') then [x IN s.exports | CASE WHEN x STARTS WITH 'GAR-' THEN 'GAR-' + {garId} ELSE x END] " +
-				"ELSE coalesce(s.exports, []) + ('GAR-' + {garId}) END return s.id as structureId, s.source as source, g.id as groupId";
+		final String query = "MATCH (s:Structure {UAI:$uai}) OPTIONAL MATCH (s)<-[:DEPENDS]-(g:ManualGroup{name:$groupName}) SET " +
+				"s.exports = CASE WHEN ('GAR-' + $garId) IN coalesce(s.exports, []) then s.exports " +
+				"WHEN ANY(x IN coalesce(s.exports, []) WHERE x starts WITH 'GAR-') then [x IN s.exports | CASE WHEN x STARTS WITH 'GAR-' THEN 'GAR-' + $garId ELSE x END] " +
+				"ELSE coalesce(s.exports, []) + ('GAR-' + $garId) END return s.id as structureId, s.source as source, g.id as groupId";
 
 		final JsonObject params = new JsonObject().put("uai", uai).put("garId", garId).put("groupName", groupName);
 		neo.execute(query, params, validUniqueResultHandler(either -> {
@@ -800,12 +800,12 @@ public class DefaultSchoolService implements SchoolService {
 						.getJsonObject(0).getString("id");
 
 				StatementsBuilder builder = new StatementsBuilder();
-				final String authorizedQuery = "MATCH (a:Application {name:{appName}})-[]->(ac:Action)<-[]-(r:Role), (g:Group {id:{groupId}}) " +
+				final String authorizedQuery = "MATCH (a:Application {name:$appName})-[]->(ac:Action)<-[]-(r:Role), (g:Group {id:$groupId}) " +
 						" CREATE UNIQUE (g)-[:AUTHORIZED]->(r)";
 				final JsonObject authorizedParams = new JsonObject().put("appName", appName).put("groupId", groupId);
 				builder.add(authorizedQuery, authorizedParams);
 
-				String populateQuery = "MATCH (s:Structure {UAI: {uai}})<-[:DEPENDS]-(g:ManualGroup {id: {groupId} }), (s)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u:User) ";
+				String populateQuery = "MATCH (s:Structure {UAI: $uai})<-[:DEPENDS]-(g:ManualGroup {id: $groupId }), (s)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u:User) ";
 
 				if ("AAF1D".equals(source) && raAssignmentPolicy != null && raAssignmentPolicy.containsKey(garId) && "teacher".equalsIgnoreCase(raAssignmentPolicy.getString(garId))) {
 					populateQuery += "WHERE pg.filter = 'Teacher' ";
@@ -816,7 +816,7 @@ public class DefaultSchoolService implements SchoolService {
 				final JsonObject populateParams = new JsonObject().put("uai", uai).put("groupId", groupId);
 				builder.add(populateQuery, populateParams);
 
-				final String affectQuery = "MATCH (r:Role {name : {roleName}}), (s:Structure {UAI:{uai}})-[:DEPENDS]-(pg:ProfileGroup) WHERE NOT pg.filter IN ['Guest','Relative'] " +
+				final String affectQuery = "MATCH (r:Role {name : $roleName}), (s:Structure {UAI:$uai})-[:DEPENDS]-(pg:ProfileGroup) WHERE NOT pg.filter IN ['Guest','Relative'] " +
 						"CREATE UNIQUE (pg)-[:AUTHORIZED]->(r)";
 				final JsonObject affectParams = new JsonObject().put("roleName", roleName).put("uai", uai);
 				builder.add(affectQuery, affectParams);
@@ -836,7 +836,7 @@ public class DefaultSchoolService implements SchoolService {
 	public Future<JsonArray> listContacts(String structureId) {
 		final Promise<JsonArray> promise = Promise.promise();
 		final String query =
-				"MATCH (s:Structure {id: {structureId}})<-[:DEPENDS]-(g:Group)<-[:IN]-(u:User) " +
+				"MATCH (s:Structure {id: $structureId})<-[:DEPENDS]-(g:Group)<-[:IN]-(u:User) " +
 				"WHERE u.email IS NOT NULL AND ((g:ProfileGroup AND g.filter IN ['Personnel', 'Teacher']) " +
 				"OR (g:FunctionGroup AND g.filter = 'AdminLocal')) " +
 				"RETURN DISTINCT u.id AS userId, u.email AS email, head(u.profiles) AS profile";
@@ -855,7 +855,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public Future<JsonObject> getQuietHoursPreferences(String structureId) {
 		Promise<JsonObject> promise = Promise.promise();
-		String query = "MATCH (s:Structure {id: {structureId}}) RETURN s.notificationTimezone as notificationTimezone, s.notificationQuietHours as notificationQuietHours";
+		String query = "MATCH (s:Structure {id: $structureId}) RETURN s.notificationTimezone as notificationTimezone, s.notificationQuietHours as notificationQuietHours";
 		JsonObject params = new JsonObject().put("structureId", structureId);
 		neo.execute(query, params, validUniqueResultHandler(either -> {
 			if (either.isRight()) {
@@ -945,13 +945,13 @@ public class DefaultSchoolService implements SchoolService {
 				.put("structureId", structureId)
 				.put("notificationQuietHours", quietHoursPreference.encode());
 
-		final StringBuilder setClauses = new StringBuilder("s.notificationQuietHours = {notificationQuietHours}");
+		final StringBuilder setClauses = new StringBuilder("s.notificationQuietHours = $notificationQuietHours");
 		if (timezonePreference != null) {
-			setClauses.append(", s.notificationTimezone = {notificationTimezone}");
+			setClauses.append(", s.notificationTimezone = $notificationTimezone");
 			params.put("notificationTimezone", timezonePreference.encode());
 		}
 
-		final String query = "MATCH (s:Structure {id: {structureId}}) SET " + setClauses + " RETURN s.notificationTimezone as notificationTimezone, s.notificationQuietHours as notificationQuietHours";
+		final String query = "MATCH (s:Structure {id: $structureId}) SET " + setClauses + " RETURN s.notificationTimezone as notificationTimezone, s.notificationQuietHours as notificationQuietHours";
 		neo.execute(query, params, validUniqueResultHandler(handler));
 	}
 
@@ -964,7 +964,7 @@ public class DefaultSchoolService implements SchoolService {
 
 		// Step 1: count total users in the structure
 		final String countQuery =
-			"MATCH (s:Structure {id: {structureId}}) " +
+			"MATCH (s:Structure {id: $structureId}) " +
 			"WHERE s.notificationTimezone IS NOT NULL OR s.notificationQuietHours IS NOT NULL " +
 			"WITH s " +
 			"MATCH (s)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
@@ -972,7 +972,7 @@ public class DefaultSchoolService implements SchoolService {
 
 		// Step 2: cascade update (only users not managed by themselves)
 		final String updateQuery =
-			"MATCH (s:Structure {id: {structureId}}) " +
+			"MATCH (s:Structure {id: $structureId}) " +
 			"WHERE s.notificationTimezone IS NOT NULL OR s.notificationQuietHours IS NOT NULL " +
 			"WITH s " +
 			"MATCH (s)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
@@ -980,8 +980,8 @@ public class DefaultSchoolService implements SchoolService {
 			"UNWIND allUsers AS u " +
 			"OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
 			"WITH s, u, uac, " +
-			"  (s.notificationTimezone IS NOT NULL AND (uac IS NULL OR uac.timezone IS NULL OR NOT uac.timezone CONTAINS {userManagedMarker})) AS shouldUpdateTimezone, " +
-			"  (s.notificationQuietHours IS NOT NULL AND (uac IS NULL OR uac.quietHours IS NULL OR NOT uac.quietHours CONTAINS {userManagedMarker})) AS shouldUpdateQuietHours " +
+			"  (s.notificationTimezone IS NOT NULL AND (uac IS NULL OR uac.timezone IS NULL OR NOT uac.timezone CONTAINS $userManagedMarker)) AS shouldUpdateTimezone, " +
+			"  (s.notificationQuietHours IS NOT NULL AND (uac IS NULL OR uac.quietHours IS NULL OR NOT uac.quietHours CONTAINS $userManagedMarker)) AS shouldUpdateQuietHours " +
 			"WHERE shouldUpdateTimezone OR shouldUpdateQuietHours " +
 			"MERGE (u)-[:PREFERS]->(uac2:UserAppConf) " +
 			"FOREACH (_ IN CASE WHEN shouldUpdateTimezone THEN [1] ELSE [] END | SET uac2.timezone = s.notificationTimezone) " +
@@ -1048,7 +1048,7 @@ public class DefaultSchoolService implements SchoolService {
 	public Future<DefaultAuthModeConfig> getDefaultAuth(String structureId) {
 		final Promise<DefaultAuthModeConfig> promise = Promise.promise();
 		final StringBuilder query = new StringBuilder(
-				"MATCH (s:Structure {id: {structureId}})-[:HAS_AUTH_DEFAULT]->(d:AuthDefault) ")
+				"MATCH (s:Structure {id: $structureId})-[:HAS_AUTH_DEFAULT]->(d:AuthDefault) ")
 				.append(" WITH collect({ profile: d.profile, auth: d.auth }) as defaultAuthConfig ")
 				.append("RETURN defaultAuthConfig ");
 		final JsonObject params = new JsonObject().put("structureId", structureId);
@@ -1079,7 +1079,7 @@ public class DefaultSchoolService implements SchoolService {
 	public Future<Void> updateDefaultAuth(UserInfos user, String structureId, DefaultAuthModeConfig body) {
 		final Promise<Void> promise = Promise.promise();
 		final StringBuilder query = new StringBuilder(
-				"MATCH (s:Structure {id: {structureId}}) ")
+				"MATCH (s:Structure {id: $structureId}) ")
 				.append("OPTIONAL MATCH (s)-[:HAS_AUTH_DEFAULT]->(d:AuthDefault) ")
 				.append("DETACH DELETE d ");
 		for (Map.Entry<DefaultAuthModeConfig.Profile, DefaultAuthModeConfig.DefaultAuthMode> entry : body.getDefaultAuthModes().entrySet()) {

@@ -84,7 +84,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = null;
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE n.structureId IS NULL OR n.structureId = {structure} ";
+			filter = "WHERE n.structureId IS NULL OR n.structureId = $structure ";
 			params = new JsonObject().put("structure", structureId);
 		}
 		String query =
@@ -111,7 +111,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = null;
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE n.structureId IS NULL OR n.structureId = {structure} ";
+			filter = "WHERE n.structureId IS NULL OR n.structureId = $structure ";
 			params = new JsonObject().put("structure", structureId);
 		}
 		String query =
@@ -125,7 +125,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = null;
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE n.structureId IS NULL OR n.structureId = {structure} ";
+			filter = "WHERE n.structureId IS NULL OR n.structureId = $structure ";
 			params = new JsonObject().put("structure", structureId);
 		}
 		String query =
@@ -139,7 +139,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	public void listActions(String application, Handler<Either<String, JsonArray>> handler) {
 		String query =
 				"MATCH (n:Application)-[:PROVIDE]->a " +
-				"WHERE n.name = {name} " +
+				"WHERE n.name = $name " +
 				"RETURN a.name as name, a.displayName as displayName, a.type as type";
 		neo.execute(query, new JsonObject().put("name", application), validResultHandler(handler));
 	}
@@ -152,7 +152,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			String filter = classGroups ? "<-[:BELONGS*0..1]-()" : "";
 			params.put("structureId", structureId);
 			query = "MATCH (m:Structure)" + filter + "<-[:DEPENDS]-(n:Group) " +
-					"WHERE m.id = {structureId} " +
+					"WHERE m.id = $structureId " +
 					"OPTIONAL MATCH n-[r:AUTHORIZED]->a ";
 		} else {
 			query = "MATCH (n:Group) " +
@@ -169,7 +169,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = null;
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE app.structureId IS NULL OR app.structureId = {structure} ";
+			filter = "WHERE app.structureId IS NULL OR app.structureId = $structure ";
 			params = new JsonObject().put("structure", structureId);
 		}
 		String query = "MATCH (app:Application) " +
@@ -201,7 +201,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String filter = "";
 		JsonObject params = new JsonObject();
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			filter = "WHERE n.structureId IS NULL OR n.structureId = {structure} ";
+			filter = "WHERE n.structureId IS NULL OR n.structureId = $structure ";
 			params.put("structure", structureId);
 		}
 		String query =
@@ -209,7 +209,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 				"OPTIONAL MATCH n-[r:PROVIDE]->(a:Action) ";
 		if (actionType != null &&
 				("WORKFLOW".equals(actionType) || "RESOURCE".equals(actionType))) {
-			query += "WHERE r IS NULL OR a.type = {actionType} ";
+			query += "WHERE r IS NULL OR a.type = $actionType ";
 			params.put("actionType", "SECURED_ACTION_" + actionType);
 		}
 		query += "RETURN n.id as id, n.name as name, COLLECT([a.name, a.displayName, a.type]) as actions";
@@ -219,10 +219,10 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	@Override
 	public void listApplicationRolesWithGroups(String structureId, String appId, Handler<Either<String, JsonArray>> handler) {
 		String query =
-				"MATCH (a:Application {id: {appId}})-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r:Role) " +
+				"MATCH (a:Application {id: $appId})-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r:Role) " +
 				"WITH r,a " +
 				"MATCH (r)-[:AUTHORIZE]->(:Action)<-[:PROVIDE]-(apps:Application) " +
-				"    OPTIONAL MATCH (s:Structure {id: {structureId}})<-[:DEPENDS*1..2]-(g:Group)-[:AUTHORIZED]->(r) " +
+				"    OPTIONAL MATCH (s:Structure {id: $structureId})<-[:DEPENDS*1..2]-(g:Group)-[:AUTHORIZED]->(r) " +
 				"    WITH r, a, apps, CASE WHEN g IS NOT NULL THEN COLLECT(DISTINCT{ id: g.id, name: g.name }) ELSE [] END as groups " +
 				"RETURN r.id as id, r.name as name, r.distributions as distributions, a.id as appId, groups, COUNT(DISTINCT apps) > 1 as transverse";
 		JsonObject params = new JsonObject()
@@ -240,17 +240,17 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 		// First, count total structures (for pagination metadata)
 		String countQuery =
-				"MATCH (app:Application {name: {appName}})-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r:Role) " +
+				"MATCH (app:Application {name: $appName})-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r:Role) " +
 				"MATCH (r)<-[:AUTHORIZED]-(g:Group)-[:DEPENDS*1..2]->(s:Structure) " +
 				"RETURN COUNT(DISTINCT s) as total";
 		
 		// Then fetch the paginated results
 		String dataQuery =
-				"MATCH (app:Application {name: {appName}})-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r:Role) " +
+				"MATCH (app:Application {name: $appName})-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r:Role) " +
 				"MATCH (r)<-[:AUTHORIZED]-(g:Group)-[:DEPENDS*1..2]->(s:Structure) " +
 				"RETURN DISTINCT s.id as structureId, s.UAI as UAI, s.name as name " +
 				"ORDER BY coalesce(s.UAI, '') ASC " +
-				"SKIP {skip} LIMIT {limit}";
+				"SKIP $skip LIMIT $limit";
 		
 		JsonObject params = new JsonObject()
 			.put("appName", appName)
@@ -306,13 +306,13 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			Handler<Either<String, JsonObject>> handler) {
 		String query =
 				"MATCH (n:Role) " +
-				"WHERE n.name = {roleName} " +
+				"WHERE n.name = $roleName " +
 				"WITH count(*) AS exists " +
 				"WHERE exists=0 " +
-				"CREATE (m:Role {role}) " +
+				"CREATE (m:Role $role) " +
 				"WITH m " +
 				"MATCH (n:Action) " +
-				"WHERE n.name IN {actions} " +
+				"WHERE n.name IN $actions " +
 				"CREATE UNIQUE m-[:AUTHORIZE]->n " +
 				"RETURN DISTINCT m.id as id";
 		if (structureId != null && !structureId.trim().isEmpty()) {
@@ -340,12 +340,12 @@ public class DefaultAppRegistryService implements AppRegistryService {
 					"DELETE r " +
 					"WITH role " +
 					"MATCH (n:Action) " +
-					"WHERE n.name IN {actions} " +
+					"WHERE n.name IN $actions " +
 					"CREATE UNIQUE role-[:AUTHORIZE]->n " +
 					"RETURN DISTINCT role.id as id";
 		}
 		String query =
-				"MATCH (role:Role {id : {roleId}}) " +
+				"MATCH (role:Role {id : $roleId}) " +
 				"OPTIONAL MATCH role-[r:AUTHORIZE]->(a:Action) " +
 				updateValues +
 				updateActions;
@@ -356,7 +356,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	@Override
 	public void deleteRole(String roleId, Handler<Either<String, JsonObject>> handler) {
 		String query =
-				"MATCH (role:Role {id : {id}}) " +
+				"MATCH (role:Role {id : $id}) " +
 				"OPTIONAL MATCH role-[r]-() " +
 				"DELETE role, r ";
 		neo.execute(query, new JsonObject().put("id", roleId), validUniqueResultHandler(handler));
@@ -369,7 +369,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		if (groupId != null && !groupId.trim().isEmpty()) {
 			String deleteQuery =
 					"MATCH (m:Group)-[r:AUTHORIZED]-(:Role) " +
-					"WHERE m.id = {groupId} " +
+					"WHERE m.id = $groupId " +
 					"DELETE r";
 			if (roleIds == null || roleIds.size() == 0) {
 				neo.execute(deleteQuery, params, validEmptyHandler(handler));
@@ -377,7 +377,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 				StatementsBuilder s = new StatementsBuilder().add(deleteQuery, params);
 				String createQuery =
 						"MATCH (n:Role), (m:Group) " +
-						"WHERE m.id = {groupId} AND n.id IN {roles} " +
+						"WHERE m.id = $groupId AND n.id IN $roles " +
 						"CREATE UNIQUE m-[:AUTHORIZED]->n";
 				s.add(createQuery, params.copy().put("roles", roleIds));
 				neo.executeTransaction(s.build(), null, true, validEmptyHandler(handler));
@@ -394,7 +394,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		params.put("roleId", roleId);
 		if (groupId != null && !groupId.trim().isEmpty() && roleId != null && !roleId.trim().isEmpty()) {
 			String query = "MATCH (r:Role), (g:Group) " +
-					"WHERE r.id = {roleId} and g.id = {groupId} " +
+					"WHERE r.id = $roleId and g.id = $groupId " +
 					"CREATE UNIQUE (g)-[:AUTHORIZED]->(r)";
 			neo.execute(query, params, Neo4jResult.validEmptyHandler(handler));
 		}  else {
@@ -409,7 +409,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		params.put("roleId", roleId);
 		if (groupId != null && !groupId.trim().isEmpty() && roleId != null && !roleId.trim().isEmpty()) {
 			String query = "MATCH (g:Group)-[auth:AUTHORIZED]->(r:Role) " +
-					"WHERE r.id = {roleId} and g.id = {groupId} " +
+					"WHERE r.id = $roleId and g.id = $groupId " +
 					"DELETE auth";
 			neo.execute(query, params, Neo4jResult.validEmptyHandler(handler));
 		}  else {
@@ -429,10 +429,10 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		application.put("id", id);
 		final String createApplicationQuery =
 				"MATCH (n:Application) " +
-				"WHERE n.name = {applicationName} " +
+				"WHERE n.name = $applicationName " +
 				"WITH count(*) AS exists " +
 				"WHERE exists=0 " +
-				"CREATE (m:Application {props}) " +
+				"CREATE (m:Application $props) " +
 				"RETURN m.id as id";
 		final JsonObject params = new JsonObject().put("applicationName", applicationName);
 		if (structureId != null && !structureId.trim().isEmpty()) {
@@ -458,12 +458,12 @@ public class DefaultAppRegistryService implements AppRegistryService {
 				}
 				removeLabels.remove(type + "Action");
 				String createAction =
-						"MERGE (a:Action {name:{name}}) " +
+						"MERGE (a:Action {name:$name}) " +
 						"REMOVE a:" + Joiner.on(":").join(removeLabels) + " " +
-						"SET a.displayName = {displayName}, a.type = {type}, a:" + type + "Action " +
+						"SET a.displayName = $displayName, a.type = $type, a:" + type + "Action " +
 						"WITH a " +
 						"MATCH (n:Application) " +
-						"WHERE n.name = {applicationName} " +
+						"WHERE n.name = $applicationName " +
 						"CREATE UNIQUE n-[r:PROVIDE]->a " +
 						"RETURN a.name as name";
 				b.add(createAction, json
@@ -478,9 +478,9 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		} else if (address != null && !address.trim().isEmpty()) {
 			String query2 =
 					"MATCH (n:Application) " +
-					"WHERE n.id = {id} " +
-					"CREATE UNIQUE n-[r:PROVIDE]->(a:Action:WorkflowAction {type: {type}, " +
-					"name:{name}, displayName:{displayName}}) " +
+					"WHERE n.id = $id " +
+					"CREATE UNIQUE n-[r:PROVIDE]->(a:Action:WorkflowAction {type: $type, " +
+					"name:$name, displayName:$displayName}) " +
 					"RETURN a.name as name";
 			b.add(query2, new JsonObject()
 					.put("id", id)
@@ -512,7 +512,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	public void getApplication(String applicationId, final Handler<Either<String, JsonObject>> handler) {
 		String query =
 				"MATCH (n:Application) " +
-				"WHERE n.id = {id} " +
+				"WHERE n.id = $id " +
 				"RETURN n.id as id, n.name as name, " +
 				"n.grantType as grantType, n.secret as secret, n.address as address, " +
 				"n.icon as icon, n.target as target, n.displayName as displayName, " +
@@ -550,7 +550,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			Handler<Either<String, JsonObject>> handler) {
 		String query =
 				"MATCH (n:Application) " +
-				"WHERE n.id = {applicationId} AND coalesce(n.locked, false) = false " +
+				"WHERE n.id = $applicationId AND coalesce(n.locked, false) = false " +
 				"SET " + nodeSetPropertiesFromJson("n", application) +
 				"RETURN n.id as id, n.structureId";
 		application.put("applicationId", applicationId);
@@ -562,7 +562,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	@Override
 	public void deleteApplication(String applicationId, Handler<Either<String, JsonObject>> handler) {
 		String query =
-				"MATCH (n:Application { id : {id}}) " +
+				"MATCH (n:Application { id : $id}) " +
 				"WHERE coalesce(n.locked, false) = false " +
 				"OPTIONAL MATCH n-[r1:PROVIDE]->(a:Action) " +
 				"OPTIONAL MATCH a<-[r2:AUTHORIZE]-(r:Role) " +
@@ -576,8 +576,8 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 	@Override
 	public void setLevelsOfEducation(String applicationId, List<Integer> levelsOfEducations, Handler<Either<String, JsonObject>> handler) {
-		String query = "MATCH (a:Application { id : {applicationId}}) " +
-				"SET a.levelsOfEducation = {levelsOfEducation} " +
+		String query = "MATCH (a:Application { id : $applicationId}) " +
+				"SET a.levelsOfEducation = $levelsOfEducation " +
 				"RETURN a.id as id, a.levelsOfEducation as levelsOfEducation";
 
 		JsonObject params = new JsonObject()
@@ -589,8 +589,8 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 	@Override
 	public void setRoleDistributions(String roleId, List<String> distributions, Handler<Either<String, JsonObject>> handler) {
-		String query = "MATCH (r:Role { id : {roleId}}) " +
-				"SET r.distributions = {distributions} " +
+		String query = "MATCH (r:Role { id : $roleId}) " +
+				"SET r.distributions = $distributions " +
 				"RETURN r.id as id, r.distributions as distributions";
 
 		JsonObject params = new JsonObject()
@@ -606,17 +606,17 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			JsonObject params = new JsonObject().put("application", application);
 			String filter = "";
 			if (users != null) {
-				filter += "AND u.id IN {users} ";
+				filter += "AND u.id IN $users ";
 				params.put("users", users);
 			}
 			if (groups != null) {
-				filter += "AND pg.id IN {groups} ";
+				filter += "AND pg.id IN $groups ";
 				params.put("groups", groups);
 			}
 			String query =
 					"MATCH (app:Application)-[:PROVIDE]->(a:Action)<-[:AUTHORIZE]-(r:Role)" +
 					"<-[:AUTHORIZED]-(pg:Group)<-[:IN]-(u:User) " +
-					"WHERE app.name = {application} " + filter +
+					"WHERE app.name = $application " + filter +
 					"RETURN DISTINCT u.id as id";
 			neo.execute(query, params, validResultHandler(handler));
 	}
@@ -626,7 +626,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		String query =
 				"MATCH (app:Application)-[:PROVIDE]->(a:Action)<-[:AUTHORIZE]-(r:Role)" +
 				"<-[:AUTHORIZED]-(g:ProfileGroup)<-[:DEPENDS*0..1]-(pg:ProfileGroup) " +
-				"WHERE app.name = {application} " +
+				"WHERE app.name = $application " +
 				"RETURN pg.id as id";
 		neo.execute(query, new JsonObject().put("application", application), validResultHandler(handler));
 	}
@@ -635,7 +635,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 	public void setDefaultClassRoles(String classId, Handler<Either<String, JsonObject>> handler) {
 		if (defaultValidationParamsNull(handler, classId)) return;
 		String query =
-				"MATCH (c:Class { id : {id}})<-[:DEPENDS]-(csg:ProfileGroup)-[:DEPENDS]->(ssg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name : 'Student'}), " +
+				"MATCH (c:Class { id : $id})<-[:DEPENDS]-(csg:ProfileGroup)-[:DEPENDS]->(ssg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name : 'Student'}), " +
 				"c<-[:DEPENDS]-(ctg:ProfileGroup)-[:DEPENDS]->(stg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name : 'Teacher'}), " +
 				"c<-[:DEPENDS]-(crg:ProfileGroup)-[:DEPENDS]->(srg:ProfileGroup)-[:HAS_PROFILE]->(rp:Profile {name : 'Relative'}), " +
 				"c<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(pp:Profile {name : 'Personnel'}), " +
@@ -647,7 +647,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 				"CREATE UNIQUE csg-[:AUTHORIZED]->rs, ctg-[:AUTHORIZED]->rt, crg-[:AUTHORIZED]->rr, cpg-[:AUTHORIZED]->pr";
 		final JsonObject params = new JsonObject().put("id", classId);
 		final String widgetQuery =
-				"MATCH (c:Class { id : {id}})<-[:DEPENDS]-(csg:ProfileGroup)-[:DEPENDS]->(ssg:ProfileGroup), (w:Widget) " +
+				"MATCH (c:Class { id : $id})<-[:DEPENDS]-(csg:ProfileGroup)-[:DEPENDS]->(ssg:ProfileGroup), (w:Widget) " +
 				"WHERE w.default = true " +
 				"MERGE w<-[r:AUTHORIZED]-ssg";
 		StatementsBuilder sb = new StatementsBuilder();
@@ -732,16 +732,16 @@ public class DefaultAppRegistryService implements AppRegistryService {
 					.collect(Collectors.toList());
 			if (profiles.size() == 0) {
 				// Only ADML
-				query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
-						"WHERE r.id IN {roleIds} AND fg.name ENDS WITH 'AdminLocal' AND NOT(fg-[:AUTHORIZED]->r) " +
+				query = "MATCH (r:Role), (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
+						"WHERE r.id IN $roleIds AND fg.name ENDS WITH 'AdminLocal' AND NOT(fg-[:AUTHORIZED]->r) " +
 						"CREATE UNIQUE (fg)-[:AUTHORIZED]->(r)";
 			} else {
 				// Profiles + ADML
-				query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure) " +
-						"WHERE r.id IN {roleIds} " +
+				query = "MATCH (r:Role), (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure) " +
+						"WHERE r.id IN $roleIds " +
 						"WITH s, r " +
 						"OPTIONAL MATCH (s)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-						"WHERE p.name IN {profiles} AND NOT(g-[:AUTHORIZED]->r) " +
+						"WHERE p.name IN $profiles AND NOT(g-[:AUTHORIZED]->r) " +
 						"MERGE (g)-[:AUTHORIZED]->(r) " +
 						"WITH s, r " +
 						"OPTIONAL MATCH (s)<-[:DEPENDS]-(fg:FunctionGroup) " +
@@ -750,8 +750,8 @@ public class DefaultAppRegistryService implements AppRegistryService {
 			}
 		} else {
 			// only Profiles (no ADML)
-			query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-					"WHERE r.id IN {roleIds} AND p.name IN {profiles} AND NOT(g-[:AUTHORIZED]->r) " +
+			query = "MATCH (r:Role), (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+					"WHERE r.id IN $roleIds AND p.name IN $profiles AND NOT(g-[:AUTHORIZED]->r) " +
 					"CREATE UNIQUE (g)-[:AUTHORIZED]->(r) ";
 		}
 		executeQueryForStructureProfilesAndRoles(query, structureId, profiles, rolesId, handler);
@@ -766,19 +766,19 @@ public class DefaultAppRegistryService implements AppRegistryService {
 					.collect(Collectors.toList());
 			if (profiles.size() == 0) {
 				// Only ADML
-				query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
-						"WHERE r.id IN {roleIds} " +
+				query = "MATCH (r:Role), (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
+						"WHERE r.id IN $roleIds " +
 						"AND fg.name ENDS WITH 'AdminLocal' " +
 						"MATCH (fg)-[auth:AUTHORIZED]->(r) " +
 						"DELETE auth";
 			}
 			else {
 				// Profiles + ADML
-				query = "MATCH (r:Role), (parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure) " +
-						"WHERE r.id IN {roleIds} " +
+				query = "MATCH (r:Role), (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure) " +
+						"WHERE r.id IN $roleIds " +
 						"WITH s, r " +
 						"OPTIONAL MATCH (s)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (g)-[auth:AUTHORIZED]->(r)" +
-						"WHERE p.name IN {profiles} " +
+						"WHERE p.name IN $profiles " +
 						"DELETE auth " +
 						"WITH s, r " +
 						"OPTIONAL MATCH (s)<-[:DEPENDS]-(fg:FunctionGroup), (fg)-[auth:AUTHORIZED]->(r) " +
@@ -788,9 +788,9 @@ public class DefaultAppRegistryService implements AppRegistryService {
 		} else {
 			// only Profiles (no ADML)
 			query = "MATCH (r:Role), " +
-					"(parentStructure:Structure {id: {structureId}})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), " +
+					"(parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), " +
 					"(r)<-[auth:AUTHORIZED]-(g) " +
-					"WHERE r.id IN {roleIds} AND p.name IN {profiles} " +
+					"WHERE r.id IN $roleIds AND p.name IN $profiles " +
 					"DELETE auth";
 		}
 		executeQueryForStructureProfilesAndRoles(query, structureId, profiles, rolesId, handler);
@@ -837,7 +837,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 		final StatementsBuilder s = new StatementsBuilder();
 
-		final String deleteExistingAuthQuery = "MATCH (roleOrWidget)<-[a:AUTHORIZED]-(Group)-[:DEPENDS]->(Class)-[:BELONGS*0..]->(s:Structure {id: {structureId}}) "+
+		final String deleteExistingAuthQuery = "MATCH (roleOrWidget)<-[a:AUTHORIZED]-(Group)-[:DEPENDS]->(Class)-[:BELONGS*0..]->(s:Structure {id: $structureId}) "+
 				"WHERE NOT (:External)-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(roleOrWidget) DELETE a";
 
 		map.entrySet().forEach(structure -> {
@@ -845,11 +845,11 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 			structure.getValue().entrySet().forEach(roleOrWidget -> {
 				final String query =
-						"MATCH (s:Structure {id: {structureId}}), " +
-								"(r:" + (roleOrWidget.getKey().charAt(0) == 'R' ? "Role" : "Widget") + " {id: {roleOrWidgetId}}) " +
+						"MATCH (s:Structure {id: $structureId}), " +
+								"(r:" + (roleOrWidget.getKey().charAt(0) == 'R' ? "Role" : "Widget") + " {id: $roleOrWidgetId}) " +
 								"WITH s, r MATCH (s)<-[:DEPENDS]-(g:Group) " +
-								"WHERE CASE WHEN g.externalId ENDS WITH 'ADMIN_LOCAL' THEN 'AdminLocal' IN {profiles} "+
-								"ELSE g.filter IN {profiles} END " +
+								"WHERE CASE WHEN g.externalId ENDS WITH 'ADMIN_LOCAL' THEN 'AdminLocal' IN $profiles "+
+								"ELSE g.filter IN $profiles END " +
 								"CREATE UNIQUE g-[:AUTHORIZED]->r ";
 				JsonObject params = new JsonObject().put("structureId", structure.getKey())
 						.put("roleOrWidgetId", roleOrWidget.getKey().substring(1))
@@ -873,7 +873,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 	@Override
 	public void getDefaultBookmarks(final String structureId, final Handler<Either<String, JsonObject>> handler) {
-		final String query = "MATCH (s:Structure {id: {structureId}}) " +
+		final String query = "MATCH (s:Structure {id: $structureId}) " +
 				"RETURN CASE WHEN s.defaultBookmarks IS NOT NULL THEN s.defaultBookmarks ELSE \"{}\" END AS defaultBookmarks";
 		final JsonObject params = new JsonObject().put("structureId", structureId);
 		neo.execute(query, params, validUniqueResultHandler(handler));
@@ -881,7 +881,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 	@Override
 	public void setDefaultBookmarks(final String structureId, final JsonObject apps, final Handler<Either<String, JsonObject>> handler) {
-		final String query = "MATCH (s:Structure {id: {structureId}}) SET s.defaultBookmarks = {apps}";
+		final String query = "MATCH (s:Structure {id: $structureId}) SET s.defaultBookmarks = $apps";
 		for (Iterator<Map.Entry<String,Object>> iterator = apps.iterator(); iterator.hasNext();) { // removing null entries
 			Map.Entry<String,Object> app = iterator.next();
 			if (app.getValue() == null) {
@@ -894,7 +894,7 @@ public class DefaultAppRegistryService implements AppRegistryService {
 
 	@Override
 	public void applyDefaultBookmarks(final String userId, Handler<Either<String, JsonObject>> eitherHandler) {
-		final String query = "MATCH (u:User {id: {userId}})-[:IN]-(:ProfileGroup)-[:DEPENDS]-(s:Structure) " +
+		final String query = "MATCH (u:User {id: $userId})-[:IN]-(:ProfileGroup)-[:DEPENDS]-(s:Structure) " +
 				"WITH u, COLLECT(CASE WHEN s.defaultBookmarks IS NOT NULL THEN s.defaultBookmarks ELSE \"{}\" END) AS defaultBookmarks " +
 				"RETURN u.profiles[0] AS userProfile, defaultBookmarks";
 		final JsonObject params = new JsonObject().put("userId", userId);
@@ -919,8 +919,8 @@ public class DefaultAppRegistryService implements AppRegistryService {
 				}
 				if (apps.size() > 0) {
 					final JsonObject jo = new JsonObject().put("bookmarks", new JsonArray(new ArrayList<>(apps)));
-					final String query2 = "MATCH (:User {id: {userId}})-[:PREFERS]->(uac:UserAppConf) " +
-							"SET uac.apps = {app}";
+					final String query2 = "MATCH (:User {id: $userId})-[:PREFERS]->(uac:UserAppConf) " +
+							"SET uac.apps = $app";
 					final JsonObject params2 = new JsonObject()
 							.put("userId", userId)
 							.put("app", jo.encode());

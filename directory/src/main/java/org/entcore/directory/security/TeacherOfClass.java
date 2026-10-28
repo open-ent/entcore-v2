@@ -50,8 +50,8 @@ public class TeacherOfClass implements ResourcesProvider {
 		}
 		Set<String> ids = DirectoryResourcesProvider.getIds(user);
 		String query =
-				"MATCH (c:Class {id : {classId}})-[:BELONGS]->s2 " +
-						"WHERE s2.id IN {ids} " +
+				"MATCH (c:Class {id : $classId})-[:BELONGS]->s2 " +
+						"WHERE s2.id IN $ids " +
 						"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()
 				.put("classId", classId)
@@ -68,8 +68,8 @@ public class TeacherOfClass implements ResourcesProvider {
 					handler.handle(true);
 				} else if ("Teacher".equals(user.getType()) || "Personnel".equals(user.getType())) {
 					String query =
-							"MATCH (c:`Class` { id : {classId}})<-[:DEPENDS]-(pg:ProfileGroup)" +
-									"<-[:IN]-(t:`User` { id : {teacherId}}) " +
+							"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(pg:ProfileGroup)" +
+									"<-[:IN]-(t:`User` { id : $teacherId}) " +
 									"RETURN count(*) > 0 as exists ";
 					JsonObject params = new JsonObject()
 							.put("classId", classId)

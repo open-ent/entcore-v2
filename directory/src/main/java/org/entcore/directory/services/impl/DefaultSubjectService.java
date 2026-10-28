@@ -24,7 +24,7 @@ public class DefaultSubjectService implements SubjectService {
     @Override
     public void getSubjects(String structureId, Handler<Either<String, JsonArray>> results) {
         final JsonObject params = new JsonObject().put("structureId", structureId);
-        String query = "MATCH (s:Structure {id : {structureId}})<-[:SUBJECT]-(sub:Subject)" +
+        String query = "MATCH (s:Structure {id : $structureId})<-[:SUBJECT]-(sub:Subject)" +
                 "return sub.id as id, sub.code as code, sub.label as label, sub.source as source";
 
         neo.execute(query, params, validResultHandler(results));

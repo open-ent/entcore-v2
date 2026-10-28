@@ -37,7 +37,7 @@ public class SSOUsers extends AbstractSSOProvider {
 
 		String joinKey = getAttribute(assertion, "FrEduIdENT");
 		if (joinKey != null && !joinKey.trim().isEmpty()) {
-			executeQuery("MATCH (u:User {externalId:{joinKey}}) ", new JsonObject().put("joinKey", prefix + joinKey),
+			executeQuery("MATCH (u:User {externalId:$joinKey}) ", new JsonObject().put("joinKey", prefix + joinKey),
 					assertion, handler);
 		} else {
 			handler.handle(new Either.Left<String, Object>("invalid.joinKey"));

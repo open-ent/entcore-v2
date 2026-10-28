@@ -217,7 +217,7 @@ public class MappingService {
 
             Mapping found = requested.get();
             String usageQuery = "MATCH (a:Application:External)-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r:Role) "+
-                                "WHERE a.casType = {type} AND a.pattern = {pattern} " +
+                                "WHERE a.casType = $type AND a.pattern = $pattern " +
                                 "RETURN r.structureId AS sID, COLLECT(a.name) AS connectors";
             neo.execute(usageQuery, new JsonObject().put("type", found.getCasType()).put("pattern", found.getPattern()), Neo4jResult.validResultHandler(r ->
             {

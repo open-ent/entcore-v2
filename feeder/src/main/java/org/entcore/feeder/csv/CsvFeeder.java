@@ -278,7 +278,7 @@ public class CsvFeeder implements Feed {
 	private void queryNotModifiableIds(final Handler<Message<JsonObject>> handler, JsonArray externalIds) {
 		if (externalIds.size() > 0) {
 			String query =
-					"MATCH (u:User) where u.externalId IN {ids} AND u.source IN ['AAF', 'AAF1D'] " +
+					"MATCH (u:User) where u.externalId IN $ids AND u.source IN ['AAF', 'AAF1D'] " +
 					"AND u.deleteDate IS NULL AND u.disappearanceDate IS NULL " +
 					"RETURN COLLECT(u.externalId) as ids";
 			TransactionManager.getNeo4jHelper().execute(query, new JsonObject().put("ids", externalIds),

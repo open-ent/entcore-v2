@@ -336,7 +336,7 @@ public class DefaultUserBookService implements UserBookService {
 		//update userbook
 		final boolean updateUserBook = userbook.size() > 0;
 		if (updateUserBook) {
-			final StringBuilder query = new StringBuilder("MATCH (u:`User` { id : {id}})-[:USERBOOK]->(ub:UserBook) ");
+			final StringBuilder query = new StringBuilder("MATCH (u:`User` { id : $id})-[:USERBOOK]->(ub:UserBook) ");
 			query.append(" WITH ub.picture as oldpic,ub,u SET " + nodeSetPropertiesFromJson("ub", userbook));
 			query.append(" RETURN oldpic,ub.picture as picture");
 			queries.add(query.toString(), userbook.put("id", userId));
@@ -357,7 +357,7 @@ public class DefaultUserBookService implements UserBookService {
 					}
 				}
 			}
-			final String query = "MATCH (u:User { id : {id}})-[:USERBOOK]->(ub:UserBook) SET "+StringUtils.join(updateClauses, ",");
+			final String query = "MATCH (u:User { id : $id})-[:USERBOOK]->(ub:UserBook) SET "+StringUtils.join(updateClauses, ",");
 			if(updateClauses.size() > 0){
 				queries.add(query, params);
 			}
@@ -450,7 +450,7 @@ public class DefaultUserBookService implements UserBookService {
 
 	@Override
 	public void get(String userId, Handler<Either<String, JsonObject>> handler) {
-		String query = "MATCH (u:`User` { id : {id}})-[:USERBOOK]->(ub: UserBook) RETURN ub ";
+		String query = "MATCH (u:`User` { id : $id})-[:USERBOOK]->(ub: UserBook) RETURN ub ";
 		neo.execute(query, new JsonObject().put("id", userId), fullNodeMergeHandler("ub", res -> {
 			if(res.isRight()){
 				final JsonObject result = res.right().getValue();
@@ -465,7 +465,7 @@ public class DefaultUserBookService implements UserBookService {
 	private void queryPerson(final String userId, final boolean publicOnly, final Handler<Either<String, JsonArray>> handler){
 		final StringBuilder query = new StringBuilder();
 		query.append("MATCH (user:User) ");
-		query.append("WHERE user.id = {userId} ");
+		query.append("WHERE user.id = $userId ");
 		query.append("OPTIONAL MATCH (user)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(struct:Structure) ");
 		query.append("OPTIONAL MATCH (user)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(clazz:Class)-[:BELONGS]->(struct) ");
 		query.append("OPTIONAL MATCH (user)-[:USERBOOK]->(ub) ");
@@ -591,9 +591,9 @@ public class DefaultUserBookService implements UserBookService {
 			params.put("avatar", userBookData.getString("default-avatar"));
 			params.put("theme", userBookData.getString("default-theme", ""));
 			final StringBuilder query = new StringBuilder();
-			query.append("MATCH (n:User {id : {userId}}) ");
+			query.append("MATCH (n:User {id : $userId}) ");
 			query.append("MERGE (n)-[:USERBOOK]->(m:UserBook) ");
-			query.append("SET m.userid = {userId}, m.type = 'USERBOOK', m.picture = {avatar}, m.motto = '', m.health = '', m.mood = 'default', m.theme =  {theme} ");
+			query.append("SET m.userid = $userId, m.type = 'USERBOOK', m.picture = $avatar, m.motto = '', m.health = '', m.mood = 'default', m.theme =  $theme ");
 			queries.add(query.toString(), params);
 		}
 		final JsonArray listOfHobbies = userBookData.getJsonArray("hobbies", new JsonArray());
@@ -609,14 +609,14 @@ public class DefaultUserBookService implements UserBookService {
 				updateClauses.add(String.format("m.hobby_%s = {%s} ", hobby, hobby));
 				params.put(hobby, new JsonArray().add(PRIVE).add(""));
 			}
-			final String query2 = "MATCH (n:User)-[:USERBOOK]->m WHERE n.id = {userId} SET "+StringUtils.join(updateClauses, ",");
+			final String query2 = "MATCH (n:User)-[:USERBOOK]->m WHERE n.id = $userId SET "+StringUtils.join(updateClauses, ",");
 			queries.add(query2, params);
 		}
 		{//create appconfig
-			String query3 = "MATCH (u:User {id:{userId}}) MERGE (u)-[:PREFERS]->(uac:UserAppConf) SET uac.language = {language}";
+			String query3 = "MATCH (u:User {id:$userId}) MERGE (u)-[:PREFERS]->(uac:UserAppConf) SET uac.language = $language";
 			final JsonObject params = new JsonObject().put("userId", userId).put("language", uacLanguage.encode());
 			if (isNotEmpty(theme)) {
-				query3 += ", uac.theme = {theme}";
+				query3 += ", uac.theme = $theme";
 				params.put("theme", theme);
 			}
 			queries.add(query3, params);
@@ -649,8 +649,8 @@ public class DefaultUserBookService implements UserBookService {
 		params.put("id", user.getUserId());
 		params.put("visibility", visibility);
 		final StringBuilder query = new StringBuilder();
-		query.append(String.format("MATCH (u:User)-[:USERBOOK]->(ub) WHERE u.id = {id} AND EXISTS(ub.hobby_%s) ", category));
-		query.append(String.format("SET ub.hobby_%s =  [{visibility}, ub.hobby_%s[1]] ", category, category));
+		query.append(String.format("MATCH (u:User)-[:USERBOOK]->(ub) WHERE u.id = $id AND EXISTS(ub.hobby_%s) ", category));
+		query.append(String.format("SET ub.hobby_%s =  [$visibility, ub.hobby_%s[1]] ", category, category));
 		query.append(String.format("RETURN ub.hobby_%s ", category));
 		UserUtils.removeSessionAttribute(eb, user.getUserId(), PERSON_ATTRIBUTE, null);
 		neo.execute(query.toString(), params, validUniqueResultHandler(handler));
@@ -663,10 +663,10 @@ public class DefaultUserBookService implements UserBookService {
 		params.put("id", user.getUserId());
 		params.put("relation", relationship);
 		final StringBuilder query = new StringBuilder();
-		query.append("MATCH (u:User)-[:USERBOOK]->(ub) WHERE u.id={id} ");
-		query.append("WITH ub, FILTER(x IN COALESCE(ub.visibleInfos, []) WHERE x <> {relation}) as newVisibilities ");
+		query.append("MATCH (u:User)-[:USERBOOK]->(ub) WHERE u.id=$id ");
+		query.append("WITH ub, FILTER(x IN COALESCE(ub.visibleInfos, []) WHERE x <> $relation) as newVisibilities ");
 		if ("public".equals(state)) {
-			query.append("WITH ub, (newVisibilities + {relation}) as newVisibilities2 ");
+			query.append("WITH ub, (newVisibilities + $relation) as newVisibilities2 ");
 			query.append("SET ub.visibleInfos = newVisibilities2 ");
 		} else {
 			query.append("SET ub.visibleInfos = newVisibilities ");

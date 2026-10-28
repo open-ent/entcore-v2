@@ -184,7 +184,7 @@ public class WebGerestRegisteredService extends AbstractCas20ExtensionRegistered
 			return promise.future();
 		}
 
-		String query = "MATCH (u:User) WHERE u.id = {id} RETURN u.functions;";
+		String query = "MATCH (u:User) WHERE u.id = $id RETURN u.functions;";
 		Neo4j.getInstance().execute(query, new JsonObject().put(ID, userId), validResultHandler(event -> {
 			if (event.isLeft()) {
 				promise.fail(event.left().getValue());

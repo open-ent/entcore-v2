@@ -20,7 +20,7 @@ public class SSOIdruide extends AbstractSSOProvider {
     public void generate(EventBus eb, String userId, String host, String serviceProviderEntityId, JsonObject eventAttributes,
                          Handler<Either<String, JsonArray>> handler) {
         final String emailDomain = Vertx.currentContext().config().getJsonObject("idruide-email-domain-by-host", new JsonObject()).getString(host);
-        String query = "MATCH (u:User {id:{userId}}) RETURN u.displayName AS displayName, u.lastName AS lastName, u.firstName AS firstName, coalesce(u.emailAcademy, u.email) AS mail, head(u.profiles) as profile";
+        String query = "MATCH (u:User {id:$userId}) RETURN u.displayName AS displayName, u.lastName AS lastName, u.firstName AS firstName, coalesce(u.emailAcademy, u.email) AS mail, head(u.profiles) as profile";
 
         Neo4j.getInstance().execute(query, new JsonObject().put("userId", userId), Neo4jResult.validUniqueResultHandler(evt -> {
             if (evt.isLeft()) {

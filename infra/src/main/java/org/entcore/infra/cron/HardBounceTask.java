@@ -90,7 +90,7 @@ public class HardBounceTask implements Handler<Long> {
 							new JsonObject().put("$each", new JsonArray(new ArrayList<>(emails)))));
 					MongoDb.getInstance().update(PLATEFORM_COLLECTION, q, modifier, true, false);
 
-					String query = "MATCH (u:User) WHERE u.email IN {emails} REMOVE u.email RETURN collect(distinct u.id) as ids";
+					String query = "MATCH (u:User) WHERE u.email IN $emails REMOVE u.email RETURN collect(distinct u.id) as ids";
 					JsonObject params = new JsonObject().put("emails", new JsonArray(new ArrayList<>(emails)));
 					Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {
 						@Override

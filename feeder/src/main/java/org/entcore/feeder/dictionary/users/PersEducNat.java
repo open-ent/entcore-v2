@@ -80,12 +80,12 @@ public class PersEducNat extends AbstractUser {
 				}
 				StringBuilder sb = new StringBuilder();
 				JsonObject params;
-				sb.append("MERGE (u:`User` { externalId : {externalId}}) ");
-				sb.append("ON CREATE SET u.id = {id}, u.login = {login}, u.activationCode = {activationCode}, ");
-				sb.append("u.displayName = {displayName}, u.displayNameSearchField = {displayNameSearchField}, u.created = {created} ");
+				sb.append("MERGE (u:`User` { externalId : $externalId}) ");
+				sb.append("ON CREATE SET u.id = $id, u.login = $login, u.activationCode = $activationCode, ");
+				sb.append("u.displayName = $displayName, u.displayNameSearchField = $displayNameSearchField, u.created = $created ");
 				sb.append("WITH u ");
 				if (!EDTImporter.EDT.equals(currentSource)) {
-					sb.append("WHERE u.checksum IS NULL OR u.checksum <> {checksum} ");
+					sb.append("WHERE u.checksum IS NULL OR u.checksum <> $checksum ");
 				}
 
 				if (Boolean.TRUE.equals(isMultiEtab)) {
@@ -95,10 +95,10 @@ public class PersEducNat extends AbstractUser {
 							"displayNameSearchField", "email", "emailSearchField", "created", "structures", "functions"));
 
 					if (object.getJsonArray("structures") != null && object.getJsonArray("structures").size() > 0) {
-						sb.append(", u.structures = FILTER (s IN coalesce(u.structures, []) WHERE NOT s IN {structures}) + {structures}");
+						sb.append(", u.structures = FILTER (s IN coalesce(u.structures, []) WHERE NOT s IN $structures) + $structures");
 					}
 					if (object.getJsonArray("functions") != null && object.getJsonArray("functions").size() > 0) {
-						sb.append(", u.functions = FILTER (f IN coalesce(u.functions, []) WHERE NOT f IN {functions}) + {functions}");
+						sb.append(", u.functions = FILTER (f IN coalesce(u.functions, []) WHERE NOT f IN $functions) + $functions");
 					}
 
 				} else {
@@ -122,12 +122,12 @@ public class PersEducNat extends AbstractUser {
 					String query;
 					JsonObject p = new JsonObject().put("userExternalId", externalId);
 					if (structures.size() == 1) {
-						query = "MATCH (s:Structure {externalId : {structureAdmin}}), (u:User {externalId : {userExternalId}}) " +
+						query = "MATCH (s:Structure {externalId : $structureAdmin}), (u:User {externalId : $userExternalId}) " +
 								"MERGE u-[:ADMINISTRATIVE_ATTACHMENT]->s ";
 						p.put("structureAdmin", structures.getString(0));
 					} else {
-						query = "MATCH (s:Structure), (u:User {externalId : {userExternalId}}) " +
-								"WHERE s.externalId IN {structuresAdmin} " +
+						query = "MATCH (s:Structure), (u:User {externalId : $userExternalId}) " +
+								"WHERE s.externalId IN $structuresAdmin " +
 								"MERGE u-[:ADMINISTRATIVE_ATTACHMENT]->s ";
 						p.put("structuresAdmin", structures);
 					}
@@ -149,8 +149,8 @@ public class PersEducNat extends AbstractUser {
 								.put("source", currentSource)
 								.put("structures", structuresByFunctions);
 						final String daa =
-								"MATCH (u:User {externalId : {userExternalId}})-[r:ADMINISTRATIVE_ATTACHMENT]->(s:Structure) " +
-										"WHERE NOT(s.externalId IN {structures}) AND (r.source IS NULL OR r.source = {source}) " +
+								"MATCH (u:User {externalId : $userExternalId})-[r:ADMINISTRATIVE_ATTACHMENT]->(s:Structure) " +
+										"WHERE NOT(s.externalId IN $structures) AND (r.source IS NULL OR r.source = $source) " +
 										"DELETE r";
 						transactionHelper.add(daa, ps.copy().put("structures", getOrElse(structures, new JsonArray())));
 					}
@@ -175,9 +175,9 @@ public class PersEducNat extends AbstractUser {
 					}
 					String query =
 							"MATCH (c:Class)<-[:DEPENDS]-(g:ProfileGroup)" +
-							"-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {externalId : {profileExternalId}}), " +
-							"(u:User { externalId : {userExternalId}}) " +
-							"WHERE c.externalId IN {classes} AND u.mergedWith IS NULL " +
+							"-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {externalId : $profileExternalId}), " +
+							"(u:User { externalId : $userExternalId}) " +
+							"WHERE c.externalId IN $classes AND u.mergedWith IS NULL " +
 							"MERGE u-[:IN]->g";
 					JsonObject p0 = new JsonObject()
 							.put("userExternalId", externalId)
@@ -188,8 +188,8 @@ public class PersEducNat extends AbstractUser {
 				}
 				if (externalId != null) {
 					String q =
-							"MATCH (u:User {externalId : {userExternalId}})-[r:IN]-(g:Group)-[:DEPENDS]->(c:Class) " +
-							"WHERE NOT(c.externalId IN {classes}) AND (r.source IS NULL OR r.source = {source}) " +
+							"MATCH (u:User {externalId : $userExternalId})-[r:IN]-(g:Group)-[:DEPENDS]->(c:Class) " +
+							"WHERE NOT(c.externalId IN $classes) AND (r.source IS NULL OR r.source = $source) " +
 							"DELETE r ";
 					JsonObject p = new JsonObject()
 							.put("userExternalId", externalId)
@@ -197,15 +197,15 @@ public class PersEducNat extends AbstractUser {
 							.put("classes", classes);
 					transactionHelper.add(q, p);
 					final String removeOldFoslc =
-							"MATCH (u:User {externalId : {userExternalId}})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
-							"WHERE NOT(f.externalId IN {fos}) AND (r.source IS NULL OR r.source = {source}) " +
+							"MATCH (u:User {externalId : $userExternalId})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
+							"WHERE NOT(f.externalId IN $fos) AND (r.source IS NULL OR r.source = $source) " +
 							"SET r.classes = null ";
 					transactionHelper.add(removeOldFoslc, p.copy().put("fos", new JsonArray(new ArrayList<>(fcm.fieldNames()))));
 					for (String fos: fcm.fieldNames()) {
 						String q2 =
-								"MATCH (u:User {externalId : {userExternalId}}), (f:FieldOfStudy {externalId:{feId}}) " +
+								"MATCH (u:User {externalId : $userExternalId}), (f:FieldOfStudy {externalId:$feId}) " +
 								"MERGE u-[r:TEACHES_FOS]->f " +
-								"SET r.classes = {classes} ";
+								"SET r.classes = $classes ";
 						transactionHelper.add(q2, p.copy().put("classes", fcm.getJsonArray(fos)).put("feId", fos));
 					}
 				}
@@ -226,8 +226,8 @@ public class PersEducNat extends AbstractUser {
 						}
 					}
 					String query =
-							"MATCH (g:Group), (u:User {externalId : {userExternalId}}) " +
-							"WHERE (g:FunctionalGroup OR g:FunctionGroup OR g:HTGroup OR g:DirectionGroup) AND g.externalId IN {groups} " +
+							"MATCH (g:Group), (u:User {externalId : $userExternalId}) " +
+							"WHERE (g:FunctionalGroup OR g:FunctionGroup OR g:HTGroup OR g:DirectionGroup) AND g.externalId IN $groups " +
 							"MERGE u-[:IN]->g";
 					JsonObject p = new JsonObject()
 							.put("userExternalId", externalId)
@@ -243,9 +243,9 @@ public class PersEducNat extends AbstractUser {
 
 					if (Boolean.FALSE.equals(isMultiEtab)) {
 						final String qdfg =
-								"MATCH (u:User {externalId : {userExternalId}})-[r:IN]-(g:Group) " +
+								"MATCH (u:User {externalId : $userExternalId})-[r:IN]-(g:Group) " +
 										"WHERE (g:FunctionalGroup OR g:FunctionGroup OR g:HTGroup OR g:DirectionGroup) AND " +
-										"NOT(g.externalId IN {groups}) AND (r.source IS NULL OR r.source = {source}) " +
+										"NOT(g.externalId IN $groups) AND (r.source IS NULL OR r.source = $source) " +
 										"DELETE r ";
 
 						transactionHelper.add(qdfg, pdfg);
@@ -253,20 +253,20 @@ public class PersEducNat extends AbstractUser {
 
 					fosm.mergeIn(fgm);
 					final String deleteOldFoslg =
-							"MATCH (u:User {externalId : {userExternalId}})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
-							"WHERE NOT(f.externalId IN {fos}) AND (r.source IS NULL OR r.source = {source}) " +
+							"MATCH (u:User {externalId : $userExternalId})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
+							"WHERE NOT(f.externalId IN $fos) AND (r.source IS NULL OR r.source = $source) " +
 							"DELETE r";
 					transactionHelper.add(deleteOldFoslg, pdfg.copy().put("fos", new JsonArray(new ArrayList<>(fosm.fieldNames()))));
 					final String removeOldFoslg =
-							"MATCH (u:User {externalId : {userExternalId}})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
-							"WHERE NOT(f.externalId IN {fos}) AND (r.source IS NULL OR r.source = {source}) " +
+							"MATCH (u:User {externalId : $userExternalId})-[r:TEACHES_FOS]->(f:FieldOfStudy) " +
+							"WHERE NOT(f.externalId IN $fos) AND (r.source IS NULL OR r.source = $source) " +
 							"SET r.groups = null ";
 					transactionHelper.add(removeOldFoslg, pdfg.copy().put("fos", new JsonArray(new ArrayList<>(fgm.fieldNames()))));
 					for (String fos: fgm.fieldNames()) {
 						String q2 =
-								"MATCH (u:User {externalId : {userExternalId}}), (f:FieldOfStudy {externalId:{feId}}) " +
+								"MATCH (u:User {externalId : $userExternalId}), (f:FieldOfStudy {externalId:$feId}) " +
 								"MERGE u-[r:TEACHES_FOS]->f " +
-								"SET r.groups = {groups} ";
+								"SET r.groups = $groups ";
 						transactionHelper.add(q2, pdfg.copy().put("groups", fgm.getJsonArray(fos)).put("feId", fos));
 					}
 				}
@@ -298,32 +298,32 @@ public class PersEducNat extends AbstractUser {
 		String filter = "";
 		String filter2 = "";
 		if (isNotEmpty(structureExternalId)) {
-			filter = " {externalId : {structureExternalId}}";
-			filter2 = " (:Structure {externalId : {structureExternalId}})<-[:SUBJECT]-";
+			filter = " {externalId : $structureExternalId}";
+			filter2 = " (:Structure {externalId : $structureExternalId})<-[:SUBJECT]-";
 			params.put("structureExternalId", structureExternalId);
 		}
 		final String query =
-				"MATCH (f:FieldOfStudy)<-[r:TEACHES_FOS]-(u:User {source : {source}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure" + filter + ") " +
+				"MATCH (f:FieldOfStudy)<-[r:TEACHES_FOS]-(u:User {source : $source})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure" + filter + ") " +
 				"MERGE s<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + f.externalId}) " +
-				"ON CREATE SET sub.code = f.externalId, sub.id = id(sub) + '-' + {now} " +
-				"SET sub.label = f.name, sub.lastUpdated = {now}, sub.source = {source} " +
+				"ON CREATE SET sub.code = f.externalId, sub.id = id(sub) + '-' + $now " +
+				"SET sub.label = f.name, sub.lastUpdated = $now, sub.source = $source " +
 				"WITH r, sub, u, s.externalId as sExternalId " +
 				"MERGE u-[r1:TEACHES]->sub " +
 				"SET r1.aafClasses = FILTER(cId IN coalesce(r.classes, []) WHERE cId starts with sExternalId), " +
 				"r1.aafGroups = FILTER(gId IN coalesce(r.groups, []) WHERE gId starts with sExternalId), " +
-				"r1.lastUpdated = {now}, r1.source = {source} ";
+				"r1.lastUpdated = $now, r1.source = $source ";
 		transactionHelper.add(query, params);
 		final String deleteOldSubjects =
-				"MATCH " + filter2 + "(sub:Subject {source : {source}}) WHERE sub.lastUpdated <> {now} detach delete sub";
+				"MATCH " + filter2 + "(sub:Subject {source : $source}) WHERE sub.lastUpdated <> $now detach delete sub";
 		transactionHelper.add(deleteOldSubjects, params);
 		final String deleteOldTeaches =
-				"MATCH " + filter2 + "(sub:Subject)<-[r1:TEACHES {source : {source}}]-(u:User) " +
-				"WHERE r1.lastUpdated <> {now} AND (r1.timetableClasses IS NULL OR r1.timetableClasses = []) " +
+				"MATCH " + filter2 + "(sub:Subject)<-[r1:TEACHES {source : $source}]-(u:User) " +
+				"WHERE r1.lastUpdated <> $now AND (r1.timetableClasses IS NULL OR r1.timetableClasses = []) " +
 				"AND (r1.timetableGroups IS NULL OR r1.timetableGroups = []) " +
 				"delete r1";
 		transactionHelper.add(deleteOldTeaches, params);
 		final String syncNotTimetableArrays =
-				"MATCH (s:Structure" + filter + ")<-[:SUBJECT]-(sub:Subject)<-[r1:TEACHES {source : {source}}]-(u:User) " +
+				"MATCH (s:Structure" + filter + ")<-[:SUBJECT]-(sub:Subject)<-[r1:TEACHES {source : $source}]-(u:User) " +
 				"WHERE (s.timetable IS NULL OR s.timetable = '' OR s.timetable = 'NOP') " +
 				"SET r1.classes = r1.aafClasses, r1.groups = r1.aafGroups ";
 		transactionHelper.add(syncNotTimetableArrays, params);

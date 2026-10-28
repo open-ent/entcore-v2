@@ -18,10 +18,10 @@ public class SSOMatrix extends AbstractSSOProvider {
     @Override
     public void generate(EventBus eb, String userId, String host, String serviceProviderEntityId, JsonObject eventAttributes,
                          Handler<Either<String, JsonArray>> handler) {
-        String query = "MATCH (u:User {id:{userId}})" +
+        String query = "MATCH (u:User {id:$userId})" +
                 //Check if the user can access to the App
                 "-[:IN]->(:Group)-[:AUTHORIZED]->(:Role)-[:AUTHORIZE]->(:Action)<-[:PROVIDE]-(a:Application) " +
-                "WHERE a.address CONTAINS({serviceProviderEntityId}) " +
+                "WHERE a.address CONTAINS($serviceProviderEntityId) " +
                 "RETURN DISTINCT u.id as id, u.login as login, u.displayName as displayName, u.groups as groups, u.classes as classes";
         //groups and classes are used for stats do not add them to the result
         Neo4j.getInstance().execute(query, new JsonObject().put("userId", userId).put("serviceProviderEntityId",serviceProviderEntityId + "/"),

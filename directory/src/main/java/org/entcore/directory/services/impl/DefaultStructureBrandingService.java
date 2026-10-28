@@ -75,7 +75,7 @@ public class DefaultStructureBrandingService implements StructureBrandingService
 		if (structureId == null || structureId.isEmpty()) {
 			return Future.succeededFuture(new JsonObject());
 		}
-		final String query = "MATCH (s:Structure {id: {id}}) RETURN " + returnClause("s");
+		final String query = "MATCH (s:Structure {id: $id}) RETURN " + returnClause("s");
 		return querySingle(query, new JsonObject().put("id", structureId));
 	}
 
@@ -88,7 +88,7 @@ public class DefaultStructureBrandingService implements StructureBrandingService
 		// départage par nom. Sans le second critère, un enseignant partagé entre deux collèges
 		// pourrait recevoir un en-tête différent d'une génération à l'autre.
 		final String query =
-				"MATCH (u:User {id: {id}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
+				"MATCH (u:User {id: $id})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
 				"WITH DISTINCT s, " +
 				"  CASE WHEN s." + PROPERTY_PREFIX + "Logo IS NOT NULL " +
 				"         OR s." + PROPERTY_PREFIX + "Cachet IS NOT NULL " +

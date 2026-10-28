@@ -62,9 +62,9 @@ public abstract class AbstractUser {
 	public static void checkUpdateEmail(JsonObject object, TransactionHelper transactionHelper) {
 		if (object.containsKey("email")) {
 			final String queryUpdateEmail =
-					"MATCH (u:User {externalId: {externalId}}) " +
-					"WHERE u.email IS NULL OR (u.activationCode IS NOT NULL AND u.email <> {email}) " +
-					"SET u.email = {email}, u.emailSearchField = {emailSearchField}";
+					"MATCH (u:User {externalId: $externalId}) " +
+					"WHERE u.email IS NULL OR (u.activationCode IS NOT NULL AND u.email <> $email) " +
+					"SET u.email = $email, u.emailSearchField = $emailSearchField";
 			transactionHelper.add(queryUpdateEmail, object);
 		}
 	}

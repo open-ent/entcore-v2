@@ -63,8 +63,8 @@ public class WidgetLinkFilter implements ResourcesProvider{
 		}
 
 		String query =
-			"MATCH (s:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS]-(g:Group {id : {groupId}}) "+
-			"WHERE s.id IN {adminScope} " +
+			"MATCH (s:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS]-(g:Group {id : $groupId}) "+
+			"WHERE s.id IN $adminScope " +
 			"RETURN count(g) = 1 as exists";
 		JsonObject params = new JsonObject()
 			.put("groupId", groupId)
