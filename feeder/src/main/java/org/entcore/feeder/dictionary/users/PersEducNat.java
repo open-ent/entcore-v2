@@ -123,12 +123,12 @@ public class PersEducNat extends AbstractUser {
 					JsonObject p = new JsonObject().put("userExternalId", externalId);
 					if (structures.size() == 1) {
 						query = "MATCH (s:Structure {externalId : $structureAdmin}), (u:User {externalId : $userExternalId}) " +
-								"MERGE u-[:ADMINISTRATIVE_ATTACHMENT]->s ";
+								"MERGE (u)-[:ADMINISTRATIVE_ATTACHMENT]->(s) ";
 						p.put("structureAdmin", structures.getString(0));
 					} else {
 						query = "MATCH (s:Structure), (u:User {externalId : $userExternalId}) " +
 								"WHERE s.externalId IN $structuresAdmin " +
-								"MERGE u-[:ADMINISTRATIVE_ATTACHMENT]->s ";
+								"MERGE (u)-[:ADMINISTRATIVE_ATTACHMENT]->(s) ";
 						p.put("structuresAdmin", structures);
 					}
 					transactionHelper.add(query, p);
@@ -178,7 +178,7 @@ public class PersEducNat extends AbstractUser {
 							"-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {externalId : $profileExternalId}), " +
 							"(u:User { externalId : $userExternalId}) " +
 							"WHERE c.externalId IN $classes AND u.mergedWith IS NULL " +
-							"MERGE u-[:IN]->g";
+							"MERGE (u)-[:IN]->(g)";
 					JsonObject p0 = new JsonObject()
 							.put("userExternalId", externalId)
 							.put("profileExternalId", profileExternalId)
@@ -204,7 +204,7 @@ public class PersEducNat extends AbstractUser {
 					for (String fos: fcm.fieldNames()) {
 						String q2 =
 								"MATCH (u:User {externalId : $userExternalId}), (f:FieldOfStudy {externalId:$feId}) " +
-								"MERGE u-[r:TEACHES_FOS]->f " +
+								"MERGE (u)-[r:TEACHES_FOS]->(f) " +
 								"SET r.classes = $classes ";
 						transactionHelper.add(q2, p.copy().put("classes", fcm.getJsonArray(fos)).put("feId", fos));
 					}
@@ -228,7 +228,7 @@ public class PersEducNat extends AbstractUser {
 					String query =
 							"MATCH (g:Group), (u:User {externalId : $userExternalId}) " +
 							"WHERE (g:FunctionalGroup OR g:FunctionGroup OR g:HTGroup OR g:DirectionGroup) AND g.externalId IN $groups " +
-							"MERGE u-[:IN]->g";
+							"MERGE (u)-[:IN]->(g)";
 					JsonObject p = new JsonObject()
 							.put("userExternalId", externalId)
 							.put("groups", groups);
@@ -265,7 +265,7 @@ public class PersEducNat extends AbstractUser {
 					for (String fos: fgm.fieldNames()) {
 						String q2 =
 								"MATCH (u:User {externalId : $userExternalId}), (f:FieldOfStudy {externalId:$feId}) " +
-								"MERGE u-[r:TEACHES_FOS]->f " +
+								"MERGE (u)-[r:TEACHES_FOS]->(f) " +
 								"SET r.groups = $groups ";
 						transactionHelper.add(q2, pdfg.copy().put("groups", fgm.getJsonArray(fos)).put("feId", fos));
 					}
@@ -304,11 +304,11 @@ public class PersEducNat extends AbstractUser {
 		}
 		final String query =
 				"MATCH (f:FieldOfStudy)<-[r:TEACHES_FOS]-(u:User {source : $source})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure" + filter + ") " +
-				"MERGE s<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + f.externalId}) " +
+				"MERGE (s)<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + f.externalId}) " +
 				"ON CREATE SET sub.code = f.externalId, sub.id = id(sub) + '-' + $now " +
 				"SET sub.label = f.name, sub.lastUpdated = $now, sub.source = $source " +
 				"WITH r, sub, u, s.externalId as sExternalId " +
-				"MERGE u-[r1:TEACHES]->sub " +
+				"MERGE (u)-[r1:TEACHES]->(sub) " +
 				"SET r1.aafClasses = FILTER(cId IN coalesce(r.classes, []) WHERE cId starts with sExternalId), " +
 				"r1.aafGroups = FILTER(gId IN coalesce(r.groups, []) WHERE gId starts with sExternalId), " +
 				"r1.lastUpdated = $now, r1.source = $source ";

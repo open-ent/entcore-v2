@@ -346,7 +346,7 @@ public class DirectoryController extends BaseController {
 			params.put("expectedTypes", new JsonArray(expectedTypes));
 		}
 		neo.send("MATCH (n:Class)<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(m:User), "
-				+ "g-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) "
+				+ "(g)-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) "
 				+ "WHERE n.id = $classId " + types
 				+ "RETURN distinct m.id as userId, p.name as type, "
 				+ "m.activationCode as code, m.firstName as firstName,"
@@ -481,18 +481,18 @@ public class DirectoryController extends BaseController {
 		Map<String, Object> params = new HashMap<>();
 		if (request.params().get("id").equals("all")){
 			neoRequest =
-					"MATCH (m:User)-[:IN]->g " +
+					"MATCH (m:User)-[:IN]->(g) " +
 					"WHERE NOT(m.activationCode IS NULL) " +
-					"OPTIONAL MATCH g-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+					"OPTIONAL MATCH (g)-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 					"RETURN distinct m.lastName as lastName, m.firstName as firstName, " +
 					"m.login as login, m.activationCode as activationCode, " +
 					"p.name as type " +
 					"ORDER BY type, login ";
 		} else if (request.params().get("id") != null) {
 			neoRequest =
-					"MATCH (m:User)-[:IN]->g-[:DEPENDS]->n " +
+					"MATCH (m:User)-[:IN]->(g)-[:DEPENDS]->(n) " +
 					"WHERE (n:Structure OR n:Class) AND n.id = $id AND NOT(m.activationCode IS NULL) " +
-					"OPTIONAL MATCH g-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+					"OPTIONAL MATCH (g)-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 					"RETURN distinct m.lastName as lastName, m.firstName as firstName, " +
 					"m.login as login, m.activationCode as activationCode, " +
 					"p.name as type " +

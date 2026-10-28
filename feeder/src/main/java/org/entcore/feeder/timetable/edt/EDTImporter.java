@@ -67,7 +67,7 @@ public class EDTImporter extends AbstractTimetableImporter implements EDTReader 
 			"RETURN DISTINCT HEAD(user).id as id, HEAD(user).IDPN as IDPN, $profile as profile";
 	private static final String STUDENTS_TO_GROUPS =
 			"MATCH (u:User {id : $id}), (fg:FunctionalGroup {externalId:$externalId}) " +
-			"MERGE u-[r:IN]->fg " +
+			"MERGE (u)-[r:IN]->(fg) " +
 			"SET r.lastUpdated = $now, r.source = $source, r.inDate = $inDate, r.outDate = $outDate ";
 	private static final String CLEAN_IDPN =
 			"MATCH (:Structure {UAI : $UAI})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +

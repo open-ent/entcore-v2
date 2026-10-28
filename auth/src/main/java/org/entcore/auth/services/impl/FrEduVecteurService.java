@@ -51,14 +51,14 @@ public class FrEduVecteurService implements SamlVectorService {
                         if (profiles != null && profiles.size() > 0) {
                             if (profiles.contains("Student")) {
                                 // Get student vectors for saml response : "4|"+u.lastName+"|"+u.firstName+"|"+u.externalId+"|"+s.UAI
-                                String query = "MATCH u-[:IN]->()-[:DEPENDS]->(s:Structure) " +
+                                String query = "MATCH (u)-[:IN]->()-[:DEPENDS]->(s:Structure) " +
                                         "WHERE u.id = $userId " +
                                         "RETURN DISTINCT '4|'+u.lastName+'|'+u.firstName+'|'+u.attachmentId+'|'+s.UAI as FrEduVecteur";
 
                                 neo4j.execute(query, new JsonObject().put("userId", userId), validResultHandler(handler));
                             } else if (profiles.contains("Relative")) {
                                 // Get parent vectors for saml response : '2|'+u.lastName+'|'+u.firstName+'|'+ child.externalId+'|'+s.UAI"
-                                String query = "MATCH (child: User)-[:RELATED]->u-[:IN]->()-[:DEPENDS]->(s:Structure) " +
+                                String query = "MATCH (child: User)-[:RELATED]->(u)-[:IN]->()-[:DEPENDS]->(s:Structure) " +
                                         "WHERE u.id = $userId " +
                                         "RETURN DISTINCT '2|'+u.lastName+'|'+u.firstName+'|'+ child.attachmentId+'|'+s.UAI as FrEduVecteur";
 

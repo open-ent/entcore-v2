@@ -352,7 +352,7 @@ public class PostImport {
 		// If there are only students or teachers in a functionnal group, remove com rules
 		String cleanComRules = "MATCH (g:FunctionalGroup {users:'BOTH'})<-[:IN]-(u:User) " +
 									"WITH g, count(CASE WHEN 'Teacher' IN u.profiles THEN 1 END) AS numTeachers, count(CASE WHEN 'Student' IN u.profiles THEN 1 END) AS numStudents " +
-									"WHERE numTeachers = g.nbUsers OR numStudents = g.nbUsers WITH DISTINCT g SET g.users = 'NONE' WITH g MATCH g-[com:COMMUNIQUE]-(:User) DELETE com";
+									"WHERE numTeachers = g.nbUsers OR numStudents = g.nbUsers WITH DISTINCT g SET g.users = 'NONE' WITH g MATCH (g)-[com:COMMUNIQUE]-(:User) DELETE com";
 		// If there are students and teachers in a functionnal group without com rule, create com rules
 		String restoreComRules = "MATCH (g:FunctionalGroup {users:'NONE'})<-[:IN]-(u:User) " +
 									"WITH g, collect(DISTINCT u) AS users, count(CASE WHEN 'Teacher' IN u.profiles THEN 1 END) AS numTeachers, count(CASE WHEN 'Student' IN u.profiles THEN 1 END) AS numStudents " +

@@ -184,7 +184,7 @@ public class DefaultSchoolService implements SchoolService {
 
 	@Override
 	public void isParent(String structureId, String parentStructureId, Handler<Either<String, Boolean>> handler) {
-		final String query = "MATCH (s:Structure {id: $structureId}) RETURN EXISTS(s-[:HAS_ATTACHMENT*1..]->(:Structure {id: $parentStructureId})) AS exists";
+		final String query = "MATCH (s:Structure {id: $structureId}) RETURN EXISTS((s)-[:HAS_ATTACHMENT*1..]->(:Structure {id: $parentStructureId})) AS exists";
 		JsonObject params = new JsonObject().put("structureId", structureId).put("parentStructureId", parentStructureId);
 		neo.execute(query.toString(), params, validUniqueResultHandler(exists -> {
 			if (exists.isRight()) {
@@ -277,7 +277,7 @@ public class DefaultSchoolService implements SchoolService {
 		String condition =
 				"WHERE u.level IS NOT NULL ";
 		String filter2 =
-				"MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class:Class)-[:BELONGS]->(n) "+
+				"MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class:Class)-[:BELONGS]->(n) "+
 				"WITH distinct u.level as name, collect(distinct {id: class.id, name: class.name}) as classes "+
 				"RETURN distinct name, classes";
 
@@ -733,7 +733,7 @@ public class DefaultSchoolService implements SchoolService {
 	@Override
 	public void checkGAR(JsonArray uais, Handler<Either<String, JsonArray>> handler) {
 		final String query = "MATCH (s:Structure) WHERE s.source IN ['AAF', 'AAF1D'] AND s.UAI IN $uais " +
-				"MATCH s<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) " +
+				"MATCH (s)<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User) " +
 				"WITH s, count(u) as users where users > 0 RETURN DISTINCT s.name AS name, s.UAI as UAI";
 		JsonArray uaiUppercase = new JsonArray(uais.stream().map(uai -> uai.toString().toUpperCase()).collect(Collectors.toList()));
 		JsonObject params = new JsonObject().put("uais", uaiUppercase);
@@ -812,7 +812,7 @@ public class DefaultSchoolService implements SchoolService {
 				} else {
 					populateQuery += "WHERE pg.filter IN ['Teacher','Personnel'] AND ANY(function IN u.functions WHERE function CONTAINS '$DIR$' OR function CONTAINS '$DOC$' OR function CONTAINS '$DIRECTION') ";
 				}
-				populateQuery += "CREATE UNIQUE u-[:IN {source:'MANUAL'}]->g";
+				populateQuery += "CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(g)";
 				final JsonObject populateParams = new JsonObject().put("uai", uai).put("groupId", groupId);
 				builder.add(populateQuery, populateParams);
 

@@ -243,7 +243,7 @@ public class DuplicateUsers {
 					"ORDER BY score DESC";
 		} else {
 			if (inSameStructure) {
-				query = "match (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u1:User)-[r:DUPLICATE]-(u2:User) WHERE u2-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s) " ;
+				query = "match (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u1:User)-[r:DUPLICATE]-(u2:User) WHERE (u2)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s) " ;
 			} else {
 				query = "MATCH (u1:User)-[r:DUPLICATE]->(u2:User) ";
 			}
@@ -603,31 +603,31 @@ public class DuplicateUsers {
 								tx.add(
 										"MATCH (u:User {id: $userId}), (mu:User)-[rin:IN]->(gin:Group) " +
 												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
-												"MERGE u-[r:IN]->gin " +
+												"MERGE (u)-[r:IN]->(gin) " +
 												"SET r.source = rin.source " +
 												"DELETE rin ", params);
 								tx.add(
 										"MATCH (u:User {id: $userId}), (mu:User)-[rcom:COMMUNIQUE]->(gcom:Group) " +
 												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
-												"MERGE  u-[r:COMMUNIQUE]->gcom " +
+												"MERGE  (u)-[r:COMMUNIQUE]->(gcom) " +
 												"SET r.source = rcom.source " +
 												"DELETE rcom ", params);
 								tx.add(
 										"MATCH (u:User {id: $userId}), (mu:User)<-[rcomr:COMMUNIQUE]-(gcomr:Group) " +
 												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
-												"MERGE u<-[r:COMMUNIQUE]-gcomr " +
+												"MERGE (u)<-[r:COMMUNIQUE]-(gcomr) " +
 												"SET r.source = rcomr.source " +
 												"DELETE rcomr ", params);
 								tx.add(
 										"MATCH (u:User {id: $userId}), (mu:User)-[rr:RELATED]->(ur:User) " +
 												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
-												"MERGE u-[r:RELATED]->ur " +
+												"MERGE (u)-[r:RELATED]->(ur) " +
 												"SET r.source = rr.source " +
 												"DELETE rr ", params);
 								tx.add(
 										"MATCH (u:User {id: $userId}), (mu:User)<-[rrr:RELATED]-(urr:User) " +
 												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
-												"MERGE u<-[r:RELATED]-urr " +
+												"MERGE (u)<-[r:RELATED]-(urr) " +
 												"SET r.source = rrr.source " +
 												"DELETE rrr ", params);
 								tx.add(
@@ -635,7 +635,7 @@ public class DuplicateUsers {
 												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
 												"SET mu.mergedWith = $userId, mu.mergeKey = null, u.mergedLogins = coalesce(u.mergedLogins, []) + mu.login " +
 //					", u.joinKey =  FILTER(eId IN u.joinKey WHERE eId <> mu.externalId) + mu.externalId " +
-												"MERGE mu-[:MERGED]->u " +
+												"MERGE (mu)-[:MERGED]->(u) " +
 												"RETURN u.mergedLogins as mergedLogins ", params);
 								tx.commit(new Handler<Message<JsonObject>>() {
 									@Override
@@ -877,7 +877,7 @@ public class DuplicateUsers {
 				"MATCH (u:User {id : $sId}), (d:User {id : $dId}) " +
 						"WHERE NOT($dId IN coalesce(u.ignoreDuplicates, [])) AND NOT($sId IN coalesce(d.ignoreDuplicates, [])) " +
 						"AND (u.activationCode IS NOT NULL OR d.activationCode IS NOT NULL) " +
-						"MERGE u-[:DUPLICATE {score:$score}]-d ";
+						"MERGE (u)-[:DUPLICATE {score:$score}]-(d) ";
 		JsonObject params = new JsonObject().put("sId", searchUser.getString("id"));
 
 		final String lastName = cleanAttribute(searchUser.getString("lastName"));
@@ -1116,7 +1116,7 @@ public class DuplicateUsers {
 			final String query3 =
 					"MATCH (old:User {id: $oldId})-[r:RELATED]->(ub:User), (u:User {id: $id}) " +
 							"SET u.mergeIneDate = $now " +
-							"CREATE UNIQUE u-[:RELATED {source:'MERGE_INE'}]->ub " +
+							"CREATE UNIQUE (u)-[:RELATED {source:'MERGE_INE'}]->(ub) " +
 							"DELETE r";
 			tx.add(query3, params.copy().put("now", now));
 		}
@@ -1151,8 +1151,8 @@ public class DuplicateUsers {
 	private void deleteDuplicateIneUser(JsonObject oldUser, TransactionHelper tx) {
 		final String query =
 				"MATCH (u:User {id: $id}) " +
-						"OPTIONAL MATCH u-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
-						"OPTIONAL MATCH u-[r]-() " +
+						"OPTIONAL MATCH (u)-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
+						"OPTIONAL MATCH (u)-[r]-() " +
 						"DELETE r, rb, b, u ";
 		final JsonObject params = new JsonObject().put("id", oldUser.getString("id"));
 		log.info("Remove duplicate ine user : " + oldUser.encode());
@@ -1163,7 +1163,7 @@ public class DuplicateUsers {
 	private void mergeSameRelative(long now, Handler<AsyncResult<Void>> handler) {
 		final String query =
 				"MATCH (u:User {mergeIneDate:$now})-[r:RELATED]->(p:User) " +
-						"OPTIONAL MATCH p<-[:RELATED]-(n:User) " +
+						"OPTIONAL MATCH (p)<-[:RELATED]-(n:User) " +
 						"WHERE n.mergeIneDate IS NULL " +
 						"WITH u, r, p, COUNT(DISTINCT n) as otherChildCount " +
 						"RETURN u.id as id, u.ine as ine, COLLECT(DISTINCT {id: p.id, source: p.source, " +
@@ -1262,8 +1262,8 @@ public class DuplicateUsers {
 		final String query =
 				"MATCH (u:User) " +
 						"WHERE u.id IN $relatives " +
-						"OPTIONAL MATCH u-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
-						"OPTIONAL MATCH u-[r]-() " +
+						"OPTIONAL MATCH (u)-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
+						"OPTIONAL MATCH (u)-[r]-() " +
 						"DELETE r, rb, b, u ";
 		final JsonObject params = new JsonObject().put("relatives", deleteRelatives);
 		log.info("Remove duplicate ine user relatives : " + deleteRelatives.encode());

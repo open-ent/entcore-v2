@@ -66,7 +66,7 @@ public class UDTImporter extends AbstractTimetableImporter {
 			"MATCH (:Structure {externalId:$structureExternalId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User), " +
 			"(fg:FunctionalGroup {externalId:$externalId}) " +
 			"WHERE toLower(u.firstName) = $firstName AND toLower(u.lastName) = $lastName AND u.birthDate = $birthDate " +
-			"MERGE u-[r:IN]->fg " +
+			"MERGE (u)-[r:IN]->(fg) " +
 			"SET r.lastUpdated = $now, r.source = $source, r.inDate = $inDate, r.outDate = $outDate ";
 	private static final String PERSIST_USED_GROUPS =
 			"MATCH (:Structure {externalId:$structureExternalId})<-[:DEPENDS]-(fg:FunctionalGroup) " +

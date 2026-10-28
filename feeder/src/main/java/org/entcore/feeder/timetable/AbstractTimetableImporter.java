@@ -65,7 +65,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 			"MERGE (sub)-[:SUBJECT]->(s) ";
 	private static final String LINK_SUBJECT =
 			"MATCH (s:TimetableSubject {id : $subjectId}), (u:User {id: $teacherId}) " +
-			"MERGE u-[r:TEACHES]->s " +
+			"MERGE (u)-[r:TEACHES]->(s) " +
 			"SET r.classes = FILTER(c IN coalesce(r.classes, []) where NOT(c IN $classes)) + $classes, " +
 			"r.groups = FILTER(g IN coalesce(r.groups, []) where NOT(g IN $groups)) + $groups, " +
 			"r.lastUpdated = $now, r.source = $source ";
@@ -104,18 +104,18 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 	private static final String PERSEDUCNAT_TO_GROUPS =
 			"MATCH (u:User {id : $id}), (fg:FunctionalGroup) " +
 			"WHERE fg.externalId IN $groups " +
-			"MERGE u-[r:IN]->fg " +
+			"MERGE (u)-[r:IN]->(fg) " +
 			"SET r.lastUpdated = $now, r.source = $source, r.outDate = $outDate ";
 	private static final String PERSEDUCNAT_TO_CLASSES =
 			"MATCH (u:User {id : $id}), (:Structure {externalId : $structureExternalId})<-[:BELONGS]-(c:Class)" +
 			"<-[:DEPENDS]-(pg:ProfileGroup {name : c.name + '-' + $profile}) " +
 			"WHERE u.source = $source AND c.name IN $classes " +
-			"MERGE u-[r:IN]->pg " +
+			"MERGE (u)-[r:IN]->(pg) " +
 			"SET r.lastUpdated = $now, r.source = $source, r.outDate = $outDate ";
 	private static final String UNLINK_GROUP =
 			"MATCH (s:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(fg:FunctionalGroup)<-[r:IN]-(u:User) " +
 			"WHERE r.source = $source AND (r.outDate < $now OR r.lastUpdated < $now OR r.inDate > $now) " +
-			"OPTIONAL MATCH fg-[rc:COMMUNIQUE]-u " +
+			"OPTIONAL MATCH (fg)-[rc:COMMUNIQUE]-(u) " +
 			"DELETE r, rc";
 	private static final String DELETE_GROUPS_1 =
 			"MATCH (:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(g:FunctionalGroup {source:$source})<-[:IN]-(u:User) ";
@@ -132,12 +132,12 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 	private static final String UNSET_OLD_GROUPS =
 			"MATCH (:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
 			"WHERE u.deleteDate IS NULL AND u.groups IS NOT NULL AND LENGTH(u.groups) > 0 " +
-			"AND NOT(u-[:IN]->(:FunctionalGroup)) " +
+			"AND NOT((u)-[:IN]->(:FunctionalGroup)) " +
 			"SET u.groups = [];";
 	private static final String SET_GROUPS =
 			"MATCH (:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
 			"WITH u " +
-			"MATCH u-[:IN]->(g:FunctionalGroup) " +
+			"MATCH (u)-[:IN]->(g:FunctionalGroup) " +
 			"WHERE u.groups IS NOT NULL " +
 			"WITH u, collect(g.externalId) as groups " +
 			"SET u.groups = groups";
@@ -848,7 +848,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 			tx1 = TransactionManager.getTransaction();
 			final String subjectsMappingQuery =
 					"MATCH (s:Structure {UAI : $UAI})<-[:SUBJECT]-(sub:TimetableSubject) " +
-					"OPTIONAL MATCH sub<-[r:TEACHES]-(u:User) " +
+					"OPTIONAL MATCH (sub)<-[r:TEACHES]-(u:User) " +
 					"RETURN sub.id as id, sub.mappingCode as mappingCode, COLLECT([r.classes, r.groups, u.id]) as teaches ";
 			tx1.add(subjectsMappingQuery, params);
 			final String subjectsQuery =
@@ -929,17 +929,17 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 			final JsonObject bcnObject = bcnSubjectsLong.getJsonObject(code.substring(academyPrefix.length()));
 			if (bcnObject != null) {
 				query = "MATCH (s:Structure {UAI : $UAI}) " +
-						"MERGE s<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + $code}) " +
+						"MERGE (s)<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + $code}) " +
 						"ON CREATE SET sub.label = $subjectName";
 				params.put("subjectName", bcnObject.getString("name"));
 			} else {
 				query = "MATCH (s:Structure {UAI : $UAI}), (f:FieldOfStudy {externalId: $code}) " +
-						"MERGE s<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + f.externalId}) " +
+						"MERGE (s)<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + f.externalId}) " +
 						"ON CREATE SET sub.label = f.name";
 			}
 		} else {
 			query = "MATCH (s:Structure {UAI : $UAI})<-[:SUBJECT]-(ts:TimetableSubject {mappingCode:$code}) " +
-					"MERGE s<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + $code}) " +
+					"MERGE (s)<-[:SUBJECT]-(sub:Subject {externalId: s.externalId + '$' + $code}) " +
 					"ON CREATE SET sub.label = ts.label";
 		}
 		query +=
@@ -959,7 +959,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 		}
 		final String updateSubjects =
 				"MATCH (:Structure {UAI : $UAI})<-[:SUBJECT]-(sub:Subject {code:$codeBCN}), (u:User {id:$userId}) " +
-				"MERGE sub<-[r:TEACHES]-u " +
+				"MERGE (sub)<-[r:TEACHES]-(u) " +
 				"ON CREATE SET r.source = $source, r.classes = $classes, r.groups = $groups " +
 				"SET r.timetableClasses = $classes, r.timetableGroups = $groups, r.lastUpdated = $now ";
 		final JsonObject p = new JsonObject().put("UAI", UAI).put("codeBCN", code)
@@ -1102,14 +1102,14 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 						TransactionHelper tx = TransactionManager.getTransaction();
 						final String q1 =
 								"MATCH (s:Structure {id : $structureId})<-[:DEPENDS]-(fg:FunctionalGroup) " +
-								"OPTIONAL MATCH fg<-[:IN]-(u:User) " +
+								"OPTIONAL MATCH (fg)<-[:IN]-(u:User) " +
 								"RETURN fg.id as group, fg.name as groupName, collect(u.id) as users ";
 						final String q2 =
 								"MATCH (s:Structure {id: $structureId}) " +
 								"WITH s " +
-								"MATCH s<-[:DEPENDS]-(fg:FunctionalGroup)" +
-								"OPTIONAL MATCH s<-[:SUBJECT]-(sub:TimetableSubject) " +
-								"OPTIONAL MATCH s<-[:SUBJECT]-(sub2:Subject) " +
+								"MATCH (s)<-[:DEPENDS]-(fg:FunctionalGroup)" +
+								"OPTIONAL MATCH (s)<-[:SUBJECT]-(sub:TimetableSubject) " +
+								"OPTIONAL MATCH (s)<-[:SUBJECT]-(sub2:Subject) " +
 								"WHERE sub2.source <> 'AAF' " +
 								"DETACH DELETE fg, sub, sub2 ";
 						final String q3 =

@@ -109,14 +109,14 @@ public class Profile {
 			query = "MATCH (p:Profile { externalId : $profileExternalId}) ";
 			params.put("profileExternalId", profileExternalId);
 		}
-		query += "CREATE p<-[:COMPOSE]-(f:Function $props) RETURN f.id as id ";
+		query += "CREATE (p)<-[:COMPOSE]-(f:Function $props) RETURN f.id as id ";
 		transaction.add(query, params);
 	}
 
 	public static void deleteFunction(String functionExternalId, TransactionHelper transaction) {
 		String query =
 				"MATCH (f:Function { externalId : $externalId}) " +
-				"OPTIONAL MATCH f-[r]-() " +
+				"OPTIONAL MATCH (f)-[r]-() " +
 				"DELETE r,f ";
 		JsonObject params = new JsonObject().put("externalId", functionExternalId);
 		transaction.add(query, params);
@@ -125,7 +125,7 @@ public class Profile {
 	public static void deleteFunctionGroup(String functionGroupId, TransactionHelper transaction) {
 		String query =
 				"MATCH (f:FunctionGroup { id : $id}) " +
-				"OPTIONAL MATCH f-[r]-() " +
+				"OPTIONAL MATCH (f)-[r]-() " +
 				"DELETE r,f ";
 		JsonObject params = new JsonObject().put("id", functionGroupId);
 		transaction.add(query, params);

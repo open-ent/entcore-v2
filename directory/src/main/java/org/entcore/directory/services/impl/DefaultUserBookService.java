@@ -609,7 +609,7 @@ public class DefaultUserBookService implements UserBookService {
 				updateClauses.add(String.format("m.hobby_%s = {%s} ", hobby, hobby));
 				params.put(hobby, new JsonArray().add(PRIVE).add(""));
 			}
-			final String query2 = "MATCH (n:User)-[:USERBOOK]->m WHERE n.id = $userId SET "+StringUtils.join(updateClauses, ",");
+			final String query2 = "MATCH (n:User)-[:USERBOOK]->(m) WHERE n.id = $userId SET "+StringUtils.join(updateClauses, ",");
 			queries.add(query2, params);
 		}
 		{//create appconfig

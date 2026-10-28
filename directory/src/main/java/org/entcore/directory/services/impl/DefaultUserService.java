@@ -392,21 +392,21 @@ public class DefaultUserService implements UserService {
 
 		String query =
 				"MATCH (u:`User` { id : $id}) " +
-				"OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, u " +
+				"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, u " +
 				"OPTIONAL MATCH (sAuth:Structure)-[:HAS_AUTH_DEFAULT]->(auths:AuthDefault { profile: HEAD(u.profiles), auth: 'FEDERATED' }) WHERE sAuth IN structureNodes WITH structureNodes, u, COLLECT(auths) as auths " +
-				"OPTIONAL MATCH u-[rf:HAS_FUNCTION]->(f:Function) WITH COLLECT(distinct [f.externalId, rf.scope]) as functions, u, structureNodes, auths " +
-				"OPTIONAL MATCH u<-[:RELATED]-(child: User) WITH COLLECT(distinct {id: child.id, displayName: child.displayName, externalId: child.externalId}) as children, functions, u, structureNodes, auths " +
-				"OPTIONAL MATCH u-[:RELATED]->(parent: User) WITH COLLECT(distinct {id: parent.id, displayName: parent.displayName, externalId: parent.externalId}) as parents, children, functions, u, structureNodes, auths " +
-				"OPTIONAL MATCH u-[:IN]->(fgroup: FunctionalGroup) WITH COLLECT(distinct {id: fgroup.id, name: fgroup.name}) as admGroups, parents, children, functions, u, structureNodes, auths " +
-				"OPTIONAL MATCH u-[:ADMINISTRATIVE_ATTACHMENT]->(admStruct: Structure) WITH COLLECT(distinct {id: admStruct.id}) as admStruct, admGroups, parents, children, functions, u, structureNodes, auths " +
-				"OPTIONAL MATCH u-[r:TEACHES]->(s:Subject) WITH COLLECT(distinct s.code) as subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths " +
-				"OPTIONAL MATCH u-[h:HAS_POSITION]->(p:UserPosition)-[:IN]->(struct:Structure) WITH CASE WHEN p IS NOT NULL THEN COLLECT(distinct {id: p.id, name: p.name, source: p.source, structureId: struct.id}) ELSE [] END as userPositions, subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths ";
+				"OPTIONAL MATCH (u)-[rf:HAS_FUNCTION]->(f:Function) WITH COLLECT(distinct [f.externalId, rf.scope]) as functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH (u)<-[:RELATED]-(child: User) WITH COLLECT(distinct {id: child.id, displayName: child.displayName, externalId: child.externalId}) as children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH (u)-[:RELATED]->(parent: User) WITH COLLECT(distinct {id: parent.id, displayName: parent.displayName, externalId: parent.externalId}) as parents, children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH (u)-[:IN]->(fgroup: FunctionalGroup) WITH COLLECT(distinct {id: fgroup.id, name: fgroup.name}) as admGroups, parents, children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH (u)-[:ADMINISTRATIVE_ATTACHMENT]->(admStruct: Structure) WITH COLLECT(distinct {id: admStruct.id}) as admStruct, admGroups, parents, children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH (u)-[r:TEACHES]->(s:Subject) WITH COLLECT(distinct s.code) as subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths " +
+				"OPTIONAL MATCH (u)-[h:HAS_POSITION]->(p:UserPosition)-[:IN]->(struct:Structure) WITH CASE WHEN p IS NOT NULL THEN COLLECT(distinct {id: p.id, name: p.name, source: p.source, structureId: struct.id}) ELSE [] END as userPositions, subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths ";
 
 		if (getManualGroups)
-			query += "OPTIONAL MATCH u-[:IN]->(mgroup: ManualGroup)-[:DEPENDS]->(mStruct:Structure) WITH COLLECT(distinct {id: mgroup.id, name: mgroup.name, structureId: mStruct.id, structureUai: mStruct.UAI}) as manualGroups, userPositions, subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths ";
+			query += "OPTIONAL MATCH (u)-[:IN]->(mgroup: ManualGroup)-[:DEPENDS]->(mStruct:Structure) WITH COLLECT(distinct {id: mgroup.id, name: mgroup.name, structureId: mStruct.id, structureUai: mStruct.UAI}) as manualGroups, userPositions, subjectCodes, admStruct, admGroups, parents, children, functions, u, structureNodes, auths ";
 
 		if(withClasses)
-			query += "OPTIONAL MATCH s<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u) WHERE u.classes IS NOT NULL ";
+			query += "OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u) WHERE u.classes IS NOT NULL ";
 		
 		if(filterNullReturn){
 			query += "RETURN DISTINCT u.profiles as type, structureNodes, " +
@@ -503,9 +503,9 @@ public class DefaultUserService implements UserService {
 					"WITH COLLECT(DISTINCT {id: admStruct.id}) AS admStruct, admGroups, functions, u, sn " +
 					"OPTIONAL MATCH (u)-[r:TEACHES]->(s:Subject) " +
 					"WITH COLLECT(DISTINCT s.code) AS subjectCodes, admStruct, admGroups, functions, u, sn " +
-					"OPTIONAL MATCH u<-[:RELATED]-(child: User)-[:IN]->(:ProfileGroup {filter:'Student'})-[:DEPENDS]->(cs:Structure) " +
+					"OPTIONAL MATCH (u)<-[:RELATED]-(child: User)-[:IN]->(:ProfileGroup {filter:'Student'})-[:DEPENDS]->(cs:Structure) " +
 					"WITH COLLECT(distinct {id: child.id, displayName: child.displayName, externalId: child.externalId, UAI: cs.UAI}) as children, subjectCodes, admStruct, admGroups, functions, u, sn " +
-					"OPTIONAL MATCH u-[:RELATED]->(parent: User)-[:IN]->(:ProfileGroup {filter:'Relative'})-[:DEPENDS]->(ps:Structure) WHERE ps IN sn " +
+					"OPTIONAL MATCH (u)-[:RELATED]->(parent: User)-[:IN]->(:ProfileGroup {filter:'Relative'})-[:DEPENDS]->(ps:Structure) WHERE ps IN sn " +
 					"WITH COLLECT(distinct {id: parent.id, displayName: parent.displayName, externalId: parent.externalId, UAI: ps.UAI}) as parents, children, subjectCodes, admStruct, admGroups, functions, u, sn " +
 					"OPTIONAL MATCH (st:Structure)<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u) " +
 					"RETURN DISTINCT " +
@@ -653,7 +653,7 @@ public class DefaultUserService implements UserService {
 		}
 		String query =
 				"MATCH " +filterClass + filterStructure +
-				"(u:User)-[:IN]->g-[:DEPENDS*0..1]->pg-[:HAS_PROFILE]->(p:Profile) " +
+				"(u:User)-[:IN]->(g)-[:DEPENDS*0..1]->(pg)-[:HAS_PROFILE]->(p:Profile) " +
 				filterProfile +
 				"RETURN DISTINCT u.id as id, p.name as type, u.externalId as externalId, u.IDPN as IDPN, " +
 				"u.activationCode as code, u.login as login, u.firstName as firstName, " +
@@ -692,8 +692,8 @@ public class DefaultUserService implements UserService {
 		// users without class
 		if (structureId != null && !structureId.trim().isEmpty()) {
 			query = "MATCH  (s:Structure { id : $structureId})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User), " +
-					"g-[:HAS_PROFILE]->(p:Profile) " +
-					"WHERE  NOT(u-[:IN]->()-[:DEPENDS]->(:Class)-[:BELONGS]->s) "+ condition;
+					"(g)-[:HAS_PROFILE]->(p:Profile) " +
+					"WHERE  NOT((u)-[:IN]->()-[:DEPENDS]->(:Class)-[:BELONGS]->(s)) "+ condition;
 			params.put("structureId", structureId);
 			if (profile != null && !profile.isEmpty()) {
 				query += "AND p.name IN $profile ";
@@ -701,8 +701,8 @@ public class DefaultUserService implements UserService {
 			}
 		} else { // users without structure
 			query = "MATCH (u:User)" +
-					"WHERE NOT(u-[:IN]->()-[:DEPENDS]->(:Structure)) "+ condition +
-					"OPTIONAL MATCH u-[:IN]->(dpg:DefaultProfileGroup)-[:HAS_PROFILE]->(p:Profile) ";
+					"WHERE NOT((u)-[:IN]->()-[:DEPENDS]->(:Structure)) "+ condition +
+					"OPTIONAL MATCH (u)-[:IN]->(dpg:DefaultProfileGroup)-[:HAS_PROFILE]->(p:Profile) ";
 		}
 		
 		query += "RETURN DISTINCT u.id as id, p.name as type, " +
@@ -842,7 +842,7 @@ public class DefaultUserService implements UserService {
 			UserInfos.Function f = userInfos.getFunctions().get(CLASS_ADMIN);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				filterFunction += "MATCH (c:Class)<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), u-[:IN]->pg ";
+				filterFunction += "MATCH (c:Class)<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (u)-[:IN]->(pg) ";
 				conditionFunction += "AND c.id IN $scope ";
 				params.put("scope", new JsonArray(scope));
 			}
@@ -850,13 +850,13 @@ public class DefaultUserService implements UserService {
 		String query =
 				"MATCH " + filterUser + "(u:User) " + conditionUser
 				+ filterFunction + conditionFunction +
-				"OPTIONAL MATCH u-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-				"OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class:Class)-[:BELONGS]->(s) " +
-				"OPTIONAL MATCH u-[:RELATED]->(parent: User) " +
-				"OPTIONAL MATCH (child: User)-[:RELATED]->u " +
+				"OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
+				"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class:Class)-[:BELONGS]->(s) " +
+				"OPTIONAL MATCH (u)-[:RELATED]->(parent: User) " +
+				"OPTIONAL MATCH (child: User)-[:RELATED]->(u) " +
 				"OPTIONAL MATCH (childClass:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(child) " +
-				"OPTIONAL MATCH u-[rf:HAS_FUNCTION]->(f:Function) " +
-				"OPTIONAL MATCH u-[:TEACHES]->(sub:Subject) " +
+				"OPTIONAL MATCH (u)-[rf:HAS_FUNCTION]->(f:Function) " +
+				"OPTIONAL MATCH (u)-[:TEACHES]->(sub:Subject) " +
 				"RETURN DISTINCT u.id as id, head(u.profiles) as type, u.externalId as externalId, " +
 				"u.activationCode as code, " +
 				"CASE WHEN u.loginAlias IS NOT NULL THEN u.loginAlias ELSE u.login END as login, " +
@@ -1037,7 +1037,7 @@ public class DefaultUserService implements UserService {
 		String query =
 				"MATCH (n)<-[:DEPENDS]-(g:FunctionGroup)<-[:IN]-(u:User) " +
 				"WHERE (n:Structure OR n:Class) AND n.id = $scopeId AND g.name =~ '^.*-AdminLocal$' " +
-				"OPTIONAL MATCH u-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) " +
+				"OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) " +
 				"RETURN distinct u.id as id, u.login as login," +
 				" u.displayName as username, profile.name as type " +
 				"ORDER BY username ";
@@ -1050,12 +1050,12 @@ public class DefaultUserService implements UserService {
 	public void getInfos(String userId, Handler<Either<String, JsonObject>> result) {
 		String query =
 				"MATCH (n:User {id : $id}) " +
-				"OPTIONAL MATCH n-[:IN]->(gp:Group) " +
-				"OPTIONAL MATCH n-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-				"OPTIONAL MATCH n-[:IN]->()-[:DEPENDS]->(c:Class) " +
-				"OPTIONAL MATCH n-[rf:HAS_FUNCTION]->(f:Function) " +
-				"OPTIONAL MATCH n-[:IN]->()-[:HAS_PROFILE]->(p:Profile) " +
-				"OPTIONAL MATCH n-[:ADMINISTRATIVE_ATTACHMENT]->(sa:Structure) " +
+				"OPTIONAL MATCH (n)-[:IN]->(gp:Group) " +
+				"OPTIONAL MATCH (n)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
+				"OPTIONAL MATCH (n)-[:IN]->()-[:DEPENDS]->(c:Class) " +
+				"OPTIONAL MATCH (n)-[rf:HAS_FUNCTION]->(f:Function) " +
+				"OPTIONAL MATCH (n)-[:IN]->()-[:HAS_PROFILE]->(p:Profile) " +
+				"OPTIONAL MATCH (n)-[:ADMINISTRATIVE_ATTACHMENT]->(sa:Structure) " +
 				"RETURN distinct " +
 				"n, n.functions as ufunctions, COLLECT(distinct c) as classes, HEAD(COLLECT(distinct p.name)) as type, " +
 				"COLLECT(distinct s) as structures, COLLECT(distinct [f.externalId, rf.scope]) as functions, " +
@@ -1068,7 +1068,7 @@ public class DefaultUserService implements UserService {
 	public void getUserStructuresClasses(String userId, Handler<Either<String, JsonObject>> result) {
 		final String query =
 				"MATCH (u:User {id:$id})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-				"OPTIONAL MATCH s<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u) " +
+				"OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u) " +
 				"WITH DISTINCT u, s, COLLECT(DISTINCT c.name) as classes " +
 				"RETURN u.id as id, u.externalId as externalId, u.firstName as firstName, u.lastName as lastName, " +
 				"u.email as email, u.emailAcademy as emailAcademy, head(u.profiles) as profile, u.login as login, " +
@@ -1173,7 +1173,7 @@ public class DefaultUserService implements UserService {
 				.append(filter);
 
 		if (fields.contains("administrativeStructure")) {
-			query.append("OPTIONAL MATCH u-[:ADMINISTRATIVE_ATTACHMENT]->sa ");
+			query.append("OPTIONAL MATCH (u)-[:ADMINISTRATIVE_ATTACHMENT]->(sa) ");
 		}
 
 		query.append("RETURN DISTINCT ");
@@ -1269,14 +1269,14 @@ public class DefaultUserService implements UserService {
 		String query =
 				"MATCH (n:Group)<-[:IN]-(u:User) " +
 				"WHERE n.id IN $groupIds " + condition +
-				"OPTIONAL MATCH n-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) " +
+				"OPTIONAL MATCH (n)-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) " +
 				"RETURN distinct u.id as id, u.login as login," +
 				" u.displayName as username, profile.name as type " +
 				"ORDER BY username " +
 				"UNION " +
 				"MATCH (u:User) " +
 				"WHERE u.id IN $userIds " + condition +
-				"OPTIONAL MATCH u-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) " +
+				"OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) " +
 				"RETURN distinct u.id as id, u.login as login," +
 				" u.displayName as username, profile.name as type " +
 				"ORDER BY username ";
@@ -1331,14 +1331,14 @@ public class DefaultUserService implements UserService {
 		String query;
 		try {
 			query = "MATCH (u:`User` { id : $userId}) " +
-				"OPTIONAL MATCH u-[:USERBOOK]->(ub: UserBook) WITH ub.motto as motto, ub.health as health, ub.mood as mood, u,  "+
+				"OPTIONAL MATCH (u)-[:USERBOOK]->(ub: UserBook) WITH ub.motto as motto, ub.health as health, ub.mood as mood, u,  "+
 				UserBookService.selectHobbies(userBookData, "ub")+
-				"OPTIONAL MATCH s<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(Profile)," +
-					" cpg<-[:IN]-u-[:IN]->spg WITH s, " +
+				"OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(Profile)," +
+					" (cpg)<-[:IN]-(u)-[:IN]->(spg) WITH s, " +
 					" COLLECT(distinct {name: c.name, id: c.id" + classsExtraFields + "}) as c, motto, health, mood, hobbies, u " +
 				"WITH COLLECT(distinct {name: s.name, id: s.id, classes: c, source: s.source " + schoolsExtraFields + "}) as schools, motto, health, mood, hobbies, u " +
-				"OPTIONAL MATCH u-[:RELATED]-(u2: User) WITH COLLECT(distinct {relatedName: u2.displayName, relatedId: u2.id, relatedType: u2.profiles}) as relativeList, schools, motto, health, mood, hobbies, u " +
-				"OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, relativeList, schools, motto, health, mood, hobbies, u " +
+				"OPTIONAL MATCH (u)-[:RELATED]-(u2: User) WITH COLLECT(distinct {relatedName: u2.displayName, relatedId: u2.id, relatedType: u2.profiles}) as relativeList, schools, motto, health, mood, hobbies, u " +
+				"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, relativeList, schools, motto, health, mood, hobbies, u " +
 				"OPTIONAL MATCH (sAuth:Structure)-[:HAS_AUTH_DEFAULT]->(auths:AuthDefault { profile: HEAD(u.profiles), auth: 'FEDERATED' }) WHERE sAuth IN structureNodes " +
 				" WITH COLLECT(auths) as auths, schools, motto, health, mood, hobbies, u, relativeList "	+
 				"RETURN DISTINCT u.profiles as profiles, u.id as id, u.firstName as firstName, u.lastName as lastName, u.displayName as displayName, "+
@@ -1581,8 +1581,8 @@ public class DefaultUserService implements UserService {
 		String filter = "WHERE s.UAI IN $uai ";
 
 		query.append(filter);
-		query.append(" OPTIONAL MATCH (g:Group)<-[:IN]-u");
-		query.append(" OPTIONAL MATCH u-[r:DUPLICATE]-(u2:User)");
+		query.append(" OPTIONAL MATCH (g:Group)<-[:IN]-(u)");
+		query.append(" OPTIONAL MATCH (u)-[r:DUPLICATE]-(u2:User)");
 
 		query.append(" RETURN DISTINCT ");
 		for (Object field : fields) {
@@ -1601,7 +1601,7 @@ public class DefaultUserService implements UserService {
 		query.append(" MATCH (u: User)-[:HAS_RELATIONSHIPS]->(b) WHERE (EXISTS(u.deleteDate) OR EXISTS(u.mergedWith)) ");
 		query.append(" MATCH (s:Structure ) WHERE s.id=id ");
 		query.append(" OPTIONAL MATCH (g:Group) WHERE g.id IN b.IN_OUTGOING");
-		query.append(" OPTIONAL MATCH u-[r:DUPLICATE]-(u2:User)");
+		query.append(" OPTIONAL MATCH (u)-[r:DUPLICATE]-(u2:User)");
 
 		query.append(" RETURN DISTINCT ");
 		for (Object field : fields) {
@@ -1651,7 +1651,7 @@ public class DefaultUserService implements UserService {
 		String query =
 				"MATCH (u:User) " +
 				"WHERE u.id IN $userIds " +
-				"OPTIONAL MATCH u-[rf:HAS_FUNCTION]->(f:Function) " +
+				"OPTIONAL MATCH (u)-[rf:HAS_FUNCTION]->(f:Function) " +
 				"RETURN DISTINCT " +
 				"u.id as id, " +
 				"u.displayName as displayName, " +

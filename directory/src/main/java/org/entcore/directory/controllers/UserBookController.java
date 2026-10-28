@@ -214,7 +214,7 @@ public class UserBookController extends BaseController {
 		params.put("search", StringValidation.sanitize(name));
 		//FIXME should be optimized by removing unecessary optionals
 		String customReturn =
-				"OPTIONAL MATCH visibles-[:USERBOOK]->u " +
+				"OPTIONAL MATCH (visibles)-[:USERBOOK]->(u) " +
 				"RETURN distinct visibles.id as id, visibles.displayName as displayName, " +
 				"u.mood as mood, u.userid as userId, u.picture as photo, " +
 				"HEAD(visibles.profiles) as type " +
@@ -272,8 +272,8 @@ public class UserBookController extends BaseController {
 		String structureId = request.params().get("structId");
 		String customReturn =
 				"MATCH (s:Structure { id : $structId})<-[:DEPENDS]-(pg:ProfileGroup)" +
-				"-[:HAS_PROFILE]->(p:Profile {name : 'Personnel'}), visibles-[:IN]->pg " +
-				"OPTIONAL MATCH visibles-[:USERBOOK]->(u:UserBook) " +
+				"-[:HAS_PROFILE]->(p:Profile {name : 'Personnel'}), (visibles)-[:IN]->(pg) " +
+				"OPTIONAL MATCH (visibles)-[:USERBOOK]->(u:UserBook) " +
 				"RETURN DISTINCT p.name as type, visibles.id as id, " +
 				"visibles.displayName as displayName, u.mood as mood, " +
 				"u.picture as photo " +
@@ -284,14 +284,14 @@ public class UserBookController extends BaseController {
 			@Override
 			public void handle(final JsonArray personnel) {
 				String customReturn =
-						"MATCH profileGroup-[:DEPENDS]->(c:Class)-[:BELONGS]->(s:Structure { id : $structId}) " +
+						"MATCH (profileGroup)-[:DEPENDS]->(c:Class)-[:BELONGS]->(s:Structure { id : $structId}) " +
 						"RETURN collect(distinct {id: c.id, name: c.name, level: c.level}) as classes, " +
 						"collect(distinct {id: profileGroup.id, name: profileGroup.name, groupDisplayName: profileGroup.groupDisplayName }) as profileGroups";
 				UserUtils.findVisibleProfilsGroups(eb, request, customReturn, params, new Handler<JsonArray>() {
 					@Override
 					public void handle(final JsonArray classesAndProfileGroups) {
 						String customReturn =
-								"MATCH manualGroup-[:DEPENDS]->(c)-[:BELONGS*0..1]->(s:Structure { id : $structId}) " +
+								"MATCH (manualGroup)-[:DEPENDS]->(c)-[:BELONGS*0..1]->(s:Structure { id : $structId}) " +
 								"WHERE ALL(label IN labels(c) WHERE label IN [\"Structure\", \"Class\"]) " +
 								"RETURN DISTINCT manualGroup.id as id, manualGroup.name as name, manualGroup.groupDisplayName as groupDisplayName " +
 								"ORDER BY name ASC ";
@@ -363,9 +363,9 @@ public class UserBookController extends BaseController {
 
 						String queryClassUsers = "MATCH " + matchClass +
 								"WITH c " +
-								"MATCH c<-[:DEPENDS]-(cpg:ProfileGroup)<-[:IN]-(m:User) " +
+								"MATCH (c)<-[:DEPENDS]-(cpg:ProfileGroup)<-[:IN]-(m:User) " +
 								"WHERE head(m.profiles) IN ['Student','Teacher'] " +
-								"OPTIONAL MATCH m-[:USERBOOK]->u " +
+								"OPTIONAL MATCH (m)-[:USERBOOK]->(u) " +
 								"RETURN distinct head(m.profiles) as type, m.id as id, " +
 								"m.displayName as displayName, u.mood as mood, " +
 								"u.userid as userId, u.picture as photo, (m.id IN $visibles) as isVisible " +
@@ -688,7 +688,7 @@ public class UserBookController extends BaseController {
 					String query =
 							"MATCH (u:User {id:$userId})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 									"WITH DISTINCT c, profile, visibles " +
-									"MATCH visibles-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c) " +
+									"MATCH (visibles)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c) " +
 									"RETURN distinct visibles.id as id, visibles.displayName as username, " +
 									"visibles.birthDate as birthDate, COLLECT(distinct [c.id, c.name]) as classes ";
 					JsonObject params = new JsonObject();
@@ -736,7 +736,7 @@ public class UserBookController extends BaseController {
 					Map<String, Object> params = new HashMap<>();
 					params.put("id", user.getUserId());
 					String query =
-							"MATCH (n:User)-[:USERBOOK]->u " +
+							"MATCH (n:User)-[:USERBOOK]->(u) " +
 							"WHERE n.id = $id " +
 							"RETURN u.userPreferencesBirthdayClass as userPreferencesBirthdayClass";
 					neo.send(query, params, request.response());

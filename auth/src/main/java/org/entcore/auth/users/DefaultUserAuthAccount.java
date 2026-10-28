@@ -155,7 +155,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 				"MATCH (n:User) " +
 				"WHERE n." + loginFieldName + "=$login AND n.activationCode = $activationCode AND n.password IS NULL " +
 				"AND (NOT EXISTS(n.blocked) OR n.blocked = false) " +
-				"OPTIONAL MATCH n-[r:DUPLICATE]-() " +
+				"OPTIONAL MATCH (n)-[r:DUPLICATE]-() " +
 				"WHERE NOT(head(n.profiles) IN $allowActivateDuplicate) " +
 				"OPTIONAL MATCH (p:Profile) " +
 				"WHERE n.profiles IS NOT NULL AND p.name = head(n.profiles) " +
@@ -413,8 +413,8 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 			final String teacherQuery =
 					"MATCH (n:User {login" + alias + ":$login})-[:IN]->(sg:ProfileGroup)-[:DEPENDS]->(m:Class)" +
 					"<-[:DEPENDS]-(tg:ProfileGroup)<-[:IN]-(p:User), " +
-					"sg-[:DEPENDS]->(psg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name:'Student'}), " +
-					"tg-[:DEPENDS]->(ptg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name:'Teacher'}) " +
+					"(sg)-[:DEPENDS]->(psg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name:'Student'}), " +
+					"(tg)-[:DEPENDS]->(ptg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name:'Teacher'}) " +
 					//"WHERE NOT(p.email IS NULL) AND n.activationCode IS NULL AND " +
 					"WHERE NOT(p.email IS NULL) AND " +
 					"(n.federated IS NULL OR n.federated = false) " +

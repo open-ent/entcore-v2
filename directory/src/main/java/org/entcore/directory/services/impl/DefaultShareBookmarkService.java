@@ -67,7 +67,7 @@ public class DefaultShareBookmarkService implements ShareBookmarkService {
 	public void update(String userId, String id, JsonObject bookmark, Handler<Either<String, JsonObject>> handler) {
 		final String query =
 				"MATCH (u:User {id:$userId}) " +
-				"MERGE u-[:HAS_SB]->(sb:ShareBookmark) " +
+				"MERGE (u)-[:HAS_SB]->(sb:ShareBookmark) " +
 				"SET sb." + cleanId(id) + " = $bookmark ";
 		JsonObject params = new JsonObject();
 		params.put("userId", userId);

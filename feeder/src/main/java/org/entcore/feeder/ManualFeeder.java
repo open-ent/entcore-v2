@@ -114,8 +114,8 @@ public class ManualFeeder extends BusModBase {
 					"CREATE (s:Structure $props) " +
 					"WITH s " +
 					"MATCH (p:Profile) " +
-					"CREATE p<-[:HAS_PROFILE]-(g:Group:ProfileGroup {name : s.name+'-'+p.name, " +
-					"displayNameSearchField: $groupSearchField, filter: p.name})-[:DEPENDS]->s " +
+					"CREATE (p)<-[:HAS_PROFILE]-(g:Group:ProfileGroup {name : s.name+'-'+p.name, " +
+					"displayNameSearchField: $groupSearchField, filter: p.name})-[:DEPENDS]->(s) " +
 					"SET g.id = id(g)+'-'+timestamp() " +
 					"RETURN DISTINCT s.id as id ";
 			JsonObject params = new JsonObject()
@@ -154,12 +154,12 @@ public class ManualFeeder extends BusModBase {
 			StatementsBuilder statementsBuilder = new StatementsBuilder();
 			String query =
 					"MATCH (s:Structure { id : $structureId}) " +
-					"CREATE s<-[:BELONGS]-(c:Class $props) " +
+					"CREATE (s)<-[:BELONGS]-(c:Class $props) " +
 					"SET c.externalId = s.externalId + '$' + c.name " +
 					"WITH s, c " +
-					"MATCH s<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-					"CREATE c<-[:DEPENDS]-(pg:Group:ProfileGroup {name : c.name+'-'+p.name, " +
-					"displayNameSearchField: $groupSearchField, filter: p.name})-[:DEPENDS]->g " +
+					"MATCH (s)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+					"CREATE (c)<-[:DEPENDS]-(pg:Group:ProfileGroup {name : c.name+'-'+p.name, " +
+					"displayNameSearchField: $groupSearchField, filter: p.name})-[:DEPENDS]->(g) " +
 					"SET pg.id = id(pg)+'-'+timestamp() " +
 					"RETURN DISTINCT c.id as id ";
 			JsonObject params = new JsonObject()
@@ -194,7 +194,7 @@ public class ManualFeeder extends BusModBase {
 			String rename = "";
 			if (c.getString("name") != null) {
 				rename = "WITH c " +
-						 "MATCH c<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
+						 "MATCH (c)<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
 						 "(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 						 "SET cpg.name = c.name+'-'+p.name ";
 			}
@@ -220,7 +220,7 @@ public class ManualFeeder extends BusModBase {
 		//=== Find which users to remove from class
 		String queryUserIds =
 			"MATCH (c:`Class` {id: $classId})<-[:DEPENDS]-(cpg:ProfileGroup)" +
-			"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), cpg<-[:IN]-(m:User)-[:IN]->spg " +
+			"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (cpg)<-[:IN]-(m:User)-[:IN]->(spg) " +
 			"RETURN COLLECT(m.id) as ids ";
 		neo4j.execute(queryUserIds, new JsonObject().put("classId", classId), new Handler<Message<JsonObject>>() {
 			@Override
@@ -266,7 +266,7 @@ public class ManualFeeder extends BusModBase {
 	private void prepareRemovingProfileGroupsOfClass(TransactionHelper tx, String classId) {
 		String query =
 			"MATCH (c:Class {id: $classId})<-[:DEPENDS]-(cpg:Group) " +
-			"OPTIONAL MATCH cpg<-[:IN]-(u:User) " +
+			"OPTIONAL MATCH (cpg)<-[:IN]-(u:User) " +
 			"WITH cpg, cpg.id as groupId, cpg.name as groupName, collect(u.id) as userIds " +
 			"DETACH DELETE cpg " +
 			"RETURN groupId as group, groupName as groupName, userIds as users ";
@@ -343,14 +343,14 @@ public class ManualFeeder extends BusModBase {
 					"WITH u " +
 					"MATCH (student:User) " +
 					"WHERE student.id IN $childrenIds " +
-					"CREATE student-[:RELATED {source: 'MANUAL'}]->u " +
+					"CREATE (student)-[:RELATED {source: 'MANUAL'}]->(u) " +
 					"SET student.relative = coalesce(student.relative, []) + (u.externalId + '$10$1$1$0$0') ";
 			params.put("childrenIds", childrenIds);
 		}
 		String query =
 				"MATCH (s:Structure { id : $structureId})<-[:DEPENDS]-" +
 				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : $profile}) " +
-				"CREATE UNIQUE pg<-[:IN]-(u:User $props) " +
+				"CREATE UNIQUE (pg)<-[:IN]-(u:User $props) " +
 				"SET u.structures = [s.externalId] " +
 				related +
 				"RETURN DISTINCT u.id as id, u.login AS login";
@@ -359,9 +359,9 @@ public class ManualFeeder extends BusModBase {
 		if (classesNames != null && !classesNames.isEmpty()) {
 			final String classesQuery =
 					"MATCH (s:Structure {id:$structureId})<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(cpg:ProfileGroup {filter: $profile}), " +
-					"s<-[:DEPENDS]-(:ProfileGroup {filter: $profile})<-[:IN]-(u:User {id: $userId})" +
+					"(s)<-[:DEPENDS]-(:ProfileGroup {filter: $profile})<-[:IN]-(u:User {id: $userId})" +
 					"WHERE c.name IN $classesNames " +
-					"MERGE cpg<-[:IN {source: $source}]-u ";
+					"MERGE (cpg)<-[:IN {source: $source}]-(u) ";
 			final JsonObject classesParams = new JsonObject()
 					.put("structureId", structureId)
 					.put("profile", profile)
@@ -560,10 +560,10 @@ public class ManualFeeder extends BusModBase {
 		final String query =
 						matchUser +
 						matchStructure +
-						"MATCH u-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS*0..1]->" +
-						"(pg:ProfileGroup)-[:DEPENDS]->s, " +
-						"pg-[:HAS_PROFILE]->(p:Profile), p<-[:HAS_PROFILE]-(dpg:DefaultProfileGroup) " +
-						"MERGE dpg<-[:IN]-u " +
+						"MATCH (u)-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS*0..1]->" +
+						"(pg:ProfileGroup)-[:DEPENDS]->(s), " +
+						"(pg)-[:HAS_PROFILE]->(p:Profile), (p)<-[:HAS_PROFILE]-(dpg:DefaultProfileGroup) " +
+						"MERGE (dpg)<-[:IN]-(u) " +
 						"SET u.structures = FILTER(sId IN u.structures WHERE sId <> s.externalId), " +
 						"u.classes = FILTER(cId IN u.classes WHERE NOT(cId =~ (s.externalId + '.*'))) " +
 						addToRemoved +
@@ -572,7 +572,7 @@ public class ManualFeeder extends BusModBase {
 		final String removeFunctions =
 				matchUser +
 				matchStructure +
-				"MATCH u-[r:HAS_FUNCTION]->() " +
+				"MATCH (u)-[r:HAS_FUNCTION]->() " +
 				"WHERE s.id IN r.scope AND (r.source IS NULL OR r.source <> 'MANUAL') " +
 				"OPTIONAL MATCH (s)-[:HAS_ATTACHMENT*1..]->(ss:Structure) " +
 						"WITH s, r, count(CASE WHEN ss.id IN r.scope THEN 1 ELSE NULL END) as parentADML " +
@@ -584,7 +584,7 @@ public class ManualFeeder extends BusModBase {
 		final String removeFunctionGroups =
 				matchUser +
 				matchStructure +
-				"MATCH u-[r:IN|COMMUNIQUE]-(:Group)-[:DEPENDS]->s " +
+				"MATCH (u)-[r:IN|COMMUNIQUE]-(:Group)-[:DEPENDS]->(s) " +
 						"WHERE r.source IS NULL OR r.source <> 'MANUAL' " +
 						"DELETE r";
 		final String removeDefaultGroup =
@@ -661,14 +661,14 @@ public class ManualFeeder extends BusModBase {
 					"WITH u " +
 					"MATCH (student:User) " +
 					"WHERE student.id IN $childrenIds " +
-					"CREATE student-[:RELATED {source: 'MANUAL'}]->u " +
+					"CREATE (student)-[:RELATED {source: 'MANUAL'}]->(u) " +
 					"SET student.relative = coalesce(student.relative, []) + (u.externalId + '$10$1$1$0$0') ";
 			params.put("childrenIds", childrenIds);
 		}
 		String query =
 				"MATCH (s:Class { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
-				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : $profile}), s-[:BELONGS]->(struct:Structure) " +
-				"CREATE UNIQUE pg<-[:IN]-(u:User $props), cpg<-[:IN]-u " +
+				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : $profile}), (s)-[:BELONGS]->(struct:Structure) " +
+				"CREATE UNIQUE (pg)<-[:IN]-(u:User $props), (cpg)<-[:IN]-(u) " +
 				"SET u.classes = [s.externalId], u.structures = [struct.externalId] " +
 				related +
 				"RETURN DISTINCT u.id as id, u.login AS login";
@@ -731,7 +731,7 @@ public class ManualFeeder extends BusModBase {
 				"MATCH (u:User { id : $userId})-[:IN]->(opg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 						"WITH u, p " +
 						"MATCH (s:Class { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
-						"(pg:ProfileGroup)-[:HAS_PROFILE]->p " +
+						"(pg:ProfileGroup)-[:HAS_PROFILE]->(p) " +
 						"CREATE UNIQUE (cpg)<-[:IN {source:'MANUAL'}]-(u) " +
 						"SET u.classes = CASE WHEN s.externalId IN u.classes THEN " +
 						"u.classes ELSE coalesce(u.classes, []) + s.externalId END " +
@@ -780,7 +780,7 @@ public class ManualFeeder extends BusModBase {
 								"WITH u, p " +
 								"MATCH (s:Class { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
 								"(pg:ProfileGroup)-[:HAS_PROFILE]->(p) " +
-								"MERGE cpg<-[:IN {source:'MANUAL'}]-u " +
+								"MERGE (cpg)<-[:IN {source:'MANUAL'}]-(u) " +
 								"SET u.classes = CASE WHEN s.externalId IN u.classes THEN " +
 								"u.classes ELSE coalesce(u.classes, []) + s.externalId END " +
 								"RETURN DISTINCT u.id as id";

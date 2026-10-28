@@ -50,7 +50,7 @@ public class TeacherOfClass implements ResourcesProvider {
 		}
 		Set<String> ids = DirectoryResourcesProvider.getIds(user);
 		String query =
-				"MATCH (c:Class {id : $classId})-[:BELONGS]->s2 " +
+				"MATCH (c:Class {id : $classId})-[:BELONGS]->(s2) " +
 						"WHERE s2.id IN $ids " +
 						"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()

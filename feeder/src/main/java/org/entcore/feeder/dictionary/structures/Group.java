@@ -96,7 +96,7 @@ public class Group {
 				if (structureId != null && !structureId.trim().isEmpty()) {
 					String qs =
 							"MATCH (s:Structure {id : $structureId}), (g:Group {id : $groupId}) " +
-							"CREATE UNIQUE s<-[:DEPENDS]-g";
+							"CREATE UNIQUE (s)<-[:DEPENDS]-(g)";
 					JsonObject ps = new JsonObject()
 							.put("groupId", id)
 							.put("structureId", structureId);
@@ -105,7 +105,7 @@ public class Group {
 				if (classId != null && !classId.trim().isEmpty()) {
 					String qs =
 							"MATCH (s:Class {id : $classId}), (g:Group {id : $groupId}) " +
-							"CREATE UNIQUE s<-[:DEPENDS]-g";
+							"CREATE UNIQUE (s)<-[:DEPENDS]-(g)";
 					JsonObject ps = new JsonObject()
 							.put("groupId", id)
 							.put("classId", classId);
@@ -119,7 +119,7 @@ public class Group {
 		String query =
 				"MATCH (g:ManualGroup {id : $id}) " +
 				"WHERE NOT(EXISTS(g.lockDelete)) OR g.lockDelete <> true " +
-				"OPTIONAL MATCH g-[r]-() " +
+				"OPTIONAL MATCH (g)-[r]-() " +
 				"DELETE g, r";
 		transactionHelper.add(query, new JsonObject().put("id", id));
 	}

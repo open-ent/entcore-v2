@@ -51,7 +51,7 @@ public class AnyAdminOfUser implements ResourcesProvider {
 
         Set<String> ids = DirectoryResourcesProvider.getIds(user);
         String query =
-                "MATCH (u:User {id : $userId})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->s2 " +
+                "MATCH (u:User {id : $userId})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->(s2) " +
                         "WHERE s2.id IN $ids RETURN count(*) > 0 as exists UNION " +
                         "MATCH (u: User {id : $userId})-[:HAS_RELATIONSHIPS]->(b: Backup) " +
                         "WHERE ANY(structId IN b.structureIds WHERE structId IN $ids) " +

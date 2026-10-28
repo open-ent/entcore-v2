@@ -243,8 +243,8 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		Set<String> ids = prevalidateAndGetIds(user, handler);
 		if (ids == null) return;
 		String query =
-				"MATCH (g:Group {id : $id})-[:DEPENDS]->()-[:BELONGS*0..1]->s, " +
-				"(u:User {id : $userId})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->s2 " +
+				"MATCH (g:Group {id : $id})-[:DEPENDS]->()-[:BELONGS*0..1]->(s), " +
+				"(u:User {id : $userId})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->(s2) " +
 				"WHERE s.id IN $ids AND s2.id IN $ids " +
 				"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()
@@ -258,7 +258,7 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		Set<String> ids = prevalidateAndGetIds(user, handler);
 		if (ids == null) return;
 		String query =
-				"MATCH (g:Group {id : $id})-[:DEPENDS]->c-[:BELONGS*0..1]->s " +
+				"MATCH (g:Group {id : $id})-[:DEPENDS]->(c)-[:BELONGS*0..1]->(s) " +
 				"WHERE s.id IN $ids " +
 				"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()
@@ -481,7 +481,7 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 			Set<String> ids = getIds(user);
 			if (ids == null) return;
 			String query =
-					"MATCH (u:User {id : $userId})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->s2 " +
+					"MATCH (u:User {id : $userId})-[:IN]->()-[:DEPENDS]->()-[:BELONGS*0..1]->(s2) " +
 					"WHERE s2.id IN $ids " +
 					"RETURN count(*) > 0 as exists";
 			JsonObject params = new JsonObject()
@@ -513,7 +513,7 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		String query =
 				"MATCH (t:User { id : $teacherId})-[:IN]->(g:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 				"WITH c " +
-				"MATCH c<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User) " +
+				"MATCH (c)<-[:DEPENDS]-(og:ProfileGroup)<-[:IN]-(u:User) " +
 				"WHERE u.id IN $userIds " +
 				"RETURN count(distinct u) = $size as exists ";
 		JsonObject params = new JsonObject()
@@ -532,7 +532,7 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		}
 		Set<String> ids = getIds(user);
 		String query =
-				"MATCH (c:Class {id : $classId})-[:BELONGS]->s2 " +
+				"MATCH (c:Class {id : $classId})-[:BELONGS]->(s2) " +
 						"WHERE s2.id IN $ids " +
 						"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()
@@ -637,7 +637,7 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 		}
 		Set<String> ids = getIds(user);
 		String query =
-				"MATCH (c:Class {id : $classId})-[:BELONGS]->s2 " +
+				"MATCH (c:Class {id : $classId})-[:BELONGS]->(s2) " +
 				"WHERE s2.id IN $ids " +
 				"RETURN count(*) > 0 as exists";
 		JsonObject params = new JsonObject()

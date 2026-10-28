@@ -80,7 +80,7 @@ public class FeederTest {
         final EventBus eb = test.vertx().eventBus();
         final String userId = "1";
         final JsonObject params = new JsonObject().put("userId", userId).put("classId", "1").put("structureId", "1");
-        test.database().executeNeo4j("MERGE (u:User { id : $userId})-[r:IN]->(cpg:ProfileGroup)-[:DEPENDS]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id: $structureId})  WITH cpg,s, pg MERGE pg-[:HAS_PROFILE]->(p:Profile)<-[:HAS_PROFILE]-(dpg:DefaultProfileGroup) WITH cpg MERGE (cpg)-[:DEPENDS]->(c:Class  {id : $classId}) RETURN cpg", params).onComplete(context.asyncAssertSuccess(res2 -> {
+        test.database().executeNeo4j("MERGE (u:User { id : $userId})-[r:IN]->(cpg:ProfileGroup)-[:DEPENDS]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id: $structureId})  WITH cpg,s, pg MERGE (pg)-[:HAS_PROFILE]->(p:Profile)<-[:HAS_PROFILE]-(dpg:DefaultProfileGroup) WITH cpg MERGE (cpg)-[:DEPENDS]->(c:Class  {id : $classId}) RETURN cpg", params).onComplete(context.asyncAssertSuccess(res2 -> {
             //remove user from class (attach user to defaultgroup
             eb.request(Feeder.FEEDER_ADDRESS, new JsonObject().put("action", "manual-remove-user").put("classId", "1").put("userId", userId), (AsyncResult<Message<JsonObject>> res3) -> {
                 context.assertEquals("ok", res3.result().body().getString("status"));
@@ -88,7 +88,7 @@ public class FeederTest {
                 //wait for query
                 test.vertx().setTimer(300, e -> {
                     //recreate the link between u AND cpg (when aaf)
-                    test.database().executeNeo4j("MATCH (u:User { id : $userId}), (cpg:ProfileGroup)-[:DEPENDS]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id: $structureId}) MERGE u-[r:IN]->cpg RETURN ID(u)", params).onComplete(context.asyncAssertSuccess(res20 -> {
+                    test.database().executeNeo4j("MATCH (u:User { id : $userId}), (cpg:ProfileGroup)-[:DEPENDS]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure {id: $structureId}) MERGE (u)-[r:IN]->cpg RETURN ID(u)", params).onComplete(context.asyncAssertSuccess(res20 -> {
                         final TransactionHelper transaction = new TransactionHelper(Neo4j.getInstance(), Source.UNKNOWN);
                         ManualFeeder.applyRemoveUserFromStructure(userId, null, "1", null, transaction);
                         transaction.commit((Message<JsonObject> message2) -> {

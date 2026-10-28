@@ -226,7 +226,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		String query =
 				"MATCH (g1:Group {id : $startGroupId}), (g2:Group {id : $endGroupId}) " +
 						"SET g1.communiqueWith = coalesce(g1.communiqueWith, []) + $endGroupId " +
-						"CREATE UNIQUE g1-[:COMMUNIQUE { source: 'MANUAL'}]->g2 " +
+						"CREATE UNIQUE (g1)-[:COMMUNIQUE { source: 'MANUAL'}]->(g2) " +
 						"RETURN COUNT(*) as number ";
 		JsonObject params = new JsonObject()
 				.put("startGroupId", startGroupId)
@@ -274,7 +274,7 @@ public class DefaultCommunicationService implements CommunicationService {
 					"MATCH (g:Group { id : $groupId}) " +
 							"SET g.users = $direction " +
 							"WITH g " +
-							"MATCH g<-[:IN]-(u:User) " +
+							"MATCH (g)<-[:IN]-(u:User) " +
 							"CREATE UNIQUE " + createRelationship +
 							"RETURN COUNT(*) as number ";
 			JsonObject params = new JsonObject().put("groupId", groupId).put("direction", direction.name());
@@ -312,7 +312,7 @@ public class DefaultCommunicationService implements CommunicationService {
 							"MATCH (g:Group { id : $groupId}) " +
 									"SET g.users = $direction " +
 									"WITH g " +
-									"MATCH g<-[:IN]-(u:User) " +
+									"MATCH (g)<-[:IN]-(u:User) " +
 									"CREATE UNIQUE " + createRelationship;
 					sb.add(query, new JsonObject().put("groupId", groupId).put("direction", direction.name()));
 				}
@@ -360,20 +360,20 @@ public class DefaultCommunicationService implements CommunicationService {
 //		String optional;
 //		switch (filter) {
 //			case GROUPS:
-//				optional = "OPTIONAL MATCH g-[:COMMUNIQUE]->(vg:Group) ";
+//				optional = "OPTIONAL MATCH (g)-[:COMMUNIQUE]->(vg:Group) ";
 //				break;
 //			case USERS:
-//				optional = "OPTIONAL MATCH g-[:COMMUNIQUE]->(vu:User) ";
+//				optional = "OPTIONAL MATCH (g)-[:COMMUNIQUE]->(vu:User) ";
 //				break;
 //			default:
 //				optional =
-//						"OPTIONAL MATCH g-[:COMMUNIQUE]->(vg:Group) " +
-//						"OPTIONAL MATCH g-[:COMMUNIQUE]->(vu:User) ";
+//						"OPTIONAL MATCH (g)-[:COMMUNIQUE]->(vg:Group) " +
+//						"OPTIONAL MATCH (g)-[:COMMUNIQUE]->(vu:User) ";
 //
 //		}
 		String query =
 				"MATCH (g:Group { id : $groupId}) " +
-						"OPTIONAL MATCH g-[:COMMUNIQUE]->(g1:Group) " +
+						"OPTIONAL MATCH (g)-[:COMMUNIQUE]->(g1:Group) " +
 						"RETURN g as group, COLLECT(g1) as communiqueWith ";
 		JsonObject params = new JsonObject().put("groupId", groupId);
 		neo4j.execute(query, params, fullNodeMergeHandler("group", handler, "communiqueWith"));
@@ -588,20 +588,20 @@ public class DefaultCommunicationService implements CommunicationService {
 					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 					"WHERE s.id IN $structures AND cg.communiqueWith IS NOT NULL AND cg.name =~ $profile " +
 					"WITH cg, c " +
-					"MATCH c<-[:DEPENDS]-(g) " +
+					"MATCH (c)<-[:DEPENDS]-(g) " +
 					"WHERE (" + groupLabel + ") AND g.communiqueWith IS NULL AND g.name =~ $otherProfile " +
 					"SET cg.communiqueWith = FILTER(gId IN cg.communiqueWith WHERE gId <> g.id) + g.id ";
 			String query2 =
 					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 							"WHERE s.id IN $structures AND cg.communiqueWith IS NULL AND cg.name =~ $profile " +
 							"WITH cg, c, s " +
-							"MATCH c<-[:DEPENDS]-(g) " +
+							"MATCH (c)<-[:DEPENDS]-(g) " +
 							"WHERE  (" + groupLabel + ") AND g.name =~ $otherProfile " +
 							"SET cg.communiqueWith = coalesce(cg.communiqueWith, []) + g.id ";
 			if (!structures.isEmpty()) {
 				query2 +=
 						"WITH DISTINCT s, cg " +
-								"MATCH s<-[:DEPENDS]-(g) " +
+								"MATCH (s)<-[:DEPENDS]-(g) " +
 								"WHERE (" + groupLabel + ") AND " + String.format(structureGroups, "structureProfile") + " " +
 								"SET cg.communiqueWith = coalesce(cg.communiqueWith, []) + g.id ";
 			}
@@ -614,12 +614,12 @@ public class DefaultCommunicationService implements CommunicationService {
 		if (!structures.isEmpty() && "Structure".equals(a[0])) {
 			final String groupsFilter = String.format(structureGroups, "otherProfile");
 			String query =
-					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup), s<-[:DEPENDS]-(g) " +
+					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup), (s)<-[:DEPENDS]-(g) " +
 					"WHERE s.id IN $structures AND cg.communiqueWith IS NOT NULL AND cg.name =~ $profile " +
 					"AND  (" + groupLabel + ") AND g.communiqueWith IS NULL AND " + groupsFilter + " " +
 					"SET cg.communiqueWith = FILTER(gId IN cg.communiqueWith WHERE gId <> g.id) + g.id ";
 			String query2 =
-					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup), s<-[:DEPENDS]-(g) " +
+					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup), (s)<-[:DEPENDS]-(g) " +
 							"WHERE s.id IN $structures AND cg.communiqueWith IS NULL AND cg.name =~ $profile " +
 							"AND (" + groupLabel + ") AND " + groupsFilter + " " +
 							"SET cg.communiqueWith = coalesce(cg.communiqueWith, []) + g.id ";
@@ -638,40 +638,40 @@ public class DefaultCommunicationService implements CommunicationService {
 						"WITH DISTINCT g " +
 						"MATCH (pg:Group) " +
 						"WHERE pg.id IN g.communiqueWith " +
-						"MERGE g-[:COMMUNIQUE]->pg ";
+						"MERGE (g)-[:COMMUNIQUE]->(pg) ";
 		s.add(query, params);
 		String usersIncoming =
 				"MATCH (s:Structure)<-[:DEPENDS*1..2]-(g:Group)<-[:IN]-(u:User) " +
 						"WHERE s.id IN $structures AND g.users IS NOT NULL AND (g.users = 'INCOMING' OR g.users = 'BOTH') " +
-						"MERGE g<-[:COMMUNIQUE]-u ";
+						"MERGE (g)<-[:COMMUNIQUE]-(u) ";
 		s.add(usersIncoming, params);
 		String usersOutgoing =
 				"MATCH (s:Structure)<-[:DEPENDS*1..2]-(g:Group)<-[:IN]-(u:User) " +
 						"WHERE s.id IN $structures AND g.users IS NOT NULL AND (g.users = 'OUTGOING' OR g.users = 'BOTH') " +
-						"MERGE g-[:COMMUNIQUE]->u ";
+						"MERGE (g)-[:COMMUNIQUE]->(u) ";
 		s.add(usersOutgoing, params);
 		String relativeIncoming =
 				"MATCH (s:Structure)<-[:DEPENDS*1..2]-(g:ProfileGroup)<-[:IN]-(r:User)<-[:RELATED]-(u:User) " +
 						"WHERE s.id IN $structures AND g.relativeCommuniqueStudent IS NOT NULL " +
 						"AND (g.relativeCommuniqueStudent = 'INCOMING' OR g.relativeCommuniqueStudent = 'BOTH') " +
-						"MERGE r<-[:COMMUNIQUE_DIRECT]-u ";
+						"MERGE (r)<-[:COMMUNIQUE_DIRECT]-(u) ";
 		s.add(relativeIncoming, params);
 		String relativeOutgoing =
 				"MATCH (s:Structure)<-[:DEPENDS*1..2]-(g:ProfileGroup)<-[:IN]-(r:User)<-[:RELATED]-(u:User) " +
 						"WHERE s.id IN $structures AND g.relativeCommuniqueStudent IS NOT NULL " +
 						"AND (g.relativeCommuniqueStudent = 'OUTGOING' OR g.relativeCommuniqueStudent = 'BOTH') " +
-						"MERGE r-[:COMMUNIQUE_DIRECT]->u ";
+						"MERGE (r)-[:COMMUNIQUE_DIRECT]->(u) ";
 		s.add(relativeOutgoing, params);
 		String setVisible =
 				"MATCH (s:Structure)<-[:DEPENDS*1..2]-(g:Group)<-[:IN*0..1]-(v), " +
-						"v-[:COMMUNIQUE|COMMUNIQUE_DIRECT]-() " +
+						"(v)-[:COMMUNIQUE|COMMUNIQUE_DIRECT]-() " +
 						"WHERE s.id IN $structures AND NOT(v:Visible) " +
 						"WITH DISTINCT v " +
 						"SET v:Visible ";
 		s.add(setVisible, params);
 		String setVisible2 =
 				"MATCH (s:Structure)<-[:DEPENDS]-(g:Group)<-[:COMMUNIQUE]-(), " +
-						"g<-[:DEPENDS]-(v)" +
+						"(g)<-[:DEPENDS]-(v)" +
 						"WHERE s.id IN $structures AND NOT(v:Visible) " +
 						"WITH DISTINCT v " +
 						"SET v:Visible ";
@@ -707,33 +707,33 @@ public class DefaultCommunicationService implements CommunicationService {
 						"WITH g " +
 						"MATCH (pg:Group) " +
 						"WHERE pg.id IN g.communiqueWith " +
-						"MERGE g-[:COMMUNIQUE]->pg ";
+						"MERGE (g)-[:COMMUNIQUE]->(pg) ";
 		s.add(query, params);
 		String usersIncoming =
 				"MATCH (g:Group {id : $groupId})<-[:IN]-(u:User) " +
 						"WHERE g.users IS NOT NULL AND (g.users = 'INCOMING' OR g.users = 'BOTH') " +
-						"MERGE g<-[:COMMUNIQUE]-u ";
+						"MERGE (g)<-[:COMMUNIQUE]-(u) ";
 		s.add(usersIncoming, params);
 		String usersOutgoing =
 				"MATCH (g:Group {id : $groupId})<-[:IN]-(u:User) " +
 						"WHERE g.users IS NOT NULL AND (g.users = 'OUTGOING' OR g.users = 'BOTH') " +
-						"MERGE g-[:COMMUNIQUE]->u ";
+						"MERGE (g)-[:COMMUNIQUE]->(u) ";
 		s.add(usersOutgoing, params);
 		String relativeIncoming =
 				"MATCH (g:Group {id : $groupId})<-[:IN]-(r:User)<-[:RELATED]-(u:User) " +
 						"WHERE g.relativeCommuniqueStudent IS NOT NULL " +
 						"AND (g.relativeCommuniqueStudent = 'INCOMING' OR g.relativeCommuniqueStudent = 'BOTH') " +
-						"MERGE r<-[:COMMUNIQUE_DIRECT]-u ";
+						"MERGE (r)<-[:COMMUNIQUE_DIRECT]-(u) ";
 		s.add(relativeIncoming, params);
 		String relativeOutgoing =
 				"MATCH (g:Group {id : $groupId})<-[:IN]-(r:User)<-[:RELATED]-(u:User) " +
 						"WHERE g.relativeCommuniqueStudent IS NOT NULL " +
 						"AND (g.relativeCommuniqueStudent = 'OUTGOING' OR g.relativeCommuniqueStudent = 'BOTH') " +
-						"MERGE r-[:COMMUNIQUE_DIRECT]->u ";
+						"MERGE (r)-[:COMMUNIQUE_DIRECT]->(u) ";
 		s.add(relativeOutgoing, params);
 		String setVisible =
 				"MATCH (g:Group {id : $groupId})<-[:IN]-(v), " +
-						"v-[:COMMUNIQUE|COMMUNIQUE_DIRECT]-() " +
+						"(v)-[:COMMUNIQUE|COMMUNIQUE_DIRECT]-() " +
 						"WHERE NOT(v:Visible) " +
 						"WITH DISTINCT v " +
 						"SET v:Visible ";
@@ -748,7 +748,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		if (structureId != null && !structureId.trim().isEmpty()) {
 			query = "MATCH (s:Structure)<-[:DEPENDS*1..2]-(g:ProfileGroup)-[r:COMMUNIQUE]-() " +
 					"WHERE s.id = $schoolId " +
-					"OPTIONAl MATCH s<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]" +
+					"OPTIONAl MATCH (s)<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]" +
 					"-(u:User)-[r1:COMMUNIQUE_DIRECT]->() " +
 					"DELETE r, r1";
 			params.put("schoolId", structureId);
@@ -778,7 +778,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		StringBuilder union = null;
 		String conditionUnion = itSelf ? "" : "AND m.id <> $userId ";
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			query.append("MATCH (n:User)-[:COMMUNIQUE*1..3]->m-[:DEPENDS*1..2]->(s:Structure {id:$schoolId}) "); //TODO manage leaf
+			query.append("MATCH (n:User)-[:COMMUNIQUE*1..3]->(m)-[:DEPENDS*1..2]->(s:Structure {id:$schoolId}) "); //TODO manage leaf
 			params.put("schoolId", structureId);
 		} else {
 			String myGroupQuery = (myGroup) ? "COLLECT(CASE WHEN g.users = 'BOTH' THEN g.id ELSE '' END)" : "[]";
@@ -793,9 +793,9 @@ public class DefaultCommunicationService implements CommunicationService {
 				query.append("OPTIONAL MATCH (g:Group) WHERE g.id IN {" + EXPECTED_IDS_USERS_GROUPS + "} ");
 				query.append("WITH comGroups, cu, collect(g) as cg with comGroups, cg+cu as cug unwind cug as m ");
 			}
-			query.append("MATCH p=(g:Group)<-[:DEPENDS*0..1]-cg-[:COMMUNIQUE*0..1]->m ");
+			query.append("MATCH p=(g:Group)<-[:DEPENDS*0..1]-(cg)-[:COMMUNIQUE*0..1]->(m) ");
 			if (userProfile == null || "Student".equals(userProfile) || "Relative".equals(userProfile) || discoverVisibleExpectedProfile.contains(userProfile) ) {
-				union = new StringBuilder("MATCH p=(n:User)-[:COMMUNIQUE_DIRECT]->m " +
+				union = new StringBuilder("MATCH p=(n:User)-[:COMMUNIQUE_DIRECT]->(m) " +
 						"WHERE n.id = $userId AND (m.blocked IS NULL OR m.blocked = false) " +
 						"AND NOT (n)-[:BLOCKED_COMMUNICATION]-(m) ");
 			}
@@ -834,11 +834,11 @@ public class DefaultCommunicationService implements CommunicationService {
 		String pcr = " ";
 		String pr = "";
 		if (profile) {
-			query.append("OPTIONAL MATCH m-[:IN*0..1]->pgp-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) ");
+			query.append("OPTIONAL MATCH (m)-[:IN*0..1]->(pgp)-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) ");
 			pcr = ", profile ";
 			pr = "profile.name as type, ";
 			if (union != null) {
-				union.append("OPTIONAL MATCH m-[:IN*0..1]->pgp-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) ");
+				union.append("OPTIONAL MATCH (m)-[:IN*0..1]->(pgp)-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) ");
 			}
 		}
 		pcr += ", COLLECT(position.id) as positionIds, COLLECT(position.name) as positionNames ";
@@ -847,9 +847,9 @@ public class DefaultCommunicationService implements CommunicationService {
 		if(union != null) {
 			union.append(" OPTIONAL MATCH (m)-[:HAS_POSITION]->(position:UserPosition) ");
 		}
-		query.append("OPTIONAL MATCH (sub:Subject)<-[:TEACHES]-m ");
+		query.append("OPTIONAL MATCH (sub:Subject)<-[:TEACHES]-(m) ");
 		if (union != null) {
-			union.append("OPTIONAL MATCH (sub:Subject)<-[:TEACHES]-m ");
+			union.append("OPTIONAL MATCH (sub:Subject)<-[:TEACHES]-(m) ");
 		}
 		if (customReturn != null && !customReturn.trim().isEmpty()) {
 			query.append("WITH DISTINCT m as visibles, COLLECT(DISTINCT sub.label) AS subjects ").append(pcr);
@@ -891,7 +891,7 @@ public class DefaultCommunicationService implements CommunicationService {
 	@Override
 	public void usersCanSeeMe(String userId, Handler<Either<String, JsonArray>> handler) {
 		String query =
-				"MATCH p=(n:User)<-[:COMMUNIQUE*0..2]-t<-[r:COMMUNIQUE|COMMUNIQUE_DIRECT]-(m:User) " +
+				"MATCH p=(n:User)<-[:COMMUNIQUE*0..2]-(t)<-[r:COMMUNIQUE|COMMUNIQUE_DIRECT]-(m:User) " +
 						"WHERE n.id = $userId AND ((type(r) = 'COMMUNIQUE_DIRECT' AND length(p) = 1) " +
 						"XOR (type(r) = 'COMMUNIQUE' AND length(p) >= 2)) AND m.id <> $userId " +
 						"RETURN distinct m.id as id, m.login as login, " +
@@ -928,11 +928,11 @@ public class DefaultCommunicationService implements CommunicationService {
 		}
 		
 		String query =
-				"MATCH p=(n:User)-[:COMMUNIQUE*1..2]->l<-[:DEPENDS*0..1]-(gp:Group) " +
+				"MATCH p=(n:User)-[:COMMUNIQUE*1..2]->(l)<-[:DEPENDS*0..1]-(gp:Group) " +
 						"WHERE n.id = $userId " +
 						(excludeEmptyGroups ? "AND (gp.nbUsers IS NULL OR gp.nbUsers > 0)" : "") +
 						"AND (length(p) > 1 OR gp.users <> 'INCOMING') " + combinedPreFilter +
-						"OPTIONAL MATCH gp-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) " +
+						"OPTIONAL MATCH (gp)-[:DEPENDS*0..1]->(pg:ProfileGroup)-[:HAS_PROFILE]->(profile:Profile) " +
 						r;
 		neo4j.execute(query, params, validResultHandler(handler));
 	}
@@ -952,7 +952,7 @@ public class DefaultCommunicationService implements CommunicationService {
 				(additionnalParams != null) ? additionnalParams : new JsonObject();
 		params.put("userId", userId);
 		String query =
-				"MATCH p=(n:User)-[:COMMUNIQUE*1..2]->l<-[:DEPENDS*0..1]-(mg:ManualGroup) " +
+				"MATCH p=(n:User)-[:COMMUNIQUE*1..2]->(l)<-[:DEPENDS*0..1]-(mg:ManualGroup) " +
 						"WHERE n.id = $userId AND (length(p) > 1 OR mg.users <> 'INCOMING') " +
 						r;
 		neo4j.execute(query, params, validResultHandler(handler));
@@ -1584,7 +1584,7 @@ public class DefaultCommunicationService implements CommunicationService {
 						"SET g.id = id(g) +'-'+timestamp() " +
 						"WITH g " +
 						"MATCH (u:User {id : $userId}) " +
-						"CREATE u-[:IN]->g, u-[:COMMUNIQUE]->g " +
+						"CREATE (u)-[:IN]->(g), (u)-[:COMMUNIQUE]->(g) " +
 						"RETURN g.id as id";
 
 		final String name = body.getString("name");
@@ -1673,7 +1673,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		final String addQuery = "MATCH (g:CommunityGroup:Group:Visible {id : $groupId}) " +
 								"MATCH (u:User) " +
 								"WHERE u.id IN $users AND HEAD(u.profiles) IN $discoverVisibleExpectedProfile " +
-								"CREATE UNIQUE u-[:IN]->g, u-[:COMMUNIQUE]->g;";
+								"CREATE UNIQUE (u)-[:IN]->(g), (u)-[:COMMUNIQUE]->(g);";
 
 		statementsBuilder.add(addQuery, params.copy().put("users", usersToAdd).put("discoverVisibleExpectedProfile", discoverVisibleExpectedProfile));
 
@@ -1864,23 +1864,23 @@ public class DefaultCommunicationService implements CommunicationService {
 		final Promise<JsonArray> promise = Promise.promise();
 		String match = "MATCH (visibles) " +
 
-				"OPTIONAL MATCH visibles-[:RELATED]->(parent: User) " +
+				"OPTIONAL MATCH (visibles)-[:RELATED]->(parent: User) " +
 				"WITH DISTINCT visibles, collect({id: parent.id, displayName: parent.displayName}) as relatives " +
 
-				"OPTIONAL MATCH visibles-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(c:Class) " +
+				"OPTIONAL MATCH (visibles)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 				"WITH DISTINCT visibles, relatives, collect({id: c.id, name: c.name}) as classrooms " +
 
-				"OPTIONAL MATCH visibles<-[:RELATED]-(child: User) " +
+				"OPTIONAL MATCH (visibles)<-[:RELATED]-(child: User) " +
 				"WITH visibles, relatives, classrooms, child " +
 				"ORDER BY child.displayName " +
 				"WITH visibles, relatives, classrooms, collect({id: child.id, displayName: child.displayName}) AS children, collect(distinct child.displayName) AS sorted_children " +
 
-				"OPTIONAL MATCH visibles-[:IN]->(fg:FuncGroup) " +
+				"OPTIONAL MATCH (visibles)-[:IN]->(fg:FuncGroup) " +
 				"WITH visibles, relatives, classrooms, children, sorted_children, fg " +
 				"ORDER BY fg.filter " +
 				"WITH visibles, relatives, classrooms, children, sorted_children, collect({id: fg.id, name: fg.filter}) AS functions, collect(distinct fg.filter) AS sorted_functions " +
 
-				"OPTIONAL MATCH visibles-[:IN]->(dg:DisciplineGroup) " +
+				"OPTIONAL MATCH (visibles)-[:IN]->(dg:DisciplineGroup) " +
 				"WITH visibles, relatives, classrooms, children, sorted_children, functions, sorted_functions, dg " +
 				"ORDER BY dg.filter " +
 				"WITH DISTINCT visibles, relatives, classrooms, children, sorted_children, functions, sorted_functions, collect({id: dg.id, name: dg.filter}) as disciplines, collect(distinct dg.filter) AS sorted_disciplines " +
@@ -1993,8 +1993,8 @@ public class DefaultCommunicationService implements CommunicationService {
 		final Promise<JsonArray> promise = Promise.promise();
 		String match = "MATCH (visibles) " +
 
-			"OPTIONAL MATCH visibles-[:RELATED]->(parent1: User) " +
-			"OPTIONAL MATCH visibles<-[:RELATED]-(child: User) " +
+			"OPTIONAL MATCH (visibles)-[:RELATED]->(parent1: User) " +
+			"OPTIONAL MATCH (visibles)<-[:RELATED]-(child: User) " +
 			"WITH DISTINCT visibles, COLLECT(DISTINCT {id: parent1.id, displayName: parent1.displayName}) as relatives, child " +
 			"ORDER BY child.displayName " +
 			"WITH visibles,  [r IN relatives WHERE r.id IS NOT NULL] AS relatives, " +

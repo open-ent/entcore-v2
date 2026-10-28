@@ -144,9 +144,9 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 		String query =
 			"MATCH (n:Application:External {id : $id}) " +
 			"WHERE coalesce(n.locked, false) = false " +
-			"MATCH n-[r1:PROVIDE]->(a:Action) " +
-			"OPTIONAL MATCH a<-[r2:AUTHORIZE]-(r:Role) " +
-			"OPTIONAL MATCH r<-[r3:AUTHORIZED]-(g:Group) " +
+			"MATCH (n)-[r1:PROVIDE]->(a:Action) " +
+			"OPTIONAL MATCH (a)<-[r2:AUTHORIZE]-(r:Role) " +
+			"OPTIONAL MATCH (r)<-[r3:AUTHORIZED]-(g:Group) " +
 			"WHERE r.structureId = n.structureId " +
 			"DELETE r1, r2, r3, n, a, r ";
 		JsonObject params = new JsonObject().put("id", applicationId);
@@ -186,7 +186,7 @@ public class DefaultExternalApplicationService implements ExternalApplicationSer
 		String createActionsAndRolesQuery =
 				"MATCH (n:Application) " +
 				"WHERE n.id = $id " +
-				"CREATE UNIQUE n-[r:PROVIDE]->(a:Action:WorkflowAction {type: $type, " +
+				"CREATE UNIQUE (n)-[r:PROVIDE]->(a:Action:WorkflowAction {type: $type, " +
 				"name:$name, displayName:$displayName}) " +
 				"WITH a " +
 				"CREATE UNIQUE (r:Role {id: $roleId, name: $roleName, structureId: $structureId})-[:AUTHORIZE]->(a) " +

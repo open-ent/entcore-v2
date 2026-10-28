@@ -243,20 +243,20 @@ public class Importer {
 		final String query =
 			"MATCH (s:Structure {source:$source})<-[:DEPENDS]-(:ProfileGroup)<-[r:IN]-(u:User) " +
 			"where s.id ends with '" + suffix + "' " +
-			"OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
-			"OPTIONAL MATCH u-[:COURSE]->(f:FieldOfStudy) " +
-			"OPTIONAL MATCH u-[:FOLLOW]->(m:Module) " +
-			// "OPTIONAL MATCH u-[:IN]->(g:Group) " +
+			"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
+			"OPTIONAL MATCH (u)-[:COURSE]->(f:FieldOfStudy) " +
+			"OPTIONAL MATCH (u)-[:FOLLOW]->(m:Module) " +
+			// "OPTIONAL MATCH (u)-[:IN]->(g:Group) " +
 			"RETURN u.externalId as externalId, COLLECT(s.externalId) as structures, " +
 			"COLLECT(f.externalId) as fos, COLLECT(m.externalId) as modules, " +
 			// "COLLECT(g.externalId) as groups, " +
 			"COLLECT(c.externalId) as classes";
 			// "MATCH (s:Structure {source:$source})<-[:DEPENDS]-(:ProfileGroup)<-[r:IN]-(u:User {source:$source}) " +
 			// "WHERE head(u.profiles) = 'Student' and r.source IS NULL " +
-			// "OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
-			// "OPTIONAL MATCH u-[:COURSE]->(f:FieldOfStudy) " +
-			// "OPTIONAL MATCH u-[:FOLLOW]->(m:Module) " +
-			// "OPTIONAL MATCH u-[:IN]->(g:Group {source:$source}) " +
+			// "OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
+			// "OPTIONAL MATCH (u)-[:COURSE]->(f:FieldOfStudy) " +
+			// "OPTIONAL MATCH (u)-[:FOLLOW]->(m:Module) " +
+			// "OPTIONAL MATCH (u)-[:IN]->(g:Group {source:$source}) " +
 			// "WHERE (g:FunctionalGroup OR g:FunctionGroup) " +
 			// "RETURN DISTINCT u.externalId as externalId, " +
 			// "COLLECT(distinct s.externalId) as structures, " +
@@ -626,9 +626,9 @@ public class Importer {
 				String query2 =
 						"START u0=node:node_auto_index(externalId=$externalId), " +
 						"s=node:node_auto_index($studentExternalIds) " +
-						"MATCH u0-[:MERGED*0..1]->u " +
+						"MATCH (u0)-[:MERGED*0..1]->(u) " +
 						"WHERE u.mergedWith IS NULL " +
-						"MERGE u<-[:RELATED]-s ";
+						"MERGE (u)<-[:RELATED]-(s) ";
 				JsonObject p = new JsonObject()
 						.put("externalId", object.getString("externalId"))
 						.put("studentExternalIds",
@@ -658,7 +658,7 @@ public class Importer {
 						"WHERE g.externalId IN $groups " +
 						"AND u.mergedWith IS NULL " +
 						"AND g.source = $source " +
-						"MERGE u-[:IN]->g";
+						"MERGE (u)-[:IN]->(g)";
 				JsonObject p = new JsonObject()
 						.put("userExternalId", object.getString("externalId"))
 						.put("source", currentSource)
@@ -710,7 +710,7 @@ public class Importer {
 										"USING INDEX p:Profile(externalId) " +
 										"WHERE s.externalId = $structure AND c.externalId = $class " +
 										"AND p.externalId = $profileExternalId AND u.mergedWith IS NULL " +
-										"MERGE u-[:IN]->g";
+										"MERGE (u)-[:IN]->(g)";
 						JsonObject p = new JsonObject()
 								.put("userExternalId", externalId)
 								.put("profileExternalId", DefaultProfiles.GUEST_PROFILE_EXTERNAL_ID)
@@ -802,14 +802,14 @@ public class Importer {
 							query = "MATCH (s:Structure {externalId : $structureAdmin}), " +
 									"(u:User { externalId : $userExternalId}) " +
 									"WHERE u.mergedWith IS NULL " +
-									"MERGE u-[:ADMINISTRATIVE_ATTACHMENT]->s ";
+									"MERGE (u)-[:ADMINISTRATIVE_ATTACHMENT]->(s) ";
 							p.put("structureAdmin", structures.getString(0))
 									.put("profileExternalId", profileExternalId);
 						} else {
 							query = "MATCH (s:Structure), " +
 									"(u:User { externalId : $userExternalId})) " +
 									"WHERE s.externalId IN $structuresAdmin AND u.mergedWith IS NULL " +
-									"MERGE u-[:ADMINISTRATIVE_ATTACHMENT]->s ";
+									"MERGE (u)-[:ADMINISTRATIVE_ATTACHMENT]->(s) ";
 							p.put("structuresAdmin", structures)
 									.put("profileExternalId", profileExternalId);
 						}
@@ -840,7 +840,7 @@ public class Importer {
 								"-[:DEPENDS]->(:ProfileGroup)-[:HAS_PROFILE]->(:Profile {externalId : $profileExternalId}), " +
 								"(u:User { externalId : $userExternalId}) " +
 								"WHERE c.externalId IN $classes AND u.mergedWith IS NULL  " +
-								"MERGE u-[:IN]->g";
+								"MERGE (u)-[:IN]->(g)";
 						JsonObject p0 = new JsonObject()
 								.put("userExternalId", externalId)
 								.put("profileExternalId", profileExternalId)
@@ -899,7 +899,7 @@ public class Importer {
 					String query =
 							"MATCH (u:User {externalId:$userExternalId}), " +
 							"(m:Module {externalId:$moduleStudent}) " +
-							"MERGE u-[:FOLLOW]->m";
+							"MERGE (u)-[:FOLLOW]->(m)";
 					JsonObject p = new JsonObject()
 							.put("userExternalId", externalId)
 							.put("moduleStudent", module);
@@ -910,7 +910,7 @@ public class Importer {
 					String query =
 								"MATCH (u:User {externalId:$userExternalId}), (f:FieldOfStudy) " +
 								"WHERE f.externalId IN $fieldOfStudyStudent " +
-								"MERGE u-[:COURSE]->f";
+								"MERGE (u)-[:COURSE]->(f)";
 					JsonObject p = new JsonObject()
 								.put("userExternalId", externalId)
 								.put("fieldOfStudyStudent", fieldOfStudy);
@@ -932,7 +932,7 @@ public class Importer {
 								"MATCH (u:User {externalId:$userExternalId}), " +
 								"(:User {externalId:$user})-[:MERGED*0..1]->(r:User) " +
 								"WHERE r.mergedWith IS NULL " +
-								"MERGE u-[:RELATED]->r " +
+								"MERGE (u)-[:RELATED]->(r) " +
 								"WITH r, u " +
 								"WHERE $user <> r.externalId AND LENGTH(FILTER(eId IN u.relative WHERE eId STARTS WITH r.externalId)) = 0 " +
 								"SET u.relative = coalesce(u.relative, []) + (r.externalId + '$10$1$1$0$0') ";
@@ -997,7 +997,7 @@ public class Importer {
 				"MATCH (u:User)<-[:RELATED]-(s:User)-[:IN]->(scg:ProfileGroup)" +
 				"-[:DEPENDS]->(c:Structure)<-[:DEPENDS]-(rcg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 				"WHERE p.externalId = $profileExternalId " + filter +
-				"MERGE u-[:IN]->rcg";
+				"MERGE (u)-[:IN]->(rcg)";
 		transactionHelper.add(query, j);
 	}
 
@@ -1031,19 +1031,19 @@ public class Importer {
 				"-[:DEPENDS]->(c:Class)<-[:DEPENDS]-(rcg:ProfileGroup)" +
 				"-[:DEPENDS]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 				"WHERE p.externalId = $profileExternalId " + filter +
-				"MERGE u-[:IN]->rcg";
+				"MERGE (u)-[:IN]->(rcg)";
 		transactionHelper.add(query, j);
 		String query2 =
 				"MATCH (u:User)<-[:RELATED]-(:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " + additionalMatch2 +
 				"WITH u, COLLECT(distinct c.id) as cIds " +
-				"MATCH u-[r:IN]-(g:Group)-[:DEPENDS]->(c:Class) " + additionalMatch2 +
+				"MATCH (u)-[r:IN]-(g:Group)-[:DEPENDS]->(c:Class) " + additionalMatch2 +
 				"WHERE NOT(c.id IN cIds) " + filter +
 				"DELETE r ";
 		transactionHelper.add(query2, j);
 		String query3 =
 				"MATCH (u:User)<-[:RELATED]-(:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->" + filter3 +
 				"WITH u, COLLECT(distinct s.id) as sIds " +
-				"MATCH u-[r:IN]-(g:Group)-[:DEPENDS]->" + filter3 +
+				"MATCH (u)-[r:IN]-(g:Group)-[:DEPENDS]->" + filter3 +
 				"WHERE NOT(s.id IN sIds) " +
     			"AND NOT g:ManualGroup " + filter +
 				"DELETE r ";
@@ -1060,7 +1060,7 @@ public class Importer {
 		String query2 =
 				"MATCH (u:User) " +
 				"WHERE u.deleteDate IS NULL AND u.groups IS NOT NULL AND LENGTH(u.groups) > 0 " +
-				"AND NOT(u-[:IN]->(:FunctionalGroup)) " +
+				"AND NOT((u)-[:IN]->(:FunctionalGroup)) " +
 				"SET u.groups = [];";
 		transactionHelper.add(query2, null);
 		String query3 =
@@ -1083,7 +1083,7 @@ public class Importer {
 		String query2 =
 				"MATCH (u:User) " +
 				"WHERE u.deleteDate IS NULL AND u.classes IS NOT NULL AND LENGTH(u.classes) > 0 " +
-				"AND NOT(u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Class)) " +
+				"AND NOT((u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Class)) " +
 				"SET u.classes = [];";
 		transactionHelper.add(query2, null);
 		String query3 =

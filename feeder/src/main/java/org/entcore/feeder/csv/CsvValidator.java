@@ -310,7 +310,7 @@ public class CsvValidator extends CsvReport implements ImportValidator {
 		final String query =
 				"MATCH (s:Structure {externalId:$externalId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
 				"WHERE head(u.profiles) = 'Student' " +
-				"OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
+				"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 				"RETURN u.externalId as externalId, u.surname as surname, " +
 				"u.lastName as lastName, u.firstName as firstName, u.email as email, u.title as title, " +
 				"u.homePhone as homePhone, u.mobile as mobile, c.name as className ";

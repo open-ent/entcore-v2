@@ -160,7 +160,7 @@ public class SSOAzure extends AbstractSSOProvider {
 			updateQuery += " set u.emailInternal = $email";
 			updateParams.put("email", mail);
 			if (isAffectationGroup) {
-				updateQuery += " CREATE UNIQUE u-[:IN {source:'MANUAL'}]->g";
+				updateQuery += " CREATE UNIQUE (u)-[:IN {source:'MANUAL'}]->(g)";
 			}
 
 			Neo4j.getInstance().execute(updateQuery, updateParams, Neo4jResult.validEmptyHandler(res -> {
@@ -186,7 +186,7 @@ public class SSOAzure extends AbstractSSOProvider {
 	private void createOrMergeUserIfNeeded(Assertion assertion, Handler<AsyncResult<Void>> handler) {
 		final String queryStructure =
 				"MATCH (s:Structure {UAI: $uai}) " +
-				"OPTIONAL MATCH s<-[:BELONGS]-(c:Class) " +
+				"OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class) " +
 				"RETURN DISTINCT s.id as structureId, COLLECT(DISTINCT [c.id, c.name]) as classes ";
 		final String queryUserAAF =
 				"MATCH (u:User {externalId:$joinKey}) " +
@@ -250,7 +250,7 @@ public class SSOAzure extends AbstractSSOProvider {
 		}
 		final String markDuplicates =
 				"MATCH (u:User {id:$aafUserId}), (d:User {id:$ssoUserId}) " +
-				"MERGE u-[:DUPLICATE {score:$score}]-d";
+				"MERGE (u)-[:DUPLICATE {score:$score}]-(d)";
 		final JsonObject params = new JsonObject()
 				.put("aafUserId", aafUserId)
 				.put("ssoUserId", ssoUserId)

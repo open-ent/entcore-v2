@@ -75,7 +75,7 @@ public class DefaultWidgetService implements WidgetService {
 		String linkApp = " ";
 
 		if(applicationName != null && !applicationName.trim().isEmpty()){
-			linkApp = "WITH w MATCH (a:Application {name: $applicationName}) CREATE UNIQUE w<-[:HAS_WIDGET]-a ";
+			linkApp = "WITH w MATCH (a:Application {name: $applicationName}) CREATE UNIQUE (w)<-[:HAS_WIDGET]-(a) ";
 			params.put("applicationName", applicationName);
 		}
 
@@ -94,7 +94,7 @@ public class DefaultWidgetService implements WidgetService {
 	public void listWidgets(final Handler<Either<String, JsonObject>> handler){
 		String query =
 			"MATCH (w:Widget) OPTIONAL MATCH (w)<-[:HAS_WIDGET]-(a:Application) "+
-			"WITH w, a, length(a-[:PROVIDE]->(:WorkflowAction)) > 0 as workflowLinked " +
+			"WITH w, a, length((a)-[:PROVIDE]->(:WorkflowAction)) > 0 as workflowLinked " +
 			"RETURN collect({id: w.id, name: w.name, js: w.js, path: w.path, i18n: w.i18n, " +
 			"distributions: coalesce(w.distributions, []), " +
 			"levelsOfEducation: coalesce(w.levelsOfEducation, CASE " +
@@ -136,7 +136,7 @@ public class DefaultWidgetService implements WidgetService {
 
 		String query =
 			"MATCH (w:Widget {id: $widgetId}) "+
-			"OPTIONAL MATCH w-[any]-() " +
+			"OPTIONAL MATCH (w)-[any]-() " +
 			"DELETE any, w";
 		JsonObject params = new JsonObject().put("widgetId", widgetId);
 
@@ -166,9 +166,9 @@ public class DefaultWidgetService implements WidgetService {
 
 		String query =
 			"MATCH (w:Widget {id: $widgetId}), (g:Group) " +
-			"WHERE g.id IN $groupIds AND NOT(g-[:AUTHORIZED]->w) " +
+			"WHERE g.id IN $groupIds AND NOT((g)-[:AUTHORIZED]->(w)) " +
 			"AND COALESCE(w.locked ,false) = false " +
-			"CREATE UNIQUE g-[:AUTHORIZED]->w";
+			"CREATE UNIQUE (g)-[:AUTHORIZED]->(w)";
 		JsonObject params = new JsonObject()
 				.put("widgetId", widgetId)
 				.put("groupIds", new JsonArray(groupIds));
@@ -248,14 +248,14 @@ public class DefaultWidgetService implements WidgetService {
 		String queryAdml =
 			"MATCH (w:Widget {id: $widgetId}), " +
 			"(parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup) " +
-			"WHERE fg.filter = 'AdminLocal' AND NOT(fg-[:AUTHORIZED]->w) " +
-			"CREATE UNIQUE fg-[:AUTHORIZED]->w";
+			"WHERE fg.filter = 'AdminLocal' AND NOT((fg)-[:AUTHORIZED]->(w)) " +
+			"CREATE UNIQUE (fg)-[:AUTHORIZED]->(w)";
 
 		String queryProfile =
 			"MATCH (w:Widget {id: $widgetId}), " +
 			"(parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-			"WHERE p.name IN $profiles AND NOT(g-[:AUTHORIZED]->w) " +
-			"CREATE UNIQUE g-[:AUTHORIZED]->w";
+			"WHERE p.name IN $profiles AND NOT((g)-[:AUTHORIZED]->(w)) " +
+			"CREATE UNIQUE (g)-[:AUTHORIZED]->(w)";
 
 		executeMassDispatch(includeAdml, filteredProfiles, params, queryAdml, queryProfile, handler);
 	}
@@ -278,13 +278,13 @@ public class DefaultWidgetService implements WidgetService {
 
 		String queryAdml =
 			"MATCH (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup), " +
-			"fg-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"(fg)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
 			"WHERE fg.filter = 'AdminLocal' " +
 			"DELETE rel";
 
 		String queryProfile =
 			"MATCH (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), " +
-			"g-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"(g)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
 			"WHERE p.name IN $profiles " +
 			"DELETE rel";
 
@@ -309,13 +309,13 @@ public class DefaultWidgetService implements WidgetService {
 
 		String queryAdml =
 			"MATCH (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup), " +
-			"fg-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"(fg)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
 			"WHERE fg.filter = 'AdminLocal' " +
 			"SET rel.mandatory = true";
 
 		String queryProfile =
 			"MATCH (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), " +
-			"g-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"(g)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
 			"WHERE p.name IN $profiles " +
 			"SET rel.mandatory = true";
 
@@ -340,14 +340,14 @@ public class DefaultWidgetService implements WidgetService {
 
 		String queryAdml =
 			"MATCH (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(fg:FunctionGroup), " +
-			"fg-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"(fg)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
 			"WHERE fg.filter = 'AdminLocal' " +
 			"AND COALESCE(w.locked ,false) = false " +
 			"REMOVE rel.mandatory";
 
 		String queryProfile =
 			"MATCH (parentStructure:Structure {id: $structureId})<-[:HAS_ATTACHMENT*0..]-(s:Structure)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), " +
-			"g-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"(g)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
 			"WHERE p.name IN $profiles " +
 			"AND COALESCE(w.locked ,false) = false " +
 			"REMOVE rel.mandatory";

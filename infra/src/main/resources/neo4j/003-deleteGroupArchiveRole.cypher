@@ -9,5 +9,5 @@ WHERE n.name IN [
 'org.entcore.archive.controllers.ArchiveController|view',
 'org.entcore.archive.controllers.ArchiveController|export'
 ]
-CREATE UNIQUE m-[:AUTHORIZE]->n;
-match (u:Role {name :'archive-all-default'}), (g:DeleteGroup) create g-[:AUTHORIZED]->u;
+CREATE UNIQUE (m)-[:AUTHORIZE]->(n);
+match (u:Role {name :'archive-all-default'}), (g:DeleteGroup) create (g)-[:AUTHORIZED]->(u);

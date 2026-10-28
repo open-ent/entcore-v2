@@ -95,9 +95,9 @@ public class DefaultClassService implements ClassService {
 		//=== Make query
 		String query =
 				"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)" +
-				"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), cpg<-[:IN]-(m:User)-[:IN]->spg " +
+				"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (cpg)<-[:IN]-(m:User)-[:IN]->(spg) " +
 						filterPart + collectPart +
-				" OPTIONAL MATCH m-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, m, p, relativeList " +
+				" OPTIONAL MATCH (m)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, m, p, relativeList " +
 				" OPTIONAL MATCH (sAuth:Structure)-[:HAS_AUTH_DEFAULT]->(auths:AuthDefault { profile: HEAD(m.profiles), auth: 'FEDERATED' }) WHERE sAuth IN structureNodes " +
 				" WITH COLLECT(auths) as auths, m, p, relativeList "	+
 				"RETURN distinct m.lastName as lastName, m.firstName as firstName, m.id as id, " +
@@ -169,9 +169,9 @@ public class DefaultClassService implements ClassService {
 							String customReturn =
 									"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)" +
 									"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {name : $profile}), " +
-									"c-[:BELONGS]->(s:Structure) " +
+									"(c)-[:BELONGS]->(s:Structure) " +
 									"WHERE visibles.id = $uId " +
-									"CREATE UNIQUE visibles-[:IN {source:'MANUAL'}]->cpg " +
+									"CREATE UNIQUE (visibles)-[:IN {source:'MANUAL'}]->(cpg) " +
 									"RETURN DISTINCT visibles.id as id, s.id as schoolId";
 							JsonObject params = new JsonObject()
 									.put("classId", classId)
@@ -188,7 +188,7 @@ public class DefaultClassService implements ClassService {
 													"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)" +
 													"-[:HAS_PROFILE]->(p:Profile {name : 'Relative'}), " +
 													"(u:User {id: $uId})-[:RELATED]->(relative: User) " +
-													"CREATE UNIQUE relative-[:IN {source:'MANUAL'}]->cpg " +
+													"CREATE UNIQUE (relative)-[:IN {source:'MANUAL'}]->(cpg) " +
 													"RETURN count(relative) as relativeNb";
 
 											JsonObject params = new JsonObject()

@@ -321,7 +321,7 @@ public class DefaultGroupService implements GroupService {
 		JsonObject params = new JsonObject();
 
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			query = "MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u:User), u-[:IN]->(g:CommunityGroup) WHERE s.id = $structureId WITH g, collect( distinct {name: s.name, id: s.id}) as structures, ";
+			query = "MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u:User), (u)-[:IN]->(g:CommunityGroup) WHERE s.id = $structureId WITH g, collect( distinct {name: s.name, id: s.id}) as structures, ";
 			returnStructure = ", CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures";
 			params.put("structureId", structureId);
 		} else {

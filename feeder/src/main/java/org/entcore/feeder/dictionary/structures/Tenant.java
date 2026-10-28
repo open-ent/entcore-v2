@@ -100,7 +100,7 @@ public class Tenant {
 				if (t != null) {
 					final String baseLink = "MATCH (t:Tenant {id:$id}), (s:Structure) ";
 					final String mergeLink =
-							"MERGE t<-[r:HAS_STRUCT]-s " +
+							"MERGE (t)<-[r:HAS_STRUCT]-(s) " +
 							"ON CREATE SET r.created = $now " +
 							"SET r.lastUpdated = $now ";
 					final long now = System.currentTimeMillis();
