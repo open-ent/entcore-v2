@@ -94,7 +94,9 @@ public class DefaultWidgetService implements WidgetService {
 	public void listWidgets(final Handler<Either<String, JsonObject>> handler){
 		String query =
 			"MATCH (w:Widget) OPTIONAL MATCH (w)<-[:HAS_WIDGET]-(a:Application) "+
-			"WITH w, a, length((a)-[:PROVIDE]->(:WorkflowAction)) > 0 as workflowLinked " +
+			// length() sur une expression de motif comptait les chemins correspondants en
+			// Cypher 2.3. Le test portant sur « > 0 », EXISTS { } en est la traduction directe.
+			"WITH w, a, EXISTS { (a)-[:PROVIDE]->(:WorkflowAction) } as workflowLinked " +
 			"RETURN collect({id: w.id, name: w.name, js: w.js, path: w.path, i18n: w.i18n, " +
 			"distributions: coalesce(w.distributions, []), " +
 			"levelsOfEducation: coalesce(w.levelsOfEducation, CASE " +

@@ -101,7 +101,7 @@ public class DefaultClassService implements ClassService {
 				" OPTIONAL MATCH (sAuth:Structure)-[:HAS_AUTH_DEFAULT]->(auths:AuthDefault { profile: HEAD(m.profiles), auth: 'FEDERATED' }) WHERE sAuth IN structureNodes " +
 				" WITH COLLECT(auths) as auths, m, p, relativeList "	+
 				"RETURN distinct m.lastName as lastName, m.firstName as firstName, m.id as id, " +
-				"(LENGTH(m.email)>0 AND m.email IS NOT NULL) as hasEmail, " +
+				"(size(m.email)>0 AND m.email IS NOT NULL) as hasEmail, " +
 				"CASE WHEN m.loginAlias IS NOT NULL THEN m.loginAlias ELSE m.login END as login, m.login as originalLogin, m.activationCode as activationCode, m.displayName as displayName, m.birthDate as birthDate, m.lastLogin as lastLogin, " +
 				(ine 
 					? "m.ine as ine, " 

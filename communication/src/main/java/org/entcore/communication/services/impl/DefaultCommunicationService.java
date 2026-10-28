@@ -634,7 +634,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		JsonObject params = new JsonObject().put("structures", structureIds);
 		String query =
 				"MATCH (s:Structure)<-[:DEPENDS*1..2]-(g:ProfileGroup) " +
-						"WHERE s.id IN $structures AND g.communiqueWith IS NOT NULL AND LENGTH(g.communiqueWith) <> 0 " +
+						"WHERE s.id IN $structures AND g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 " +
 						"WITH DISTINCT g " +
 						"MATCH (pg:Group) " +
 						"WHERE pg.id IN g.communiqueWith " +
@@ -703,7 +703,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		JsonObject params = new JsonObject().put("groupId", groupId);
 		String query =
 				"MATCH (g:Group {id : $groupId}) " +
-						"WHERE g.communiqueWith IS NOT NULL AND LENGTH(g.communiqueWith) <> 0 " +
+						"WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 " +
 						"WITH g " +
 						"MATCH (pg:Group) " +
 						"WHERE pg.id IN g.communiqueWith " +

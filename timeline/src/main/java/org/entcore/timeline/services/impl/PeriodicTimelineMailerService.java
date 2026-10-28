@@ -754,7 +754,7 @@ public class PeriodicTimelineMailerService implements CronMailerService {
 
         final String query =
                 "MATCH (u:User)-[:IN]->(g:Group)-[:AUTHORIZED]->(r:Role)-[:AUTHORIZE]->(act:WorkflowAction) " +
-                        "WHERE u.id IN $notifiedUsers AND u.activationCode IS NULL AND u.email IS NOT NULL AND length(u.email) > 0 " +
+                        "WHERE u.id IN $notifiedUsers AND u.activationCode IS NULL AND u.email IS NOT NULL AND size(u.email) > 0 " +
                         "AND act.name = \"org.entcore.timeline.controllers.TimelineController|mixinConfig\" " +
                         "OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
                         "RETURN DISTINCT u.email as mail, u.id as id, uac.timezone as timezone ";

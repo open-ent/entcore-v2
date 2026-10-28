@@ -579,7 +579,7 @@ public class ManualFeeder extends BusModBase {
 						"WHERE parentADML = 0 " +
 						"SET r.scope = [sId IN r.scope WHERE sId <> s.id] " +
 						"WITH r " +
-						"WHERE LENGTH(r.scope) = 0 " +
+						"WHERE size(r.scope) = 0 " +
 						"DELETE r";
 		final String removeFunctionGroups =
 				matchUser +
@@ -817,7 +817,7 @@ public class ManualFeeder extends BusModBase {
 
 			String query3 =
 					"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure)<-[b:BELONGS]-(c:Class {id : $classId}) " +
-							"WHERE length(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR length(u.headTeacher) = 0) " +
+							"WHERE size(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR size(u.headTeacher) = 0) " +
 							"DELETE r " +
 							"RETURN DISTINCT u.id as id";
 
@@ -887,7 +887,7 @@ public class ManualFeeder extends BusModBase {
 
 				String query3 =
 						"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure)<-[b:BELONGS]-(c:Class {id : $classId}) " +
-								"WHERE length(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR length(u.headTeacher) = 0) " +
+								"WHERE size(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR size(u.headTeacher) = 0) " +
 								"DELETE r " +
 								"RETURN DISTINCT u.id as id";
 

@@ -131,7 +131,7 @@ public abstract class AbstractTimetableImporter implements TimetableImporter {
 	// prevent difference between relationships and properties
 	private static final String UNSET_OLD_GROUPS =
 			"MATCH (:Structure {externalId : $structureExternalId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
-			"WHERE u.deleteDate IS NULL AND u.groups IS NOT NULL AND LENGTH(u.groups) > 0 " +
+			"WHERE u.deleteDate IS NULL AND u.groups IS NOT NULL AND size(u.groups) > 0 " +
 			"AND NOT((u)-[:IN]->(:FunctionalGroup)) " +
 			"SET u.groups = [];";
 	private static final String SET_GROUPS =

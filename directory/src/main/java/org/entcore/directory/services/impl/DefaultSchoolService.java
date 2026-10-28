@@ -370,7 +370,7 @@ public class DefaultSchoolService implements SchoolService {
 				"WITH p, collect(distinct u) as allUsers " +
 				"WITH p, [u IN allUsers WHERE u.activationCode IS NULL] as active, " +
 				"[u IN allUsers WHERE NOT(u.activationCode IS NULL)] as inactive " +
-				"WITH p, length (active) as active, length(inactive) as inactive " +
+				"WITH p, size(active) as active, size(inactive) as inactive " +
 				"RETURN collect({profile: p.name, active: active, inactive: inactive}) as metrics";
 
 		JsonObject params = new JsonObject().put("structureId", structureId);

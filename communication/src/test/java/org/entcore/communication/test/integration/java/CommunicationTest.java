@@ -336,7 +336,7 @@
 //			public void handle(Message<JsonObject> message) {
 //				assertEquals("ok", message.body().getString("status"));
 //				StatementsBuilder s = new StatementsBuilder();
-//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND LENGTH(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
 //				s.add("MATCH (g:ProfileGroup) WHERE g.users IS NOT NULL RETURN COUNT(*) as nbU ");
 //				s.add("MATCH (g:ProfileGroup) WHERE g.relativeCommuniqueStudent IS NOT NULL RETURN COUNT(*) as nbR");
 //				s.add("MATCH ()-[:COMMUNIQUE]->() RETURN COUNT(*) as nbC ");
@@ -373,7 +373,7 @@
 //			public void handle(Message<JsonObject> message) {
 //				assertTrue(message.body().size() == 0);
 //				StatementsBuilder s = new StatementsBuilder();
-//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND LENGTH(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
 //				s.add("MATCH (g:ProfileGroup) WHERE g.users IS NOT NULL RETURN COUNT(*) as nbU ");
 //				s.add("MATCH (g:ProfileGroup) WHERE g.relativeCommuniqueStudent IS NOT NULL RETURN COUNT(*) as nbR");
 //				s.add("MATCH ()-[:COMMUNIQUE]->() RETURN COUNT(*) as nbC ");
@@ -406,7 +406,7 @@
 //			public void handle(Message<JsonObject> message) {
 //				assertTrue(message.body().size() == 0);
 //				StatementsBuilder s = new StatementsBuilder();
-//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND LENGTH(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
 //				s.add("MATCH (g:ProfileGroup) WHERE g.users IS NOT NULL RETURN COUNT(*) as nbU ");
 //				s.add("MATCH (g:ProfileGroup) WHERE g.relativeCommuniqueStudent IS NOT NULL RETURN COUNT(*) as nbR");
 //				s.add("MATCH ()-[:COMMUNIQUE]->() RETURN COUNT(*) as nbC ");
@@ -467,7 +467,7 @@
 //			public void handle(Message<JsonObject> message) {
 //				assertTrue(message.body().size() == 0);
 //				StatementsBuilder s = new StatementsBuilder();
-//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND LENGTH(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
 //				s.add("MATCH (g:ProfileGroup) WHERE g.users IS NOT NULL RETURN COUNT(*) as nbU ");
 //				s.add("MATCH (g:ProfileGroup) WHERE g.relativeCommuniqueStudent IS NOT NULL RETURN COUNT(*) as nbR");
 //				s.add("MATCH ()-[:COMMUNIQUE]->() RETURN COUNT(*) as nbC ");

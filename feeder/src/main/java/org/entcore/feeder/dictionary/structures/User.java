@@ -500,7 +500,7 @@ public class User {
 		String mQuery =
 				"MATCH (u:User { id : $userId})<-[r:MERGED]-(um:User), " +
 				"(u)<-[:RELATED]-(us:User) " +
-				"WHERE us.relative IS NOT NULL AND LENGTH([eId IN us.relative WHERE eId STARTS WITH um.externalId]) > 0 " +
+				"WHERE us.relative IS NOT NULL AND size([eId IN us.relative WHERE eId STARTS WITH um.externalId]) > 0 " +
 				"MERGE (um)<-[:RELATED]-(us) " +
 				"DELETE r " +
 				"WITH um, us " +
@@ -684,14 +684,14 @@ public class User {
 
 		String query3 =
 				"MATCH (u:User { id : $userId})-[r:IN |COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure {externalId : $structureExternalId}) " +
-				"WHERE length(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR length(u.headTeacher) = 0) " +
+				"WHERE size(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR size(u.headTeacher) = 0) " +
 				"DELETE r ";;
 
 		transactionHelper.add(query3, params);
 
 		String query4 =
 				"MATCH (u:User { id : $userId})-[r:IN |COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure {externalId : $structureExternalId}) " +
-				"WHERE length(u.headTeacherManual) = 0 AND length(u.headTeacher) > 0 " +
+				"WHERE size(u.headTeacherManual) = 0 AND size(u.headTeacher) > 0 " +
 				"REMOVE r.source ";;
 
 		transactionHelper.add(query4, params);
@@ -1062,7 +1062,7 @@ public class User {
 				"u.activationCode IS NOT NULL AND head(u.profiles) = $profile " +
 				"AND u.deleteDate IS NULL AND u.disappearanceDate IS NULL " +
 				"WITH COLLECT(DISTINCT u) as users " +
-				"WHERE LENGTH(users) = 1 " +
+				"WHERE size(users) = 1 " +
 				"UNWIND users as u " +
 				"SET u.activationCode = null, " + Neo4jUtils.nodeSetPropertiesFromJson(
 						"u", j, "ine", "profile", "lastName", "firstName", UserDataSync.OLD_ID_FIELD,

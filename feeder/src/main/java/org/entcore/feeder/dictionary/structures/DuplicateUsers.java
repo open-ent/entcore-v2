@@ -995,7 +995,7 @@ public class DuplicateUsers {
 						"WITH u.ine as ine, COLLECT(DISTINCT {id: u.id, source: u.source, disappearanceDate: u.disappearanceDate, " +
 						"deleteDate: u.deleteDate, activationCode: u.activationCode, created: u.created, " +
 						"login : u.login, externalId : u.externalId }) as users " +
-						"WHERE LENGTH(users) > 1 " +
+						"WHERE size(users) > 1 " +
 						"RETURN ine, users ";
 
 		TransactionManager.getNeo4jHelper().execute(searchDuplicateIneUsers, new JsonObject(), r -> {

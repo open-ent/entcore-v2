@@ -62,7 +62,7 @@ public class EDTImporter extends AbstractTimetableImporter implements EDTReader 
 			"WHERE head(u.profiles) IN ['Teacher','Personnel'] AND toLower(u.lastName) = $lastName AND toLower(u.firstName) = $firstName " +
 			"OPTIONAL MATCH (upn:User {IDPN: $IDPN}) " +
 			"WITH COLLECT(DISTINCT u) as user, COUNT(DISTINCT upn) as countUpn " +
-			"WHERE countUpn = 0 AND LENGTH(user) = 1 " +
+			"WHERE countUpn = 0 AND size(user) = 1 " +
 			"SET HEAD(user).IDPN = $IDPN " +
 			"RETURN DISTINCT HEAD(user).id as id, HEAD(user).IDPN as IDPN, $profile as profile";
 	private static final String STUDENTS_TO_GROUPS =

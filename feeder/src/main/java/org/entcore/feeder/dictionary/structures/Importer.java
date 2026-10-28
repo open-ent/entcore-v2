@@ -934,7 +934,7 @@ public class Importer {
 								"WHERE r.mergedWith IS NULL " +
 								"MERGE (u)-[:RELATED]->(r) " +
 								"WITH r, u " +
-								"WHERE $user <> r.externalId AND LENGTH([eId IN u.relative WHERE eId STARTS WITH r.externalId]) = 0 " +
+								"WHERE $user <> r.externalId AND size([eId IN u.relative WHERE eId STARTS WITH r.externalId]) = 0 " +
 								"SET u.relative = coalesce(u.relative, []) + (r.externalId + '$10$1$1$0$0') ";
 						JsonObject p = new JsonObject()
 								.put("userExternalId", externalId)
@@ -1059,7 +1059,7 @@ public class Importer {
 		// prevent difference between relationships and properties
 		String query2 =
 				"MATCH (u:User) " +
-				"WHERE u.deleteDate IS NULL AND u.groups IS NOT NULL AND LENGTH(u.groups) > 0 " +
+				"WHERE u.deleteDate IS NULL AND u.groups IS NOT NULL AND size(u.groups) > 0 " +
 				"AND NOT((u)-[:IN]->(:FunctionalGroup)) " +
 				"SET u.groups = [];";
 		transactionHelper.add(query2, null);
@@ -1082,7 +1082,7 @@ public class Importer {
 		// prevent difference between relationships and properties
 		String query2 =
 				"MATCH (u:User) " +
-				"WHERE u.deleteDate IS NULL AND u.classes IS NOT NULL AND LENGTH(u.classes) > 0 " +
+				"WHERE u.deleteDate IS NULL AND u.classes IS NOT NULL AND size(u.classes) > 0 " +
 				"AND NOT((u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Class)) " +
 				"SET u.classes = [];";
 		transactionHelper.add(query2, null);
