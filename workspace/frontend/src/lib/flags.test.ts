@@ -20,6 +20,12 @@ describe("readFlags", () => {
     expect(flags.enableNextcloud).toBe(false);
   });
 
+  it("une valeur null du serveur garde la valeur par défaut", () => {
+    const flags = readFlags(docWith('{"cloudDriveGoogleClientId":null,"enableLool":true}'));
+    expect(flags.cloudDriveGoogleClientId).toBe("");
+    expect(flags.enableLool).toBe(true);
+  });
+
   it("sans balise ou avec un JSON illisible, tout reste désactivé", () => {
     expect(readFlags(docWith())).toEqual(DEFAULT_FLAGS);
     expect(readFlags(docWith("{pas du json"))).toEqual(DEFAULT_FLAGS);

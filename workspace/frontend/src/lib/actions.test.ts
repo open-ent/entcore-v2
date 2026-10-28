@@ -38,6 +38,11 @@ describe("availableActions", () => {
     expect(availableActions("owner", one)).not.toContain("ncCopy");
     expect(availableActions("trash", one, { nextcloud: true })).not.toContain("ncCopy");
   });
+  it("envoyer vers Google Drive : documents seulement, si le lecteur est disponible", () => {
+    expect(availableActions("owner", one, { cloudDrive: true })).toContain("driveExport");
+    expect(availableActions("owner", [el({ eType: "folder" })], { cloudDrive: true })).not.toContain("driveExport");
+    expect(availableActions("owner", one)).not.toContain("driveExport");
+  });
   it("publier au portail : un seul document, par un administrateur", () => {
     expect(availableActions("owner", one, { canPublish: true })).toContain("publish");
     expect(availableActions("owner", two, { canPublish: true })).not.toContain("publish");

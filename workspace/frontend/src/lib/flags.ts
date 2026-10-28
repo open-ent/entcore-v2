@@ -40,7 +40,9 @@ export const readFlags = (doc: Document = document): WorkspaceFlags => {
   try {
     const raw = doc.getElementById("workspace-flags")?.textContent;
     if (!raw) return DEFAULT_FLAGS;
-    return { ...DEFAULT_FLAGS, ...(JSON.parse(raw) as Partial<WorkspaceFlags>) };
+    // Une valeur absente côté serveur arrive sous forme `null` : elle ne doit pas écraser la valeur par défaut.
+    const parsed = Object.fromEntries(Object.entries(JSON.parse(raw) as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined));
+    return { ...DEFAULT_FLAGS, ...(parsed as Partial<WorkspaceFlags>) };
   } catch {
     return DEFAULT_FLAGS;
   }

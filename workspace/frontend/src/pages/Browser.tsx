@@ -25,6 +25,7 @@ import { readFlags } from "../lib/flags";
 import { canOpenInGeogebra, canOpenInLool, canOpenInScratch, geogebraUrl, LOOL_CREATE, LOOL_OPEN, loolUrl, scratchUrl } from "../lib/integrations";
 import { NEXTCLOUD_VIEW } from "../lib/nextcloud";
 import { rightsOn } from "../lib/rights";
+import { cloudDriveAvailable, downloadFromDrive, openPicker, requestAccessToken, uploadToDrive } from "../lib/cloudDrive";
 import { clientFilter, locationOf, searchQuery } from "../lib/search";
 import { isZip, planUpload, remainingLabel } from "../lib/upload";
 import { ViewMode, WorkspaceElement } from "../lib/types";
@@ -58,6 +59,7 @@ export const Browser = () => {
   const flags = useMemo(() => readFlags(), []);
   const workflows = new Set(((user as { authorizedActions?: Array<{ name: string }> } | undefined)?.authorizedActions ?? []).map((a) => a.name));
   const canOpenOnline = flags.enableLool && workflows.has(LOOL_OPEN);
+  const driveAvailable = cloudDriveAvailable(flags);
   const ncAvailable = flags.enableNextcloud && workflows.has(NEXTCLOUD_VIEW);
   const canCreateOnline = flags.enableLool && workflows.has(LOOL_CREATE);
   const lool = useLoolContext(canOpenOnline);
@@ -109,6 +111,7 @@ export const Browser = () => {
     canPublish: canPublishToPortal,
     searching: !!query,
     nextcloud: ncAvailable,
+    cloudDrive: driveAvailable,
     integration: {
       lool: canOpenOnline && selection.length === 1 && selection[0].eType === "file" && canOpenInLool(lool.data, selection[0]),
       scratch: flags.enableScratch && selection.length === 1 && canOpenInScratch(selection[0]),
@@ -147,6 +150,7 @@ export const Browser = () => {
     else if (a === "history") setVersions(selection[0]);
     else if (a === "comments") setCommenting(selection[0]);
     else if (a === "location") navigate(locationOf(selection[0]));
+    else if (a === "driveExport") void exportToDrive();
     else if (a === "ncCopy") setNcPicker("copy");
     else if (a === "ncMove") setNcPicker("move");
     else if (a === "openLool") window.open(loolUrl(selection[0]._id));
@@ -156,6 +160,58 @@ export const Browser = () => {
       setRenameError(null);
       setRenaming(selection[0]);
     } else if (a === "copy" || a === "move") setPicker(a);
+  };
+
+  // Lecteur externe (Google Drive) : le consentement se demande dans le navigateur, aucun jeton ne passe par l'ENT.
+  const [driveBusy, setDriveBusy] = useState(false);
+  const importFromDrive = async () => {
+    if (driveBusy) return;
+    setNotice(null);
+    try {
+      const token = await requestAccessToken(flags.cloudDriveGoogleClientId);
+      const picked = await openPicker(token, "files", flags);
+      if (!picked.length) return;
+      setDriveBusy(true);
+      const files: File[] = [];
+      for (const p of picked) {
+        try {
+          files.push(await downloadFromDrive(p, token));
+        } catch {
+          setNotice(`${t("workspace.cloud.drive.import.error.one")} ${p.name}`);
+        }
+      }
+      if (files.length) {
+        await uploads.send(files);
+        setNotice((n) => n ?? t("workspace.cloud.drive.import.success"));
+      }
+    } catch {
+      setNotice(t("workspace.cloud.drive.error"));
+    } finally {
+      setDriveBusy(false);
+    }
+  };
+  const exportToDrive = async () => {
+    if (driveBusy) return;
+    setNotice(null);
+    const files = selection.filter((e) => e.eType === "file");
+    try {
+      const token = await requestAccessToken(flags.cloudDriveGoogleClientId);
+      const folders = await openPicker(token, "folder", flags);
+      setDriveBusy(true);
+      let failed = "";
+      for (const f of files) {
+        try {
+          await uploadToDrive(f._id, f.name, token, folders[0]?.id);
+        } catch {
+          failed = `${t("workspace.cloud.drive.export.error.one")} ${f.name}`;
+        }
+      }
+      setNotice(failed || t("workspace.cloud.drive.export.success"));
+    } catch {
+      setNotice(t("workspace.cloud.drive.error"));
+    } finally {
+      setDriveBusy(false);
+    }
   };
 
   const importFiles = (list: File[]) => {
@@ -311,6 +367,11 @@ export const Browser = () => {
               <button type="button" className="btn btn-outline-primary" onClick={() => fileInput.current?.click()} data-action="import">
                 {t("import.file")}
               </button>
+              {canWrite && driveAvailable && (
+                <button type="button" className="btn btn-outline-primary" disabled={driveBusy} onClick={() => void importFromDrive()} data-action="drive-import">
+                  {t("workspace.cloud.drive.import.action")}
+                </button>
+              )}
               {canCreateOnline && (
                 <button type="button" className="btn btn-outline-primary" onClick={() => setLoolCreate(true)} data-action="lool-create">
                   {t("workspace.lool.create-document")}

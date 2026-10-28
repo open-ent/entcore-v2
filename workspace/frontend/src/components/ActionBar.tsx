@@ -19,6 +19,7 @@ const LABEL: Record<ActionId, string> = {
   openGeogebra: "workspace.external.open",
   ncCopy: "nextcloud.share.copy.action",
   ncMove: "nextcloud.share.move.action",
+  driveExport: "workspace.cloud.drive.export.action",
 };
 
 /** Barre d'actions de la sélection (les actions viennent de `availableActions`). */
