@@ -159,7 +159,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 				"WHERE NOT(head(n.profiles) IN $allowActivateDuplicate) " +
 				"OPTIONAL MATCH (p:Profile) " +
 				"WHERE n.profiles IS NOT NULL AND p.name = head(n.profiles) " +
-				"WITH n, LENGTH(FILTER(x IN COLLECT(distinct r.score) WHERE x > 3)) as duplicates, p.blocked as blockedProfile " +
+				"WITH n, LENGTH([x IN COLLECT(distinct r.score) WHERE x > 3]) as duplicates, p.blocked as blockedProfile " +
 				"WHERE (blockedProfile IS NULL OR blockedProfile = false) " +
 				"FOREACH (duplicate IN CASE duplicates WHEN 0 THEN [1] ELSE [] END | " +
 				"SET n.password = $password, n.oldPasswords = $oldPasswords, n.activationCode = null, n.email = $email, n.emailSearchField=toLower($email), n.mobile = $phone, n.needRevalidateTerms = $needRevalidateTerms)  " +

@@ -238,7 +238,7 @@ public class DefaultCommunicationService implements CommunicationService {
 	public void removeLink(String startGroupId, String endGroupId, Handler<Either<String, JsonObject>> handler) {
 		String query =
 				"MATCH (g1:Group {id : $startGroupId})-[r:COMMUNIQUE]->(g2:Group {id : $endGroupId}) " +
-				"SET g1.communiqueWith = FILTER(gId IN g1.communiqueWith WHERE gId <> $endGroupId), " +
+				"SET g1.communiqueWith = [gId IN g1.communiqueWith WHERE gId <> $endGroupId], " +
 						"g2.communiqueWith = coalesce(g2.communiqueWith, []) " +
 						"DELETE r " +
 						"RETURN COUNT(*) as number ";
@@ -590,7 +590,7 @@ public class DefaultCommunicationService implements CommunicationService {
 					"WITH cg, c " +
 					"MATCH (c)<-[:DEPENDS]-(g) " +
 					"WHERE (" + groupLabel + ") AND g.communiqueWith IS NULL AND g.name =~ $otherProfile " +
-					"SET cg.communiqueWith = FILTER(gId IN cg.communiqueWith WHERE gId <> g.id) + g.id ";
+					"SET cg.communiqueWith = [gId IN cg.communiqueWith WHERE gId <> g.id] + g.id ";
 			String query2 =
 					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 							"WHERE s.id IN $structures AND cg.communiqueWith IS NULL AND cg.name =~ $profile " +
@@ -617,7 +617,7 @@ public class DefaultCommunicationService implements CommunicationService {
 					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup), (s)<-[:DEPENDS]-(g) " +
 					"WHERE s.id IN $structures AND cg.communiqueWith IS NOT NULL AND cg.name =~ $profile " +
 					"AND  (" + groupLabel + ") AND g.communiqueWith IS NULL AND " + groupsFilter + " " +
-					"SET cg.communiqueWith = FILTER(gId IN cg.communiqueWith WHERE gId <> g.id) + g.id ";
+					"SET cg.communiqueWith = [gId IN cg.communiqueWith WHERE gId <> g.id] + g.id ";
 			String query2 =
 					"MATCH (s:Structure)<-[:DEPENDS" + c + "]-(cg:ProfileGroup), (s)<-[:DEPENDS]-(g) " +
 							"WHERE s.id IN $structures AND cg.communiqueWith IS NULL AND cg.name =~ $profile " +
@@ -964,7 +964,7 @@ public class DefaultCommunicationService implements CommunicationService {
 			+ "WITH s, c, g, "
 			+ "collect( distinct {name: c.name, id: c.id}) as classes, "
 			+ "collect( distinct {name: s.name, id: s.id}) as structures, "
-			+ "HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type "
+			+ "HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type "
 			+ "RETURN DISTINCT "
 			+ "g.id as id, "
 			+ "g.name as name, "
@@ -1038,7 +1038,7 @@ public class DefaultCommunicationService implements CommunicationService {
 		final Promise<JsonObject[]> promise = Promise.promise();
 		String query = "UNWIND $groupIds AS sortedId "
 				+ "WITH sortedId MATCH (g:Group {id: sortedId}) "
-				+ "WITH g, HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type "
+				+ "WITH g, HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type "
 				+ "RETURN DISTINCT "
 				+ "g.id as id, "
 				+ "g.name as name, "
@@ -1907,11 +1907,11 @@ public class DefaultCommunicationService implements CommunicationService {
 				"visibles.displayName as displayName, visibles.groupDisplayName as groupDisplayName, " +
 				"HEAD(visibles.profiles) as profile, visibles.nbUsers as nbUsers, " +
 				"labels(visibles) as groupType, visibles.filter as groupProfile, visibles.subType as subType, " +
-				"filter(x IN coalesce(children, []) WHERE x.id IS NOT NULL) as children, " +
-				"filter(x IN coalesce(relatives, []) WHERE x.id IS NOT NULL) as relatives, " +
-				"filter(x IN coalesce(classrooms, []) WHERE x.id IS NOT NULL) as classrooms, " +
-				"filter(x IN coalesce(functions, []) WHERE x.id IS NOT NULL) as functions, " +
-				"filter(x IN coalesce(disciplines, []) WHERE x.id IS NOT NULL) as disciplines, " +
+				"[x IN coalesce(children, []) WHERE x.id IS NOT NULL] as children, " +
+				"[x IN coalesce(relatives, []) WHERE x.id IS NOT NULL] as relatives, " +
+				"[x IN coalesce(classrooms, []) WHERE x.id IS NOT NULL] as classrooms, " +
+				"[x IN coalesce(functions, []) WHERE x.id IS NOT NULL] as functions, " +
+				"[x IN coalesce(disciplines, []) WHERE x.id IS NOT NULL] as disciplines, " +
 				"sorted_children_names, sorted_functions, sorted_disciplines, " +
 				"CASE " +
 				"WHEN visibles.displayName IS NOT NULL THEN visibles.displayName " +
@@ -2020,8 +2020,8 @@ public class DefaultCommunicationService implements CommunicationService {
 			"visibles.structureName as structureName, " +
 			"HEAD(visibles.profiles) as profile, visibles.nbUsers as nbUsers, " +
 			"labels(visibles) as groupType, visibles.filter as groupProfile, visibles.subType as subType, " +
-			"filter(x IN coalesce(children, []) WHERE x.id IS NOT NULL) as children, " +
-			"filter(x IN coalesce(relatives, []) WHERE x.id IS NOT NULL) as relatives, " +
+			"[x IN coalesce(children, []) WHERE x.id IS NOT NULL] as children, " +
+			"[x IN coalesce(relatives, []) WHERE x.id IS NOT NULL] as relatives, " +
 			"sorted_children_names, " +
 			"CASE " +
 			"WHEN visibles.displayName IS NOT NULL THEN visibles.displayName " +
@@ -2217,11 +2217,11 @@ public class DefaultCommunicationService implements CommunicationService {
 			" WITH visibles, \n" +
 			"     labels(visibles) AS visibleLabels, \n" +
 			"     HEAD(visibles.profiles) AS primaryProfile, \n" +
-			"     filter(x IN coalesce(children, []) WHERE x.id IS NOT NULL) as validChildren, \n" +
-			"     filter(x IN coalesce(relatives, []) WHERE x.id IS NOT NULL) as validRelatives, \n" +
-			"     filter(x IN coalesce(classrooms, []) WHERE x.id IS NOT NULL) as validClassrooms, \n" +
-			"     filter(x IN coalesce(functions, []) WHERE x.id IS NOT NULL) as validFunctions, \n" +
-			"     filter(x IN coalesce(disciplines, []) WHERE x.id IS NOT NULL) as validDisciplines\n" +
+			"     [x IN coalesce(children, []) WHERE x.id IS NOT NULL] as validChildren, \n" +
+			"     [x IN coalesce(relatives, []) WHERE x.id IS NOT NULL] as validRelatives, \n" +
+			"     [x IN coalesce(classrooms, []) WHERE x.id IS NOT NULL] as validClassrooms, \n" +
+			"     [x IN coalesce(functions, []) WHERE x.id IS NOT NULL] as validFunctions, \n" +
+			"     [x IN coalesce(disciplines, []) WHERE x.id IS NOT NULL] as validDisciplines\n" +
 			"RETURN DISTINCT \n" +
 			"    visibles.id as id, \n" +
 			"    visibles.name as name, \n" +
