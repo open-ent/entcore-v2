@@ -338,6 +338,7 @@
   "workspace.sniplet.documents.description": "Il vous permet d'ajouter des documents que vos visiteurs pourront télécharger",
   "workspace.sniplet.documents.title": "Documents",
   "workspace.title": "Espace documentaire",
+  "workspace.react.preview": "Interface React en cours de construction : l'espace documentaire complet reste disponible en AngularJS.",
   "workspace.trash.error": "Erreur lors de la mise à la corbeille",
   "workspace.trash.restore": "Restaurer",
   "workspace.unselect.all": "Aucun",

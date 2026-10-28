@@ -337,6 +337,7 @@
   "workspace.sniplet.documents.description": "Allows you to add documents that your visitors can download",
   "workspace.sniplet.documents.title": "Documents",
   "workspace.title": "Workspace",
+  "workspace.react.preview": "React interface under construction: the full document space remains available in AngularJS.",
   "workspace.trash.error": "Error while moving to the trash",
   "workspace.trash.restore": "Restore",
   "workspace.unselect.all": "None",

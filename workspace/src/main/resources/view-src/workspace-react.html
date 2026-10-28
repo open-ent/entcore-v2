@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{{#i18n}}workspace.title{{/i18n}}</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta name="viewport" content="initial-scale=1, maximum-scale=1">
+        <link id="favicon" rel="icon" type="image/x-icon" href="/assets/themes/edifice-bootstrap/img/illustrations/favicon.ico" />
+        <!-- Bootstrap openent partagé, chargé au runtime (comme le thème Angular) -->
+        <link rel="stylesheet" href="/assets/themes/openent-bootstrap/index.css" />
+    </head>
+
+    <body class="workspace">
+    <div id="root"></div>
+    <div id="portal"></div>
+    <!-- Drapeaux de configuration (éditeurs, NextCloud, lecteur externe, cache) posés par WorkspaceController -->
+    <script id="workspace-flags" type="application/json">{{{flagsJson}}}</script>
+    <script src="/workspace/public/react/workspace.js?v=@@VERSION"></script>
+    </body>
+</html>

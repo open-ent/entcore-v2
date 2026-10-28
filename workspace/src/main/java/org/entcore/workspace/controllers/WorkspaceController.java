@@ -1975,13 +1975,59 @@ public class WorkspaceController extends BaseController {
 			@Override
 			public void handle(final UserInfos user) {
 				if (user != null) {
-						renderView(request, context);
+					// Défaut plateforme : AngularJS tant que la parité React n'est pas complète (`frontend-ui: react` pour basculer).
+					final String platformUi = "react".equals(config.getString("frontend-ui", "angular")) ? "react" : "angular";
+					withPreferredUi(request, user, platformUi, ui -> {
+						if ("react".equals(ui)) {
+							// Les drapeaux publics descendent en JSON dans la vue React (balise #workspace-flags).
+							renderView(request, new JsonObject().put("flagsJson", context.encode()), "workspace-react.html", null);
+						} else {
+							renderView(request, context);
+						}
 						eventHelper.onAccess(request);
+					});
 				} else {
 					unauthorized(request);
 				}
 			}
 		});
+	}
+
+	/** Clé de préférence usager (« Paramètres du compte → Interfaces en cours de renouvellement ») portant le choix d'IHM. */
+	private static final String UI_PREFERENCE = "workspaceUi";
+
+	/**
+	 * IHM à servir, par ordre de priorité : la dérogation d'URL {@code ?ui=react|angular} (non mémorisée), la préférence
+	 * de l'usager (clé {@code workspaceUi}, lue dans le nœud {@code UserAppConf}), puis celle de la plateforme.
+	 * Aucune panne de cette lecture n'empêche l'espace documentaire de s'afficher.
+	 */
+	private void withPreferredUi(final HttpServerRequest request, final UserInfos user, final String platformUi, final Handler<String> handler) {
+		final String forced = request.getParam("ui");
+		if ("react".equals(forced) || "angular".equals(forced)) {
+			handler.handle(forced);
+			return;
+		}
+		final String query = "MATCH (:User {id:{userId}})-[:PREFERS]->(uac:UserAppConf) RETURN uac." + UI_PREFERENCE + " AS preference";
+		try {
+			org.entcore.common.neo4j.Neo4j.getInstance().execute(query, new JsonObject().put("userId", user.getUserId()),
+					message -> handler.handle(readUi(message.body(), platformUi)));
+		} catch (Exception e) {
+			handler.handle(platformUi);
+		}
+	}
+
+	/** Extrait le choix d'IHM du résultat Neo4j — la préférence y est rangée en CHAÎNE JSON, ex. {"ui":"react"}. */
+	static String readUi(JsonObject body, String platformUi) {
+		try {
+			final io.vertx.core.json.JsonArray rows = body.getJsonArray("result", new io.vertx.core.json.JsonArray());
+			if (rows.isEmpty()) return platformUi;
+			final String raw = rows.getJsonObject(0).getString("preference");
+			if (raw == null || raw.trim().isEmpty()) return platformUi;
+			final String ui = new JsonObject(raw).getString("ui");
+			return ("react".equals(ui) || "angular".equals(ui)) ? ui : platformUi;
+		} catch (Exception e) {
+			return platformUi;
+		}
 	}
 
 	@Get("/document/base64/:id")
