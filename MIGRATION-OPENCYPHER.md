@@ -76,6 +76,8 @@ Première passe mécanique, vérifiable sans base :
 | `extract(x IN l \| e)` → `[x IN l \| e]` | 4 |
 | `length((motif))` → `EXISTS { }` | 1 |
 | DDL d'index et de contraintes en syntaxe Neo4j 5 | 52 |
+| `START ... node_auto_index(...)` | 4 |
+| détection de doublons portée sur un index full-text | 1 |
 
 Cible retenue : `IS [NOT] NULL` directement, et non le palier `exists(prop)` — `has()` a été
 retiré de Cypher en 3.0 et `exists(prop)` en 5.0. C'est aussi le choix fait dans la tentative
@@ -190,11 +192,51 @@ C'est précisément l'étape 0, et elle peut donc réutiliser ce travail plutôt
 À partir du commit `ab105d0e79`, la branche vise Neo4j 5 ou ArcadeDB et n'est plus déployable
 sur la 3.1.9 : `EXISTS { }` et la DDL en syntaxe 4/5 n'y existent pas.
 
+## L'auto-indexation Lucene héritée est éliminée
+
+Les cinq `START ... node_auto_index(...)` sont traités. Quatre étaient de simples recherches
+par `externalId`, devenues des `MATCH (u:User {externalId: $externalId})` adossés à la
+contrainte d'unicité déjà présente au schéma. L'un d'eux passait une requête Lucene
+construite en Java — `externalId:A OR externalId:B` — qui exprimait en réalité une
+appartenance : la liste est désormais passée telle quelle et testée par `IN`.
+
+Le cinquième portait l'**appariement flou** de la détection de comptes en double
+(`firstName:Jan~0.6 AND lastName:Dupond~0.6`), sans équivalent en Cypher courant. Il est
+porté sur un index full-text nommé, en conservant `luceneAttribute()` inchangé :
+
+```
+CALL db.index.fulltext.queryNodes('User[firstName,lastName]', $luceneQuery) YIELD node AS u
+```
+
+Vérifié sur les deux moteurs : la requête, le nom d'index et la syntaxe floue qualifiée par
+champ se comportent **à l'identique** sur Neo4j 5.21 et ArcadeDB 26.11, et retrouvent bien
+« Jean Dupont » ; une combinaison non pertinente ne renvoie rien.
+
+### La création de l'index, elle, n'est pas portable
+
+ArcadeDB refuse `CREATE FULLTEXT INDEX` (« Only standard, RANGE and TEXT index types are
+supported ») et demande sa propre DDL SQL, précédée de la déclaration des propriétés :
+
+| Moteur | Création de l'index |
+|---|---|
+| Neo4j 5 | ``CREATE FULLTEXT INDEX `User[firstName,lastName]` IF NOT EXISTS FOR (n:User) ON EACH [n.firstName, n.lastName]`` — c'est le script `025-user-fulltext-index.cypher` |
+| ArcadeDB | `CREATE PROPERTY User.firstName IF NOT EXISTS STRING` puis `CREATE PROPERTY User.lastName IF NOT EXISTS STRING`, enfin `CREATE INDEX IF NOT EXISTS ON User (firstName, lastName) FULL_TEXT`, le tout en langage `sql` |
+
+Le nom d'index produit par ArcadeDB, `User[firstName,lastName]`, a été repris tel quel côté
+Neo4j (entre accents graves) : la **requête applicative reste donc identique** sur les deux
+moteurs, seule la mise en place du schéma diverge.
+
+### `dbms.auto_index.nodes.enabled` peut être retiré
+
+Plus aucun `node_auto_index` dans le code actif — les 20 occurrences restantes sont dans les
+scripts `migration/*` historiques, et deux lignes de test sont commentées. L'auto-indexation
+Lucene sur cinq propriétés, qui taxait toutes les écritures, n'a donc plus de raison d'être.
+C'est un gain à prendre dès l'étape 0, sur la 3.1.9 actuelle.
+
 ## Reste à faire
 
 | Motif | Occurrences | Fichiers | Nature |
 |---|---|---|---|
-| `START ... node_auto_index(...)` | 5 | 3 | à reprendre sur index de schéma (`feeder`) |
 | `CREATE UNIQUE` dans `ManualFeeder` | 2 | 1 | **décision à prendre**, voir ci-dessous |
 
 S'y ajoute le répertoire `scripts/`, hors périmètre, décrit plus bas.
