@@ -1,2 +1,2 @@
-CREATE INDEX ON :User(firstNameSearchField);
-CREATE INDEX ON :User(lastNameSearchField);
+CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.firstNameSearchField);
+CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.lastNameSearchField);
