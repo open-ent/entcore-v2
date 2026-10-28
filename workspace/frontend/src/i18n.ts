@@ -18,7 +18,7 @@ i18n
     lng: "fr",
     keySeparator: false,
     nsSeparator: false,
-    interpolation: { escapeValue: false, prefix: "{", suffix: "}" },
+    interpolation: { escapeValue: false, prefix: "[[", suffix: "]]" },
     debug: false,
   });
 

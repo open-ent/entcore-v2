@@ -338,7 +338,6 @@
   "workspace.sniplet.documents.description": "Il vous permet d'ajouter des documents que vos visiteurs pourront télécharger",
   "workspace.sniplet.documents.title": "Documents",
   "workspace.title": "Espace documentaire",
-  "workspace.react.preview": "Interface React en cours de construction : l'espace documentaire complet reste disponible en AngularJS.",
   "workspace.trash.error": "Erreur lors de la mise à la corbeille",
   "workspace.trash.restore": "Restaurer",
   "workspace.unselect.all": "Aucun",
@@ -348,5 +347,18 @@
   "workspace.warning.cancel": "Annuler",
   "workspace.warning.copy": "Copier et partager",
   "workspace.warning.notcopy": "Partager sans copier",
-  "nextcloud.share.picker.empty": "Aucun sous-dossier"
+  "nextcloud.share.picker.empty": "Aucun sous-dossier",
+  "workspace.react.tree.owner": "Mes documents",
+  "workspace.react.tree.shared": "Documents partagés",
+  "workspace.react.tree.protected": "Documents ajoutés dans les applis",
+  "workspace.react.tree.public": "Documents publics",
+  "workspace.react.tree.trash": "Corbeille",
+  "workspace.react.quota": "Espace utilisé",
+  "workspace.react.empty": "Ce dossier ne contient aucun document.",
+  "workspace.react.error": "Impossible de charger les documents.",
+  "workspace.react.retry": "Réessayer",
+  "workspace.react.sort": "Trier par",
+  "workspace.react.view.icons": "Icônes",
+  "workspace.react.view.list": "Liste",
+  "workspace.react.breadcrumb": "Emplacement"
 }
