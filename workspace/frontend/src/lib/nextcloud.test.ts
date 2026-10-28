@@ -58,6 +58,14 @@ describe("adresses", () => {
     expect(downloadUrl("u1", { name: "a b.txt", path: "Cours/a b.txt", contentType: "text/plain", isFolder: false })).toBe("/nextcloud/files/user/u1/file/a%20b.txt/download?path=Cours/a b.txt&contentType=text/plain&isFolder=false");
     expect(multiDownloadUrl("u1", "Cours", ["a", "b"])).toBe("/nextcloud/files/user/u1/multiple/download?path=Cours&file=a&file=b");
   });
+  it("un nom comportant & # + ne fausse pas le chemin", () => {
+    expect(downloadUrl("u1", { name: "a&b.pdf", path: "Cours/a&b #1+2.pdf", contentType: "application/pdf", isFolder: false })).toContain("?path=Cours/a%26b %231%2B2.pdf&");
+    expect(downloadUrl("u1", { name: "a&b #1.pdf", path: "a&b #1.pdf", contentType: "application/pdf", isFolder: false })).toContain("/file/a%26b%20%231.pdf/download");
+  });
+  it("un PDF s'affiche dans le navigateur, il n'est pas proposé à l'édition", () => {
+    const d = toSyncDocument({ path: "/remote.php/dav/files/u1/a.pdf", displayname: "a.pdf", isFolder: false, contentType: "application/pdf", size: 1, fileId: "1", lastModified: "" } as never, "u1");
+    expect(d.editable).toBe(false);
+  });
   it("ouverture dans le navigateur : l'option inline s'ajoute", () => {
     expect(downloadUrl("u1", { name: "a.pdf", path: "a.pdf", contentType: "application/pdf", isFolder: false }, true)).toContain("&inline=true");
   });

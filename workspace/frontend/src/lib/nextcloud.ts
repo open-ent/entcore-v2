@@ -24,7 +24,7 @@ export interface SyncDocument {
   fileId?: number;
   lastModified?: string;
   kind: FileKind | "folder";
-  /** Modifiable dans l'éditeur du serveur NextCloud (texte, tableur, présentation, PDF). */
+  /** Document bureautique modifiable en ligne (texte, tableur, présentation) ; un PDF s'affiche dans le navigateur, il ne s'édite pas. */
   editable: boolean;
 }
 
@@ -59,7 +59,7 @@ export const toSyncDocument = (raw: NextcloudRaw, userId: string): SyncDocument 
     fileId: raw.fileId,
     lastModified: raw.lastModified,
     kind,
-    editable: !raw.isFolder && ["doc", "sheet", "slides", "pdf"].includes(kind),
+    editable: !raw.isFolder && ["doc", "sheet", "slides"].includes(kind),
   };
 };
 
@@ -86,10 +86,11 @@ export const pathCrumbs = (path: string): Array<{ name: string; path: string }> 
 
 /** Téléchargement d'un fichier ou d'un dossier (archive). */
 export const downloadUrl = (userId: string, d: Pick<SyncDocument, "name" | "path" | "contentType" | "isFolder">, inline = false): string => {
-  const pathParam = d.path ? `?path=${d.path}` : "";
+  // & # + % dans un nom couperaient ou fausseraient le paramètre : on les encode, les « / » restent lisibles
+  const pathParam = d.path ? `?path=${encodeURIComponent(d.path).replace(/%2F/g, "/").replace(/%20/g, " ")}` : "";
   const type = d.path && d.contentType ? `&contentType=${d.contentType}` : "";
   const folder = pathParam ? `&isFolder=${d.isFolder}` : `?isFolder=${d.isFolder}`;
-  return `/nextcloud/files/user/${userId}/file/${encodeURI(d.name)}/download${pathParam}${type}${folder}${inline ? "&inline=true" : ""}`;
+  return `/nextcloud/files/user/${userId}/file/${encodeURIComponent(d.name)}/download${pathParam}${type}${folder}${inline ? "&inline=true" : ""}`;
 };
 
 /** Types de documents vierges que le serveur sait créer à partir d'un modèle. */
