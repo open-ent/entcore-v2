@@ -318,6 +318,26 @@ passe. L'adaptateur applique désormais le même emballage que `Neo4jRest`.
 C'est le genre d'écart qu'aucune matrice de compatibilité ne voit : la requête passe, le
 résultat est juste, c'est la *forme* du résultat qui diffère.
 
+**2 bis. Un nœud rendu n'avait pas la forme attendue.** Neo4j rend un nœud sous la
+forme `{metadata: {…}, data: {propriétés}}`, et entcore ne lit que `data` — vingt appels à
+`getJsonObject("data")`, dont `Neo4jResult.fullNodeMerge`. ArcadeDB rend ses sommets à
+plat, propriétés mêlées à `@rid`, `@type` et `@cat`. Toute requête ramenant un nœud —
+`RETURN … u`, `COLLECT(distinct s) as structureNodes` — levait donc un NullPointerException
+sur un `data` nul, **et la requête HTTP restait pendante**, faute de réponse écrite.
+
+Le symptôme visible était ailleurs : le tableau de bord mettait trois secondes à afficher
+l'identité de l'utilisateur. Sa route `/api/me` lit la fiche pour détecter le verrou des
+comptes de démo, lecture « au mieux, bornée dans le temps » par un `AbortSignal.timeout(3000)`
+— le garde-fou faisait son travail et masquait la panne en délai d'attente.
+
+L'adaptateur transpose désormais tout sommet, récursivement, y compris à l'intérieur des
+listes. Un objet sans `@rid` est une projection de map et reste intact. Mesure :
+`/directory/user/{id}` passe de plus de 60 s sans réponse à 10 ms, et `/api/me` de 3 142 ms
+à 156 ms.
+
+C'est la deuxième fois que l'écart porte sur la **forme** du résultat et non sur la requête.
+Les deux fois, la requête passait et le résultat était juste.
+
 **3. Deux paramètres que la conversion ne pouvait pas convertir.** `{1d}`,
 `{1stLoeWidgets}` et `{2ndLoeWidgets}` commencent par un chiffre : `$1d` serait lu comme
 un paramètre positionnel, la conversion mécanique les avait donc laissés tels quels — et
