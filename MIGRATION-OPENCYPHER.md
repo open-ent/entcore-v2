@@ -75,6 +75,7 @@ Première passe mécanique, vérifiable sans base :
 | `exists((motif))` → `EXISTS { }` | 7 |
 | `extract(x IN l \| e)` → `[x IN l \| e]` | 4 |
 | `length((motif))` → `EXISTS { }` | 1 |
+| DDL d'index et de contraintes en syntaxe Neo4j 5 | 52 |
 
 Cible retenue : `IS [NOT] NULL` directement, et non le palier `exists(prop)` — `has()` a été
 retiré de Cypher en 3.0 et `exists(prop)` en 5.0. C'est aussi le choix fait dans la tentative
@@ -166,16 +167,41 @@ Trois conclusions, dans l'ordre d'importance pour la décision :
 ArcadeDB reste très supérieur à la 3.1.9 actuelle sur tous les postes, et meilleur que
 Neo4j 5 en écriture et en restitution.
 
+## Un seuil franchi : la branche ne tourne plus sur la 3.1.9
+
+Vérifié contre un Neo4j 3.1.9 réel, en forçant `CYPHER 3.1` :
+
+| Conversion | Neo4j 3.1.9 |
+|---|---|
+| `has()` → `IS NOT NULL`, `lower()` → `toLower()` | passe |
+| `{param}` → `$param` | passe |
+| variables de nœud parenthésées | passe |
+| `filter(…)` → `[x IN … WHERE …]` | passe |
+| `extract(…)` → `[x IN … \| …]` | passe |
+| `length()` → `size()`, sur liste comme sur chaîne | passe |
+| `CREATE UNIQUE` → `MERGE` | passe |
+| `EXISTS { motif }` | **échoue** |
+| `CREATE INDEX IF NOT EXISTS FOR …` et `… REQUIRE … IS UNIQUE` | **échoue** |
+
+Autrement dit, tout le travail jusqu'au commit `0da54d01f0` inclus reste exécutable sur la
+base de production actuelle, **à condition d'avoir retiré le pin `cypher.default_language_version=2.3`**.
+C'est précisément l'étape 0, et elle peut donc réutiliser ce travail plutôt que de le refaire.
+
+À partir du commit `ab105d0e79`, la branche vise Neo4j 5 ou ArcadeDB et n'est plus déployable
+sur la 3.1.9 : `EXISTS { }` et la DDL en syntaxe 4/5 n'y existent pas.
+
 ## Reste à faire
 
 | Motif | Occurrences | Fichiers | Nature |
 |---|---|---|---|
-| DDL d'index et de contraintes en syntaxe 3.x | 52 | — | mécanique, syntaxe Neo4j 4/5 validée |
 | `START ... node_auto_index(...)` | 5 | 3 | à reprendre sur index de schéma (`feeder`) |
 | `CREATE UNIQUE` dans `ManualFeeder` | 2 | 1 | **décision à prendre**, voir ci-dessous |
 
+S'y ajoute le répertoire `scripts/`, hors périmètre, décrit plus bas.
+
 Les requêtes complètes extractibles s'analysent à **130 sur 133** contre ArcadeDB 26.11 ;
-les trois restantes sont tronquées par l'extracteur, pas fautives.
+les trois restantes sont tronquées par l'extracteur, pas fautives. Les 52 instructions de
+DDL rejouées deux fois de suite passent intégralement aux deux passes.
 
 Ce qui subsiste et ne doit **pas** être converti, vérifié un à un :
 
