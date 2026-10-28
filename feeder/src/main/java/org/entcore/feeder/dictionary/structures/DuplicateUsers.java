@@ -774,7 +774,13 @@ public class DuplicateUsers {
 
 	private void scoreDuplicates(final String profile, final JsonArray search, final Handler<Void> handler) {
 		final String query =
-				"START u=node:node_auto_index($luceneQuery) " +
+				// L'auto-index Lucene hérité portait l'appariement flou (~0.6) de la détection
+				// de doublons. Un index full-text nommé le remplace : la chaîne Lucene produite
+				// par luceneAttribute() est conservée telle quelle, et la requête est identique
+				// sur Neo4j 5 et sur ArcadeDB. Seule la création de l'index diffère entre les
+				// deux moteurs, cf. 025-user-fulltext-index.cypher et MIGRATION-OPENCYPHER.md.
+				"CALL db.index.fulltext.queryNodes('User[firstName,lastName]', $luceneQuery) " +
+						"YIELD node AS u " +
 						"WHERE HEAD(u.profiles) = $profile AND u.id <> $id AND u.deleteDate IS NULL " +
 						"RETURN u.id as id, u.firstName as firstName, u.lastName as lastName, " +
 						"u.birthDate as birthDate, u.email as email, u.source as source, u.disappearanceDate as disappearanceDate";
