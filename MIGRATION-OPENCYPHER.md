@@ -69,6 +69,8 @@ Première passe mécanique, vérifiable sans base :
 | `{param}` → `$param` | 1790 |
 | variables de nœud parenthésées (`u-[:IN]->` → `(u)-[:IN]->`) | 488 |
 | `exists(prop)` → `IS [NOT] NULL` | 44 |
+| `filter(x IN l WHERE p)` → `[x IN l WHERE p]` | 76 |
+| `CREATE UNIQUE` → `MERGE` | 53 |
 
 Cible retenue : `IS [NOT] NULL` directement, et non le palier `exists(prop)` — `has()` a été
 retiré de Cypher en 3.0 et `exists(prop)` en 5.0. C'est aussi le choix fait dans la tentative
@@ -162,23 +164,39 @@ Neo4j 5 en écriture et en restitution.
 
 ## Reste à faire
 
-Comptage restreint aux chaînes effectivement Cypher (les appels Java `.filter(` sont exclus) :
-
 | Motif | Occurrences | Fichiers | Nature |
 |---|---|---|---|
-| `filter(...)` → `[x IN ... WHERE ...]` | 76 | 18 | réécriture, pas un remplacement |
-| `CREATE UNIQUE` → `MERGE` | 54 | 13 | sémantique proche, à relire une à une |
 | `length()` | 37 | 15 | à arbitrer : valide sur un chemin, à passer en `size()` sur liste/chaîne |
 | `START ... node_auto_index(...)` | 5 | 3 | à reprendre sur index de schéma (`feeder`) |
 | `exists((motif))` → `EXISTS { }` | 3 | 2 | réécriture |
 | `extract(...)` → `[x IN ...]` | 2 | 2 | réécriture |
+| `CREATE UNIQUE` dans `ManualFeeder` | 2 | 1 | **décision à prendre**, voir ci-dessous |
 
-Deux points non couverts par cette liste, à traiter avant toute campagne :
+S'ajoutent les 52 occurrences de DDL d'index et de contrainte, à passer en syntaxe Neo4j 4/5.
 
-- `dbms.auto_index.nodes.enabled` (auto-indexation Lucene héritée) n'a de raison d'être que
-  pour les 5 requêtes `START` du feeder. À retirer une fois celles-ci reprises.
-- Les 52 occurrences de DDL d'index et de contrainte sont en syntaxe Neo4j 3.x et doivent
-  passer en syntaxe 4/5, validée sur ArcadeDB.
+### La décision en suspens : création d'utilisateur dans ManualFeeder
+
+```
+CREATE UNIQUE (pg)<-[:IN]-(u:User $props)
+CREATE UNIQUE (pg)<-[:IN]-(u:User $props), (cpg)<-[:IN]-(u)
+```
+
+`MERGE` n'accepte pas de map de paramètres — vérifié contre ArcadeDB, qui refuse
+explicitement : *« Parameters cannot be used as predicates in MERGE patterns »*. Deux issues,
+qui ne sont pas équivalentes :
+
+| Conversion | Comportement |
+|---|---|
+| `CREATE (u:User $props)` | crée toujours. **Change le comportement** : `CREATE UNIQUE` réutilisait l'utilisateur existant si toutes ses propriétés correspondaient. |
+| `MERGE (u:User {externalId: $props.externalId}) ON CREATE SET u = $props` | idempotent, mais sur la **seule** clé `externalId` au lieu de l'ensemble des propriétés. |
+
+Le choix n'est pas mécanique. `ManualFeeder.createUser` ne génère un `externalId` que s'il
+est absent : un appelant peut donc en fournir un, et l'écriture actuelle est alors idempotente.
+Passer en `CREATE` créerait un doublon d'utilisateur dans l'annuaire ; passer en `MERGE` sur
+`externalId` dédoublonnerait sur cette seule clé, ce qui est sans doute l'intention d'origine
+mais reste un changement de comportement à assumer.
+
+Les deux occurrences sont donc laissées en l'état, en attente d'arbitrage.
 
 ## Étape suivante conseillée
 
