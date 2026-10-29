@@ -497,7 +497,7 @@ export const Browser = () => {
         </h1>
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
-        <aside style={{ flex: "0 0 260px", maxWidth: "100%" }}>
+        <aside className="ws-aside" style={{ flex: "0 0 260px", maxWidth: "100%" }}>
           <TreeNav
             tree={validTree}
             folderId={folderId}
@@ -523,6 +523,7 @@ export const Browser = () => {
           )}
         </aside>
         <main
+          className="ws-main"
           style={{
             flex: "1 1 320px",
             minWidth: 0,

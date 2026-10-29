@@ -1,4 +1,4 @@
-import { sortSyncDocuments, SyncDocument, NEW_DOCUMENT_TYPES, newDocumentNameError, HIDDEN_FOLDER, downloadUrl, editInNextcloudUrl, folderPathFor, multiDownloadUrl, nextcloudActions, openInNextcloudUrl, parentPath, pathCrumbs, relativePath, renamedPath, toSyncDocument, visibleChildren } from "./nextcloud";
+import { dropMoves, sortSyncDocuments, SyncDocument, NEW_DOCUMENT_TYPES, newDocumentNameError, HIDDEN_FOLDER, downloadUrl, editInNextcloudUrl, folderPathFor, multiDownloadUrl, nextcloudActions, openInNextcloudUrl, parentPath, pathCrumbs, relativePath, renamedPath, toSyncDocument, visibleChildren } from "./nextcloud";
 
 const raw = (p: Partial<Parameters<typeof toSyncDocument>[0]>) => ({ path: "/remote.php/dav/files/u1/Cours/", displayname: "Cours", isFolder: true, ...p });
 const doc = (p: Partial<ReturnType<typeof toSyncDocument>>) => ({ ...toSyncDocument(raw({ path: "/remote.php/dav/files/u1/a.txt", displayname: "a.txt", isFolder: false, contentType: "text/plain" }), "u1"), ...p });
@@ -122,5 +122,23 @@ describe("sortSyncDocuments", () => {
   });
   it("lit le propriétaire renvoyé par NextCloud", () => {
     expect(toSyncDocument({ path: "/remote.php/dav/files/u1/a.txt", displayname: "a.txt", isFolder: false, ownerDisplayName: "Alice" }, "u1").ownerName).toBe("Alice");
+  });
+});
+
+describe("dropMoves", () => {
+  it("déplace chaque élément dans le dossier visé", () => {
+    expect(dropMoves(["a.txt", "Cours"], "Archives")).toEqual([
+      { from: "a.txt", to: "Archives/a.txt" },
+      { from: "Cours", to: "Archives/Cours" },
+    ]);
+    expect(dropMoves(["Cours/a.txt"], "Archives/2026")).toEqual([{ from: "Cours/a.txt", to: "Archives/2026/a.txt" }]);
+  });
+  it("jamais un dossier dans lui-même ni dans un de ses sous-dossiers, ni un élément déjà à sa place", () => {
+    expect(dropMoves(["Cours"], "Cours")).toEqual([]);
+    expect(dropMoves(["Cours"], "Cours/6e")).toEqual([]);
+    expect(dropMoves(["Cours/a.txt"], "Cours")).toEqual([]);
+  });
+  it("vers la racine", () => {
+    expect(dropMoves(["Cours/a.txt"], "")).toEqual([{ from: "Cours/a.txt", to: "a.txt" }]);
   });
 });

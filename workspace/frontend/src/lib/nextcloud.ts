@@ -168,3 +168,19 @@ export const sortSyncDocuments = (docs: SyncDocument[], key: SortKey = "name", d
   };
   return [...docs].sort((a, b) => (a.isFolder !== b.isFolder ? (a.isFolder ? -1 : 1) : down ? -ascending(a, b) : ascending(a, b)));
 };
+
+/** Type de données du glisser-déposer interne de la page NextCloud (chemins déplacés vers un dossier NextCloud). */
+export const NC_DRAG_TYPE = "application/x-nextcloud-paths";
+
+/**
+ * Déplacements à faire quand on lâche ces éléments sur un dossier NextCloud : (chemin actuel → nouveau chemin).
+ * Sont écartés : l'élément lâché sur lui-même ou sur l'un de ses sous-dossiers, et ceux qui y sont déjà.
+ * Ex. ["a.txt", "Cours"] lâchés sur « Archives » → [a.txt → Archives/a.txt, Cours → Archives/Cours] ;
+ *     « Cours » lâché sur « Cours/6e » → rien (dans lui-même).
+ */
+export const dropMoves = (paths: string[], destFolder: string): Array<{ from: string; to: string }> => {
+  const dest = destFolder.replace(/^\/+|\/+$/g, "");
+  return paths
+    .filter((p) => dest !== p && !dest.startsWith(`${p}/`) && parentPath(p) !== dest)
+    .map((p) => ({ from: p, to: dest ? `${dest}/${p.substring(p.lastIndexOf("/") + 1)}` : p.substring(p.lastIndexOf("/") + 1) }));
+};

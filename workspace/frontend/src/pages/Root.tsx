@@ -1,6 +1,7 @@
 import { Layout } from "@open-ent/react";
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
+import { ResponsiveStyle } from "../components/ResponsiveStyle";
 import { UiSwitch } from "../components/UiSwitch";
 import { UiSwitchBanner } from "../components/UiSwitchBanner";
 
@@ -9,6 +10,7 @@ export const Root = () => {
   const [banner, setBanner] = useState(false);
   return (
     <Layout>
+      <ResponsiveStyle />
       <Outlet />
       <UiSwitchBanner onVisibleChange={setBanner} />
       {!banner && <UiSwitch />}

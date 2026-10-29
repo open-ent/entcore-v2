@@ -17,7 +17,9 @@ import {
   downloadUrl,
   folderPathFor,
   multiDownloadUrl,
+  NC_DRAG_TYPE,
   NEW_DOCUMENT_TYPES,
+  dropMoves,
   NewDocumentType,
   newDocumentNameError,
   NextcloudActionId,
@@ -137,6 +139,21 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
     else navigate(`/nextcloud-view?path=${encodeURIComponent(d.path)}`);
   };
 
+  // Glisser-déposer : lâcher des éléments sur un dossier NextCloud les y déplace
+  const draggedPaths = useRef<string[]>([]);
+  const [overFolder, setOverFolder] = useState<string | null>(null);
+  const dropAllowed = (ev: React.DragEvent, dest: string) => !trash && ev.dataTransfer.types.includes(NC_DRAG_TYPE) && dropMoves(draggedPaths.current, dest).length > 0;
+  const dropOn = (ev: React.DragEvent, dest: string) => {
+    setOverFolder(null);
+    if (!dropAllowed(ev, dest) || !userId) return;
+    ev.preventDefault();
+    const moves = dropMoves(draggedPaths.current, dest);
+    draggedPaths.current = [];
+    void run(async () => {
+      for (const m of moves) await nextcloudService.move(userId, m.from, m.to);
+    });
+  };
+
   // Partage d'un document NextCloud : un exemplaire est placé dans l'espace documentaire et partagé là ; annuler le remet dans NextCloud
   const [shareWarn, setShareWarn] = useState(false);
   const [sharing, setSharing] = useState<Array<{ _id: string; name: string }>>([]);
@@ -207,7 +224,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
         </h1>
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
-        <aside style={{ flex: "0 0 260px", maxWidth: "100%" }}>
+        <aside className="ws-aside" style={{ flex: "0 0 260px", maxWidth: "100%" }}>
           <TreeNav tree="owner" highlight={false} keepOpen folders={folders.data ?? []}>
             {quota.data && <QuotaGauge quota={quota.data} />}
           </TreeNav>
@@ -227,7 +244,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
             }
           />
         </aside>
-        <main style={{ flex: "1 1 320px", minWidth: 0 }}>
+        <main className="ws-main" style={{ flex: "1 1 320px", minWidth: 0 }}>
           {link.data && !link.data.hidden && link.data.url && (
             <p data-nc-url>
               {t("nextcloud.url.connect")} :{" "}
@@ -320,7 +337,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
                 <tr>
                   <th />
                   {(["name", "owner", "modified", "size"] as const).map((key) => (
-                    <th key={key} aria-sort={sort.key === key ? (sort.desc ? "descending" : "ascending") : undefined}>
+                    <th key={key} className={key === "owner" ? "ws-col-owner" : key === "modified" ? "ws-col-date" : key === "size" ? "ws-col-size" : undefined} aria-sort={sort.key === key ? (sort.desc ? "descending" : "ascending") : undefined}>
                       <button type="button" className="btn btn-link p-0" style={{ color: "inherit", font: "inherit", fontWeight: 600 }} onClick={() => changeSort(key)} data-nc-sort-column={key}>
                         {t(key)} {sort.key === key ? (sort.desc ? "↓" : "↑") : ""}
                       </button>
@@ -330,16 +347,32 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
               </thead>
               <tbody>
                 {docs.map((d) => (
-                  <tr key={d.path} data-nc-item={d.isFolder ? "folder" : "file"} data-nc-path={d.path}>
+                  <tr
+                    key={d.path}
+                    data-nc-item={d.isFolder ? "folder" : "file"}
+                    data-nc-path={d.path}
+                    draggable={!trash}
+                    onDragStart={(ev) => {
+                      // on emporte toute la sélection si l'élément saisi en fait partie, sinon lui seul
+                      const moved = selected.has(d.path) ? [...selected] : [d.path];
+                      draggedPaths.current = moved;
+                      ev.dataTransfer.setData(NC_DRAG_TYPE, JSON.stringify(moved));
+                      ev.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={d.isFolder ? (ev) => dropAllowed(ev, d.path) && (ev.preventDefault(), setOverFolder(d.path)) : undefined}
+                    onDragLeave={d.isFolder ? () => setOverFolder(null) : undefined}
+                    onDrop={d.isFolder ? (ev) => dropOn(ev, d.path) : undefined}
+                    style={overFolder === d.path ? { outline: "2px dashed #2a9cc8" } : undefined}
+                  >
                     <td>
                       <input type="checkbox" data-nc-select checked={selected.has(d.path)} onChange={() => toggle(d.path)} aria-label={d.name} />
                     </td>
                     <td>
                       <span aria-hidden="true">{ICON[d.isFolder ? "folder" : fileKind(d.contentType)]}</span> {trash ? d.name : open(d)}
                     </td>
-                    <td>{d.ownerName}</td>
-                    <td>{parseDate(d.lastModified?.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/(\d\d:\d\d):(\d\d)/, "$1.$2"))?.toLocaleDateString("fr-FR") ?? ""}</td>
-                    <td>{d.isFolder ? "" : formatSize(d.size)}</td>
+                    <td className="ws-col-owner">{d.ownerName}</td>
+                    <td className="ws-col-date">{parseDate(d.lastModified?.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/(\d\d:\d\d):(\d\d)/, "$1.$2"))?.toLocaleDateString("fr-FR") ?? ""}</td>
+                    <td className="ws-col-size">{d.isFolder ? "" : formatSize(d.size)}</td>
                   </tr>
                 ))}
               </tbody>

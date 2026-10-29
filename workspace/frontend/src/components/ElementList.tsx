@@ -18,6 +18,9 @@ const ICONS: Record<string, string> = {
   other: "📎",
 };
 
+/** Colonnes masquées sur petit écran (voir ResponsiveStyle). */
+const COL_CLASS: Record<SortKey, string | undefined> = { name: undefined, owner: "ws-col-owner", modified: "ws-col-date", size: "ws-col-size" };
+
 const iconOf = (e: WorkspaceElement) => (e.eType === "folder" ? ICONS.folder : ICONS[fileKind(e.metadata?.["content-type"])]);
 
 const dateOf = (e: WorkspaceElement) => parseDate(e.modified)?.toLocaleDateString("fr-FR") ?? "";
@@ -158,7 +161,7 @@ export const ElementList = ({
               )}
             </th>
             {(["name", "owner", "modified", "size"] as const).map((key) => (
-              <th key={key} aria-sort={sort?.key === key ? (sort.desc ? "descending" : "ascending") : undefined}>
+              <th key={key} className={COL_CLASS[key]} aria-sort={sort?.key === key ? (sort.desc ? "descending" : "ascending") : undefined}>
                 {onSort ? (
                   <button type="button" className="btn btn-link p-0" style={{ color: "inherit", font: "inherit", fontWeight: 600 }} onClick={() => onSort(key)} data-sort-column={key}>
                     {t(key)} {sort?.key === key ? (sort.desc ? "↓" : "↑") : ""}
@@ -190,7 +193,7 @@ export const ElementList = ({
                   </span>
                 )}
               </td>
-              <td>
+              <td className="ws-col-owner">
                 {e.owner ? (
                   <a href={`/userbook/annuaire#${e.owner}`} data-owner-link>
                     {e.ownerName}
@@ -199,8 +202,8 @@ export const ElementList = ({
                   e.ownerName
                 )}
               </td>
-              <td>{dateOf(e)}</td>
-              <td>{e.eType === "file" ? formatSize(e.metadata?.size) : ""}</td>
+              <td className="ws-col-date">{dateOf(e)}</td>
+              <td className="ws-col-size">{e.eType === "file" ? formatSize(e.metadata?.size) : ""}</td>
               {tree !== "trash" && <td>{commentBadge(e)}</td>}
             </tr>
           ))}

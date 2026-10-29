@@ -20,7 +20,7 @@ vi.mock("../components/ConfirmModal", () => ({
 vi.mock("../services/workspace.service", () => ({ elementActions: { shareLike: vi.fn() }, workspaceService: { savePreference: (p: unknown) => prefs.save(p) } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
-const svc = vi.hoisted(() => ({ toWorkspace: vi.fn(), fromWorkspace: vi.fn() }));
+const svc = vi.hoisted(() => ({ toWorkspace: vi.fn(), fromWorkspace: vi.fn(), move: vi.fn() }));
 const prefs = vi.hoisted(() => ({ value: {} as Record<string, unknown>, save: vi.fn() }));
 vi.mock("../services/nextcloud.service", () => ({ nextcloudService: svc }));
 
@@ -152,5 +152,27 @@ describe("NextcloudBrowser", () => {
   it("affiche le propriétaire renvoyé par NextCloud", () => {
     show({ isLoading: false, isError: false, isSuccess: true, data: [d({ ownerName: "Alice" })] });
     expect(document.querySelector("[data-nc-item]")?.textContent).toContain("Alice");
+  });
+
+  it("lâcher un fichier sur un dossier le déplace dans ce dossier", async () => {
+    svc.move.mockResolvedValue(undefined);
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({ path: "Archives", name: "Archives", isFolder: true, kind: "folder" }), d({ path: "a.txt", name: "a.txt" })] });
+    const file = document.querySelector('[data-nc-path="a.txt"]')!;
+    const folder = document.querySelector('[data-nc-path="Archives"]')!;
+    const dataTransfer = { types: ["application/x-nextcloud-paths"], setData: vi.fn(), effectAllowed: "" };
+    fireEvent.dragStart(file, { dataTransfer });
+    fireEvent.dragOver(folder, { dataTransfer });
+    fireEvent.drop(folder, { dataTransfer });
+    await vi.waitFor(() => expect(svc.move).toHaveBeenCalledWith("u1", "a.txt", "Archives/a.txt"));
+  });
+
+  it("un dossier ne se dépose pas sur lui-même", () => {
+    svc.move.mockClear();
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({ path: "Archives", name: "Archives", isFolder: true, kind: "folder" })] });
+    const folder = document.querySelector('[data-nc-path="Archives"]')!;
+    const dataTransfer = { types: ["application/x-nextcloud-paths"], setData: vi.fn(), effectAllowed: "" };
+    fireEvent.dragStart(folder, { dataTransfer });
+    fireEvent.drop(folder, { dataTransfer });
+    expect(svc.move).not.toHaveBeenCalled();
   });
 });
