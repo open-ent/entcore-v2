@@ -19,10 +19,11 @@ vi.mock("../components/LoolCreateModal", () => ({ LoolCreateModal: () => null })
 vi.mock("../components/NextcloudPicker", () => ({ NextcloudPicker: () => null }));
 vi.mock("../components/PublishModal", () => ({ PublishModal: () => null }));
 vi.mock("../components/ShareWarning", () => ({ ShareWarning: () => null }));
-vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
+vi.mock("../components/FolderPicker", () => ({ FolderPicker: ({ isOpen, title }: { isOpen: boolean; title: string }) => (isOpen ? <div data-folder-picker={title} /> : null) }));
 vi.mock("../components/RenameModal", () => ({ RenameModal: () => null }));
 vi.mock("../components/ConfirmModal", () => ({ ConfirmModal: () => null }));
-vi.mock("../services/workspace.service", () => ({ elementActions: {} }));
+const prefs = vi.hoisted(() => ({ value: { view: "icons" } as Record<string, unknown>, save: vi.fn() }));
+vi.mock("../services/workspace.service", () => ({ elementActions: {}, workspaceService: { savePreference: (p: unknown) => prefs.save(p) } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 const content = vi.hoisted(() => ({ value: {} as Record<string, unknown>, search: { isError: false, isFetching: false, data: undefined } as Record<string, unknown> }));
@@ -35,7 +36,7 @@ vi.mock("../services/queries", () => ({
   useNextcloudQuota: () => ({ data: undefined }),
   useFolders: () => ({ data: [{ _id: "f1", name: "Cours", eType: "folder", eParent: null, owner: "u1" }] }),
   useQuota: () => ({ data: { quota: 1000, storage: 250 } }),
-  useViewModePreference: () => ({ data: "icons" }),
+  useWorkspacePreference: () => ({ data: prefs.value }),
 }));
 
 const el = (p: Partial<WorkspaceElement>): WorkspaceElement => ({ _id: "x", name: "n", eType: "file", eParent: null, owner: "u1", ...p });
@@ -139,5 +140,76 @@ describe("Browser", () => {
     content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
     renderAt("/owner/f1");
     expect(document.querySelector("[data-workspace-breadcrumb]")?.textContent).toContain("Cours");
+  });
+
+  it("en liste, un clic sur un en-tête trie et mémorise ; un second clic inverse le sens", () => {
+    prefs.value = { view: "list" };
+    prefs.save.mockClear();
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [el({ _id: "a", name: "a.txt", metadata: { size: 5 } as never }), el({ _id: "b", name: "b.txt", metadata: { size: 50 } as never })] };
+    renderAt("/owner");
+    const ids = () => [...document.querySelectorAll("[data-element]")].map((n) => n.getAttribute("data-element-id"));
+    fireEvent.click(document.querySelector('[data-sort-column="size"]')!);
+    expect(ids()).toEqual(["a", "b"]);
+    expect(prefs.save).toHaveBeenLastCalledWith({ sortField: "metadata.size", sortDesc: false });
+    fireEvent.click(document.querySelector('[data-sort-column="size"]')!);
+    expect(ids()).toEqual(["b", "a"]);
+    expect(prefs.save).toHaveBeenLastCalledWith({ sortField: "metadata.size", sortDesc: true });
+    prefs.value = { view: "icons" };
+  });
+
+  it("applique le tri mémorisé dans la préférence de l'usager", () => {
+    prefs.value = { view: "list", sortField: "name", sortDesc: true };
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [el({ _id: "a", name: "a.txt" }), el({ _id: "b", name: "b.txt" })] };
+    renderAt("/owner");
+    expect([...document.querySelectorAll("[data-element]")].map((n) => n.getAttribute("data-element-id"))).toEqual(["b", "a"]);
+    prefs.value = { view: "icons" };
+  });
+
+  const trio = () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: ["a", "b", "c", "d"].map((n) => el({ _id: n, name: `${n}.txt` })) };
+  };
+  const selectedIds = () => [...document.querySelectorAll('[data-element][data-selected="true"]')].map((n) => n.getAttribute("data-element-id"));
+
+  it("Ctrl+A sélectionne tout, puis désélectionne", () => {
+    trio();
+    renderAt("/owner");
+    fireEvent.keyDown(document, { key: "a", ctrlKey: true });
+    expect(selectedIds()).toEqual(["a", "b", "c", "d"]);
+    fireEvent.keyDown(document, { key: "a", ctrlKey: true });
+    expect(selectedIds()).toEqual([]);
+  });
+
+  it("Ctrl+A dans un champ de saisie ne sélectionne pas les éléments", () => {
+    trio();
+    renderAt("/owner");
+    fireEvent.keyDown(screen.getByRole("searchbox"), { key: "a", ctrlKey: true });
+    expect(selectedIds()).toEqual([]);
+  });
+
+  it("Maj + clic sélectionne la plage depuis le dernier élément coché", () => {
+    trio();
+    renderAt("/owner");
+    const boxes = () => [...document.querySelectorAll("[data-element-select]")] as HTMLElement[];
+    fireEvent.click(boxes()[0]);
+    fireEvent.click(boxes()[2], { shiftKey: true });
+    expect(selectedIds()).toEqual(["a", "b", "c"]);
+  });
+
+  it("Ctrl+C et Ctrl+X ouvrent la copie et le déplacement de la sélection", () => {
+    trio();
+    renderAt("/owner");
+    fireEvent.keyDown(document, { key: "c", ctrlKey: true });
+    expect(document.querySelector("[data-folder-picker]")).toBeNull(); // rien de sélectionné : rien ne s'ouvre
+    fireEvent.click(document.querySelector("[data-element-select]")!);
+    fireEvent.keyDown(document, { key: "c", ctrlKey: true });
+    expect(document.querySelector("[data-folder-picker]")?.getAttribute("data-folder-picker")).toBe("workspace.react.picker.copy");
+  });
+
+  it("Ctrl+X ouvre le déplacement", () => {
+    trio();
+    renderAt("/owner");
+    fireEvent.click(document.querySelector("[data-element-select]")!);
+    fireEvent.keyDown(document, { key: "x", ctrlKey: true });
+    expect(document.querySelector("[data-folder-picker]")?.getAttribute("data-folder-picker")).toBe("workspace.react.picker.move");
   });
 });

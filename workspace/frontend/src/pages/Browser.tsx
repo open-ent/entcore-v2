@@ -22,6 +22,8 @@ import { QuotaGauge } from "../components/QuotaGauge";
 import { TreeNav } from "../components/TreeNav";
 import { ActionId, availableActions, downloadUrl, forbiddenTargets } from "../lib/actions";
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
+import { nextSort, SORT_FIELD, sortKeyOf, viewOf } from "../lib/preferences";
+import { isTypingTarget, rangeIds, shortcutOf } from "../lib/selection";
 import { readFlags } from "../lib/flags";
 import { canOpenInGeogebra, canOpenInLool, canOpenInScratch, geogebraUrl, LOOL_CREATE, LOOL_OPEN, loolUrl, scratchUrl } from "../lib/integrations";
 import { NEXTCLOUD_VIEW } from "../lib/nextcloud";
@@ -33,20 +35,35 @@ import { isZip, planUpload, remainingLabel } from "../lib/upload";
 import { TREE_LABEL_KEY, ViewMode, WorkspaceElement } from "../lib/types";
 import { useUploads } from "../services/useUploads";
 import { nextcloudService } from "../services/nextcloud.service";
-import { elementActions } from "../services/workspace.service";
-import { useContent, useFolders, useLoolContext, useNextcloudList, useNextcloudQuota, usePublishedIds, useQuota, useSearch, useViewModePreference } from "../services/queries";
+import { elementActions, workspaceService } from "../services/workspace.service";
+import { useContent, useFolders, useLoolContext, useNextcloudList, useNextcloudQuota, usePublishedIds, useQuota, useSearch, useWorkspacePreference } from "../services/queries";
 
 /** Navigation dans l'espace documentaire : arbres, dossiers, fil d'Ariane, liste en icônes ou en tableau, jauge d'espace. */
 export const Browser = () => {
   const { t } = useTranslation("workspace");
   const { tree, folderId } = useParams();
   const [view, setView] = useState<ViewMode>("icons");
-  const [sort, setSort] = useState<SortKey>("name");
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "name", desc: false });
 
-  const preference = useViewModePreference();
+  // Affichage et tri mémorisés dans la préférence « workspace » de l'usager (la même que celle de l'ancienne interface)
+  const preference = useWorkspacePreference();
+  const preferenceApplied = useRef(false);
   useEffect(() => {
-    if (preference.data) setView(preference.data);
+    if (!preference.data || preferenceApplied.current) return;
+    preferenceApplied.current = true;
+    setView(viewOf(preference.data));
+    const key = sortKeyOf(preference.data.sortField);
+    if (key) setSort({ key, desc: preference.data.sortDesc === true });
   }, [preference.data]);
+  const changeView = (v: ViewMode) => {
+    setView(v);
+    void workspaceService.savePreference({ view: v });
+  };
+  const changeSort = (key: SortKey, toggle = true) => {
+    const next = toggle ? nextSort(sort, key) : { key, desc: false };
+    setSort(next);
+    void workspaceService.savePreference({ sortField: SORT_FIELD[next.key], sortDesc: next.desc });
+  };
 
   const validTree = isTreeName(tree) ? tree : "owner";
   const content = useContent(validTree, folderId);
@@ -95,7 +112,7 @@ export const Browser = () => {
   // Sans index texte (réglage serveur) ou si le serveur le refuse : filtre sur les noms des éléments déjà chargés.
   const searchDegraded = !!query && (flags.disableFullTextSearch || search.isError);
   const baseElements = !query ? content.data ?? [] : searchDegraded ? clientFilter(content.data ?? [], query.criteria) : search.data ?? [];
-  const elements = useMemo(() => sortElements(baseElements, sort), [baseElements, sort]);
+  const elements = useMemo(() => sortElements(baseElements, sort.key, sort.desc), [baseElements, sort]);
 
   // Sélection et actions de gestion
   const qc = useQueryClient();
@@ -129,12 +146,18 @@ export const Browser = () => {
       geogebra: flags.enableGeogebra && selection.length === 1 && canOpenInGeogebra(selection[0]),
     },
   });
-  const toggle = (id: string) =>
+  // Dernier élément coché : point de départ d'un Maj + clic
+  const lastToggled = useRef<string | undefined>(undefined);
+  const toggle = (id: string, range = false) => {
+    const wanted = range ? rangeIds(elements.map((e) => e._id), lastToggled.current, id) : [];
     setSelected((cur) => {
       const next = new Set(cur);
-      if (!next.delete(id)) next.add(id);
+      if (wanted.length) wanted.forEach((w) => next.add(w));
+      else if (!next.delete(id)) next.add(id);
       return next;
     });
+    lastToggled.current = id;
+  };
   const toggleAll = () => setSelected((cur) => (cur.size === elements.length ? new Set() : new Set(elements.map((e) => e._id))));
 
   /** Exécute une action serveur, rafraîchit la liste, l'arborescence et la jauge ; un échec est signalé. */
@@ -188,6 +211,26 @@ export const Browser = () => {
       setRenaming(selection[0]);
     } else if (a === "copy" || a === "move") setPicker(a);
   };
+
+  // Raccourcis de l'ancienne interface : Ctrl+A tout sélectionner, Ctrl+C copier, Ctrl+X déplacer (jamais dans un champ de saisie,
+  // ni quand une fenêtre est ouverte, ni quand du texte est sélectionné pour être copié)
+  const shortcut = useRef<(ev: KeyboardEvent) => void>(() => undefined);
+  shortcut.current = (ev) => {
+    const which = shortcutOf(ev);
+    if (!which || isTypingTarget(ev.target) || document.querySelector('[role="dialog"]')) return;
+    if (which === "select-all") {
+      ev.preventDefault();
+      toggleAll();
+    } else if (!window.getSelection()?.toString() && actions.includes(which)) {
+      ev.preventDefault();
+      setPicker(which);
+    }
+  };
+  useEffect(() => {
+    const listener = (ev: KeyboardEvent) => shortcut.current(ev);
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, []);
 
   // Lecteur externe (Google Drive) : le consentement se demande dans le navigateur, aucun jeton ne passe par l'ENT.
   const [driveBusy, setDriveBusy] = useState(false);
@@ -411,16 +454,27 @@ export const Browser = () => {
                 { label: t("workspace.react.view.list"), value: "list" },
               ]}
               value={view}
-              onChange={(v: string) => setView(v === "list" ? "list" : "icons")}
+              onChange={(v: string) => changeView(v === "list" ? "list" : "icons")}
             />
             <label>
               {t("workspace.react.sort")}{" "}
-              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} data-workspace-sort>
+              <select value={sort.key} onChange={(e) => changeSort(e.target.value as SortKey, false)} data-workspace-sort>
                 <option value="name">{t("name")}</option>
+                <option value="owner">{t("owner")}</option>
                 <option value="modified">{t("modified")}</option>
                 <option value="size">{t("size")}</option>
               </select>
             </label>
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={() => changeSort(sort.key)}
+              aria-label={t(sort.desc ? "workspace.react.sort.desc" : "workspace.react.sort.asc")}
+              title={t(sort.desc ? "workspace.react.sort.desc" : "workspace.react.sort.asc")}
+              data-workspace-sort-direction
+            >
+              {sort.desc ? "↓" : "↑"}
+            </button>
           </div>
           <ActionBar actions={actions} count={selection.length} onAction={onAction} onClear={() => setSelected(new Set())} />
           {validTree === "trash" && elements.length > 0 && (
@@ -453,6 +507,8 @@ export const Browser = () => {
               selected={selected}
               onToggle={toggle}
               onToggleAll={toggleAll}
+              sort={sort}
+              onSort={(key) => changeSort(key)}
               onDragStart={validTree === "owner" ? onDragStart : undefined}
               onDropOnFolder={validTree === "owner" ? (f) => moveDragged(f._id) : undefined}
               canDropOn={(f, ev) => canDrop(f._id, ev)}

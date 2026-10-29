@@ -1,5 +1,6 @@
 import { odeServices } from "@open-ent/client";
-import { Quota, Revision, TreeName, UiPreference, ViewMode, WorkspaceElement } from "../lib/types";
+import { WorkspacePreference } from "../lib/preferences";
+import { Quota, Revision, TreeName, UiPreference, WorkspaceElement } from "../lib/types";
 
 const query = (params: Record<string, string | boolean | undefined>): string => {
   const sp = new URLSearchParams();
@@ -24,14 +25,25 @@ export const workspaceService = {
 
   getQuota: (userId: string) => odeServices.http().get<Quota>(`/workspace/quota/user/${userId}`),
 
-  /** Préférence d'affichage (« icons » ou « list »), rangée dans la préférence « workspace » de l'usager. */
-  async getViewMode(): Promise<ViewMode> {
-    const res = await odeServices.http().get<{ preference?: string }>("/userbook/preference/workspace");
+  /** Préférence « workspace » de l'usager (affichage et tri), la même que celle de l'ancienne interface. */
+  async getPreference(): Promise<WorkspacePreference> {
     try {
-      return JSON.parse(res.preference ?? "{}").view === "list" ? "list" : "icons";
+      const res = await odeServices.http().get<{ preference?: string }>("/userbook/preference/workspace");
+      return (JSON.parse(res?.preference ?? "{}") as WorkspacePreference) ?? {};
     } catch {
-      return "icons";
+      return {};
     }
+  },
+  /** Enregistre un changement en conservant le reste de la préférence (l'ancienne interface y range d'autres réglages). */
+  async savePreference(patch: WorkspacePreference): Promise<WorkspacePreference> {
+    const merged = { ...(await workspaceService.getPreference()), ...patch };
+    await fetch("/userbook/preference/workspace", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-XSRF-TOKEN": xsrfToken() },
+      body: JSON.stringify(merged),
+    });
+    return merged;
   },
 
   /** Préférence « workspaceUi » (paramètres du compte → interfaces en cours de renouvellement) : choix, compteurs et retour. */

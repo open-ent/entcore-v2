@@ -21,8 +21,7 @@ export const useQuota = (userId?: string) =>
     enabled: !!userId,
   });
 
-export const useViewModePreference = () =>
-  useQuery({ queryKey: ["workspace", "view-mode"], queryFn: workspaceService.getViewMode });
+export const useWorkspacePreference = () => useQuery({ queryKey: ["workspace", "preference"], queryFn: workspaceService.getPreference, staleTime: Infinity });
 
 export const useElement = (id?: string) =>
   useQuery({ queryKey: ["workspace", "element", id], queryFn: () => getElement(id as string), enabled: !!id });

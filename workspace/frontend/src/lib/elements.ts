@@ -46,15 +46,24 @@ export const parseDate = (raw?: string): Date | undefined => {
   return Number.isNaN(d.getTime()) ? undefined : d;
 };
 
-export type SortKey = "name" | "modified" | "size";
+export type SortKey = "name" | "owner" | "modified" | "size";
 
-/** Dossiers d'abord, puis le critère choisi (nom : ordre alphabétique insensible aux accents et à la casse). */
-export const sortElements = (elements: WorkspaceElement[], key: SortKey = "name"): WorkspaceElement[] => {
+/**
+ * Dossiers d'abord, puis le critère choisi (nom et propriétaire : ordre alphabétique insensible aux accents et à la casse).
+ * `desc` absent : sens habituel de chaque critère (nom et propriétaire croissants, date et taille décroissantes) ; sinon le sens demandé.
+ */
+export const sortElements = (elements: WorkspaceElement[], key: SortKey = "name", desc?: boolean): WorkspaceElement[] => {
+  const down = desc ?? (key === "modified" || key === "size");
+  const text = (a?: string, b?: string) => (a ?? "").localeCompare(b ?? "", "fr", { sensitivity: "base", numeric: true });
+  const ascending = (a: WorkspaceElement, b: WorkspaceElement): number => {
+    if (key === "modified") return (parseDate(a.modified)?.getTime() ?? 0) - (parseDate(b.modified)?.getTime() ?? 0);
+    if (key === "size") return (a.metadata?.size ?? 0) - (b.metadata?.size ?? 0);
+    if (key === "owner") return text(a.ownerName, b.ownerName) || text(a.name, b.name);
+    return text(a.name, b.name);
+  };
   const cmp = (a: WorkspaceElement, b: WorkspaceElement): number => {
     if (a.eType !== b.eType) return a.eType === "folder" ? -1 : 1;
-    if (key === "modified") return (parseDate(b.modified)?.getTime() ?? 0) - (parseDate(a.modified)?.getTime() ?? 0);
-    if (key === "size") return (b.metadata?.size ?? 0) - (a.metadata?.size ?? 0);
-    return a.name.localeCompare(b.name, "fr", { sensitivity: "base", numeric: true });
+    return down ? -ascending(a, b) : ascending(a, b);
   };
   return [...elements].sort(cmp);
 };

@@ -375,6 +375,8 @@
   "workspace.react.picker.copy": "Copy to",
   "workspace.react.picker.move": "Move to",
   "workspace.react.confirm.trash.shared": "Moving these items to the bin also removes them for everyone they are shared with and for their owner.",
+  "workspace.react.sort.asc": "Ascending order",
+  "workspace.react.sort.desc": "Descending order",
   "workspace.react.confirm.delete": "These items will be permanently deleted.",
   "workspace.react.action.share": "Share",
   "workspace.react.viewer.back": "Back",

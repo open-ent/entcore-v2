@@ -104,3 +104,24 @@ describe("isTreeName", () => {
     expect(isTreeName(undefined)).toBe(false);
   });
 });
+
+describe("sortElements — sens et propriétaire", () => {
+  const f = (id: string, name: string, ownerName: string, size: number, modified: string) =>
+    ({ _id: id, name, eType: "file", eParent: null, owner: "u", ownerName, modified, metadata: { size } }) as never;
+  const docs = [f("a", "b.txt", "Zoé", 10, "2026-01-02 10:00.00.000"), f("b", "a.txt", "Alice", 30, "2026-01-01 10:00.00.000"), f("c", "c.txt", "Marc", 20, "2026-01-03 10:00.00.000")];
+  const ids = (list: ReturnType<typeof sortElements>) => list.map((e) => e._id);
+  it("trie sur le propriétaire, croissant puis décroissant", () => {
+    expect(ids(sortElements(docs, "owner", false))).toEqual(["b", "c", "a"]);
+    expect(ids(sortElements(docs, "owner", true))).toEqual(["a", "c", "b"]);
+  });
+  it("le sens demandé l'emporte sur le sens habituel", () => {
+    expect(ids(sortElements(docs, "size", false))).toEqual(["a", "c", "b"]);
+    expect(ids(sortElements(docs, "size", true))).toEqual(["b", "c", "a"]);
+    expect(ids(sortElements(docs, "name", true))).toEqual(["c", "a", "b"]);
+  });
+  it("les dossiers restent en tête quel que soit le sens", () => {
+    const withFolder = [...docs, { _id: "d", name: "Zdossier", eType: "folder", eParent: null, owner: "u" } as never];
+    expect(sortElements(withFolder, "name", true)[0]._id).toBe("d");
+    expect(sortElements(withFolder, "size", false)[0]._id).toBe("d");
+  });
+});

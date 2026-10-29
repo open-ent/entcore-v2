@@ -1,7 +1,7 @@
 import { DragEvent as ReactDragEvent, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { fileKind, formatSize, parseDate } from "../lib/elements";
+import { fileKind, formatSize, parseDate, SortKey } from "../lib/elements";
 import { TreeName, ViewMode, WorkspaceElement } from "../lib/types";
 
 const ICONS: Record<string, string> = {
@@ -33,12 +33,15 @@ export const ElementList = ({
   onDragStart,
   onDropOnFolder,
   canDropOn,
+  sort,
+  onSort,
 }: {
   tree: TreeName;
   elements: WorkspaceElement[];
   view: ViewMode;
   selected?: Set<string>;
-  onToggle?: (id: string) => void;
+  /** `range` vrai : Maj + clic, sélection de tout ce qui sépare du dernier élément coché. */
+  onToggle?: (id: string, range?: boolean) => void;
   onToggleAll?: () => void;
   /** Glisser-déposer interne : saisie d'un élément (renvoie les données à emporter). */
   onDragStart?: (e: WorkspaceElement, ev: DragEvent) => void;
@@ -46,6 +49,9 @@ export const ElementList = ({
   onDropOnFolder?: (folder: WorkspaceElement, ev: DragEvent) => void;
   /** Le dossier accepte-t-il ce glisser ? (survol) */
   canDropOn?: (folder: WorkspaceElement, ev: DragEvent) => boolean;
+  /** Tri courant et choix d'un critère : en vue liste, les en-têtes de colonnes deviennent cliquables. */
+  sort?: { key: SortKey; desc: boolean };
+  onSort?: (key: SortKey) => void;
 }) => {
   const { t } = useTranslation("workspace");
   const { pathname } = useLocation();
@@ -96,7 +102,8 @@ export const ElementList = ({
         type="checkbox"
         data-element-select
         checked={selected.has(e._id)}
-        onChange={() => onToggle(e._id)}
+        onChange={() => undefined}
+        onClick={(ev) => onToggle(e._id, ev.shiftKey)}
         aria-label={e.name}
       />
     );
@@ -117,10 +124,17 @@ export const ElementList = ({
                 />
               )}
             </th>
-            <th>{t("name")}</th>
-            <th>{t("owner")}</th>
-            <th>{t("modified")}</th>
-            <th>{t("size")}</th>
+            {(["name", "owner", "modified", "size"] as const).map((key) => (
+              <th key={key} aria-sort={sort?.key === key ? (sort.desc ? "descending" : "ascending") : undefined}>
+                {onSort ? (
+                  <button type="button" className="btn btn-link p-0" style={{ color: "inherit", font: "inherit", fontWeight: 600 }} onClick={() => onSort(key)} data-sort-column={key}>
+                    {t(key)} {sort?.key === key ? (sort.desc ? "↓" : "↑") : ""}
+                  </button>
+                ) : (
+                  t(key)
+                )}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -154,7 +168,7 @@ export const ElementList = ({
             data-selected={isSelected}
             style={{ width: 132, cursor: "pointer", opacity: 1 }}
             onClick={(ev) => {
-              if (onToggle && !(ev.target as HTMLElement).closest("a,input,button")) onToggle(e._id);
+              if (onToggle && !(ev.target as HTMLElement).closest("a,input,button")) onToggle(e._id, ev.shiftKey);
             }}
             {...dnd(e)}
           >
