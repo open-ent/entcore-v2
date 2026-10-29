@@ -41,4 +41,12 @@ public class WorkspacePlatformUiTest {
     public void unknownValueFallsBackOnTheDefault() {
         assertEquals("react", WorkspaceController.platformUi(new JsonObject().put("frontend-ui", "n'importe quoi")));
     }
+
+    @Test
+    public void onlyAnOkStatusIsASuccessfulAnswer() {
+        assertEquals(true, WorkspaceController.isOk(new JsonObject().put("status", "ok")));
+        assertEquals(false, WorkspaceController.isOk(new JsonObject().put("status", "error").put("message", "SyntaxException")));
+        assertEquals(false, WorkspaceController.isOk(new JsonObject()));
+        assertEquals(false, WorkspaceController.isOk(null));
+    }
 }

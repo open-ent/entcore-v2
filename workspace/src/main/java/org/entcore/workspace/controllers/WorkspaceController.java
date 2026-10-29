@@ -2022,13 +2022,28 @@ public class WorkspaceController extends BaseController {
 			handler.handle(forced);
 			return;
 		}
-		final String query = "MATCH (:User {id:$userId})-[:PREFERS]->(uac:UserAppConf) RETURN uac." + UI_PREFERENCE + " AS preference";
+		// Syntaxe OpenCypher (`$userId`, ArcadeDB) d'abord ; un Neo4j épinglé en Cypher 2.3 la refuse : on retente avec l'ancienne (`{userId}`).
+		final String tail = "-[:PREFERS]->(uac:UserAppConf) RETURN uac." + UI_PREFERENCE + " AS preference";
+		final String query = "MATCH (:User {id:$userId})" + tail;
+		final String legacyQuery = "MATCH (:User {id:{userId}})" + tail;
+		final JsonObject params = new JsonObject().put("userId", user.getUserId());
 		try {
-			org.entcore.common.neo4j.Neo4j.getInstance().execute(query, new JsonObject().put("userId", user.getUserId()),
-					message -> handler.handle(readUi(message.body(), platformUi)));
+			final org.entcore.common.neo4j.Neo4j neo4j = org.entcore.common.neo4j.Neo4j.getInstance();
+			neo4j.execute(query, params, message -> {
+				if (isOk(message.body())) {
+					handler.handle(readUi(message.body(), platformUi));
+				} else {
+					neo4j.execute(legacyQuery, params, legacy -> handler.handle(readUi(legacy.body(), platformUi)));
+				}
+			});
 		} catch (Exception e) {
 			handler.handle(platformUi);
 		}
+	}
+
+	/** Une réponse Neo4j réussie porte « status: ok ». */
+	static boolean isOk(JsonObject body) {
+		return body != null && "ok".equals(body.getString("status"));
 	}
 
 	/** Extrait le choix d'IHM du résultat Neo4j — la préférence y est rangée en CHAÎNE JSON, ex. {"ui":"react"}. */

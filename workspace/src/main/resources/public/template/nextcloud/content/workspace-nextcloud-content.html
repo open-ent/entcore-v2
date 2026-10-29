@@ -26,6 +26,10 @@
             <button ng-if="!isTrashMode()" ng-click="upload.startImportFlow()">
                 <i18n>workspace.add.document</i18n>
             </button>
+            <!-- ouvre NextCloud déjà connecté : la connexion unique reconnaît l'usager de l'ENT -->
+            <a class="button" data-nc-open-server ng-if="nextcloudUrl" target="_blank" ng-href="[[nextcloudUrl]]">
+                <i18n>workspace.react.nc.open.server</i18n>
+            </a>
 
             <div class="choice-view" style="display: flex; gap: 8px">
                 <i
