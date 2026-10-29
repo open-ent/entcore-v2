@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TreeNav } from "./TreeNav";
 import { WorkspaceElement } from "../lib/types";
@@ -22,5 +22,23 @@ describe("TreeNav", () => {
   it("sur la page NextCloud (aucun emplacement sélectionné), garde les dossiers dépliés avec keepOpen", () => {
     expect(show({ highlight: false }).container.querySelector('[data-tree-folder="f1"]')).toBeNull();
     expect(show({ highlight: false, keepOpen: true }).container.querySelector('[data-tree-folder="f1"]')).not.toBeNull();
+  });
+
+  it("lâcher des éléments sur « Corbeille » les y met", () => {
+    const onDrop = vi.fn();
+    const { container } = show({ drop: { canDrop: () => true, onDrop: vi.fn(), trash: { canDrop: () => true, onDrop } } });
+    const trash = container.querySelector('[data-tree-root="trash"]')!.parentElement as HTMLElement;
+    fireEvent.dragOver(trash, { dataTransfer: { types: ["application/x-workspace-elements"] } });
+    expect(trash.getAttribute("data-drop-target")).toBe("true");
+    fireEvent.drop(trash, { dataTransfer: { types: ["application/x-workspace-elements"] } });
+    expect(onDrop).toHaveBeenCalledTimes(1);
+  });
+
+  it("ne réagit pas au lâcher quand ce n'est pas permis", () => {
+    const onDrop = vi.fn();
+    const { container } = show({ drop: { canDrop: () => true, onDrop: vi.fn(), trash: { canDrop: () => false, onDrop } } });
+    const trash = container.querySelector('[data-tree-root="trash"]')!.parentElement as HTMLElement;
+    fireEvent.drop(trash, { dataTransfer: { types: [] } });
+    expect(onDrop).not.toHaveBeenCalled();
   });
 });

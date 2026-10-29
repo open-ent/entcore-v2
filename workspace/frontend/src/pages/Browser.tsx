@@ -317,7 +317,8 @@ export const Browser = () => {
     const items = draggedElements(el, selection);
     dragged.current = items;
     ev.dataTransfer?.setData(DRAG_TYPE, encodeDrag(items));
-    if (ev.dataTransfer) ev.dataTransfer.effectAllowed = "move";
+    // depuis « Documents ajoutés dans les applis », lâcher sur un dossier COPIE (ces documents restent à leur place)
+    if (ev.dataTransfer) ev.dataTransfer.effectAllowed = validTree === "protected" ? "copy" : "move";
   };
   const canDrop = (targetId: string | null, ev: globalThis.DragEvent) =>
     isInternalDrag([...(ev.dataTransfer?.types ?? [])]) &&
@@ -325,8 +326,18 @@ export const Browser = () => {
   const moveDragged = (targetId: string | null) => {
     const items = dragged.current;
     dragged.current = [];
-    if (items.length)
-      void run(() => elementActions.move(items, targetId ?? undefined));
+    if (!items.length) return;
+    if (validTree === "protected") void run(() => elementActions.copy(items, targetId ?? undefined), "workspace.copy.window.finished");
+    else void run(() => elementActions.move(items, targetId ?? undefined));
+  };
+  // Lâcher sur « Corbeille » : mettre les éléments à la corbeille (Mes documents et applis)
+  const trashDrop = {
+    canDrop: (ev: globalThis.DragEvent) => isInternalDrag([...(ev.dataTransfer?.types ?? [])]) && dragged.current.length > 0,
+    onDrop: () => {
+      const items = dragged.current;
+      dragged.current = [];
+      if (items.length) void run(() => elementActions.trash(items), "workspace.removed.message");
+    },
   };
 
   const onAction = (a: ActionId) => {
@@ -494,8 +505,8 @@ export const Browser = () => {
             publicVisible={(publicRoot.data ?? []).length > 0}
             onCreateFolder={canWrite ? () => setNewFolderOpen(true) : undefined}
             drop={
-              validTree === "owner"
-                ? { canDrop, onDrop: (id) => moveDragged(id) }
+              validTree === "owner" || validTree === "protected"
+                ? { canDrop, onDrop: (id) => moveDragged(id), trash: trashDrop }
                 : undefined
             }
           >
@@ -781,7 +792,7 @@ export const Browser = () => {
                 publishedIds={published.data}
                 searching={!!query}
                 onShowComments={setCommenting}
-                onDragStart={validTree === "owner" ? onDragStart : undefined}
+                onDragStart={validTree === "owner" || validTree === "protected" ? onDragStart : undefined}
                 onDropOnFolder={
                   validTree === "owner" ? (f) => moveDragged(f._id) : undefined
                 }

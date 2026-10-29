@@ -13,6 +13,8 @@ const CHEVRON: CSSProperties = { background: "none", border: 0, padding: 0, marg
 export interface DropProps {
   canDrop: (targetId: string | null, ev: globalThis.DragEvent) => boolean;
   onDrop: (targetId: string | null, ev: globalThis.DragEvent) => void;
+  /** Lâcher sur « Corbeille » : mettre les éléments à la corbeille. */
+  trash?: { canDrop: (ev: globalThis.DragEvent) => boolean; onDrop: (ev: globalThis.DragEvent) => void };
 }
 
 const dropHandlers = (targetId: string | null, drop: DropProps | undefined, over: string | null, setOver: (v: string | null) => void) =>
@@ -115,6 +117,26 @@ export const TreeNav = ({
 }) => {
   const { t } = useTranslation("workspace");
   const [overRoot, setOverRoot] = useState<string | null>(null);
+  const trashHandlers = (over: boolean) =>
+    drop?.trash
+      ? {
+          onDragOver: (ev: DragEvent) => {
+            if (drop.trash?.canDrop(ev.nativeEvent)) {
+              ev.preventDefault();
+              setOverRoot("trash");
+            }
+          },
+          onDragLeave: () => setOverRoot(null),
+          onDrop: (ev: DragEvent) => {
+            setOverRoot(null);
+            if (drop.trash?.canDrop(ev.nativeEvent)) {
+              ev.preventDefault();
+              drop.trash.onDrop(ev.nativeEvent);
+            }
+          },
+          "data-drop-target": over ? "true" : undefined,
+        }
+      : {};
   return (
     <nav aria-label={t("workspace.title")} data-workspace-tree>
       <ul className="list-unstyled mb-0" role="tree" style={{ borderLeft: "4px solid #ffc800" }}>
@@ -124,8 +146,8 @@ export const TreeNav = ({
           return (
             <li key={name} role="treeitem" aria-selected={current}>
               <div
-                {...(name === "owner" ? dropHandlers(null, drop, overRoot, setOverRoot) : {})}
-                style={{ ...ROW, ...(current && !folderId ? SELECTED : {}), ...(name === "owner" && overRoot === "root" ? { outline: "2px dashed #2a9cc8" } : {}) }}
+                {...(name === "owner" ? dropHandlers(null, drop, overRoot, setOverRoot) : name === "trash" ? trashHandlers(overRoot === "trash") : {})}
+                style={{ ...ROW, ...(current && !folderId ? SELECTED : {}), ...((name === "owner" && overRoot === "root") || (name === "trash" && overRoot === "trash") ? { outline: "2px dashed #2a9cc8" } : {}) }}
               >
                 <span style={{ ...CHEVRON, cursor: "default" }} aria-hidden="true">
                   {(name === "owner" || name === "shared") && expanded ? <span style={{ color: "#ffb400" }}>▼</span> : ""}

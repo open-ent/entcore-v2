@@ -83,7 +83,7 @@ export const Content = ({ element, source }: { element: WorkspaceElement; source
 
   switch (kind) {
     case "image":
-      return <img src={`${url}?v=${encodeURIComponent(version)}`} alt={element.name} style={{ maxWidth: "100%" }} data-viewer="image" />;
+      return <img src={`${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`} alt={element.name} style={{ maxWidth: "100%" }} data-viewer="image" />;
     case "audio":
       return <audio controls src={url} data-viewer="audio" />;
     case "video":

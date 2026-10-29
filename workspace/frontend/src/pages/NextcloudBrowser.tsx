@@ -131,10 +131,10 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
       setNotice(t("workspace.react.nc.edit.error"));
     }
   };
-  /** Un clic sur un fichier : l'éditeur en ligne s'il est modifiable, sinon le fichier dans le navigateur (affiché, pas téléchargé). */
+  /** Un clic sur un fichier : l'éditeur en ligne s'il est modifiable, sinon la visionneuse de l'application (texte, tableau, PDF, image, son, vidéo). */
   const openFile = (d: SyncDocument) => {
     if (d.editable) void openEditor(d);
-    else if (userId) window.open(downloadUrl(userId, d, true));
+    else navigate(`/nextcloud-view?path=${encodeURIComponent(d.path)}`);
   };
 
   // Partage d'un document NextCloud : un exemplaire est placé dans l'espace documentaire et partagé là ; annuler le remet dans NextCloud
