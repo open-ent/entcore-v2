@@ -382,6 +382,8 @@
   "workspace.react.badge.published": "Publié sur le portail public",
   "workspace.react.comments.column": "Commentaires",
   "workspace.react.load.more": "Afficher la suite ({{count}})",
+  "workspace.react.nc.share.title": "Partager un document NextCloud",
+  "workspace.react.nc.share.message": "Un exemplaire du document est placé dans votre espace documentaire pour être partagé. Si vous annulez le partage, il retourne dans NextCloud.",
   "workspace.react.confirm.delete": "Ces éléments seront supprimés définitivement.",
   "workspace.react.action.share": "Partager",
   "workspace.react.viewer.back": "Retour",

@@ -1,8 +1,9 @@
-import { AppHeader, LoadingScreen, useEdificeClient } from "@open-ent/react";
+import { AppHeader, LoadingScreen, ShareModal, useEdificeClient } from "@open-ent/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { FolderPicker } from "../components/FolderPicker";
 import { NextcloudNav } from "../components/NextcloudNav";
 import { QuotaGauge } from "../components/QuotaGauge";
@@ -26,11 +27,13 @@ import {
   SyncDocument,
 } from "../lib/nextcloud";
 import { nextcloudService } from "../services/nextcloud.service";
+import { elementActions } from "../services/workspace.service";
 import { useFolders, useNextcloudList, useNextcloudQuota, useNextcloudUrl, useQuota } from "../services/queries";
 
 const ICON: Record<string, string> = { folder: "📁", image: "🖼️", pdf: "📕", doc: "📝", sheet: "📊", slides: "📽️", audio: "🎵", video: "🎞️", text: "📄", archive: "🗜️", other: "📎" };
 const LABEL: Record<NextcloudActionId, string> = {
   download: "workspace.react.action.download",
+  share: "workspace.react.action.share",
   edit: "workspace.external.open",
   rename: "workspace.rename",
   trash: "nextcloud.documents.trash",
@@ -42,7 +45,7 @@ const LABEL: Record<NextcloudActionId, string> = {
 
 /** Même présentation que l'espace documentaire : actions fréquentes en boutons, transferts vers l'espace documentaire dans « Organiser », corbeille à droite. */
 const LAYOUT: BarLayout<NextcloudActionId> = {
-  direct: ["download", "edit", "rename", "restore"],
+  direct: ["download", "edit", "rename", "share", "restore"],
   menus: [{ key: "organise", label: "workspace.react.menu.organise", ids: ["copyToWorkspace", "moveToWorkspace"] }],
   danger: ["trash", "deleteForever"],
 };
@@ -117,6 +120,29 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
     else if (userId) window.open(downloadUrl(userId, d, true));
   };
 
+  // Partage d'un document NextCloud : un exemplaire est placé dans l'espace documentaire et partagé là ; annuler le remet dans NextCloud
+  const [shareWarn, setShareWarn] = useState(false);
+  const [sharing, setSharing] = useState<Array<{ _id: string; name: string }>>([]);
+  const startShare = async () => {
+    setShareWarn(false);
+    if (!userId) return;
+    setBusy(true);
+    try {
+      const copies = await nextcloudService.toWorkspace(userId, "copy", paths);
+      if (Array.isArray(copies) && copies.length) setSharing(copies);
+      else setNotice(t("workspace.react.action.failed"));
+    } catch {
+      setNotice(t("workspace.react.action.failed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const cancelShare = async () => {
+    const copies = sharing;
+    setSharing([]);
+    if (userId && copies.length) await run(() => nextcloudService.fromWorkspace(userId, "move", copies.map((c) => c._id), path || undefined));
+  };
+
   const onAction = (a: NextcloudActionId) => {
     if (!userId) return;
     if (a === "download") window.location.assign(selection.length === 1 ? downloadUrl(userId, selection[0]) : multiDownloadUrl(userId, path, selection.map((d) => d.name)));
@@ -127,6 +153,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
     } else if (a === "trash") void run(() => nextcloudService.trash(userId, paths));
     else if (a === "restore") void run(() => nextcloudService.restore(userId, paths));
     else if (a === "deleteForever") void run(() => nextcloudService.deleteForever(userId, paths));
+    else if (a === "share") setShareWarn(true);
     else if (a === "copyToWorkspace") setPicker("copy");
     else if (a === "moveToWorkspace") setPicker("move");
   };
@@ -368,6 +395,29 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
             ↑ {t("workspace.react.nc.up")}
           </button>
         </p>
+      )}
+      <ConfirmModal
+        isOpen={shareWarn}
+        title={t("workspace.react.nc.share.title")}
+        message={t("workspace.react.nc.share.message")}
+        confirmLabel={t("workspace.react.action.share")}
+        onClose={() => setShareWarn(false)}
+        onConfirm={() => void startShare()}
+      />
+      {sharing.length > 0 && (
+        <ShareModal
+          isOpen
+          shareOptions={{ resourceId: sharing[0]._id, resourceRights: [], resourceCreatorId: user?.userId ?? "", resourceCreatorDisplayName: (user as { username?: string } | undefined)?.username ?? "" }}
+          onCancel={() => void cancelShare()}
+          onSuccess={() => {
+            const first = sharing[0];
+            const others = sharing.slice(1).map((c) => c._id);
+            setSharing([]);
+            setSelected(new Set());
+            // plusieurs documents : les droits réglés sur le premier sont recopiés sur les autres
+            if (others.length) void elementActions.shareLike(first._id, others).catch(() => setNotice(t("workspace.react.action.failed")));
+          }}
+        />
       )}
     </>
   );

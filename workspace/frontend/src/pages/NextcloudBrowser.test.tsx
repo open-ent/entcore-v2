@@ -7,11 +7,21 @@ import { SyncDocument } from "../lib/nextcloud";
 vi.mock("@open-ent/react", () => ({
   AppHeader: ({ children }: { children: unknown }) => <div>{children as never}</div>,
   LoadingScreen: () => <div data-loading />,
-  useEdificeClient: () => ({ user: { userId: "u1" } }),
+  useEdificeClient: () => ({ user: { userId: "u1", username: "Lilit" } }),
+  ShareModal: ({ shareOptions, onCancel }: { shareOptions: { resourceId: string }; onCancel: () => void }) => (
+    <div data-share-modal={shareOptions.resourceId}>
+      <button type="button" data-share-cancel onClick={onCancel} />
+    </div>
+  ),
 }));
+vi.mock("../components/ConfirmModal", () => ({
+  ConfirmModal: ({ isOpen, onConfirm }: { isOpen: boolean; onConfirm: () => void }) => (isOpen ? <button type="button" data-confirm-submit onClick={onConfirm} /> : null),
+}));
+vi.mock("../services/workspace.service", () => ({ elementActions: { shareLike: vi.fn() } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
-vi.mock("../services/nextcloud.service", () => ({ nextcloudService: {} }));
+const svc = vi.hoisted(() => ({ toWorkspace: vi.fn(), fromWorkspace: vi.fn() }));
+vi.mock("../services/nextcloud.service", () => ({ nextcloudService: svc }));
 
 const state = vi.hoisted(() => ({ list: {} as Record<string, unknown> }));
 vi.mock("../services/queries", () => ({
@@ -63,7 +73,7 @@ describe("NextcloudBrowser", () => {
     show({ isLoading: false, isError: false, isSuccess: true, data: [d({})] });
     fireEvent.click(document.querySelector("[data-nc-select]")!);
     // actions fréquentes en boutons, transferts vers l'espace documentaire dans le menu « Organiser », corbeille en dernier
-    expect(actions()).toEqual(["download", "rename", "trash"]);
+    expect(actions()).toEqual(["download", "rename", "share", "trash"]);
     expect(document.querySelector('[data-menu-toggle="organise"]')?.getAttribute("data-menu-actions")).toBe("copyToWorkspace moveToWorkspace");
   });
 
@@ -84,5 +94,27 @@ describe("NextcloudBrowser", () => {
   it("un dossier vide affiche un message", () => {
     show({ isLoading: false, isError: false, isSuccess: true, data: [] });
     expect(document.querySelector("[data-nc-empty]")).toBeInTheDocument();
+  });
+
+  it("partager un fichier NextCloud : un exemplaire est placé dans l'espace documentaire puis partagé", async () => {
+    svc.toWorkspace.mockResolvedValue([{ _id: "copie1", name: "a.txt", eType: "file", owner: "u1" }]);
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({})] });
+    fireEvent.click(document.querySelector("[data-nc-select]")!);
+    fireEvent.click(document.querySelector('[data-nc-action="share"]')!);
+    fireEvent.click(document.querySelector("[data-confirm-submit]")!);
+    await vi.waitFor(() => expect(document.querySelector('[data-share-modal="copie1"]')).toBeInTheDocument());
+    expect(svc.toWorkspace).toHaveBeenCalledWith("u1", "copy", ["a.txt"]);
+  });
+
+  it("annuler le partage remet l'exemplaire dans NextCloud", async () => {
+    svc.toWorkspace.mockResolvedValue([{ _id: "copie1", name: "a.txt", eType: "file", owner: "u1" }]);
+    svc.fromWorkspace.mockResolvedValue(undefined);
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({})] });
+    fireEvent.click(document.querySelector("[data-nc-select]")!);
+    fireEvent.click(document.querySelector('[data-nc-action="share"]')!);
+    fireEvent.click(document.querySelector("[data-confirm-submit]")!);
+    await vi.waitFor(() => expect(document.querySelector("[data-share-modal]")).toBeInTheDocument());
+    fireEvent.click(document.querySelector("[data-share-cancel]")!);
+    await vi.waitFor(() => expect(svc.fromWorkspace).toHaveBeenCalledWith("u1", "move", ["copie1"], undefined));
   });
 });

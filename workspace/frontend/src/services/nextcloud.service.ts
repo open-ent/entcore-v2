@@ -51,7 +51,7 @@ export const nextcloudService = {
 
   /** NextCloud → espace documentaire (copie ou déplacement) dans le dossier `parentId` (absent = racine). */
   toWorkspace: (userId: string, verb: "copy" | "move", paths: string[], parentId?: string) =>
-    odeServices.http().put(`${root(userId)}/${verb}/workspace?${params("path", paths)}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}`),
+    odeServices.http().put<Array<{ _id: string; name: string; eType: "file" | "folder"; owner: string }>>(`${root(userId)}/${verb}/workspace?${params("path", paths)}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}`),
   /** Espace documentaire → NextCloud, dans le dossier NextCloud `parentName` (relatif, absent = racine). */
   fromWorkspace: (userId: string, verb: "copy" | "move", ids: string[], parentName?: string) =>
     odeServices.http().put(`${root(userId)}/workspace/${verb}/cloud?${params("id", ids)}${parentName ? `&parentName=${encodeURIComponent(parentName)}` : ""}`),

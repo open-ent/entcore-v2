@@ -112,7 +112,7 @@ export const openInNextcloudUrl = (baseUrl: string, d: Pick<SyncDocument, "path"
 
 export const editInNextcloudUrl = (baseUrl: string, d: Pick<SyncDocument, "fileId">): string => `${baseUrl}/index.php/apps/onlyoffice/${d.fileId}`;
 
-export type NextcloudActionId = "download" | "edit" | "rename" | "trash" | "copyToWorkspace" | "moveToWorkspace" | "restore" | "deleteForever";
+export type NextcloudActionId = "download" | "edit" | "rename" | "share" | "trash" | "copyToWorkspace" | "moveToWorkspace" | "restore" | "deleteForever";
 
 /**
  * Actions de la sélection dans NextCloud :
@@ -128,7 +128,8 @@ export const nextcloudActions = (selection: SyncDocument[], inTrash: boolean): N
   const actions: NextcloudActionId[] = ["download"];
   if (single && selection[0].editable) actions.push("edit");
   if (single) actions.push("rename");
-  if (onlyFiles) actions.push("copyToWorkspace", "moveToWorkspace");
+  // partager un document NextCloud : un exemplaire est placé dans l'espace documentaire, où se règle le partage
+  if (onlyFiles) actions.push("share", "copyToWorkspace", "moveToWorkspace");
   actions.push("trash");
   return actions;
 };

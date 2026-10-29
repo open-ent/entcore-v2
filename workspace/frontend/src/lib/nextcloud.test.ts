@@ -81,9 +81,14 @@ describe("nextcloudActions", () => {
   const folder = doc({ isFolder: true, kind: "folder", editable: false });
   it("sans sélection, rien", () => expect(nextcloudActions([], false)).toEqual([]));
   it("corbeille : restaurer et supprimer définitivement", () => expect(nextcloudActions([file], true)).toEqual(["restore", "deleteForever"]));
-  it("un fichier : tout, hors modification si le format ne s'y prête pas", () => expect(nextcloudActions([file], false)).toEqual(["download", "rename", "copyToWorkspace", "moveToWorkspace", "trash"]));
+  it("un fichier : tout, hors modification si le format ne s'y prête pas", () => expect(nextcloudActions([file], false)).toEqual(["download", "rename", "share", "copyToWorkspace", "moveToWorkspace", "trash"]));
   it("un fichier modifiable propose Éditer", () => expect(nextcloudActions([doc({ editable: true })], false)).toContain("edit"));
   it("un dossier : pas de transfert vers l'espace documentaire", () => expect(nextcloudActions([folder], false)).toEqual(["download", "rename", "trash"]));
+  it("plusieurs fichiers : partage possible (un exemplaire de chacun va dans l'espace documentaire)", () => expect(nextcloudActions([file, file], false)).toContain("share"));
+  it("un dossier ou la corbeille : pas de partage", () => {
+    expect(nextcloudActions([folder], false)).not.toContain("share");
+    expect(nextcloudActions([file], true)).not.toContain("share");
+  });
   it("plusieurs éléments : pas de renommage", () => expect(nextcloudActions([file, file], false)).not.toContain("rename"));
 });
 
