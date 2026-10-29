@@ -380,6 +380,7 @@
   "workspace.react.badge.shared": "Shared",
   "workspace.react.badge.published": "Published on the public portal",
   "workspace.react.comments.column": "Comments",
+  "workspace.react.load.more": "Show more ({{count}})",
   "workspace.react.confirm.delete": "These items will be permanently deleted.",
   "workspace.react.action.share": "Share",
   "workspace.react.viewer.back": "Back",

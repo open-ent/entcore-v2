@@ -212,4 +212,23 @@ describe("Browser", () => {
     fireEvent.keyDown(document, { key: "x", ctrlKey: true });
     expect(document.querySelector("[data-folder-picker]")?.getAttribute("data-folder-picker")).toBe("workspace.react.picker.move");
   });
+
+  it("affiche les éléments par tranches de 50 avec « Afficher la suite »", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: Array.from({ length: 120 }, (_, i) => el({ _id: `e${String(i).padStart(3, "0")}`, name: `f${String(i).padStart(3, "0")}.txt` })) };
+    renderAt("/owner");
+    const count = () => document.querySelectorAll("[data-element]").length;
+    expect(count()).toBe(50);
+    fireEvent.click(document.querySelector("[data-load-more] button")!);
+    expect(count()).toBe(100);
+    fireEvent.click(document.querySelector("[data-load-more] button")!);
+    expect(count()).toBe(120);
+    expect(document.querySelector("[data-load-more]")).toBeNull();
+  });
+
+  it("Ctrl+A ne sélectionne que les éléments affichés", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: Array.from({ length: 120 }, (_, i) => el({ _id: `e${String(i).padStart(3, "0")}`, name: `f${String(i).padStart(3, "0")}.txt` })) };
+    renderAt("/owner");
+    fireEvent.keyDown(document, { key: "a", ctrlKey: true });
+    expect(document.querySelectorAll('[data-element][data-selected="true"]').length).toBe(50);
+  });
 });
