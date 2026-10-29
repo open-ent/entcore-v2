@@ -35,6 +35,9 @@ export const ElementList = ({
   canDropOn,
   sort,
   onSort,
+  publishedIds = [],
+  searching = false,
+  onShowComments,
 }: {
   tree: TreeName;
   elements: WorkspaceElement[];
@@ -52,6 +55,12 @@ export const ElementList = ({
   /** Tri courant et choix d'un critère : en vue liste, les en-têtes de colonnes deviennent cliquables. */
   sort?: { key: SortKey; desc: boolean };
   onSort?: (key: SortKey) => void;
+  /** Documents publiés sur le portail public (leur état n'est pas dans la liste ordinaire). */
+  publishedIds?: string[];
+  /** Résultats de recherche : on y signale les éléments partagés. */
+  searching?: boolean;
+  /** Ouvre les commentaires d'un élément (pastille cliquable). */
+  onShowComments?: (e: WorkspaceElement) => void;
 }) => {
   const { t } = useTranslation("workspace");
   const { pathname } = useLocation();
@@ -135,6 +144,7 @@ export const ElementList = ({
                 )}
               </th>
             ))}
+            {tree !== "trash" && <th aria-label={t("workspace.react.comments.column")} />}
           </tr>
         </thead>
         <tbody>
@@ -143,10 +153,39 @@ export const ElementList = ({
               <td>{checkbox(e)}</td>
               <td>
                 <span aria-hidden="true">{iconOf(e)}</span> {open(e)}
+                {searching && (e.shared?.length ?? 0) > 0 && (
+                  <span role="img" aria-label={t("workspace.react.badge.shared")} title={t("workspace.react.badge.shared")} data-badge-shared>
+                    {" "}
+                    🔗
+                  </span>
+                )}
+                {e.eType === "file" && (e.portalPublication || publishedIds.includes(e._id)) && (
+                  <span role="img" aria-label={t("workspace.react.badge.published")} title={t("workspace.react.badge.published")} data-badge-published>
+                    {" "}
+                    🌐
+                  </span>
+                )}
               </td>
-              <td>{e.ownerName}</td>
+              <td>
+                {e.owner ? (
+                  <a href={`/userbook/annuaire#${e.owner}`} data-owner-link>
+                    {e.ownerName}
+                  </a>
+                ) : (
+                  e.ownerName
+                )}
+              </td>
               <td>{dateOf(e)}</td>
               <td>{e.eType === "file" ? formatSize(e.metadata?.size) : ""}</td>
+              {tree !== "trash" && (
+                <td>
+                  {(e.comments?.length ?? 0) > 0 && (
+                    <button type="button" className="badge" style={{ border: 0, cursor: onShowComments ? "pointer" : "default" }} onClick={() => onShowComments?.(e)} aria-label={t("workspace.react.action.comments")} title={t("workspace.react.action.comments")} data-badge-comments>
+                      {e.comments?.length}
+                    </button>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

@@ -509,6 +509,9 @@ export const Browser = () => {
               onToggleAll={toggleAll}
               sort={sort}
               onSort={(key) => changeSort(key)}
+              publishedIds={published.data}
+              searching={!!query}
+              onShowComments={setCommenting}
               onDragStart={validTree === "owner" ? onDragStart : undefined}
               onDropOnFolder={validTree === "owner" ? (f) => moveDragged(f._id) : undefined}
               canDropOn={(f, ev) => canDrop(f._id, ev)}
