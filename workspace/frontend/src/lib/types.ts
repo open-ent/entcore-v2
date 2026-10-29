@@ -60,7 +60,8 @@ export interface Quota {
   storage: number;
 }
 
-export type ViewMode = "icons" | "list";
+/** « carousel » : diaporama des images du dossier, non mémorisé dans la préférence (comme l'ancienne interface). */
+export type ViewMode = "icons" | "list" | "carousel";
 
 /** Clé de traduction (déjà utilisée par l'ancienne interface) du nom d'un arbre racine : « Documents personnels », « Corbeille »… */
 export const TREE_LABEL_KEY: Record<TreeName, string> = {

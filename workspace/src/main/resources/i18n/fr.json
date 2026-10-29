@@ -360,6 +360,8 @@
   "workspace.react.sort": "Trier par",
   "workspace.react.view.icons": "Icônes",
   "workspace.react.view.list": "Liste",
+  "workspace.react.view.carousel": "Diaporama",
+  "workspace.react.carousel.empty": "Aucune image dans ce dossier.",
   "workspace.react.breadcrumb": "Emplacement",
   "workspace.react.upload.done": "Terminé",
   "workspace.react.upload.failed": "L'envoi a échoué.",

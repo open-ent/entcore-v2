@@ -359,6 +359,8 @@
   "workspace.react.sort": "Sort by",
   "workspace.react.view.icons": "Icons",
   "workspace.react.view.list": "List",
+  "workspace.react.view.carousel": "Slideshow",
+  "workspace.react.carousel.empty": "No image in this folder.",
   "workspace.react.breadcrumb": "Location",
   "workspace.react.upload.done": "Done",
   "workspace.react.upload.failed": "The upload failed.",

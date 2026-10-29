@@ -8,7 +8,13 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import { ActionBar } from "../components/ActionBar";
 import { CommentsModal } from "../components/CommentsModal";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -27,13 +33,10 @@ import { ZipDialog } from "../components/ZipDialog";
 import { LoadMore, PAGE_SIZE } from "../components/LoadMore";
 import { QuotaGauge } from "../components/QuotaGauge";
 import { TreeNav } from "../components/TreeNav";
-import {
-  ActionId,
-  availableActions,
-  downloadUrl,
-} from "../lib/actions";
+import { ActionId, availableActions, downloadUrl } from "../lib/actions";
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
 import { emptyKeys } from "../lib/empty";
+import { Carousel } from "../components/Carousel";
 import { nextSort, SORT_FIELD, sortKeyOf, viewOf } from "../lib/preferences";
 import { isTypingTarget, rangeIds, shortcutOf } from "../lib/selection";
 import { readFlags } from "../lib/flags";
@@ -107,7 +110,7 @@ export const Browser = () => {
   }, [preference.data]);
   const changeView = (v: ViewMode) => {
     setView(v);
-    void workspaceService.savePreference({ view: v });
+    if (v !== "carousel") void workspaceService.savePreference({ view: v });
   };
   const changeSort = (key: SortKey, toggle = true) => {
     const next = toggle ? nextSort(sort, key) : { key, desc: false };
@@ -318,7 +321,9 @@ export const Browser = () => {
     dragged.current = items;
     ev.dataTransfer?.setData(DRAG_TYPE, encodeDrag(items));
     // depuis « Documents ajoutés dans les applis », lâcher sur un dossier COPIE (ces documents restent à leur place)
-    if (ev.dataTransfer) ev.dataTransfer.effectAllowed = validTree === "protected" ? "copy" : "move";
+    if (ev.dataTransfer)
+      ev.dataTransfer.effectAllowed =
+        validTree === "protected" ? "copy" : "move";
   };
   const canDrop = (targetId: string | null, ev: globalThis.DragEvent) =>
     isInternalDrag([...(ev.dataTransfer?.types ?? [])]) &&
@@ -327,16 +332,26 @@ export const Browser = () => {
     const items = dragged.current;
     dragged.current = [];
     if (!items.length) return;
-    if (validTree === "protected") void run(() => elementActions.copy(items, targetId ?? undefined), "workspace.copy.window.finished");
+    if (validTree === "protected")
+      void run(
+        () => elementActions.copy(items, targetId ?? undefined),
+        "workspace.copy.window.finished",
+      );
     else void run(() => elementActions.move(items, targetId ?? undefined));
   };
   // Lâcher sur « Corbeille » : mettre les éléments à la corbeille (Mes documents et applis)
   const trashDrop = {
-    canDrop: (ev: globalThis.DragEvent) => isInternalDrag([...(ev.dataTransfer?.types ?? [])]) && dragged.current.length > 0,
+    canDrop: (ev: globalThis.DragEvent) =>
+      isInternalDrag([...(ev.dataTransfer?.types ?? [])]) &&
+      dragged.current.length > 0,
     onDrop: () => {
       const items = dragged.current;
       dragged.current = [];
-      if (items.length) void run(() => elementActions.trash(items), "workspace.removed.message");
+      if (items.length)
+        void run(
+          () => elementActions.trash(items),
+          "workspace.removed.message",
+        );
     },
   };
 
@@ -346,21 +361,30 @@ export const Browser = () => {
     else if (a === "trash")
       validTree === "shared"
         ? setConfirm("trashShared")
-        : void run(() => elementActions.trash(selection), "workspace.removed.message");
-    else if (a === "restore") void run(() => elementActions.restore(selection), "workspace.restored.message");
+        : void run(
+            () => elementActions.trash(selection),
+            "workspace.removed.message",
+          );
+    else if (a === "restore")
+      void run(
+        () => elementActions.restore(selection),
+        "workspace.restored.message",
+      );
     else if (a === "delete") setConfirm("delete");
     else if (a === "share") {
       setShareSet(selection);
       (validTree === "owner" ? setWarnShare : setSharing)(selection[0]);
-    }
-    else if (a === "publish") setPublishing(selection[0]);
+    } else if (a === "publish") setPublishing(selection[0]);
     else if (a === "history") setVersions(selection[0]);
     else if (a === "comments") setCommenting(selection[0]);
     else if (a === "location") navigate(locationOf(selection[0]));
     else if (a === "driveExport") void exportToDrive();
     else if (a === "ncCopy") setNcPicker("copy");
     else if (a === "ncMove") setNcPicker("move");
-    else if (a === "editImage") navigate(`/view/${selection[0]._id}?edit=image`, { state: { ids: [selection[0]._id], from: location.pathname } });
+    else if (a === "editImage")
+      navigate(`/view/${selection[0]._id}?edit=image`, {
+        state: { ids: [selection[0]._id], from: location.pathname },
+      });
     else if (a === "openLool") window.open(loolUrl(selection[0]._id));
     else if (a === "openScratch") window.open(scratchUrl(selection[0]._id));
     else if (a === "openGeogebra") window.open(geogebraUrl(selection[0]));
@@ -497,7 +521,10 @@ export const Browser = () => {
         </h1>
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
-        <aside className="ws-aside" style={{ flex: "0 0 260px", maxWidth: "100%" }}>
+        <aside
+          className="ws-aside"
+          style={{ flex: "0 0 260px", maxWidth: "100%" }}
+        >
           <TreeNav
             tree={validTree}
             folderId={folderId}
@@ -685,10 +712,20 @@ export const Browser = () => {
               options={[
                 { label: t("workspace.react.view.icons"), value: "icons" },
                 { label: t("workspace.react.view.list"), value: "list" },
+                {
+                  label: t("workspace.react.view.carousel"),
+                  value: "carousel",
+                },
               ]}
               value={view}
               onChange={(v: string) =>
-                changeView(v === "list" ? "list" : "icons")
+                changeView(
+                  v === "list"
+                    ? "list"
+                    : v === "carousel"
+                      ? "carousel"
+                      : "icons",
+                )
               }
             />
             <label>
@@ -742,7 +779,11 @@ export const Browser = () => {
             </div>
           )}
           {success && (
-            <div className="alert alert-success" role="status" data-workspace-success>
+            <div
+              className="alert alert-success"
+              role="status"
+              data-workspace-success
+            >
               {success}
             </div>
           )}
@@ -775,31 +816,52 @@ export const Browser = () => {
           )}
           {content.isSuccess && elements.length === 0 && (
             <div className="text-center my-24" data-workspace-empty>
-              <h2 className="h4">{t(emptyKeys(validTree, !folderId, !!query).title)}</h2>
-              <img src="/workspace/public/img/empty-workspace.svg" alt="" style={{ maxWidth: 160 }} data-empty-image />
-              {emptyKeys(validTree, !folderId, !!query).text && <p className="text-muted">{t(emptyKeys(validTree, !folderId, !!query).text as string)}</p>}
+              <h2 className="h4">
+                {t(emptyKeys(validTree, !folderId, !!query).title)}
+              </h2>
+              <img
+                src="/workspace/public/img/empty-workspace.svg"
+                alt=""
+                style={{ maxWidth: 160 }}
+                data-empty-image
+              />
+              {emptyKeys(validTree, !folderId, !!query).text && (
+                <p className="text-muted">
+                  {t(emptyKeys(validTree, !folderId, !!query).text as string)}
+                </p>
+              )}
             </div>
           )}
           {content.isSuccess && elements.length > 0 && (
             <>
-              <ElementList
-                tree={validTree}
-                elements={visible}
-                view={view}
-                selected={selected}
-                onToggle={toggle}
-                onToggleAll={toggleAll}
-                sort={sort}
-                onSort={(key) => changeSort(key)}
-                publishedIds={published.data}
-                searching={!!query}
-                onShowComments={setCommenting}
-                onDragStart={validTree === "owner" || validTree === "protected" ? onDragStart : undefined}
-                onDropOnFolder={
-                  validTree === "owner" ? (f) => moveDragged(f._id) : undefined
-                }
-                canDropOn={(f, ev) => canDrop(f._id, ev)}
-              />
+              {view === "carousel" ? (
+                <Carousel elements={elements} />
+              ) : (
+                <ElementList
+                  tree={validTree}
+                  elements={visible}
+                  view={view}
+                  selected={selected}
+                  onToggle={toggle}
+                  onToggleAll={toggleAll}
+                  sort={sort}
+                  onSort={(key) => changeSort(key)}
+                  publishedIds={published.data}
+                  searching={!!query}
+                  onShowComments={setCommenting}
+                  onDragStart={
+                    validTree === "owner" || validTree === "protected"
+                      ? onDragStart
+                      : undefined
+                  }
+                  onDropOnFolder={
+                    validTree === "owner"
+                      ? (f) => moveDragged(f._id)
+                      : undefined
+                  }
+                  canDropOn={(f, ev) => canDrop(f._id, ev)}
+                />
+              )}
               <LoadMore
                 remaining={elements.length - visible.length}
                 onMore={() => setShown((n) => n + PAGE_SIZE)}
@@ -859,12 +921,24 @@ export const Browser = () => {
           onCancel={() => setSharing(null)}
           onSuccess={() => {
             const first = sharing;
-            const others = shareSet.filter((e) => e._id !== first._id).map((e) => e._id);
+            const others = shareSet
+              .filter((e) => e._id !== first._id)
+              .map((e) => e._id);
             // plusieurs éléments : les droits réglés sur le premier sont recopiés sur les autres, puis on rafraîchit
-            const copied = others.length ? elementActions.shareLike(first._id, others).catch(() => setNotice(t("workspace.react.action.failed"))) : Promise.resolve();
+            const copied = others.length
+              ? elementActions
+                  .shareLike(first._id, others)
+                  .catch(() => setNotice(t("workspace.react.action.failed")))
+              : Promise.resolve();
             setSharing(null);
             setSelected(new Set());
-            void copied.then(() => Promise.all(["content", "folders"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] }))));
+            void copied.then(() =>
+              Promise.all(
+                ["content", "folders"].map((k) =>
+                  qc.invalidateQueries({ queryKey: ["workspace", k] }),
+                ),
+              ),
+            );
           }}
         />
       )}
@@ -958,14 +1032,20 @@ export const Browser = () => {
           onDone={() => {
             setPicker(null);
             setSelected(new Set());
-            void Promise.all(["content", "folders", "quota"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] })));
+            void Promise.all(
+              ["content", "folders", "quota"].map((k) =>
+                qc.invalidateQueries({ queryKey: ["workspace", k] }),
+              ),
+            );
           }}
         />
       )}
       <RenameModal
         element={renaming}
         error={renameError}
-        parentHref={(parentId) => `#/${validTree === "shared" ? "shared" : "owner"}/${parentId}`}
+        parentHref={(parentId) =>
+          `#/${validTree === "shared" ? "shared" : "owner"}/${parentId}`
+        }
         onClose={() => setRenaming(null)}
         onRename={async (name) => {
           if (!renaming) return;
@@ -1003,11 +1083,19 @@ export const Browser = () => {
           const mode = confirm;
           setConfirm(null);
           if (mode === "trashShared")
-            void run(() => elementActions.trash(selection), "workspace.removed.message");
+            void run(
+              () => elementActions.trash(selection),
+              "workspace.removed.message",
+            );
           else
             void run(
-              () => (mode === "empty" ? elementActions.emptyTrash() : elementActions.deleteForever(selection)),
-              mode === "empty" ? "workspace.empty.trash.confirm" : "workspace.deleted.message",
+              () =>
+                mode === "empty"
+                  ? elementActions.emptyTrash()
+                  : elementActions.deleteForever(selection),
+              mode === "empty"
+                ? "workspace.empty.trash.confirm"
+                : "workspace.deleted.message",
             );
         }}
       />
