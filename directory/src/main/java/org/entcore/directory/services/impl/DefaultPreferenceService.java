@@ -40,7 +40,7 @@ public class DefaultPreferenceService implements PreferenceService {
                 promise.fail("invalid.preference." + appName.getMappingName());
                 return promise.future();
             }
-            String partialQuery = " uac."+ appName.getMappingName() +" = {"+ appName.getMappingName() +"},";
+            String partialQuery = " uac."+ appName.getMappingName() +" = $"+ appName.getMappingName() +",";
             create.append(partialQuery);
             merge.append(partialQuery);
             params.put(appName.getMappingName(), preference.getPreference(appName).encode());
