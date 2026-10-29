@@ -19,7 +19,7 @@ vi.mock("../components/LoolCreateModal", () => ({ LoolCreateModal: () => null })
 vi.mock("../components/NextcloudPicker", () => ({ NextcloudPicker: () => null }));
 vi.mock("../components/PublishModal", () => ({ PublishModal: () => null }));
 vi.mock("../components/ShareWarning", () => ({ ShareWarning: () => null }));
-vi.mock("../components/FolderPicker", () => ({ FolderPicker: ({ isOpen, title }: { isOpen: boolean; title: string }) => (isOpen ? <div data-folder-picker={title} /> : null) }));
+vi.mock("../components/TransferDialog", () => ({ TransferDialog: ({ mode }: { mode: string }) => <div data-folder-picker={mode === "copy" ? "workspace.react.picker.copy" : "workspace.react.picker.move"} /> }));
 vi.mock("../components/RenameModal", () => ({ RenameModal: () => null }));
 vi.mock("../components/ConfirmModal", () => ({ ConfirmModal: () => null }));
 const prefs = vi.hoisted(() => ({ value: { view: "icons" } as Record<string, unknown>, save: vi.fn() }));

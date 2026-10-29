@@ -103,6 +103,28 @@ const putForm = async (url: string, form: URLSearchParams): Promise<void> => {
   if (!res.ok) throw new Error(String(res.status));
 };
 
+/**
+ * Envoi JSON (POST ou PUT) qui rejette avec la clé d'erreur du serveur (ex. « workspace.contrib.cant »), sinon avec le statut :
+ * la copie et le déplacement expliquent à l'usager pourquoi ils échouent (pas de droit de contribution dans le dossier…).
+ */
+const sendJson = async <R>(method: "POST" | "PUT", url: string, payload: unknown): Promise<R> => {
+  const res = await fetch(url, {
+    method,
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-XSRF-TOKEN": xsrfToken(), Accept: "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    /* corps non JSON */
+  }
+  if (!res.ok) throw new Error((body as { error?: string } | null)?.error || String(res.status));
+  return body as R;
+};
+
 /** Clé de traduction de l'erreur d'envoi : 413 → fichier trop gros, 403 → pas de droit, sinon le code du serveur. */
 export const uploadErrorKey = (status: number, body?: string): string => {
   if (status === 413) return "file.too.large.limit";
@@ -150,12 +172,16 @@ export const elementActions = {
   restore: (els: Array<{ _id: string }>) => odeServices.http().putJson("/workspace/documents/restore", ids(els)),
   deleteForever: (els: Array<{ _id: string }>) => odeServices.http().deleteJson("/workspace/documents", ids(els)),
   emptyTrash: () => odeServices.http().delete("/workspace/trash"),
-  /** Destination absente = racine de « Mes documents ». */
-  move: (els: Array<{ _id: string }>, destId?: string) =>
-    odeServices.http().putJson(`/workspace/documents/move/${destId ?? "root"}`, ids(els)),
-  /** Renvoie les copies créées ; chacune porte `copyFromId` (identifiant de l'original). */
+  /** Destination absente = racine de « Mes documents ». Rejette avec la clé d'erreur du serveur. */
+  move: (els: Array<{ _id: string }>, destId?: string) => sendJson<unknown>("PUT", `/workspace/documents/move/${destId ?? "root"}`, ids(els)),
+  /** Renvoie les copies créées ; chacune porte `copyFromId` (identifiant de l'original). Rejette avec la clé d'erreur du serveur. */
   copy: (els: Array<{ _id: string }>, destId?: string) =>
-    odeServices.http().postJson<Array<{ _id: string; name: string; eType: "file" | "folder"; copyFromId?: string; owner: string }>>(`/workspace/documents/copy/${destId ?? "root"}`, ids(els)),
+    sendJson<Array<{ _id: string; name: string; eType: "file" | "folder"; copyFromId?: string; owner: string }>>("POST", `/workspace/documents/copy/${destId ?? "root"}`, ids(els)),
+  /** Déplacement d'éléments partagés vers « Mes documents » : copie, puis suppression des originaux (comme l'ancienne interface). */
+  moveForShared: async (els: Array<{ _id: string }>, destId?: string) => {
+    await elementActions.copy(els, destId);
+    await odeServices.http().deleteJson("/workspace/documents", ids(els));
+  },
   /**
    * Recopie sur d'autres éléments les droits de partage d'un élément (partage de plusieurs éléments à la fois : la fenêtre de partage
    * règle le premier, ses droits sont appliqués aux autres). Les droits s'ajoutent à ceux déjà présents.

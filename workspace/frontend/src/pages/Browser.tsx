@@ -16,7 +16,7 @@ import { LoolCreateModal } from "../components/LoolCreateModal";
 import { NextcloudNav } from "../components/NextcloudNav";
 import { NextcloudPicker } from "../components/NextcloudPicker";
 import { ElementList } from "../components/ElementList";
-import { FolderPicker } from "../components/FolderPicker";
+import { TransferDialog } from "../components/TransferDialog";
 import { PublishModal } from "../components/PublishModal";
 import { RenameModal } from "../components/RenameModal";
 import { ShareWarning } from "../components/ShareWarning";
@@ -31,7 +31,6 @@ import {
   ActionId,
   availableActions,
   downloadUrl,
-  forbiddenTargets,
 } from "../lib/actions";
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
 import { nextSort, SORT_FIELD, sortKeyOf, viewOf } from "../lib/preferences";
@@ -916,26 +915,22 @@ export const Browser = () => {
           )
         }
       />
-      <FolderPicker
-        isOpen={picker !== null}
-        title={
-          picker === "copy"
-            ? t("workspace.react.picker.copy")
-            : t("workspace.react.picker.move")
-        }
-        folders={folders.data ?? []}
-        forbidden={forbiddenTargets(folders.data ?? [], selection)}
-        onClose={() => setPicker(null)}
-        onPick={(dest) => {
-          const mode = picker;
-          setPicker(null);
-          void run(() =>
-            mode === "copy"
-              ? elementActions.copy(selection, dest ?? undefined)
-              : elementActions.move(selection, dest ?? undefined),
-          );
-        }}
-      />
+      {picker && (
+        <TransferDialog
+          mode={picker}
+          elements={selection}
+          folders={folders.data ?? []}
+          userId={user?.userId}
+          groupIds={groupIds}
+          fromTree={validTree}
+          onClose={() => setPicker(null)}
+          onDone={() => {
+            setPicker(null);
+            setSelected(new Set());
+            void Promise.all(["content", "folders", "quota"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] })));
+          }}
+        />
+      )}
       <RenameModal
         element={renaming}
         error={renameError}
