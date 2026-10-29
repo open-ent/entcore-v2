@@ -92,6 +92,7 @@ export const TreeNav = ({
   folderId,
   folders,
   highlight = true,
+  keepOpen = false,
   publicVisible = false,
   onCreateFolder,
   drop,
@@ -102,6 +103,8 @@ export const TreeNav = ({
   folders: WorkspaceElement[];
   /** Faux sur la page NextCloud : l'arborescence reste affichée mais aucun emplacement n'y est sélectionné. */
   highlight?: boolean;
+  /** Vrai sur la page NextCloud : « Documents personnels » garde ses dossiers dépliés, comme sur la page d'accueil de l'espace documentaire. */
+  keepOpen?: boolean;
   /** « Documents publics » n'apparaît que s'il contient quelque chose (comme dans l'ancienne interface). */
   publicVisible?: boolean;
   /** Présent seulement là où l'on peut créer un dossier. */
@@ -117,6 +120,7 @@ export const TreeNav = ({
       <ul className="list-unstyled mb-0" role="tree" style={{ borderLeft: "4px solid #ffc800" }}>
         {TREES.filter((n) => n !== "public" || publicVisible || n === tree).map((name) => {
           const current = highlight && name === tree;
+          const expanded = current || (keepOpen && name === tree);
           return (
             <li key={name} role="treeitem" aria-selected={current}>
               <div
@@ -124,13 +128,13 @@ export const TreeNav = ({
                 style={{ ...ROW, ...(current && !folderId ? SELECTED : {}), ...(name === "owner" && overRoot === "root" ? { outline: "2px dashed #2a9cc8" } : {}) }}
               >
                 <span style={{ ...CHEVRON, cursor: "default" }} aria-hidden="true">
-                  {(name === "owner" || name === "shared") && current ? <span style={{ color: "#ffb400" }}>▼</span> : ""}
+                  {(name === "owner" || name === "shared") && expanded ? <span style={{ color: "#ffb400" }}>▼</span> : ""}
                 </span>
                 <Link to={`/${name}`} data-tree-root={name} style={current && !folderId ? ACTIVE_LINK : undefined}>
                   {t(TREE_LABEL_KEY[name])}
                 </Link>
               </div>
-              {(name === "owner" || name === "shared") && current && <FolderNodes tree={name} folders={folders} parentId={null} currentId={folderId} depth={1} drop={name === "owner" ? drop : undefined} />}
+              {(name === "owner" || name === "shared") && expanded && <FolderNodes tree={name} folders={folders} parentId={null} currentId={folderId} depth={1} drop={name === "owner" ? drop : undefined} />}
             </li>
           );
         })}

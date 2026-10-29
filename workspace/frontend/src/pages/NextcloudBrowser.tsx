@@ -153,7 +153,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
         <aside style={{ flex: "0 0 260px", maxWidth: "100%" }}>
-          <TreeNav tree="owner" highlight={false} folders={folders.data ?? []} />
+          <TreeNav tree="owner" highlight={false} keepOpen folders={folders.data ?? []} />
           <NextcloudNav
             active
             trash={trash}
