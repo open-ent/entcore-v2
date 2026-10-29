@@ -117,4 +117,12 @@ describe("NextcloudBrowser", () => {
     fireEvent.click(document.querySelector("[data-share-cancel]")!);
     await vi.waitFor(() => expect(svc.fromWorkspace).toHaveBeenCalledWith("u1", "move", ["copie1"], undefined));
   });
+
+  it("propose d'ouvrir NextCloud (connexion unique) et rappelle l'adresse pour les autres appareils", () => {
+    show({ isLoading: false, isError: false, isSuccess: true, data: [] });
+    const button = document.querySelector("[data-nc-open-server]") as HTMLAnchorElement;
+    expect(button.getAttribute("href")).toBe("https://nc.example");
+    expect(button.getAttribute("target")).toBe("_blank");
+    expect(document.querySelector("[data-nc-url]")?.textContent).toContain("https://nc.example");
+  });
 });
