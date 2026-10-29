@@ -76,7 +76,7 @@ public class DefaultGroupService implements GroupService {
 			condition = "WHERE g:Group ";
 		}
 		if(onlyAutomaticGroups.booleanValue() == true)
-			condition += " AND EXISTS(g.filter) ";
+			condition += " AND g.filter IS NOT NULL ";
 
 		JsonObject params = new JsonObject();
 		if (!userInfos.getFunctions().containsKey(SUPER_ADMIN) &&
@@ -87,20 +87,20 @@ public class DefaultGroupService implements GroupService {
 			UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				condition += "AND s.id IN {structures} ";
+				condition += "AND s.id IN $structures ";
 				params.put("structures", new JsonArray(scope));
 			}
 		}
 
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			condition += " AND s.id = {structure} ";
+			condition += " AND s.id = $structure ";
 			params.put("structure", structureId);
 		}
 		String query =
 				"MATCH (s:Structure)" + recursion + "<-[:BELONGS*0..1]-()<-[:DEPENDS]-(g) " + condition +
 				"OPTIONAL MATCH (g)-[:DEPENDS]->(c:Class) " +
 				"WITH g, collect({name: c.name, id: c.id}) as classes, collect( distinct {name: s.name, id: s.id}) as structures, " +
-				"HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type " +
+				"HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type " +
 				"RETURN DISTINCT g.id as id, g.name as name, g.displayName as displayName, g.filter as filter, labels(g) as labels, " +
 				"g.createdAt as createdAt, g.createdByName as createdByName, g.modifiedAt as modifiedAt, g.modifiedByName as modifiedByName, " +
                         "g.manualGroupAutolinkUsersPositions as manualGroupAutolinkUsersPositions, " +
@@ -113,9 +113,9 @@ public class DefaultGroupService implements GroupService {
 				"g.lockDelete AS lockDelete, g.lockCompose AS lockCompose, coalesce(g.nbUsers,0) as nbUsers, " +
 				"CASE WHEN any(x in classes where x <> {name: null, id: null}) THEN classes END as classes," +
 				"CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures, " +
-				"CASE WHEN (g: ProfileGroup)-[:DEPENDS]-(:Structure) THEN 'StructureGroup' " +
-					" WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
-					" WHEN HAS(g.subType) THEN g.subType " +
+				"CASE WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]-(:Structure)) THEN 'StructureGroup' " +
+					" WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]->(:Class)) THEN 'ClassGroup' " +
+					" WHEN g.subType IS NOT NULL THEN g.subType " +
 					" WHEN (g: ManualGroup) AND (" +
 						" g.autolinkTargetAllStructs = true " +
 						" OR size(coalesce(g.autolinkUsersFromGroups, [])) > 0 " +
@@ -170,7 +170,7 @@ public class DefaultGroupService implements GroupService {
 		String condition = "";
 		JsonObject params = new JsonObject();
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			condition = "WHERE s.id = {structureId} ";
+			condition = "WHERE s.id = $structureId ";
 			params.put("structureId", structureId);
 		}
 		if (type == null || type.trim().isEmpty()) {
@@ -218,13 +218,13 @@ public class DefaultGroupService implements GroupService {
 		// est rattachée à son établissement via (:Class)-[:BELONGS]->(:Structure) (vérifié en
 		// base), d'où le second OPTIONAL MATCH + coalesce pour couvrir les deux cas.
 		final String query =
-				"MATCH (g:Group {id:{id}}) " +
+				"MATCH (g:Group {id:$id}) " +
 				"OPTIONAL MATCH (g)-[:DEPENDS]->(struct:Structure) " +
 				"OPTIONAL MATCH (g)-[:DEPENDS]->(:Class)-[:BELONGS]->(classStruct:Structure) " +
 				"RETURN g.id as id, g.name as name, g.nbUsers as nbUsers, coalesce(struct.id, classStruct.id) as structureId, " +
-				"CASE WHEN (g: ProfileGroup)-[:DEPENDS]->(:Structure) THEN 'StructureGroup' " +
-				"     WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
-				"     WHEN HAS(g.subType) THEN g.subType END as type ";
+				"CASE WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]->(:Structure)) THEN 'StructureGroup' " +
+				"     WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]->(:Class)) THEN 'ClassGroup' " +
+				"     WHEN g.subType IS NOT NULL THEN g.subType END as type ";
 		final JsonObject params = new JsonObject().put("id", groupId);
 		neo.execute(query, params, validUniqueResultHandler(handler));
 	}
@@ -238,9 +238,9 @@ public class DefaultGroupService implements GroupService {
 		// jointure Neo4j supplémentaire aux appelants existants qui n'en ont pas besoin.
 		final boolean withStructureId = Field.STRUCTURE_ID.isSetIn(fieldMask);
 		final String query =
-			"MATCH (g:Group) WHERE g.id IN {groupIds} " +
+			"MATCH (g:Group) WHERE g.id IN $groupIds " +
 			"WITH g " +
-			(withTypeSubType ? ", HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type " : "") +
+			(withTypeSubType ? ", HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type " : "") +
 			// cf. commentaire dans getInfos() : ClassGroup dépend d'une Class, pas directement
 			// d'une Structure — la classe est rattachée via (:Class)-[:BELONGS]->(:Structure).
 			(withStructureId ? "OPTIONAL MATCH (g)-[:DEPENDS]->(struct:Structure) " +
@@ -250,9 +250,9 @@ public class DefaultGroupService implements GroupService {
 			(withNbUsers ? ", coalesce(g.nbUsers,0) as nbUsers " : "") +
 			(withStructureId ? ", coalesce(struct.id, classStruct.id) as structureId " : "") +
 			(withTypeSubType ? ", type, CASE " +
-				" WHEN (g: ProfileGroup)-[:DEPENDS]-(:Structure) THEN 'StructureGroup' " +
-				" WHEN (g: ProfileGroup)-[:DEPENDS]->(:Class) THEN 'ClassGroup' " +
-				" WHEN HAS(g.subType) THEN g.subType " +
+				" WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]-(:Structure)) THEN 'StructureGroup' " +
+				" WHEN g:ProfileGroup AND exists((g)-[:DEPENDS]->(:Class)) THEN 'ClassGroup' " +
+				" WHEN g.subType IS NOT NULL THEN g.subType " +
 				" WHEN (g: ManualGroup) AND (" +
 					" g.autolinkTargetAllStructs = true " +
 					" OR size(coalesce(g.autolinkUsersFromGroups, [])) > 0 " +
@@ -287,19 +287,19 @@ public class DefaultGroupService implements GroupService {
 			UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				structureCondition += " AND s.id IN {structures} ";
+				structureCondition += " AND s.id IN $structures ";
 				params.put("structures", new JsonArray(scope));
 			}
 		}
 
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			structureCondition += " AND s.id = {structure} ";
+			structureCondition += " AND s.id = $structure ";
 			params.put("structure", structureId);
 		}
 
 		String query =
 				"MATCH (s:Structure)" + recursion + "<-[:BELONGS*0..1]-()<-[:DEPENDS]-(g:Group) " +
-				"WHERE EXISTS(g.filter) " + structureCondition + " AND ('FuncGroup' in labels(g) OR 'DisciplineGroup' in labels(g)) " +
+				"WHERE g.filter IS NOT NULL " + structureCondition + " AND ('FuncGroup' in labels(g) OR 'DisciplineGroup' in labels(g)) " +
 				"RETURN g.id as id, g.name as name, g.displayName as displayName, g.filter as filter, labels(g) as labels";
 		neo.execute(query, params, validResultHandler(results));
 	}
@@ -321,7 +321,7 @@ public class DefaultGroupService implements GroupService {
 		JsonObject params = new JsonObject();
 
 		if (structureId != null && !structureId.trim().isEmpty()) {
-			query = "MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u:User), u-[:IN]->(g:CommunityGroup) WHERE s.id = {structureId} WITH g, collect( distinct {name: s.name, id: s.id}) as structures, ";
+			query = "MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u:User), (u)-[:IN]->(g:CommunityGroup) WHERE s.id = $structureId WITH g, collect( distinct {name: s.name, id: s.id}) as structures, ";
 			returnStructure = ", CASE WHEN any(x in structures where x <> {name: null, id: null}) THEN structures END as structures";
 			params.put("structureId", structureId);
 		} else {
@@ -329,7 +329,7 @@ public class DefaultGroupService implements GroupService {
 		}
 
 		query = query +
-				"HEAD(filter(x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group')) as type " +
+				"HEAD([x IN labels(g) WHERE x <> 'Visible' AND x <> 'Group']) as type " +
 				"RETURN DISTINCT g.id as id, g.name as name, g.displayName as displayName, g.filter as filter, labels(g) as labels, type, " +
 				"g.lockDelete AS lockDelete, coalesce(g.nbUsers,0) as nbUsers" +
 				returnStructure;
@@ -341,7 +341,7 @@ public class DefaultGroupService implements GroupService {
 	public Future<JsonObject> getGroupByExternalId(String externalId) {
 		final Promise<JsonObject> promise = Promise.promise();
 		final String query =
-				"MATCH (g:Group {externalId:{externalId}}) RETURN g.id as id, g.name as name";
+				"MATCH (g:Group {externalId:$externalId}) RETURN g.id as id, g.name as name";
 		final JsonObject params = new JsonObject().put("externalId", externalId);
 		neo.execute(query, params, validUniqueResultHandler(event -> {
 			if (event.isLeft()) {
@@ -391,7 +391,7 @@ public class DefaultGroupService implements GroupService {
 			setClause.append("g:").append(sanitizedLabels.get(i));
 		}
 		
-		final String query = "MATCH (g:Group {id:{groupId}}) " +
+		final String query = "MATCH (g:Group {id:$groupId}) " +
 					 setClause.toString() + " " +
 					 "RETURN g.id as id, g.name as name, g.displayName as displayName, " +
 					 "labels(g) as labels";

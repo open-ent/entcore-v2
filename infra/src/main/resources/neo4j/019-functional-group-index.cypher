@@ -1,2 +1,2 @@
 
-CREATE INDEX ON :FunctionalGroup(source);
+CREATE INDEX IF NOT EXISTS FOR (n:FunctionalGroup) ON (n.source);

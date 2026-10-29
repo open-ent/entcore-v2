@@ -622,7 +622,7 @@ public class FileSystemExportService implements ExportService {
 
 	private void sendExportEmail(final String exportId, final String locale, final String status, final String host) {
 		final String userId = getUserId(exportId);
-		String query = "MATCH (u:User {id : {userId}}) RETURN u.email as email ";
+		String query = "MATCH (u:User {id : $userId}) RETURN u.email as email ";
 		JsonObject params = new JsonObject().put("userId", userId);
 		Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {
 			@Override

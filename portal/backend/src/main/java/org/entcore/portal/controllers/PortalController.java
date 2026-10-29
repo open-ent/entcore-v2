@@ -354,8 +354,8 @@ public class PortalController extends BaseController {
 							.put("template", "/public/template/portal.html")
 							.put("logoutCallback", getLogoutCallback(request, urls));
 					String query =
-							"MATCH (n:User)-[:USERBOOK]->u " +
-							"WHERE n.id = {id} " +
+							"MATCH (n:User)-[:USERBOOK]->(u) " +
+							"WHERE n.id = $id " +
 							"RETURN u.theme" + getSkinFromConditions(request).replaceAll("\\W+", "") + " as theme";
 					Map<String, Object> params = new HashMap<>();
 					params.put("id", user.getUserId());

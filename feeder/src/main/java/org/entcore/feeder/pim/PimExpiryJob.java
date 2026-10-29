@@ -27,15 +27,15 @@ public class PimExpiryJob {
 
     static final String FIND_EXPIRED =
             "MATCH (u:User)-[rf:HAS_FUNCTION]->(f:Function) " +
-            "WHERE rf.validUntil IS NOT NULL AND rf.validUntil <= {now} " +
+            "WHERE rf.validUntil IS NOT NULL AND rf.validUntil <= $now " +
             "RETURN u.id AS userId, u.login AS login, f.externalId AS function, rf.scope AS scope, " +
             "rf.validUntil AS validUntil, rf.grantedBy AS grantedBy, rf.reason AS reason " +
             "LIMIT 500";
 
     static final String REMOVE =
-            "MATCH (u:User {id: {userId}})-[rf:HAS_FUNCTION]->(f:Function {externalId: {function}}) " +
-            "WHERE rf.validUntil IS NOT NULL AND rf.validUntil <= {now} " +
-            "OPTIONAL MATCH (u)-[r:IN|COMMUNIQUE]-(fg:FunctionGroup) WHERE fg.externalId ENDS WITH {function} " +
+            "MATCH (u:User {id: $userId})-[rf:HAS_FUNCTION]->(f:Function {externalId: $function}) " +
+            "WHERE rf.validUntil IS NOT NULL AND rf.validUntil <= $now " +
+            "OPTIONAL MATCH (u)-[r:IN|COMMUNIQUE]-(fg:FunctionGroup) WHERE fg.externalId ENDS WITH $function " +
             "DELETE r, rf " +
             "RETURN count(DISTINCT f) AS removed";
 

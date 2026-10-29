@@ -164,7 +164,7 @@ public class ScimFeederTest {
                         "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
                         "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup) WHERE NOT pg:DeleteGroup " +
                         "OPTIONAL MATCH (u)-[:HAS_RELATIONSHIPS]->(b:Backup) " +
-                        "RETURN HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg, " +
+                        "RETURN u.deleteDate IS NOT NULL AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg, " +
                         "b.IN_OUTGOING AS backup", new JsonObject()))
                 .onComplete(context.asyncAssertSuccess(rows -> {
                     context.assertEquals(1, rows.size(), "le compte est conservé jusqu'à la purge");
@@ -192,7 +192,7 @@ public class ScimFeederTest {
                         "MATCH (u:User {source:'SCIM'}) " +
                         "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
                         "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(:Structure) " +
-                        "RETURN HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
+                        "RETURN u.deleteDate IS NOT NULL AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
                         new JsonObject()))
                 .onComplete(context.asyncAssertSuccess(rows -> {
                     context.assertEquals(1, rows.size(), "un seul compte (pas de doublon)");
@@ -235,7 +235,7 @@ public class ScimFeederTest {
                 .compose(x -> seedAafStructureAndUser())
                 .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", REST_USER_ID).put("resource", restUser())))
                 .compose(x -> test.database().executeNeo4j(
-                        "MATCH (u:User {id:{id}})-[r:IN {source:'SCIM'}]->(:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(s:Structure) " +
+                        "MATCH (u:User {id:$id})-[r:IN {source:'SCIM'}]->(:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(s:Structure) " +
                         "RETURN u.scimExternalId AS ext, u.login AS login, s.id AS s", new JsonObject().put("id", REST_USER_ID)))
                 .onComplete(context.asyncAssertSuccess(rows -> {
                     context.assertEquals(1, rows.size(), "rattaché à la structure AAF existante");
@@ -273,7 +273,7 @@ public class ScimFeederTest {
                             "MATCH (u:User {scimExternalId:'iam-42'}) " +
                             "OPTIONAL MATCH (u)-[:IN]->(dg:DeleteGroup) " +
                             "OPTIONAL MATCH (u)-[:IN]->(pg:ProfileGroup {filter:'Teacher'})-[:DEPENDS]->(:Structure {id:'s-aaf'}) " +
-                            "RETURN u.id AS id, u.firstName AS fn, HAS(u.deleteDate) AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
+                            "RETURN u.id AS id, u.firstName AS fn, u.deleteDate IS NOT NULL AS pending, count(DISTINCT dg) AS dg, count(DISTINCT pg) AS pg",
                             new JsonObject());
                 })
                 .onComplete(context.asyncAssertSuccess(rows -> {
@@ -311,7 +311,7 @@ public class ScimFeederTest {
                 .compose(x -> seedAafStructureAndUser())
                 .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", REST_USER_ID).put("resource", restUser())))
                 .compose(x -> scim.handleRest("user-patch", new JsonObject().put("id", REST_USER_ID).put("resource", patch)))
-                .compose(x -> test.database().executeNeo4j("MATCH (u:User {id:{id}}) RETURN u.blocked AS b, u.lastName AS ln",
+                .compose(x -> test.database().executeNeo4j("MATCH (u:User {id:$id}) RETURN u.blocked AS b, u.lastName AS ln",
                         new JsonObject().put("id", REST_USER_ID)))
                 .onComplete(context.asyncAssertSuccess(rows -> {
                     context.assertEquals(true, rows.getJsonObject(0).getBoolean("b"));
@@ -335,11 +335,11 @@ public class ScimFeederTest {
                 .compose(x -> scim.handleRest("user-create", new JsonObject().put("id", REST_USER_ID).put("resource", restUser())))
                 .compose(x -> scim.handleRest("group-create", new JsonObject().put("id", REST_GROUP_ID).put("resource", group)))
                 // adhésion posée par une autre source : ne doit pas être retirée par SCIM
-                .compose(x -> test.database().executeNeo4j("MATCH (u:User {id:'u-aaf'}), (g:Group {id:{g}}) CREATE (u)-[:IN]->(g)",
+                .compose(x -> test.database().executeNeo4j("MATCH (u:User {id:'u-aaf'}), (g:Group {id:$g}) CREATE (u)-[:IN]->(g)",
                         new JsonObject().put("g", REST_GROUP_ID)))
                 .compose(x -> scim.handleRest("group-patch", new JsonObject().put("id", REST_GROUP_ID).put("resource", removeAll)))
                 .compose(x -> test.database().executeNeo4j(
-                        "MATCH (g:FunctionalGroup {id:{g}})-[:DEPENDS]->(:Structure {id:'s-aaf'}) " +
+                        "MATCH (g:FunctionalGroup {id:$g})-[:DEPENDS]->(:Structure {id:'s-aaf'}) " +
                         "OPTIONAL MATCH (u:User)-[:IN]->(g) RETURN collect(u.id) AS members",
                         new JsonObject().put("g", REST_GROUP_ID)))
                 .onComplete(context.asyncAssertSuccess(rows -> {

@@ -58,8 +58,8 @@ public class SSOAten extends AbstractSSOProvider {
 			}
 			String query = "MATCH (student:User)-[:RELATED]->(u:User)-[:IN]->(:ProfileGroup)" +
 					"-[:DEPENDS]->(s:Structure) " +
-					"WHERE HEAD(u.profiles) = 'Relative' AND s.UAI IN {UAI} AND student.attachmentId IN {attachmentId} " +
-					"AND u.firstName IN {firstName} AND u.lastName IN {lastName} AND NOT(HAS(u.mergedWith)) ";
+					"WHERE HEAD(u.profiles) = 'Relative' AND s.UAI IN $UAI AND student.attachmentId IN $attachmentId " +
+					"AND u.firstName IN $firstName AND u.lastName IN $lastName AND u.mergedWith IS NULL ";
 			JsonObject params = new JsonObject()
 					.put("attachmentId", attachmentId)
 					.put("UAI", uais)
@@ -76,16 +76,16 @@ public class SSOAten extends AbstractSSOProvider {
 				switch (values[0]) {
 					case "1": // PersRelEleve 1d
 					case "2": // PersRelEleve 2d
-						query = "MATCH (:User {attachmentId: {attachmentId}})-[:RELATED]->(u:User)-[:IN]->(:ProfileGroup)" +
+						query = "MATCH (:User {attachmentId: $attachmentId})-[:RELATED]->(u:User)-[:IN]->(:ProfileGroup)" +
 								"-[:DEPENDS]->(s:Structure) " +
-								"WHERE HEAD(u.profiles) = 'Relative' AND s.UAI = {UAI} " +
-								"AND u.firstName = {firstName} AND u.lastName = {lastName} ";
+								"WHERE HEAD(u.profiles) = 'Relative' AND s.UAI = $UAI " +
+								"AND u.firstName = $firstName AND u.lastName = $lastName ";
 						params.put("firstName", values[2]).put("lastName", values[1]);
 						break;
 					case "3": // Eleve 1d
 					case "4": // Eleve 2d
-						query = "MATCH (u:User {attachmentId: {attachmentId}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-								"WHERE HEAD(u.profiles) = 'Student' AND s.UAI = {UAI} ";
+						query = "MATCH (u:User {attachmentId: $attachmentId})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
+								"WHERE HEAD(u.profiles) = 'Student' AND s.UAI = $UAI ";
 						break;
 					default:
 						handler.handle(new Either.Left<String, Object>("invalid.user.profile"));

@@ -67,11 +67,11 @@ public class DefaultQuotaService extends BasicQuotaService {
 			// Le compteur est dénormalisé et dérive : une décrémentation peut dépasser ce qu'il
 			// contient (purge des documents d'un compte, cf. UserDocumentsAdminController). Une
 			// occupation négative n'a pas de sens et offrirait du quota en plus : on borne à zéro.
-			String query = "MATCH (u:UserBook { userid : {userId}}) " + "SET u.__lock__ = 1, "
-					+ "u.storage = CASE WHEN u.storage + {size} < 0 THEN 0 ELSE u.storage + {size} END "
+			String query = "MATCH (u:UserBook { userid : $userId}) " + "SET u.__lock__ = 1, "
+					+ "u.storage = CASE WHEN u.storage + $size < 0 THEN 0 ELSE u.storage + $size END "
 					+ "WITH u, u.alertSize as oldAlert "
-					+ "OPTIONAL MATCH (:User {id: {userId}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) "
-					+ "WITH u, oldAlert, COALESCE(MIN(s.storageAlertThreshold), {threshold}) as alertThreshold "
+					+ "OPTIONAL MATCH (:User {id: $userId})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) "
+					+ "WITH u, oldAlert, COALESCE(MIN(s.storageAlertThreshold), $threshold) as alertThreshold "
 					+ "SET u.alertSize = ((100.0 * u.storage / u.quota) > alertThreshold), u.__lock__ = 0 "
 					+ "RETURN u.storage as storage, (u.alertSize = true AND oldAlert <> u.alertSize) as notify ";
 			params.put("userId", userId);
@@ -102,12 +102,12 @@ public class DefaultQuotaService extends BasicQuotaService {
 		// MERGE crée le UserBook avec le quota par défaut du profil s'il n'existe pas.
 		// Évite le 404 pour les utilisateurs dont le compte n'a pas été activé via activation.ack.
 		String query =
-			"MATCH (n:User {id: {userId}}) " +
+			"MATCH (n:User {id: $userId}) " +
 			"OPTIONAL MATCH (n)-[:IN]->(:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 			"WITH n, sum(CASE WHEN p IS NOT NULL AND p.defaultQuota IS NOT NULL " +
 			"           THEN p.defaultQuota ELSE 104857600 END) AS defaultQ " +
 			"MERGE (n)-[:USERBOOK]->(u:UserBook) " +
-			"ON CREATE SET u.userid = {userId}, u.quota = defaultQ, u.storage = 0, u.alertSize = false " +
+			"ON CREATE SET u.userid = $userId, u.quota = defaultQ, u.storage = 0, u.alertSize = false " +
 			"RETURN u.quota AS quota, u.storage AS storage";
 		neo4j.execute(query, new io.vertx.core.json.JsonObject().put("userId", userId),
 			validUniqueResultHandler(handler));

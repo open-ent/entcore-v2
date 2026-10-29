@@ -243,7 +243,7 @@ public class NewDeviceWarningTask extends TemplatedEmailRenders implements Handl
             user.addNewConnection(conn);
         }
 
-        String getUsersEmail = "MATCH (u:User) WHERE u.id IN {users} " +
+        String getUsersEmail = "MATCH (u:User) WHERE u.id IN $users " +
                                 "OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
                                 "RETURN u.id AS id, u.email AS email, u.displayName AS displayName, u.lastScheme AS lastScheme, u.lastDomain AS lastDomain, u.federated AS federated, " +
                                 "uac.theme AS theme, uac.language AS language";
@@ -330,7 +330,7 @@ public class NewDeviceWarningTask extends TemplatedEmailRenders implements Handl
                                                     " (" + LOGIN_ID_FIELD + "," + DATE_FIELD + "," + USER_AGENT_FIELD + "," + IP_FIELD +
                                                     " ," + USER_ID_FIELD + "," + USER_PROFILE_FIELD + "," + USER_ADMIN_FIELD +
                                                     " ," + PLATFORM_ID_FIELD + "," + SCORE_FIELD + "," + NOTIFICATION_FIELD + ")" +
-                                                    " VALUES ($1,$2,$3,CAST(lower($4) AS INET),$5,$6,$7,$8,$9,$10)";
+                                                    " VALUES ($1,$2,$3,CAST(toLower($4) AS INET),$5,$6,$7,$8,$9,$10)";
 
                     List<Tuple> insertTuples = new ArrayList<Tuple>();
                     for(LoginEventUser user : users.values())
@@ -427,7 +427,7 @@ public class NewDeviceWarningTask extends TemplatedEmailRenders implements Handl
         UserUtils.getUserInfos(vertx.eventBus(), request, user -> {
             if (user != null) {
                 // Need the email address, theme.... :-(
-                String getUserEmail = "MATCH (u:User{id:{user}}) " +
+                String getUserEmail = "MATCH (u:User{id:$user}) " +
                     "OPTIONAL MATCH (u)-[:PREFERS]->(uac:UserAppConf) " +
                     "RETURN u.email AS email, u.displayName AS displayName, u.lastScheme AS lastScheme, u.lastDomain AS lastDomain, u.federated AS federated, " +
                     "uac.theme AS theme, uac.language AS language";

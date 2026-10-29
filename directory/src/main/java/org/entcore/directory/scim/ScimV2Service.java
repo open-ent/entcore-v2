@@ -58,13 +58,13 @@ public class ScimV2Service {
     public Future<JsonObject> listUsers(ScimFilter.Clause clause, int startIndex, int count) {
         final JsonObject params = clause.params.copy().put("skip", startIndex - 1).put("limit", count);
         final String page = "MATCH (u:User) WHERE " + clause.where + " " +
-                "WITH u ORDER BY u.lastName, u.firstName, u.id SKIP {skip} LIMIT {limit} " + USER_PROJECTION;
+                "WITH u ORDER BY u.lastName, u.firstName, u.id SKIP $skip LIMIT $limit " + USER_PROJECTION;
         final String total = "MATCH (u:User) WHERE " + clause.where + " RETURN count(u) AS total";
         return page(page, total, params);
     }
 
     public Future<JsonObject> getUser(String id) {
-        return first("MATCH (u:User {id: {id}}) WITH u " + USER_PROJECTION, new JsonObject().put("id", id));
+        return first("MATCH (u:User {id: $id}) WITH u " + USER_PROJECTION, new JsonObject().put("id", id));
     }
 
     // ------------------------------------------------------------------------------ Groups
@@ -72,14 +72,14 @@ public class ScimV2Service {
     public Future<JsonObject> listGroups(ScimFilter.Clause clause, int startIndex, int count, boolean withMembers) {
         final JsonObject params = clause.params.copy().put("skip", startIndex - 1).put("limit", count);
         final String page = "MATCH (g:Group) WHERE " + GROUP_LABELS + " AND " + clause.where + " " +
-                "WITH g ORDER BY g.name, g.id SKIP {skip} LIMIT {limit} " + GROUP_PROJECTION +
+                "WITH g ORDER BY g.name, g.id SKIP $skip LIMIT $limit " + GROUP_PROJECTION +
                 (withMembers ? GROUP_MEMBERS + GROUP_RETURN + ", members" : GROUP_RETURN);
         final String total = "MATCH (g:Group) WHERE " + GROUP_LABELS + " AND " + clause.where + " RETURN count(g) AS total";
         return page(page, total, params);
     }
 
     public Future<JsonObject> getGroup(String id, boolean withMembers) {
-        return first("MATCH (g:Group {id: {id}}) WHERE " + GROUP_LABELS + " WITH g " + GROUP_PROJECTION +
+        return first("MATCH (g:Group {id: $id}) WHERE " + GROUP_LABELS + " WITH g " + GROUP_PROJECTION +
                 (withMembers ? GROUP_MEMBERS + GROUP_RETURN + ", members" : GROUP_RETURN), new JsonObject().put("id", id));
     }
 

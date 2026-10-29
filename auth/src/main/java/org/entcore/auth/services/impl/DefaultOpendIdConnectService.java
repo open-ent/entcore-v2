@@ -56,7 +56,7 @@ public class DefaultOpendIdConnectService implements OpenIdConnectService, OpenI
 
 	@Override
 	public void generateIdToken(String userId, final String clientId, final String nonce, final String sessionId, final Handler<AsyncResult<String>> handler) {
-		final  String query = "MATCH (u:User {id: {id}}) return u.externalId as sub, u.id as uid, u.email as  email, u.displayName as name";
+		final  String query = "MATCH (u:User {id: $id}) return u.externalId as sub, u.id as uid, u.email as  email, u.displayName as name";
 		Neo4j.getInstance().execute(query, new JsonObject().put("id", userId), new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> event) {
@@ -103,7 +103,7 @@ public class DefaultOpendIdConnectService implements OpenIdConnectService, OpenI
 	public void executeFederate(JsonObject payload, Handler<Either<String, Object>> handler) {
 		if (iss.equals(payload.getString("iss")) && payload.getLong("exp", 0l) > (System.currentTimeMillis() / 1000)) {
 			AbstractSSOProvider.executeFederateQuery(
-					"MATCH (u:User { externalId : {sub}}) ", payload, null, setFederated, Neo4j.getInstance(), handler);
+					"MATCH (u:User { externalId : $sub}) ", payload, null, setFederated, Neo4j.getInstance(), handler);
 		} else {
 			handler.handle(new Either.Left<String, Object>("invalid.openid.payload"));
 		}
@@ -120,7 +120,7 @@ public class DefaultOpendIdConnectService implements OpenIdConnectService, OpenI
 
 	@Override
 	public void generateLogoutToken(String userId, String clientId, String sessionId, Handler<AsyncResult<String>> handler) {
-		final String query = "MATCH (u:User {id: {id}}) return u.externalId as sub";
+		final String query = "MATCH (u:User {id: $id}) return u.externalId as sub";
 		Neo4j.getInstance().execute(query, new JsonObject().put("id", userId), new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> event) {

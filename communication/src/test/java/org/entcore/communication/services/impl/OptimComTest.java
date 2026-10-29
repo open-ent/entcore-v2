@@ -60,7 +60,7 @@ public class OptimComTest {
     }
 	private static final String USERS_QUERY =
 			"MATCH (u:User) " +
-			"WHERE HAS(u.password) AND NOT(HAS(u.deleteDate)) " +
+			"WHERE u.password IS NOT NULL AND u.deleteDate IS NULL " +
 			"RETURN u.id as id, HEAD(u.profiles) as profile LIMIT 1000";
 	private static final String CUSTOM_RETURN =
 			"RETURN DISTINCT visibles.id as id, visibles.name as name, " +

@@ -18,7 +18,7 @@ public class SSOCarl extends AbstractSSOProvider {
     @Override
     public void generate(EventBus eb, String userId, String host, String serviceProviderEntityId, JsonObject eventAttributes,
                          Handler<Either<String, JsonArray>> handler) {
-        String query = "MATCH (u:User {id:{userId}}) RETURN u.login as login";
+        String query = "MATCH (u:User {id:$userId}) RETURN u.login as login";
         Neo4j.getInstance().execute(query, new JsonObject().put("userId", userId), Neo4jResult.validUniqueResultHandler(evt -> {
             if (evt.isLeft()) {
                 handler.handle(new Either.Left(evt.left().getValue()));

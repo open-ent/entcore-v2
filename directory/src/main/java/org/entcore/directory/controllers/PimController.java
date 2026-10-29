@@ -54,14 +54,14 @@ public class PimController extends BaseController {
         String filter = "";
         final Integer within = intParam(request, "expiringWithinDays");
         if (within != null) {
-            filter = "AND rf.validUntil IS NOT NULL AND rf.validUntil <= {horizon} ";
+            filter = "AND rf.validUntil IS NOT NULL AND rf.validUntil <= $horizon ";
             params.put("horizon", System.currentTimeMillis() + within * 24L * 3600 * 1000);
         } else if ("true".equals(request.params().get("permanent"))) {
             filter = "AND rf.validUntil IS NULL ";
         }
         final String query =
                 "MATCH (u:User)-[rf:HAS_FUNCTION]->(f:Function) " +
-                "WHERE f.externalId IN {functions} " + filter +
+                "WHERE f.externalId IN $functions " + filter +
                 "OPTIONAL MATCH (s:Structure) WHERE s.id IN coalesce(rf.scope, []) " +
                 "OPTIONAL MATCH (g:User {id: rf.grantedBy}) " +
                 // Agrégation dans un WITH : après un RETURN agrégé, ORDER BY ne voit plus u.
@@ -71,7 +71,7 @@ public class PimController extends BaseController {
                 "rf.grantedBy AS grantedBy, g.displayName AS grantedByName, rf.grantedAt AS grantedAt, " +
                 "rf.reason AS reason, rf.validUntil AS validUntil " +
                 "ORDER BY coalesce(rf.validUntil, 9223372036854775807), u.lastName, u.firstName " +
-                "LIMIT {limit}";
+                "LIMIT $limit";
         Neo4j.getInstance().execute(query, params, validResultHandler(arrayResponseHandler(request)));
     }
 
@@ -100,7 +100,7 @@ public class PimController extends BaseController {
         final StringBuilder query = new StringBuilder();
         String where = "WHERE ";
         if (structureId != null && !structureId.isEmpty()) {
-            query.append("MATCH (:Structure {id: {structureId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) WITH DISTINCT u ");
+            query.append("MATCH (:Structure {id: $structureId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) WITH DISTINCT u ");
             params.put("structureId", structureId);
             if (adminsOnly) where += "(u)-[:HAS_FUNCTION]->(:Function) AND ";
         } else if (adminsOnly) {
@@ -109,17 +109,17 @@ public class PimController extends BaseController {
             query.append("MATCH (u:User) ");
         }
         query.append(where).append(never
-                ? "u.lastLogin IS NULL AND u.created < {cutoff} "
+                ? "u.lastLogin IS NULL AND u.created < $cutoff "
                 // Comparaison seule sur lastLogin : Neo4j la sert par l'index (neo4j/001-user-lastlogin-index.cypher).
-                : "u.lastLogin < {cutoff} ");
-        query.append("AND NOT HAS(u.deleteDate) AND coalesce(u.blocked, false) = false ");
+                : "u.lastLogin < $cutoff ");
+        query.append("AND NOT u.deleteDate IS NOT NULL AND coalesce(u.blocked, false) = false ");
         if (PROFILES.contains(profile)) {
-            query.append("AND {profile} IN u.profiles ");
+            query.append("AND $profile IN u.profiles ");
             params.put("profile", profile);
         }
         final String order = never ? "u.created" : "u.lastLogin";
-        query.append("WITH u ORDER BY ").append(order).append(" SKIP {skip} LIMIT {limit} ")
-                .append("OPTIONAL MATCH (u)-[:HAS_FUNCTION]->(f:Function) WHERE f.externalId IN {functions} ")
+        query.append("WITH u ORDER BY ").append(order).append(" SKIP $skip LIMIT $limit ")
+                .append("OPTIONAL MATCH (u)-[:HAS_FUNCTION]->(f:Function) WHERE f.externalId IN $functions ")
                 .append("WITH u, collect(DISTINCT f.externalId) AS privilegedFunctions ")
                 .append("RETURN ").append(DORMANT_COLUMNS).append(", privilegedFunctions ")
                 .append("ORDER BY ").append(order);

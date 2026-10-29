@@ -385,7 +385,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
             job.put("reportEmail", "none");
             return;
         }
-        neo.execute("MATCH (u:User {id: {userId}}) OPTIONAL MATCH (s:Structure {id: {structureId}}) " +
+        neo.execute("MATCH (u:User {id: $userId}) OPTIONAL MATCH (s:Structure {id: $structureId}) " +
                         "RETURN u.email as email, s.name as structureName",
                 new JsonObject().put("userId", userInfos.getUserId()).put("structureId", job.getString("structureId", "")),
                 validResultHandler(res -> {
@@ -568,7 +568,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
                               Boolean hasMail, boolean performCheck, UserInfos userInfos, Handler<Either<String, JsonArray>> results) {
 
         String filter =
-                " MATCH (s:Structure {id: {structureId}})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User), " +
+                " MATCH (s:Structure {id: $structureId})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User), " +
                         "(g)-[:HAS_PROFILE]-(p: Profile) ";
         String condition = "";
         // Optional match on classes, dropped when one or more classes are explicitly filtered:
@@ -597,13 +597,13 @@ public class DefaultMassMailService extends Renders implements MassMailService {
 
         //Profiles
         if (filterObj.containsKey("profiles") && filterObj.getJsonArray("profiles").size() > 0) {
-            condition += "AND p.name IN {profilesArray} ";
+            condition += "AND p.name IN $profilesArray ";
             params.put("profilesArray", filterObj.getJsonArray("profiles"));
         }
 
         //Levels
         if (filterObj.containsKey("levels") && filterObj.getJsonArray("levels").size() > 0) {
-            condition += " AND u.level IN {levelsArray} ";
+            condition += " AND u.level IN $levelsArray ";
             params.put("levelsArray", filterObj.getJsonArray("levels"));
         }
 
@@ -611,7 +611,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
         if (filterObj.containsKey("classes") && filterObj.getJsonArray("classes").size() > 0) {
             filter += ", (c:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u) ";
             classOptional = "";
-            condition += " AND c.id IN {classesArray} ";
+            condition += " AND c.id IN $classesArray ";
             params.put("classesArray", filterObj.getJsonArray("classes"));
         }
 
@@ -648,7 +648,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
 
         // List of users (from class-admin)
         if (filterObj.containsKey("userIds")) {
-            condition += " AND u.id IN {userIds} ";
+            condition += " AND u.id IN $userIds ";
             params.put("userIds", filterObj.getJsonArray("userIds"));
         }
 
@@ -658,7 +658,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
             if(blocked) {
                 condition += " AND u.blocked = true ";
             } else {
-                condition += " AND (NOT EXISTS(u.blocked) OR u.blocked = false) ";
+                condition += " AND (NOT u.blocked IS NOT NULL OR u.blocked = false) ";
             }
         }
 
@@ -673,7 +673,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
                 UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
                 List<String> scope = f.getScope();
                 if (scope != null && !scope.isEmpty()) {
-                    condition += "AND s.id IN {scope} ";
+                    condition += "AND s.id IN $scope ";
                     params.put("scope", new JsonArray(scope));
                 }
             } else if (userInfos.getFunctions().containsKey(CLASS_ADMIN)) {
@@ -685,7 +685,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
                 UserInfos.Function f = userInfos.getFunctions().get(CLASS_ADMIN);
                 List<String> scope = f.getScope();
                 if (scope != null && !scope.isEmpty()) {
-                    condition = "AND c.id IN {scope} ";
+                    condition = "AND c.id IN $scope ";
                     params.put("scope", new JsonArray(scope));
                 }
             }
@@ -700,7 +700,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
            +") END as children ";
 
         if (!filterObj.containsKey("includeFederated")) {
-            withStr += " WHERE NOT ((HAS(u.federatedIDP) AND NOT(u.federatedIDP IS NULL) AND HAS(u.federated) AND u.federated = true) OR size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) ";
+            withStr += " WHERE NOT ((u.federatedIDP IS NOT NULL AND NOT(u.federatedIDP IS NULL) AND u.federated IS NOT NULL AND u.federated = true) OR size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) ";
         }
 
         //Return clause
@@ -718,7 +718,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
             // Deprecated fields below
             +", classname, isInClass"
             +", CASE WHEN size(children) = 0 THEN null ELSE head(children) END as child"
-            +", (HAS(u.federatedIDP) AND NOT(u.federatedIDP IS NULL) AND HAS(u.federated) AND u.federated = true) OR " +
+            +", (u.federatedIDP IS NOT NULL AND NOT(u.federatedIDP IS NULL) AND u.federated IS NOT NULL AND u.federated = true) OR " +
             " (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) as hasFederatedIdentity ";
 
         //Order by
@@ -741,7 +741,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
 
     public void massMailUser(String userId, UserInfos userInfos, Handler<Either<String, JsonArray>> results) {
         String filter =
-                "MATCH (s:Structure)<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User {id: {userId}}), " +
+                "MATCH (s:Structure)<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User {id: $userId}), " +
                         "(g)-[:HAS_PROFILE]-(p: Profile) ";
         String condition = "";
         if (!userInfos.getFunctions().containsKey(SUPER_ADMIN)) {
@@ -779,7 +779,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
     @Override
     public void massMailAllUsersByStructure(String structureId, UserInfos userInfos, Handler<Either<String, JsonArray>> results) {
         String filter =
-                "MATCH (s:Structure {id: {structureId}})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User), " +
+                "MATCH (s:Structure {id: $structureId})<-[:DEPENDS]-(g:ProfileGroup)<-[:IN]-(u:User), " +
                         "(g)-[:HAS_PROFILE]-(p: Profile) ";
         String condition = "";
         String optional =
@@ -799,7 +799,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
             UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
             List<String> scope = f.getScope();
             if (scope != null && !scope.isEmpty()) {
-                condition += "WHERE s.id IN {scope} ";
+                condition += "WHERE s.id IN $scope ";
                 params.put("scope", new JsonArray(scope));
             }
         }
@@ -823,7 +823,7 @@ public class DefaultMassMailService extends Renders implements MassMailService {
         returnStr += ", classes, classname, isInClass ";
 
         withStr += ", CASE count(child) WHEN 0 THEN null ELSE collect(distinct {firstName: child.firstName, lastName: child.lastName, classname: c.name}) END as children ";
-        returnStr += ", filter(c IN children WHERE not(c.firstName is null)) as children, (HAS(u.federatedIDP) AND NOT(u.federatedIDP IS NULL) AND HAS(u.federated) AND u.federated = true) OR " +
+        returnStr += ", [c IN children WHERE not(c.firstName is null)] as children, (u.federatedIDP IS NOT NULL AND NOT(u.federatedIDP IS NULL) AND u.federated IS NOT NULL AND u.federated = true) OR " +
                 " (size(auths) > 0 AND (u.source in ['AAF', 'AAF1D'] AND u.activationCode IS NOT NULL ))  as hasFederatedIdentity ";
 
         String sort = "ORDER BY lastName";

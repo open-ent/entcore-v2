@@ -33,18 +33,18 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
 
     /** Syntaxe de paramètre du graphe : accolades, pas dollar. */
     private static final String Q_PERSON =
-            "MATCH (u:User {id:{id}}) " +
+            "MATCH (u:User {id:$id}) " +
             "RETURN u.id AS id, u.externalId AS externalId, u.login AS login, " +
             "u.firstName AS firstName, u.lastName AS lastName, u.displayName AS displayName, " +
             "u.birthDate AS birthDate, u.email AS email, head(u.profiles) AS profile, " +
             "u.deleteDate AS deleteDate";
 
     private static final String Q_ORGS =
-            "MATCH (u:User {id:{id}})-[:IN]->(:Group)-[:DEPENDS]->(s:Structure) " +
+            "MATCH (u:User {id:$id})-[:IN]->(:Group)-[:DEPENDS]->(s:Structure) " +
             "RETURN DISTINCT s.id AS id, s.UAI AS uai, s.name AS name, s.externalId AS externalId";
 
     private static final String Q_GROUPS =
-            "MATCH (u:User {id:{id}})-[:IN]->(g:Group) " +
+            "MATCH (u:User {id:$id})-[:IN]->(g:Group) " +
             "OPTIONAL MATCH (g)-[:DEPENDS]->(s:Structure) " +
             "OPTIONAL MATCH (g)-[:DEPENDS]->(:Class)-[:BELONGS]->(cs:Structure) " +
             "RETURN DISTINCT g.id AS id, g.name AS name, g.externalId AS externalId, " +
@@ -58,15 +58,15 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
      * l'autre.
      */
     private static final String Q_MATCH_EXTERNAL =
-            "MATCH (u:User) WHERE u.externalId IN {values} " +
+            "MATCH (u:User) WHERE u.externalId IN $values " +
             "RETURN u.externalId AS key, u.id AS id, u.login AS login";
 
     private static final String Q_MATCH_LOGIN =
-            "MATCH (u:User) WHERE u.login IN {values} " +
+            "MATCH (u:User) WHERE u.login IN $values " +
             "RETURN u.login AS key, u.id AS id, u.login AS login";
 
     private static final String Q_MATCH_UAI =
-            "MATCH (s:Structure) WHERE s.UAI IN {values} " +
+            "MATCH (s:Structure) WHERE s.UAI IN $values " +
             "RETURN s.UAI AS key, s.id AS id, s.name AS name";
 
     /**
@@ -77,7 +77,7 @@ public class DirectoryOeipProvider implements OeipServiceMapper {
      * se rattache à des comptes déjà présents.
      */
     private static final String Q_TAG_ALIAS =
-            "MATCH (u:User {id:{id}}) SET u._oeipGlobalId = {globalId} RETURN u.id AS id";
+            "MATCH (u:User {id:$id}) SET u._oeipGlobalId = $globalId RETURN u.id AS id";
 
     private final Neo4j neo4j;
     private final String sourceSystem;

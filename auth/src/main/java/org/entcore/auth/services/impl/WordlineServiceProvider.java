@@ -26,17 +26,17 @@ public class WordlineServiceProvider implements OpenIdConnectServiceProvider {
 
     private static final String SESSION_ADDRESS = "wse.session";
 
-    private static final String QUERY_SUB_CC = "MATCH (u:User {subCC : {sub}}) " + AbstractSSOProvider.RETURN_QUERY;
-    private static final String QUERY_PIVOT_CC = "MATCH (u:User) WHERE u.id = {userId} AND NOT(HAS(u.subCC)) "
+    private static final String QUERY_SUB_CC = "MATCH (u:User {subCC : $sub}) " + AbstractSSOProvider.RETURN_QUERY;
+    private static final String QUERY_PIVOT_CC = "MATCH (u:User) WHERE u.id = $userId AND u.subCC IS NULL "
             +
-            "SET u.subCC = {sub}, u.federated = {setFederated} " +
+            "SET u.subCC = $sub, u.federated = $setFederated " +
             "WITH u " + AbstractSSOProvider.RETURN_QUERY;
-    private static final String QUERY_MAPPING_CC = "MATCH (n:User {login:{login}}) " +
-            "WHERE NOT(HAS(n.subCC)) " +
+    private static final String QUERY_MAPPING_CC = "MATCH (n:User {login:$login}) " +
+            "WHERE n.subCC IS NULL " +
             "RETURN n.password as password, n.activationCode as activationCode ";
-    private static final String QUERY_SET_MAPPING_CC = "MATCH (u:User {login:{login}}) " +
-            "WHERE NOT(HAS(u.subCC)) " +
-            "SET u.subCC = {sub}, u.federated = {setFederated} " +
+    private static final String QUERY_SET_MAPPING_CC = "MATCH (u:User {login:$login}) " +
+            "WHERE u.subCC IS NULL " +
+            "SET u.subCC = $sub, u.federated = $setFederated " +
             "WITH u " + AbstractSSOProvider.RETURN_QUERY;
     private boolean setFederated = true;
 

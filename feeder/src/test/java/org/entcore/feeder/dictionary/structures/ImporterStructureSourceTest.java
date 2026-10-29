@@ -104,7 +104,7 @@ public class ImporterStructureSourceTest {
                 .compose(s -> {
                     context.assertEquals("AAF", s.getString("source"));
                     return test.database().executeNeo4jWithUniqueResult(
-                            "MATCH (c:Class {externalId: {externalId}}) RETURN c.source as source ",
+                            "MATCH (c:Class {externalId: $externalId}) RETURN c.source as source ",
                             new JsonObject().put("externalId", externalId + "$6emeA"));
                 })
                 .onComplete(context.asyncAssertSuccess(c -> context.assertEquals("CSV", c.getString("source"))));
@@ -118,8 +118,8 @@ public class ImporterStructureSourceTest {
                 .put("source", source)
                 .put("checksum", "checksum-" + source);
         return test.database().executeNeo4j(
-                "CREATE (s:Structure {id: {id}, externalId: {externalId}, name: {name}, feederName: {name}, " +
-                        "source: {source}, checksum: {checksum}}) ", params).mapEmpty();
+                "CREATE (s:Structure {id: $id, externalId: $externalId, name: $name, feederName: $name, " +
+                        "source: $source, checksum: $checksum}) ", params).mapEmpty();
     }
 
     private Future<Void> initImporter(String source) {
@@ -166,7 +166,7 @@ public class ImporterStructureSourceTest {
 
     private Future<JsonObject> readStructure(String externalId) {
         return test.database().executeNeo4jWithUniqueResult(
-                "MATCH (s:Structure {externalId: {externalId}}) RETURN s.source as source, s.feederName as feederName ",
+                "MATCH (s:Structure {externalId: $externalId}) RETURN s.source as source, s.feederName as feederName ",
                 new JsonObject().put("externalId", externalId));
     }
 }

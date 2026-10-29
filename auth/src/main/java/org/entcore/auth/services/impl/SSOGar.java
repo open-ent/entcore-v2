@@ -21,8 +21,8 @@ public class SSOGar extends AbstractSSOProvider {
 
     @Override
     public void generate(EventBus eb, String userId, String host, String serviceProviderEntityId, JsonObject eventAttributes, Handler<Either<String, JsonArray>> handler) {
-        String query = "match (s:Structure)-[:DEPENDS]-(:ProfileGroup)-[:IN]-(u:User {id:{userId}}) " +
-                "where has(s.exports) AND s.exports <> [] unwind s.exports as exp with exp where exp starts with 'GAR-' " +
+        String query = "match (s:Structure)-[:DEPENDS]-(:ProfileGroup)-[:IN]-(u:User {id:$userId}) " +
+                "where s.exports IS NOT NULL AND s.exports <> [] unwind s.exports as exp with exp where exp starts with 'GAR-' " +
                 "return distinct replace(exp, 'GAR-', '') as entId limit 1 ";
 
         Neo4j.getInstance().execute(query, new JsonObject().put("userId", userId),

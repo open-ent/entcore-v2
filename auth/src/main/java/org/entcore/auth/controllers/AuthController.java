@@ -2131,7 +2131,7 @@ public class AuthController extends BaseController {
 			return;
 		}
 		final String query =
-				"MATCH (u:User) WHERE u.login IN {logins} " +
+				"MATCH (u:User) WHERE u.login IN $logins " +
 				"RETURN u.login as login, u.displayName as displayName, u.id as id, " +
 				"head(u.profiles) as profile, coalesce(u.blocked, false) as blocked";
 		final JsonObject params = new JsonObject().put("logins", new JsonArray(logins));

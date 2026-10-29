@@ -253,7 +253,7 @@ public class ConfigurationController extends BaseController {
 		}
 		//if missing structure param compute it
 		if(!StringUtils.isEmpty(user) && (structures == null || structures.isEmpty())){
-			final String query = "MATCH (u:`User` { id : {id}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
+			final String query = "MATCH (u:`User` { id : $id})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
 					"RETURN s.id as id ";
 			neo.execute(query, new JsonObject().put("id", user), Neo4jResult.validResultHandler(r->{
 				if(r.isLeft()){

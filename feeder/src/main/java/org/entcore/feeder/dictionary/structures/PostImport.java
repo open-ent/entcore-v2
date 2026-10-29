@@ -167,12 +167,12 @@ public class PostImport {
 	private void publishClassesUpdate() {
 		final String query =
 				"MATCH (u:User) " +
-				"WHERE (has(u.classes) AND not(has(u.oldClasses))) OR u.classes <> u.oldClasses " +
+				"WHERE (u.classes IS NOT NULL AND u.oldClasses IS NULL) OR u.classes <> u.oldClasses " +
 				"RETURN u.id as userId, u.externalId as userExternalId, u.classes as classes, " +
 				"u.oldClasses as oldClasses, u.created as created, timestamp() as timestamp";
 		final String setOldClasses =
 				"MATCH (u:User) " +
-				"WHERE has(u.classes) " +
+				"WHERE u.classes IS NOT NULL " +
 				"SET u.oldClasses = u.classes ";
 		try {
 			final TransactionHelper tx = TransactionManager.getTransaction();
@@ -281,7 +281,7 @@ public class PostImport {
 	private void applyComRules(final Handler<Void> handler, Set<String> structureExternalIds) {
 		if (config.getBoolean("apply-communication-rules", false)) {
 			logger.info(e-> "START get ids for applyComRules");
-			String q = "MATCH (s:Structure) " + (structureExternalIds != null ? "WHERE s.externalId IN {externalIds}" : "") + " return COLLECT(s.id) as ids";
+			String q = "MATCH (s:Structure) " + (structureExternalIds != null ? "WHERE s.externalId IN $externalIds" : "") + " return COLLECT(s.id) as ids";
 			JsonArray eIds = new JsonArray();
 			if(structureExternalIds != null)
 				for(String eId : structureExternalIds)
@@ -325,8 +325,8 @@ public class PostImport {
 	private void fixIncorrectStorages()
 	{
 		String setDefaultQuotas = "MATCH (p:Profile)-[:HAS_PROFILE]-(pg:ProfileGroup)-[:IN]-(u:User)-[r:USERBOOK]->(n:UserBook) " +
-									"WHERE NOT(HAS(n.quota)) SET n.quota = p.defaultQuota";
-		String setMissingStorages = "MATCH (n:UserBook) WHERE NOT(HAS(n.storage)) SET n.storage = 0";
+									"WHERE n.quota IS NULL SET n.quota = p.defaultQuota";
+		String setMissingStorages = "MATCH (n:UserBook) WHERE n.storage IS NULL SET n.storage = 0";
 		String fixNegativeStorages = "MATCH (n:UserBook) WHERE n.storage < 0 SET n.storage = 0";
 
 		try {
@@ -352,7 +352,7 @@ public class PostImport {
 		// If there are only students or teachers in a functionnal group, remove com rules
 		String cleanComRules = "MATCH (g:FunctionalGroup {users:'BOTH'})<-[:IN]-(u:User) " +
 									"WITH g, count(CASE WHEN 'Teacher' IN u.profiles THEN 1 END) AS numTeachers, count(CASE WHEN 'Student' IN u.profiles THEN 1 END) AS numStudents " +
-									"WHERE numTeachers = g.nbUsers OR numStudents = g.nbUsers WITH DISTINCT g SET g.users = 'NONE' WITH g MATCH g-[com:COMMUNIQUE]-(:User) DELETE com";
+									"WHERE numTeachers = g.nbUsers OR numStudents = g.nbUsers WITH DISTINCT g SET g.users = 'NONE' WITH g MATCH (g)-[com:COMMUNIQUE]-(:User) DELETE com";
 		// If there are students and teachers in a functionnal group without com rule, create com rules
 		String restoreComRules = "MATCH (g:FunctionalGroup {users:'NONE'})<-[:IN]-(u:User) " +
 									"WITH g, collect(DISTINCT u) AS users, count(CASE WHEN 'Teacher' IN u.profiles THEN 1 END) AS numTeachers, count(CASE WHEN 'Student' IN u.profiles THEN 1 END) AS numStudents " +

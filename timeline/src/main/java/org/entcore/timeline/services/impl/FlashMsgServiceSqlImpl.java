@@ -204,7 +204,7 @@ public class FlashMsgServiceSqlImpl extends SqlCrudService implements FlashMsgSe
 	private Future<String> getUserPositions(String userId) {
 		Promise<String> promise = Promise.promise();
 
-		String neo4jQuery = "MATCH (u:User {id: {userId}})-[:HAS_POSITION]->(p:UserPosition) RETURN p.name as name";
+		String neo4jQuery = "MATCH (u:User {id: $userId})-[:HAS_POSITION]->(p:UserPosition) RETURN p.name as name";
 		Map<String, Object> neo4jParams = new HashMap<>();
 		neo4jParams.put("userId", userId);
 

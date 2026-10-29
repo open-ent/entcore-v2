@@ -1,1 +1,1 @@
-match (sub:Subject) where not(has(sub.source)) or sub.source = 'CSV' set sub.source = 'MANUAL';
+match (sub:Subject) where sub.source IS NULL or sub.source = 'CSV' set sub.source = 'MANUAL';

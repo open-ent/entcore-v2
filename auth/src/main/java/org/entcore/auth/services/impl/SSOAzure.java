@@ -113,7 +113,7 @@ public class SSOAzure extends AbstractSSOProvider {
 				final String entPersonJointure = getAttribute(assertion, ENTPERSONJOINTURE_ATTTRIBUTE);
 				if (isNotEmpty(entPersonJointure)) {
 					final String externalId = getExternalId(assertion, entPersonJointure);
-					executeQueryWithUpdateIfNeeded("MATCH (u:User {externalId:{joinKey}}) ", new JsonObject().put("joinKey", externalId),
+					executeQueryWithUpdateIfNeeded("MATCH (u:User {externalId:$joinKey}) ", new JsonObject().put("joinKey", externalId),
 							assertion, handler);
 				} else if ("Student".equals(getProfile(getAttribute(assertion, PROFILE_ATTTRIBUTE)))) {
 					final String externalId = getAttribute(assertion, ID_ATTTRIBUTE);
@@ -121,7 +121,7 @@ public class SSOAzure extends AbstractSSOProvider {
 						handler.handle(new Either.Left<>("invalid.externalId"));
 						return;
 					}
-					executeQuery("MATCH (u:User {externalId:{externalId}}) ",
+					executeQuery("MATCH (u:User {externalId:$externalId}) ",
 							new JsonObject().put("externalId", externalId),
 							assertion, handler);
 				} else {
@@ -131,7 +131,7 @@ public class SSOAzure extends AbstractSSOProvider {
 						return;
 					}
 					if (StringValidation.isEmail(mail)) {
-						executeQueryWithUpdateIfNeeded("MATCH (u:User {emailAcademy:{email}}) ", new JsonObject().put("email", mail),
+						executeQueryWithUpdateIfNeeded("MATCH (u:User {emailAcademy:$email}) ", new JsonObject().put("email", mail),
 								assertion, handler);
 					} else {
 						handler.handle(new Either.Left<>("invalid.email"));
@@ -154,13 +154,13 @@ public class SSOAzure extends AbstractSSOProvider {
 		if (PROFILE_WITH_MAIL.equals(getProfile(getAttribute(assertion, PROFILE_ATTTRIBUTE))) && isNotEmpty(mail) && isNotEmpty(function)) {
 			final boolean isAffectationGroup = getFunctionsAllowedToGroup(assertion).contains(function) && isNotEmpty(getDefaultGroupId(assertion));
 			if (isAffectationGroup) {
-				updateQuery += ", (g:ManualGroup {id:{groupId}})";
+				updateQuery += ", (g:ManualGroup {id:$groupId})";
 				updateParams.put("groupId", getDefaultGroupId(assertion));
 			}
-			updateQuery += " set u.emailInternal = {email}";
+			updateQuery += " set u.emailInternal = $email";
 			updateParams.put("email", mail);
 			if (isAffectationGroup) {
-				updateQuery += " CREATE UNIQUE u-[:IN {source:'MANUAL'}]->g";
+				updateQuery += " MERGE (u)-[:IN {source:'MANUAL'}]->(g)";
 			}
 
 			Neo4j.getInstance().execute(updateQuery, updateParams, Neo4jResult.validEmptyHandler(res -> {
@@ -185,14 +185,14 @@ public class SSOAzure extends AbstractSSOProvider {
 
 	private void createOrMergeUserIfNeeded(Assertion assertion, Handler<AsyncResult<Void>> handler) {
 		final String queryStructure =
-				"MATCH (s:Structure {UAI: {uai}}) " +
-				"OPTIONAL MATCH s<-[:BELONGS]-(c:Class) " +
+				"MATCH (s:Structure {UAI: $uai}) " +
+				"OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class) " +
 				"RETURN DISTINCT s.id as structureId, COLLECT(DISTINCT [c.id, c.name]) as classes ";
 		final String queryUserAAF =
-				"MATCH (u:User {externalId:{joinKey}}) " +
+				"MATCH (u:User {externalId:$joinKey}) " +
 				"RETURN u.id as id, u.source as source, u.activationCode as activationCode, u.deleteDate as deleteDate ";
 		final String queryUser =
-				"MATCH (u:User {externalId:{externalId}}) " +
+				"MATCH (u:User {externalId:$externalId}) " +
 				"RETURN u.id as id, u.externalId as externalId, u.source as source, u.deleteDate as deleteDate ";
 
 		final StatementsBuilder statements = new StatementsBuilder();
@@ -249,8 +249,8 @@ public class SSOAzure extends AbstractSSOProvider {
 			return;
 		}
 		final String markDuplicates =
-				"MATCH (u:User {id:{aafUserId}}), (d:User {id:{ssoUserId}}) " +
-				"MERGE u-[:DUPLICATE {score:{score}}]-d";
+				"MATCH (u:User {id:$aafUserId}), (d:User {id:$ssoUserId}) " +
+				"MERGE (u)-[:DUPLICATE {score:$score}]-(d)";
 		final JsonObject params = new JsonObject()
 				.put("aafUserId", aafUserId)
 				.put("ssoUserId", ssoUserId)

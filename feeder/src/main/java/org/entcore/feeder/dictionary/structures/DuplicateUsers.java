@@ -60,11 +60,11 @@ public class DuplicateUsers {
 
 	private static final Logger log = LoggerFactory.getLogger(DuplicateUsers.class);
 	private static final String INCREMENT_RELATIVE_SCORE =
-			"MATCH (u1:User {id: {userId1}})-[r:DUPLICATE]-(u2:User {id: {userId2}}), " +
+			"MATCH (u1:User {id: $userId1})-[r:DUPLICATE]-(u2:User {id: $userId2}), " +
 					"(u1)-[:RELATED]->()-[rp:DUPLICATE]-()<-[:RELATED]-(u2) " +
 					"SET rp.score = rp.score + 1 ";
 	private static final String ADML_SCOPES_MERGE_QUERY =
-			"MATCH (u1:User {id: {userId1}}), (u2:User {id: {userId2}}), (adml:Function {externalId:'ADMIN_LOCAL'}) " +
+			"MATCH (u1:User {id: $userId1}), (u2:User {id: $userId2}), (adml:Function {externalId:'ADMIN_LOCAL'}) " +
 			"OPTIONAL MATCH (u1)-[hf1:HAS_FUNCTION]->(adml) " +
 			"OPTIONAL MATCH (u2)-[hf2:HAS_FUNCTION]->(adml) " +
 			"UNWIND COALESCE(hf1.scope, []) + COALESCE(hf2.scope, []) as scopes " +
@@ -74,33 +74,33 @@ public class DuplicateUsers {
 			"ON CREATE SET hf.scope = unionScope " +
 			"ON MATCH SET hf.scope = unionScope ";
 	private static final String SIMPLE_MERGE_QUERY =
-					"MATCH (u1:User {id: {userId1}})-[r:DUPLICATE]-(u2:User {id: {userId2}})-[r2]-() " +
+					"MATCH (u1:User {id: $userId1})-[r:DUPLICATE]-(u2:User {id: $userId2})-[r2]-() " +
 					"OPTIONAL MATCH (u2)-[ain:IN]->(afg: FunctionGroup) " +
 					"WHERE afg.name ENDS WITH 'AdminLocal' " +
-					"SET u1.ignoreDuplicates = FILTER(uId IN u1.ignoreDuplicates WHERE uId <> {userId2}) " +
+					"SET u1.ignoreDuplicates = [uId IN u1.ignoreDuplicates WHERE uId <> $userId2] " +
 					"WITH u1, u2, r, r2, u2.IDPN as IDPN, u2.id as oldId, u2.externalId as u2ExternalId, ain.source AS ainSource, afg " +
-					"SET u1.mergedIds = FILTER(oldIdF IN coalesce(u1.mergedIds, []) WHERE oldIdF <> oldId) + oldId, " +
-					"u1.mergedExternalIds = FILTER(u2ExternalIdF IN coalesce(u1.mergedExternalIds, []) WHERE u2ExternalIdF <> u2ExternalId) + u2ExternalId " +
+					"SET u1.mergedIds = [oldIdF IN coalesce(u1.mergedIds, []) WHERE oldIdF <> oldId] + oldId, " +
+					"u1.mergedExternalIds = [u2ExternalIdF IN coalesce(u1.mergedExternalIds, []) WHERE u2ExternalIdF <> u2ExternalId] + u2ExternalId " +
 					"DELETE r, r2, u2 " +
 					"MERGE (u1)-[nin:IN {source:ainSource}]->(afg) " +
 					"WITH u1, IDPN, oldId, u2ExternalId " +
-					"WHERE NOT(HAS(u1.IDPN)) AND NOT(IDPN IS NULL) " +
+					"WHERE u1.IDPN IS NULL AND NOT(IDPN IS NULL) " +
 					"SET u1.IDPN = IDPN " +
 					"RETURN DISTINCT oldId, u1.id as id, HEAD(u1.profiles) as profile ";
 	private static final String SWITCH_MERGE_QUERY =
-					"MATCH (u1:User {id: {userId1}})-[r:DUPLICATE]-(u2:User {id: {userId2}})-[r2]-() " +
+					"MATCH (u1:User {id: $userId1})-[r:DUPLICATE]-(u2:User {id: $userId2})-[r2]-() " +
 					"OPTIONAL MATCH (u2)-[ain:IN]->(afg: FunctionGroup) " +
 					"WHERE afg.name ENDS WITH 'AdminLocal' " +
 					"WITH u1, u2, r, r2, u2.source as source, u2.externalId as externalId, u2.IDPN as IDPN, u2.id as oldId, ain.source AS ainSource, afg " +
 					"DELETE r, r2, u2 " +
 					"MERGE (u1)-[nin:IN {source:ainSource}]->(afg) " +
 					"WITH u1, source, externalId, IDPN, oldId, u1.externalId as u1ExternalId " +
-					"SET u1.ignoreDuplicates = FILTER(uId IN u1.ignoreDuplicates WHERE uId <> {userId2}), " +
-					"u1.mergedIds = FILTER(oldIdF IN coalesce(u1.mergedIds, []) WHERE oldIdF <> oldId) + oldId, " +
-					"u1.mergedExternalIds = FILTER(u1ExternalIdF IN coalesce(u1.mergedExternalIds, []) WHERE u1ExternalIdF <> u1ExternalId) + u1ExternalId, " +
+					"SET u1.ignoreDuplicates = [uId IN u1.ignoreDuplicates WHERE uId <> $userId2], " +
+					"u1.mergedIds = [oldIdF IN coalesce(u1.mergedIds, []) WHERE oldIdF <> oldId] + oldId, " +
+					"u1.mergedExternalIds = [u1ExternalIdF IN coalesce(u1.mergedExternalIds, []) WHERE u1ExternalIdF <> u1ExternalId] + u1ExternalId, " +
 					"u1.externalId = externalId, u1.source = source, u1.disappearanceDate = null " +
 					"WITH u1, IDPN, oldId " +
-					"WHERE NOT(HAS(u1.IDPN)) AND NOT(IDPN IS NULL) " +
+					"WHERE u1.IDPN IS NULL AND NOT(IDPN IS NULL) " +
 					"SET u1.IDPN = IDPN " +
 					"RETURN DISTINCT oldId, u1.id as id, HEAD(u1.profiles) as profile ";
 	private static final List<String> notDeduplicateSource = Arrays.asList("AAF", "AAF1D");
@@ -154,7 +154,7 @@ public class DuplicateUsers {
 					handlers[handlers.length - 1] = new Handler<Void>() {
 						@Override
 						public void handle(Void v) {
-							final String updateDate = "MATCH (s:System {name : 'Starter'}) set s.lastSearchDuplicates = {now} ";
+							final String updateDate = "MATCH (s:System {name : 'Starter'}) set s.lastSearchDuplicates = $now ";
 							TransactionManager.getNeo4jHelper().execute(updateDate, new JsonObject().put("now", now),
 									new Handler<Message<JsonObject>>() {
 										@Override
@@ -204,7 +204,7 @@ public class DuplicateUsers {
 			return;
 		}
 		String query =
-				"MATCH (u1:User {id: {userId1}})-[r:DUPLICATE]-(u2:User {id: {userId2}}) " +
+				"MATCH (u1:User {id: $userId1})-[r:DUPLICATE]-(u2:User {id: $userId2}) " +
 						"SET u1.ignoreDuplicates = coalesce(u1.ignoreDuplicates, []) + u2.id, " +
 						"u2.ignoreDuplicates = coalesce(u2.ignoreDuplicates, []) + u1.id " +
 						"DELETE r";
@@ -223,7 +223,7 @@ public class DuplicateUsers {
 		final Integer minScore = message.body().getInteger("minScore");
 		final boolean inSameStructure = message.body().getBoolean("inSameStructure", false);
 
-		final String filter = (minScore != null) ? ((inSameStructure) ? "AND":"WHERE") + " r.score >= {minScore} " : "";
+		final String filter = (minScore != null) ? ((inSameStructure) ? "AND":"WHERE") + " r.score >= $minScore " : "";
 		String query;
 		if (structures != null && structures.size() > 0) {
 			if (inherit) {
@@ -231,7 +231,7 @@ public class DuplicateUsers {
 			} else {
 				query = "MATCH (s:Structure)<-[:DEPENDS]-(pg:ProfileGroup) ";
 			}
-			query +="WHERE s.id IN {structures} " +
+			query +="WHERE s.id IN $structures " +
 					"WITH COLLECT(pg.id) as groupIds " +
 					"MATCH (g1:ProfileGroup)<-[:IN]-(u1:User)-[r:DUPLICATE]->(u2:User)-[:IN]->(g2:ProfileGroup) " +
 					"WHERE g1.id IN groupIds AND g2.id IN groupIds " +
@@ -243,7 +243,7 @@ public class DuplicateUsers {
 					"ORDER BY score DESC";
 		} else {
 			if (inSameStructure) {
-				query = "match (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u1:User)-[r:DUPLICATE]-(u2:User) WHERE u2-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s) " ;
+				query = "match (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u1:User)-[r:DUPLICATE]-(u2:User) WHERE (u2)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s) " ;
 			} else {
 				query = "MATCH (u1:User)-[r:DUPLICATE]->(u2:User) ";
 			}
@@ -279,7 +279,7 @@ public class DuplicateUsers {
 		if(keepRelations && userIds != null && userIds.length > 1) {
 			final JsonObject params = new JsonObject().put("userIds", Arrays.asList(userIds));
 			final String query = "MATCH (u:User)-[r]-(linkedNode) " +
-					"WHERE u.id in {userIds} AND NOT linkedNode.id in {userIds} " +
+					"WHERE u.id in $userIds AND NOT linkedNode.id in $userIds " +
 					"AND type(r) IN ['IN', 'RELATED', 'COMMUNIQUE_DIRECT', 'COMMUNIQUE'] AND linkedNode.id <> u.id " +
 					"RETURN DISTINCT u.id as userId, type(r) as rsType, r as rs, linkedNode.id as otherNodeId," +
 					"       labels(linkedNode) as otherNodeLabels, " +
@@ -327,10 +327,10 @@ public class DuplicateUsers {
 		}
 		fetchRelationshipsToKeep(keepRelations, userId1, userId2)
 				.onSuccess(userRelationships -> {
-					final String query = "MATCH (u1:User {id: {userId1}})-[r:DUPLICATE]-(u2:User {id: {userId2}}) " +
-							"RETURN DISTINCT u1.id as userId1, u1.source as source1, NOT(HAS(u1.activationCode)) as activatedU1, " +
+					final String query = "MATCH (u1:User {id: $userId1})-[r:DUPLICATE]-(u2:User {id: $userId2}) " +
+							"RETURN DISTINCT u1.id as userId1, u1.source as source1, u1.activationCode IS NULL as activatedU1, " +
 							"u1.disappearanceDate as disappearanceDate1, u1.deleteDate as deleteDate1, " +
-							"u2.id as userId2, u2.source as source2, NOT(HAS(u2.activationCode)) as activatedU2, " +
+							"u2.id as userId2, u2.source as source2, u2.activationCode IS NULL as activatedU2, " +
 							"u2.disappearanceDate as disappearanceDate2, u2.deleteDate as deleteDate2";
 					JsonObject params = new JsonObject().put("userId1", userId1).put("userId2", userId2);
 					TransactionManager.getNeo4jHelper().execute(query, params, new Handler<Message<JsonObject>>() {
@@ -504,8 +504,8 @@ public class DuplicateUsers {
 			final String typeOfTheRsToDuplicate = StringUtils.isBlank(rsToDuplicate.getType()) ? "" : ":" + rsToDuplicate.getType();
 			final String rsLeftSign = rsToDuplicate.isOutgoing() ? "" : "<";
 			final String rsRightSign = rsToDuplicate.isOutgoing() ? ">" : "";
-			query.append("MATCH (user:User{id:{userId1}}) ")
-					.append("MATCH (nodeToLink").append(otherNodeLabels).append("{id:{otheNodeId}}) ")
+			query.append("MATCH (user:User{id:$userId1}) ")
+					.append("MATCH (nodeToLink").append(otherNodeLabels).append("{id:$otheNodeId}) ")
 					.append("MERGE (user)").append(rsLeftSign).append("-[r").append(typeOfTheRsToDuplicate).append("]-").append(rsRightSign).append("(nodeToLink) ");
 			if(rsToDuplicate.getProperties() != null && !rsToDuplicate.getProperties().isEmpty()) {
 				query.append("SET ");
@@ -544,10 +544,10 @@ public class DuplicateUsers {
 				.put("userId", originalUserId)
 				.put("mergeKeys", mergeKeys);
 		TransactionManager.getNeo4jHelper().execute(
-				"MATCH (u:User {id: {userId}}), (mu:User) " +
+				"MATCH (u:User {id: $userId}), (mu:User) " +
 						"WHERE HEAD(u.profiles) = 'Relative' AND HEAD(mu.profiles) = 'Relative' " +
 						"AND ((u.source IN ['AAF1D','AAF'] AND mu.source IN ['AAF1D','AAF']) OR (u.source IN ['CSV','MANUAL'] AND mu.source IN ['CSV','MANUAL'])) " +
-						"AND NOT(HAS(u.mergedWith)) AND mu.mergeKey IN {mergeKeys} " +
+						"AND u.mergedWith IS NULL AND mu.mergeKey IN $mergeKeys " +
 						"RETURN u.mergeKey as mergeKey, COLLECT(mu.id) as mergeUserIds, " +
 						"u.federated as federated, COLLECT(mu.federated) as mergeUserFederated "
 				, params, new Handler<Message<JsonObject>>() {
@@ -601,41 +601,41 @@ public class DuplicateUsers {
 
 								// Do merge
 								tx.add(
-										"MATCH (u:User {id: {userId}}), (mu:User)-[rin:IN]->(gin:Group) " +
-												"WHERE mu.id IN {mergeUserIds} AND mu.mergeKey IN {mergeKeys} " +
-												"MERGE u-[r:IN]->gin " +
+										"MATCH (u:User {id: $userId}), (mu:User)-[rin:IN]->(gin:Group) " +
+												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
+												"MERGE (u)-[r:IN]->(gin) " +
 												"SET r.source = rin.source " +
 												"DELETE rin ", params);
 								tx.add(
-										"MATCH (u:User {id: {userId}}), (mu:User)-[rcom:COMMUNIQUE]->(gcom:Group) " +
-												"WHERE mu.id IN {mergeUserIds} AND mu.mergeKey IN {mergeKeys} " +
-												"MERGE  u-[r:COMMUNIQUE]->gcom " +
+										"MATCH (u:User {id: $userId}), (mu:User)-[rcom:COMMUNIQUE]->(gcom:Group) " +
+												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
+												"MERGE  (u)-[r:COMMUNIQUE]->(gcom) " +
 												"SET r.source = rcom.source " +
 												"DELETE rcom ", params);
 								tx.add(
-										"MATCH (u:User {id: {userId}}), (mu:User)<-[rcomr:COMMUNIQUE]-(gcomr:Group) " +
-												"WHERE mu.id IN {mergeUserIds} AND mu.mergeKey IN {mergeKeys} " +
-												"MERGE u<-[r:COMMUNIQUE]-gcomr " +
+										"MATCH (u:User {id: $userId}), (mu:User)<-[rcomr:COMMUNIQUE]-(gcomr:Group) " +
+												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
+												"MERGE (u)<-[r:COMMUNIQUE]-(gcomr) " +
 												"SET r.source = rcomr.source " +
 												"DELETE rcomr ", params);
 								tx.add(
-										"MATCH (u:User {id: {userId}}), (mu:User)-[rr:RELATED]->(ur:User) " +
-												"WHERE mu.id IN {mergeUserIds} AND mu.mergeKey IN {mergeKeys} " +
-												"MERGE u-[r:RELATED]->ur " +
+										"MATCH (u:User {id: $userId}), (mu:User)-[rr:RELATED]->(ur:User) " +
+												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
+												"MERGE (u)-[r:RELATED]->(ur) " +
 												"SET r.source = rr.source " +
 												"DELETE rr ", params);
 								tx.add(
-										"MATCH (u:User {id: {userId}}), (mu:User)<-[rrr:RELATED]-(urr:User) " +
-												"WHERE mu.id IN {mergeUserIds} AND mu.mergeKey IN {mergeKeys} " +
-												"MERGE u<-[r:RELATED]-urr " +
+										"MATCH (u:User {id: $userId}), (mu:User)<-[rrr:RELATED]-(urr:User) " +
+												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
+												"MERGE (u)<-[r:RELATED]-(urr) " +
 												"SET r.source = rrr.source " +
 												"DELETE rrr ", params);
 								tx.add(
-										"MATCH (u:User {id: {userId}}), (mu:User) " +
-												"WHERE mu.id IN {mergeUserIds} AND mu.mergeKey IN {mergeKeys} " +
-												"SET mu.mergedWith = {userId}, mu.mergeKey = null, u.mergedLogins = coalesce(u.mergedLogins, []) + mu.login " +
-//					", u.joinKey =  FILTER(eId IN u.joinKey WHERE eId <> mu.externalId) + mu.externalId " +
-												"MERGE mu-[:MERGED]->u " +
+										"MATCH (u:User {id: $userId}), (mu:User) " +
+												"WHERE mu.id IN $mergeUserIds AND mu.mergeKey IN $mergeKeys " +
+												"SET mu.mergedWith = $userId, mu.mergeKey = null, u.mergedLogins = coalesce(u.mergedLogins, []) + mu.login " +
+//					", u.joinKey =  [eId IN u.joinKey WHERE eId <> mu.externalId] + mu.externalId " +
+												"MERGE (mu)-[:MERGED]->(u) " +
 												"RETURN u.mergedLogins as mergedLogins ", params);
 								tx.commit(new Handler<Message<JsonObject>>() {
 									@Override
@@ -668,8 +668,8 @@ public class DuplicateUsers {
 			return;
 		}
 		final String updQuery =
-				"MATCH (u:User {id: {userId}})<-[r:MERGED]-(u2:User {login: {mergedLogin}}) " +
-						"WHERE HAS(u.mergedLogins) AND u2.mergedWith=u.id " +
+				"MATCH (u:User {id: $userId})<-[r:MERGED]-(u2:User {login: $mergedLogin}) " +
+						"WHERE u.mergedLogins IS NOT NULL AND u2.mergedWith=u.id " +
 						"DELETE r " +
 						"SET u.mergedLogins = [l IN u.mergedLogins WHERE l <> u2.login], " +
 						"u.checksum='unmerged', u2.checksum='unmerged' " +
@@ -685,7 +685,7 @@ public class DuplicateUsers {
 				);
 			}
 			tx.add(
-					"MATCH (u:User {id: {userId}}) "+
+					"MATCH (u:User {id: $userId}) "+
 							"SET u.mergedLogins = CASE WHEN SIZE(u.mergedLogins) = 0 THEN null ELSE u.mergedLogins END "+
 							"RETURN u.mergedLogins as mergedLogins",
 					new JsonObject().put("userId", originalUserId)
@@ -731,11 +731,11 @@ public class DuplicateUsers {
 
 	public static void checkDuplicatesIntegrity(JsonArray userIds, Handler<Message<JsonObject>> handler) {
 		String query = "MATCH (u1:User)-[r:DUPLICATE]-(u2:User) " +
-				"WHERE u1.id IN {ids} AND u1.disappearanceDate IS NULL AND u2.disappearanceDate IS NULL " +
+				"WHERE u1.id IN $ids AND u1.disappearanceDate IS NULL AND u2.disappearanceDate IS NULL " +
 				"AND ( " +
-				" (u1.source IN {notDuplicateSource} AND u2.source IN {notDuplicateSource}) " +
+				" (u1.source IN $notDuplicateSource AND u2.source IN $notDuplicateSource) " +
 				" OR " +
-				" (NOT(u1.source IN {notDuplicateSource}) AND NOT(u2.source IN {notDuplicateSource})) " +
+				" (NOT(u1.source IN $notDuplicateSource) AND NOT(u2.source IN $notDuplicateSource)) " +
 				") " +
 				"DELETE r";
 		JsonObject params = new JsonObject().put("ids", userIds).put("notDuplicateSource", new JsonArray(notDeduplicateSource));
@@ -750,7 +750,7 @@ public class DuplicateUsers {
 
 	private void searchDuplicatesByProfile(String last, final String profile, final Handler<Void> handler) {
 		String query =
-				"MATCH (u:User) WHERE u.modified > {lastSearchDuplicate} AND HEAD(u.profiles) = {profile} AND NOT(HAS(u.deleteDate)) " +
+				"MATCH (u:User) WHERE u.modified > $lastSearchDuplicate AND HEAD(u.profiles) = $profile AND u.deleteDate IS NULL " +
 						"RETURN u.id as id, u.firstName as firstName, u.lastName as lastName, " +
 						"u.birthDate as birthDate, u.email as email, u.source as source, u.disappearanceDate as disappearanceDate";
 		JsonObject params = new JsonObject().put("profile", profile).put("lastSearchDuplicate", last);
@@ -774,8 +774,14 @@ public class DuplicateUsers {
 
 	private void scoreDuplicates(final String profile, final JsonArray search, final Handler<Void> handler) {
 		final String query =
-				"START u=node:node_auto_index({luceneQuery}) " +
-						"WHERE HEAD(u.profiles) = {profile} AND u.id <> {id} AND NOT(HAS(u.deleteDate)) " +
+				// L'auto-index Lucene hérité portait l'appariement flou (~0.6) de la détection
+				// de doublons. Un index full-text nommé le remplace : la chaîne Lucene produite
+				// par luceneAttribute() est conservée telle quelle, et la requête est identique
+				// sur Neo4j 5 et sur ArcadeDB. Seule la création de l'index diffère entre les
+				// deux moteurs, cf. 025-user-fulltext-index.cypher et MIGRATION-OPENCYPHER.md.
+				"CALL db.index.fulltext.queryNodes('User[firstName,lastName]', $luceneQuery) " +
+						"YIELD node AS u " +
+						"WHERE HEAD(u.profiles) = $profile AND u.id <> $id AND u.deleteDate IS NULL " +
 						"RETURN u.id as id, u.firstName as firstName, u.lastName as lastName, " +
 						"u.birthDate as birthDate, u.email as email, u.source as source, u.disappearanceDate as disappearanceDate";
 		final JsonObject params = new JsonObject().put("profile", profile);
@@ -874,10 +880,10 @@ public class DuplicateUsers {
 
 	private void calculateAndStoreScore(JsonObject searchUser, JsonArray findUsers, TransactionHelper tx) {
 		String query =
-				"MATCH (u:User {id : {sId}}), (d:User {id : {dId}}) " +
-						"WHERE NOT({dId} IN coalesce(u.ignoreDuplicates, [])) AND NOT({sId} IN coalesce(d.ignoreDuplicates, [])) " +
-						"AND (has(u.activationCode) OR has(d.activationCode)) " +
-						"MERGE u-[:DUPLICATE {score:{score}}]-d ";
+				"MATCH (u:User {id : $sId}), (d:User {id : $dId}) " +
+						"WHERE NOT($dId IN coalesce(u.ignoreDuplicates, [])) AND NOT($sId IN coalesce(d.ignoreDuplicates, [])) " +
+						"AND (u.activationCode IS NOT NULL OR d.activationCode IS NOT NULL) " +
+						"MERGE (u)-[:DUPLICATE {score:$score}]-(d) ";
 		JsonObject params = new JsonObject().put("sId", searchUser.getString("id"));
 
 		final String lastName = cleanAttribute(searchUser.getString("lastName"));
@@ -991,11 +997,11 @@ public class DuplicateUsers {
 		}
 		final String searchDuplicateIneUsers =
 				"MATCH (u:User) " +
-						"WHERE has(u.ine) " +
+						"WHERE u.ine IS NOT NULL " +
 						"WITH u.ine as ine, COLLECT(DISTINCT {id: u.id, source: u.source, disappearanceDate: u.disappearanceDate, " +
 						"deleteDate: u.deleteDate, activationCode: u.activationCode, created: u.created, " +
 						"login : u.login, externalId : u.externalId }) as users " +
-						"WHERE LENGTH(users) > 1 " +
+						"WHERE size(users) > 1 " +
 						"RETURN ine, users ";
 
 		TransactionManager.getNeo4jHelper().execute(searchDuplicateIneUsers, new JsonObject(), r -> {
@@ -1064,42 +1070,42 @@ public class DuplicateUsers {
 		final JsonObject params = new JsonObject()
 				.put("id", principalUser.getString("id")).put("oldId", oldUser.getString("id"));
 		final String query1 =
-				"MATCH (old:User {id: {oldId}})-[r:USERBOOK]->(ub:UserBook), (u:User {id: {id}}) " +
+				"MATCH (old:User {id: $oldId})-[r:USERBOOK]->(ub:UserBook), (u:User {id: $id}) " +
 						"WITH u, ub, r " +
 						"OPTIONAL MATCH (u)-[:USERBOOK]->(prevUb:UserBook) " +
 						"WITH u, ub, prevUb, r " +
 						"WHERE prevUb IS NULL " +
 						"SET ub.theme = null " +
-						"CREATE UNIQUE (u)-[:USERBOOK]->(ub) " +
-						"SET ub.userid = {oldId} " +
+						"MERGE (u)-[:USERBOOK]->(ub) " +
+						"SET ub.userid = $oldId " +
 						"DELETE r"; // We only delete the relationship between the old user and the userbook if it was transfered to the new user
 									// So we will be able to delete unlinked UserBook nodes with query4
 		tx.add(query1, params);
 		// Transfer old UserAppConf only if the principal user doesn't already have one, to avoid duplicate PREFERS relations
 		final String query2a =
-				"MATCH (old:User {id: {oldId}})-[r:PREFERS]->(ub:UserAppConf), (u:User {id: {id}}) " +
+				"MATCH (old:User {id: $oldId})-[r:PREFERS]->(ub:UserAppConf), (u:User {id: $id}) " +
 						"WHERE NOT (u)-[:PREFERS]->(:UserAppConf) " +
 						"SET ub.theme = null, ub.mergeDuplicateIneTransferred = true " +
-						"CREATE UNIQUE (u)-[:PREFERS]->(ub) " +
+						"MERGE (u)-[:PREFERS]->(ub) " +
 						"DELETE r";
 		tx.add(query2a, params);
 		// Otherwise the principal's UserAppConf is kept as canonical and old ones are transferred for deduplication.
 		final String query2b =
-				"MATCH (old:User {id: {oldId}})-[r:PREFERS]->(ub:UserAppConf), (u:User {id: {id}}) " +
+				"MATCH (old:User {id: $oldId})-[r:PREFERS]->(ub:UserAppConf), (u:User {id: $id}) " +
 						"WHERE (u)-[:PREFERS]->(:UserAppConf) " +
 						"SET ub.theme = null, ub.mergeDuplicateIneTransferred = true " +
-						"CREATE UNIQUE (u)-[:PREFERS]->(ub) " +
+						"MERGE (u)-[:PREFERS]->(ub) " +
 						"DELETE r";
 		tx.add(query2b, params);
 		// Deduplicate UserAppConf after transfer, keeping rich prefs and salvaging quietHours/timezone.
 		final String query2c =
-				"MATCH (u:User {id: {id}})-[:PREFERS]->(uac:UserAppConf) " +
-						"WITH u, uac ORDER BY CASE WHEN HAS(uac.language) OR HAS(uac.timeline) THEN 0 ELSE 1 END, " +
-						"CASE WHEN HAS(uac.mergeDuplicateIneTransferred) THEN 1 ELSE 0 END, id(uac) " +
+				"MATCH (u:User {id: $id})-[:PREFERS]->(uac:UserAppConf) " +
+						"WITH u, uac ORDER BY CASE WHEN uac.language IS NOT NULL OR uac.timeline IS NOT NULL THEN 0 ELSE 1 END, " +
+						"CASE WHEN uac.mergeDuplicateIneTransferred IS NOT NULL THEN 1 ELSE 0 END, id(uac) " +
 						"WITH u, collect(DISTINCT uac) AS uacs " +
 						"WHERE size(uacs) > 0 " +
 						"WITH u, uacs[0] AS canonical, uacs[1..] AS duplicates " +
-						"WITH u, canonical, duplicates, head([duplicate IN duplicates WHERE HAS(duplicate.quietHours) | duplicate]) AS duplicateQuietHoursSource " +
+						"WITH u, canonical, duplicates, head([duplicate IN duplicates WHERE duplicate.quietHours IS NOT NULL | duplicate]) AS duplicateQuietHoursSource " +
 						"FOREACH (_ IN CASE WHEN canonical.quietHours IS NULL AND duplicateQuietHoursSource IS NOT NULL THEN [1] ELSE [] END | SET canonical.quietHours = duplicateQuietHoursSource.quietHours, canonical.timezone = duplicateQuietHoursSource.timezone) " +
 						"REMOVE canonical.mergeDuplicateIneTransferred " +
 						"WITH u, duplicates " +
@@ -1114,23 +1120,23 @@ public class DuplicateUsers {
 		tx.add(query2c, params);
 		if (!relative) {
 			final String query3 =
-					"MATCH (old:User {id: {oldId}})-[r:RELATED]->(ub:User), (u:User {id: {id}}) " +
-							"SET u.mergeIneDate = {now} " +
-							"CREATE UNIQUE u-[:RELATED {source:'MERGE_INE'}]->ub " +
+					"MATCH (old:User {id: $oldId})-[r:RELATED]->(ub:User), (u:User {id: $id}) " +
+							"SET u.mergeIneDate = $now " +
+							"MERGE (u)-[:RELATED {source:'MERGE_INE'}]->(ub) " +
 							"DELETE r";
 			tx.add(query3, params.copy().put("now", now));
 		}
 		final String query4 =
-				"MATCH (old:User {id: {oldId}}) " +
-						"WHERE old.oldId IS NULL OR old.oldId <> {id} " +
+				"MATCH (old:User {id: $oldId}) " +
+						"WHERE old.oldId IS NULL OR old.oldId <> $id " +
 						"WITH old, old.login AS oldLogin, old.password AS oldPassword, old.email AS oldEmail " +
 						"OPTIONAL MATCH (old)-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
 						"OPTIONAL MATCH (old)-[rUb:USERBOOK]->(ub:UserBook) " +
 						"OPTIONAL MATCH (old)-[r]-() " +
 						"DELETE r, rb, b, old, rUb, ub " +
 						"WITH oldLogin, oldPassword, oldEmail " +
-						"MATCH (u:User {id: {id}}) " +
-						"SET u.oldId = {id}, u.id = {oldId}, u.oldLogin = u.login, u.login = oldLogin, " +
+						"MATCH (u:User {id: $id}) " +
+						"SET u.oldId = $id, u.id = $oldId, u.oldLogin = u.login, u.login = oldLogin, " +
 						"u.activationCode = null, u.password = oldPassword, u.email = oldEmail";
 		tx.add(query4, params, new Handler<Either<String, JsonArray>>() {
 			@Override
@@ -1150,9 +1156,9 @@ public class DuplicateUsers {
 
 	private void deleteDuplicateIneUser(JsonObject oldUser, TransactionHelper tx) {
 		final String query =
-				"MATCH (u:User {id: {id}}) " +
-						"OPTIONAL MATCH u-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
-						"OPTIONAL MATCH u-[r]-() " +
+				"MATCH (u:User {id: $id}) " +
+						"OPTIONAL MATCH (u)-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
+						"OPTIONAL MATCH (u)-[r]-() " +
 						"DELETE r, rb, b, u ";
 		final JsonObject params = new JsonObject().put("id", oldUser.getString("id"));
 		log.info("Remove duplicate ine user : " + oldUser.encode());
@@ -1162,9 +1168,9 @@ public class DuplicateUsers {
 
 	private void mergeSameRelative(long now, Handler<AsyncResult<Void>> handler) {
 		final String query =
-				"MATCH (u:User {mergeIneDate:{now}})-[r:RELATED]->(p:User) " +
-						"OPTIONAL MATCH p<-[:RELATED]-(n:User) " +
-						"WHERE NOT(HAS(n.mergeIneDate)) " +
+				"MATCH (u:User {mergeIneDate:$now})-[r:RELATED]->(p:User) " +
+						"OPTIONAL MATCH (p)<-[:RELATED]-(n:User) " +
+						"WHERE n.mergeIneDate IS NULL " +
 						"WITH u, r, p, COUNT(DISTINCT n) as otherChildCount " +
 						"RETURN u.id as id, u.ine as ine, COLLECT(DISTINCT {id: p.id, source: p.source, " +
 						"disappearanceDate: p.disappearanceDate, deleteDate: p.deleteDate, activationCode: p.activationCode, " +
@@ -1249,8 +1255,8 @@ public class DuplicateUsers {
 	private void removeLinksMergeIne(String id, JsonArray removeLinks, TransactionHelper tx) {
 		if (removeLinks == null || removeLinks.isEmpty()) return;
 		final String query =
-				"MATCH (u:User {id: {id}})-[r:RELATED {source: 'MERGE_INE'}]->(p:User) " +
-						"WHERE p.id IN {relatives} " +
+				"MATCH (u:User {id: $id})-[r:RELATED {source: 'MERGE_INE'}]->(p:User) " +
+						"WHERE p.id IN $relatives " +
 						"DELETE r ";
 		final JsonObject params = new JsonObject().put("id", id).put("relatives", removeLinks);
 		log.info("Remove link merge INE user relative : " + removeLinks.encode());
@@ -1261,9 +1267,9 @@ public class DuplicateUsers {
 		if (deleteRelatives == null || deleteRelatives.isEmpty()) return;
 		final String query =
 				"MATCH (u:User) " +
-						"WHERE u.id IN {relatives} " +
-						"OPTIONAL MATCH u-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
-						"OPTIONAL MATCH u-[r]-() " +
+						"WHERE u.id IN $relatives " +
+						"OPTIONAL MATCH (u)-[rb:HAS_RELATIONSHIPS]->(b:Backup) " +
+						"OPTIONAL MATCH (u)-[r]-() " +
 						"DELETE r, rb, b, u ";
 		final JsonObject params = new JsonObject().put("relatives", deleteRelatives);
 		log.info("Remove duplicate ine user relatives : " + deleteRelatives.encode());

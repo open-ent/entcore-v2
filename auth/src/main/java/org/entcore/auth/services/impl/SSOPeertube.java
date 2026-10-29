@@ -19,7 +19,7 @@ public class SSOPeertube extends AbstractSSOProvider {
     @Override
     public void generate(EventBus eb, String userId, String host, String serviceProviderEntityId, JsonObject eventAttributes,
                          Handler<Either<String, JsonArray>> handler) {
-        String query = "MATCH (u:User {id:{userId}})\n" +
+        String query = "MATCH (u:User {id:$userId})\n" +
                 "OPTIONAL MATCH (u)-[:IN]->(:Group)-[:AUTHORIZED]->(:Role)-[:AUTHORIZE]->(:Action)<-[:PROVIDE]-(a:Application)\n" +
                 "WITH u, COLLECT(a) AS applications\n" +
                 "RETURN u.id AS id,\n" +
@@ -27,7 +27,7 @@ public class SSOPeertube extends AbstractSSOProvider {
                 "u.displayName AS displayName,\n" +
                 "u.email AS email,\n" +
                 "u.externalId AS externalId,\n" +
-                "REDUCE(s = false, i IN applications | s OR i.name CONTAINS({serviceName})) AS hasMatchingApplication";
+                "REDUCE(s = false, i IN applications | s OR i.name CONTAINS($serviceName)) AS hasMatchingApplication";
 
         Neo4j.getInstance().execute(query, new JsonObject().put("userId", userId).put("serviceName","PeertubeSAMLId"), Neo4jResult.validUniqueResultHandler(evt -> {
             if (evt.isLeft()) {

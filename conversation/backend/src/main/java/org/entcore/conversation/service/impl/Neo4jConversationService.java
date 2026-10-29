@@ -45,7 +45,7 @@ public class Neo4jConversationService {
 
 		String query =
 			"MATCH (v:Visible) " +
-			"WHERE v.id IN {ids} " +
+			"WHERE v.id IN $ids " +
 			"RETURN COLLECT(distinct (v.id + '$' + coalesce(v.displayName, ' ') + '$' + " +
 			"coalesce(v.name, ' ') + '$' + coalesce(v.groupDisplayName, ' '))) as displayNames ";
 
@@ -106,12 +106,12 @@ public class Neo4jConversationService {
 			returnClause =
 				"RETURN " +
 				"[t IN targets WHERE t.users.activationCode IS NOT NULL | t.users.displayName] as inactives, " +
-				"EXTRACT(t IN targets | t.users.id) as userTargets ";
+				"[t IN targets | t.users.id] as userTargets ";
 		}
 
 		String query =
 			"MATCH (v:Visible)<-[:IN*0..1]-(u:User) " +
-			"WHERE v.id IN {dest} " +
+			"WHERE v.id IN $dest " +
 			"OPTIONAL MATCH (u)-[:USERBOOK]->(ub:UserBook) " +
 			"WITH COLLECT(DISTINCT {users: u, quotaLeft: (ub.quota - ub.storage)}) as targets " +
 			returnClause;

@@ -37,8 +37,8 @@ public class AdmlOfTwoUsers extends AdmlResourcesProvider {
 		String userId1 = resourceRequest.params().get("userId1");
 		String userId2 = resourceRequest.params().get("userId2");
 		String query =
-				"MATCH (u:User {id: {userId}})-[:IN]->(:Group)-[:DEPENDS]->(s:Structure) " +
-				"WHERE s.id IN {structures} " +
+				"MATCH (u:User {id: $userId})-[:IN]->(:Group)-[:DEPENDS]->(s:Structure) " +
+				"WHERE s.id IN $structures " +
 				"RETURN count(*) > 0 as exists ";
 
 		JsonObject params = new JsonObject().put("structures", new JsonArray(adminLocal.getScope()));

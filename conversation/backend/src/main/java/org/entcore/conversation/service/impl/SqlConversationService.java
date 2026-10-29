@@ -1177,7 +1177,7 @@ public class SqlConversationService implements ConversationService{
 
 		final String preFilter;
 		if (isNotEmpty(search)) {
-			preFilter = "AND (m:Group OR m.displayNameSearchField CONTAINS {search}) ";
+			preFilter = "AND (m:Group OR m.displayNameSearchField CONTAINS $search) ";
 			params.put("search", StringValidation.sanitize(search));
 		} else {
 			preFilter = null;
@@ -1203,7 +1203,7 @@ public class SqlConversationService implements ConversationService{
 
 					String customReturn =
 							"MATCH (v:Visible) " +
-							"WHERE (v.id = visibles.id OR v.id IN {to} OR v.id IN {cc}) " +
+							"WHERE (v.id = visibles.id OR v.id IN $to OR v.id IN $cc) " +
 							"RETURN DISTINCT visibles.id as id, visibles.name as name, " +
 							"visibles.displayName as displayName, visibles.groupDisplayName as groupDisplayName, " +
 							"visibles.profiles[0] as profile, visibles.structureName as structureName, visibles.filter as groupProfile ";

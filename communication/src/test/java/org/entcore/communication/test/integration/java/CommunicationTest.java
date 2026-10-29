@@ -255,7 +255,7 @@
 //	}
 //
 //	private void personaliseComRules(final Handler<Void> handler) {
-//		String query = "MATCH (g:ProfileGroup) WHERE g.name IN {groups} RETURN g.id as id, g.name as name ";
+//		String query = "MATCH (g:ProfileGroup) WHERE g.name IN $groups RETURN g.id as id, g.name as name ";
 //		JsonObject params = new JsonObject().put("groups", new fr.wseduc.webutils.collections.JsonArray()
 //				.add("TPS-Student").add("TPS-Teacher")
 //				.add("Ecole primaire Emile Zola-Student").add("Ecole primaire Emile Zola-Teacher"));
@@ -336,13 +336,13 @@
 //			public void handle(Message<JsonObject> message) {
 //				assertEquals("ok", message.body().getString("status"));
 //				StatementsBuilder s = new StatementsBuilder();
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.communiqueWith) AND LENGTH(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.users) RETURN COUNT(*) as nbU ");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.relativeCommuniqueStudent) RETURN COUNT(*) as nbR");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.users IS NOT NULL RETURN COUNT(*) as nbU ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.relativeCommuniqueStudent IS NOT NULL RETURN COUNT(*) as nbR");
 //				s.add("MATCH ()-[:COMMUNIQUE]->() RETURN COUNT(*) as nbC ");
 //				s.add("MATCH ()-[:COMMUNIQUE_DIRECT]->() RETURN count(*) as nbCD");
 //				s.add("MATCH (s:Structure) RETURN s.id as structureId");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.communiqueWith) RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL RETURN COUNT(*) as nbCW ");
 //				neo4j.executeTransaction(s.build(), null, true, new Handler<Message<JsonObject>>() {
 //					@Override
 //					public void handle(Message<JsonObject> event) {
@@ -373,12 +373,12 @@
 //			public void handle(Message<JsonObject> message) {
 //				assertTrue(message.body().size() == 0);
 //				StatementsBuilder s = new StatementsBuilder();
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.communiqueWith) AND LENGTH(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.users) RETURN COUNT(*) as nbU ");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.relativeCommuniqueStudent) RETURN COUNT(*) as nbR");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.users IS NOT NULL RETURN COUNT(*) as nbU ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.relativeCommuniqueStudent IS NOT NULL RETURN COUNT(*) as nbR");
 //				s.add("MATCH ()-[:COMMUNIQUE]->() RETURN COUNT(*) as nbC ");
 //				s.add("MATCH ()-[:COMMUNIQUE_DIRECT]->() RETURN count(*) as nbCD");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.communiqueWith) RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL RETURN COUNT(*) as nbCW ");
 //				neo4j.executeTransaction(s.build(), null, true, new Handler<Message<JsonObject>>() {
 //					@Override
 //					public void handle(Message<JsonObject> event) {
@@ -406,12 +406,12 @@
 //			public void handle(Message<JsonObject> message) {
 //				assertTrue(message.body().size() == 0);
 //				StatementsBuilder s = new StatementsBuilder();
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.communiqueWith) AND LENGTH(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.users) RETURN COUNT(*) as nbU ");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.relativeCommuniqueStudent) RETURN COUNT(*) as nbR");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.users IS NOT NULL RETURN COUNT(*) as nbU ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.relativeCommuniqueStudent IS NOT NULL RETURN COUNT(*) as nbR");
 //				s.add("MATCH ()-[:COMMUNIQUE]->() RETURN COUNT(*) as nbC ");
 //				s.add("MATCH ()-[:COMMUNIQUE_DIRECT]->() RETURN count(*) as nbCD");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.communiqueWith) RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL RETURN COUNT(*) as nbCW ");
 //				neo4j.executeTransaction(s.build(), null, true, new Handler<Message<JsonObject>>() {
 //					@Override
 //					public void handle(Message<JsonObject> event) {
@@ -432,7 +432,7 @@
 //
 //	private void userCanCommunicateWith(String fromUserLogin, final String toUserLogin, final boolean assertion,
 //			final Handler<Void> handler) {
-//		String query = "MATCH (u:User {login : {login}}) RETURN u.id as id";
+//		String query = "MATCH (u:User {login : $login}) RETURN u.id as id";
 //		JsonObject params = new JsonObject().put("login", fromUserLogin);
 //		neo4j.execute(query, params, new Handler<Message<JsonObject>>() {
 //			@Override
@@ -467,12 +467,12 @@
 //			public void handle(Message<JsonObject> message) {
 //				assertTrue(message.body().size() == 0);
 //				StatementsBuilder s = new StatementsBuilder();
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.communiqueWith) AND LENGTH(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.users) RETURN COUNT(*) as nbU ");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.relativeCommuniqueStudent) RETURN COUNT(*) as nbR");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL AND size(g.communiqueWith) <> 0 RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.users IS NOT NULL RETURN COUNT(*) as nbU ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.relativeCommuniqueStudent IS NOT NULL RETURN COUNT(*) as nbR");
 //				s.add("MATCH ()-[:COMMUNIQUE]->() RETURN COUNT(*) as nbC ");
 //				s.add("MATCH ()-[:COMMUNIQUE_DIRECT]->() RETURN count(*) as nbCD");
-//				s.add("MATCH (g:ProfileGroup) WHERE HAS(g.communiqueWith) RETURN COUNT(*) as nbCW ");
+//				s.add("MATCH (g:ProfileGroup) WHERE g.communiqueWith IS NOT NULL RETURN COUNT(*) as nbCW ");
 //				neo4j.executeTransaction(s.build(), null, true, new Handler<Message<JsonObject>>() {
 //					@Override
 //					public void handle(Message<JsonObject> event) {

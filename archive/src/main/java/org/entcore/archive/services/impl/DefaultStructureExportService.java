@@ -118,10 +118,10 @@ public class DefaultStructureExportService implements StructureExportService {
 		// application dont le module ne répondrait jamais reste couvert par purgeStuckBatches.
 
 		final Future<JsonObject> groupF = neo4jExecute(
-				"MATCH (g:Group {id: {groupId}}) RETURN g.name as name",
+				"MATCH (g:Group {id: $groupId}) RETURN g.name as name",
 				new JsonObject().put("groupId", groupId));
 		final Future<JsonObject> usersF = neo4jExecute(
-				"MATCH (g:Group {id: {groupId}})<-[:IN]-(u:User) " +
+				"MATCH (g:Group {id: $groupId})<-[:IN]-(u:User) " +
 						"RETURN u.id as id, u.firstName as firstName, u.lastName as lastName, u.login as login",
 				new JsonObject().put("groupId", groupId));
 

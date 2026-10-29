@@ -1,1 +1,1 @@
-CREATE INDEX ON :User(email);
+CREATE INDEX IF NOT EXISTS FOR (n:User) ON (n.email);

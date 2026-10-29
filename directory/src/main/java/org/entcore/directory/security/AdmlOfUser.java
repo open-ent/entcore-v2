@@ -48,8 +48,8 @@ public class AdmlOfUser extends AdmlResourcesProvider {
 					return;
 				}
 				String query =
-						"MATCH (u:User {id: {userId}})-[:IN]->(:Group)-[:DEPENDS]->(s:Structure) " +
-						"WHERE s.id IN {structures} " +
+						"MATCH (u:User {id: $userId})-[:IN]->(:Group)-[:DEPENDS]->(s:Structure) " +
+						"WHERE s.id IN $structures " +
 						"RETURN count(*) > 0 as exists ";
 
 				JsonObject params = new JsonObject()

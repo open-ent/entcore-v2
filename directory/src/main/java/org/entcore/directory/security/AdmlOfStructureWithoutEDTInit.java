@@ -32,8 +32,8 @@ public class AdmlOfStructureWithoutEDTInit extends AdmlOfStructure
 {
 	private final Neo4j neo4j = Neo4j.getInstance();
 	private static final String query =
-			"MATCH (s:Structure {id: {structureId}}) " +
-			"RETURN HAS(s.timetable) AS alreadyInit";
+			"MATCH (s:Structure {id: $structureId}) " +
+			"RETURN s.timetable IS NOT NULL AS alreadyInit";
 
 	@Override
 	public void authorizeAdml(HttpServerRequest resourceRequest, Binding binding,

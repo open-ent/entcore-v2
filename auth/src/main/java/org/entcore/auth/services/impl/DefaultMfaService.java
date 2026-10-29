@@ -84,7 +84,7 @@ public class DefaultMfaService implements MfaService {
         protected Future<JsonObject> retrieveFullState(String userId) {
             final Promise<JsonObject> promise = Promise.promise();
             String query =
-                "MATCH (u:`User` { id : {id}}) " +
+                "MATCH (u:`User` { id : $id}) " +
                 "RETURN u.totp as totp, u.totpPeriod as totpPeriod, u.mobile as mobile, u.email as email, " +
                 "u.mfaType as mfaType, COALESCE(u." + stateField + ", null) as " + stateField + ", " +
                 "u.firstName as firstName, u.lastName as lastName, u.displayName as displayName";
@@ -536,7 +536,7 @@ public class DefaultMfaService implements MfaService {
     public Future<JsonObject> verifyTotpForUser(final String userId, final String code) {
         final Promise<JsonObject> promise = Promise.promise();
         final String query =
-            "MATCH (u:User {id:{id}}) RETURN u.totp as totp, u.totpPeriod as totpPeriod";
+            "MATCH (u:User {id:$id}) RETURN u.totp as totp, u.totpPeriod as totpPeriod";
         Neo4j.getInstance().execute(query, new JsonObject().put("id", userId), res -> {
             if (!"ok".equals(res.body().getString("status"))) {
                 promise.fail(res.body().getString("message", "neo4j.error"));
@@ -577,7 +577,7 @@ public class DefaultMfaService implements MfaService {
 
     private static Future<JsonObject> readSettings(final String userId) {
         return queryUnique(
-            "MATCH (u:User {id:{id}}) RETURN u.email as email, u.mobile as mobile, u.mfaType as mfaType, " +
+            "MATCH (u:User {id:$id}) RETURN u.email as email, u.mobile as mobile, u.mfaType as mfaType, " +
             "CASE WHEN u.totp IS NOT NULL AND u.totp <> '' THEN true ELSE false END as hasTotp, " +
             "COALESCE(u.totpSelf, false) as totpSelf, u.totpPending as totpPending, u.login as login, " +
             "u.totpDevice as totpDevice, u.totpEnrolledAt as totpEnrolledAt",
@@ -630,7 +630,7 @@ public class DefaultMfaService implements MfaService {
             if (Mfa.TYPE_SMS.equals(type) && StringUtils.isEmpty(u.getString("mobile"))) {
                 return Future.failedFuture("mfa.mobile.missing");
             }
-            return queryUnique("MATCH (u:User {id:{id}}) SET u.mfaType = {type} RETURN u.id as id",
+            return queryUnique("MATCH (u:User {id:$id}) SET u.mfaType = $type RETURN u.id as id",
                     new JsonObject().put("id", userInfos.getUserId()).put("type", type));
         })
         .compose( unused -> getSettings(userInfos) );
@@ -687,7 +687,7 @@ public class DefaultMfaService implements MfaService {
                     return (Void) null;
                 });
             return proof
-                .compose( unused -> queryUnique("MATCH (u:User {id:{id}}) SET u.totpPending = {pending} RETURN u.id as id",
+                .compose( unused -> queryUnique("MATCH (u:User {id:$id}) SET u.totpPending = $pending RETURN u.id as id",
                     new JsonObject().put("id", userInfos.getUserId()).put("pending", pending.encode())))
                 .map( unused -> response );
         });
@@ -732,7 +732,7 @@ public class DefaultMfaService implements MfaService {
             return verifyTotp(secret, APP_TOTP_PERIOD, code).compose( result -> {
                 if (!"valid".equals(result.getString("state"))) {
                     pending.put("tries", tries - 1);
-                    return queryUnique("MATCH (u:User {id:{id}}) SET u.totpPending = {pending} RETURN u.id as id",
+                    return queryUnique("MATCH (u:User {id:$id}) SET u.totpPending = $pending RETURN u.id as id",
                             new JsonObject().put("id", userInfos.getUserId()).put("pending", pending.encode()))
                         .map( unused -> new JsonObject().put("state", "invalid").put("field", "code").put("tries", tries - 1) );
                 }
@@ -752,9 +752,9 @@ public class DefaultMfaService implements MfaService {
                         .put("device", pending.getString("device"))
                         .put("now", System.currentTimeMillis());
                     return queryUnique(
-                            "MATCH (u:User {id:{id}}) " +
-                            "SET u.totp = {secret}, u.totpPeriod = {period}, u.totpSelf = true, u.mfaType = 'totp', " +
-                            "u.totpDevice = {device}, u.totpEnrolledAt = {now} " +
+                            "MATCH (u:User {id:$id}) " +
+                            "SET u.totp = $secret, u.totpPeriod = $period, u.totpSelf = true, u.mfaType = 'totp', " +
+                            "u.totpDevice = $device, u.totpEnrolledAt = $now " +
                             "REMOVE u.totpPending RETURN u.email as email",
                             params)
                         .map( saved -> {
@@ -776,7 +776,7 @@ public class DefaultMfaService implements MfaService {
     }
 
     private static Future<JsonObject> clearPending(final String userId) {
-        return queryUnique("MATCH (u:User {id:{id}}) REMOVE u.totpPending RETURN u.id as id",
+        return queryUnique("MATCH (u:User {id:$id}) REMOVE u.totpPending RETURN u.id as id",
                 new JsonObject().put("id", userId));
     }
 
@@ -787,7 +787,7 @@ public class DefaultMfaService implements MfaService {
                 return Future.failedFuture("mfa.totp.managed.by.admin");
             }
             return queryUnique(
-                "MATCH (u:User {id:{id}}) " +
+                "MATCH (u:User {id:$id}) " +
                 "SET u.mfaType = CASE WHEN u.mfaType = 'totp' THEN null ELSE u.mfaType END " +
                 "REMOVE u.totp, u.totpPeriod, u.totpSelf, u.totpPending, u.totpDevice, u.totpEnrolledAt RETURN u.id as id",
                 new JsonObject().put("id", userInfos.getUserId()));

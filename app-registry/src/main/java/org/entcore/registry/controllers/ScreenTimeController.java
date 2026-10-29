@@ -54,7 +54,7 @@ public class ScreenTimeController extends BaseController {
         }
         final String accessTokenCacheId = SCREENTIME_PREFIX_CACHE.concat("-ACCESS-TOKEN");
 
-        final String query = "MATCH (u:User {id: {id}}) return u.externalId";
+        final String query = "MATCH (u:User {id: $id}) return u.externalId";
         final JsonObject params = new JsonObject().put("id", userId);
 
         neo4j.execute(query, params, event -> {
@@ -147,7 +147,7 @@ public class ScreenTimeController extends BaseController {
             return;
         }
         final String accessTokenCacheId = SCREENTIME_PREFIX_CACHE.concat("-ACCESS-TOKEN");
-        final String query = "MATCH (u:User {id: {id}}) return u.externalId";
+        final String query = "MATCH (u:User {id: $id}) return u.externalId";
         final JsonObject params = new JsonObject().put("id", userId);
         neo4j.execute(query, params, event -> {
             String entPersonJointure = userId;

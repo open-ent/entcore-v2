@@ -68,17 +68,17 @@ public class RoleGroupFilter implements ResourcesProvider {
 			.put("scopedStructures", new JsonArray(adminLocal.getScope()));
 
 		final String regularQuery =
-				"MATCH (s:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS]-(:Group {id: {groupId}}), (r:Role) " +
-				"WHERE s.id IN {scopedStructures} AND r.id = {roleId} " +
+				"MATCH (s:Structure)<-[:BELONGS*0..1]-()<-[:DEPENDS]-(:Group {id: $groupId}), (r:Role) " +
+				"WHERE s.id IN $scopedStructures AND r.id = $roleId " +
 				"AND NOT((:Application {locked: true})-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r)) " +
 				"OPTIONAL MATCH (ext:Application:External)-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r) " +
 				"RETURN count(distinct r) = 1 as exists, count(distinct ext) as externalApps";
 		final String externalQuery =
-				"MATCH (r:Role {id : {roleId}}), " +
+				"MATCH (r:Role {id : $roleId}), " +
 				"(ext:Application:External)-[:PROVIDE]->(:Action)<-[:AUTHORIZE]-(r), " +
 				"(s:Structure)-[:HAS_ATTACHMENT*0..]->(p:Structure) " +
-				"WHERE s.id IN {scopedStructures} AND p.id = ext.structureId AND (ext.inherits = true OR p = s) " +
-				"RETURN (count(distinct r) = 1 AND count(distinct ext) = {nbExt}) as exists";
+				"WHERE s.id IN $scopedStructures AND p.id = ext.structureId AND (ext.inherits = true OR p = s) " +
+				"RETURN (count(distinct r) = 1 AND count(distinct ext) = $nbExt) as exists";
 
 		neo4j.execute(regularQuery, params, new Handler<Message<JsonObject>>() {
 			public void handle(Message<JsonObject> event) {

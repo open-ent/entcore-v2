@@ -317,7 +317,7 @@ public class StructureController extends BaseController {
 				notFound(request);
 				return;
 			}
-			Neo4j.getInstance().execute("MATCH (s:Structure {id: {id}}) RETURN s.brandingLogo as logo",
+			Neo4j.getInstance().execute("MATCH (s:Structure {id: $id}) RETURN s.brandingLogo as logo",
 					new JsonObject().put("id", structureId), Neo4jResult.validUniqueResultHandler(res -> {
 						final String documentId = res.isRight() ? res.right().getValue().getString("logo") : null;
 						if (documentId == null) {
@@ -506,7 +506,7 @@ public class StructureController extends BaseController {
 				Renders.badRequest(request, "directory.structure.branding.empty");
 				return;
 			}
-			final String query = "MATCH (s:Structure {id: {id}}) " + sets + " RETURN s.id as id, " + brandingReturn();
+			final String query = "MATCH (s:Structure {id: $id}) " + sets + " RETURN s.id as id, " + brandingReturn();
 			Neo4j.getInstance().execute(query, params, Neo4jResult.validUniqueResultHandler(defaultResponseHandler(request)));
 		});
 	}
@@ -519,7 +519,7 @@ public class StructureController extends BaseController {
 		// Le nom et la nature de l'établissement accompagnent le branding : ce sont eux qui
 		// fournissent les valeurs par défaut du cachet (pourtour = nom, mention déduite de la
 		// nature), que l'appelant n'a donc pas à aller chercher ailleurs.
-		final String query = "MATCH (s:Structure {id: {id}}) " +
+		final String query = "MATCH (s:Structure {id: $id}) " +
 				"RETURN " + brandingReturn() + ", s.name as name, s.type as type, s.city as city";
 		final JsonObject params = new JsonObject().put("id", structureId);
 		Neo4j.getInstance().execute(query, params, Neo4jResult.validUniqueResultHandler(defaultResponseHandler(request)));

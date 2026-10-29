@@ -69,9 +69,9 @@ public class Profile {
 			return;
 		}
 		String query =
-				"MATCH (p:Profile { externalId : {externalId}}) " +
+				"MATCH (p:Profile { externalId : $externalId}) " +
 				"WITH p " +
-				"WHERE p.checksum IS NULL OR p.checksum <> {checksum} " +
+				"WHERE p.checksum IS NULL OR p.checksum <> $checksum " +
 				"SET " + Neo4jUtils.nodeSetPropertiesFromJson("p", struct, "id", "externalId");
 		getTransaction().add(query, struct);
 		this.profile = struct;
@@ -79,7 +79,7 @@ public class Profile {
 
 	public void create() {
 		String query =
-				"CREATE (p:Profile {props})<-[:HAS_PROFILE]-(g:Group:ProfileGroup:DefaultProfileGroup) ";
+				"CREATE (p:Profile $props)<-[:HAS_PROFILE]-(g:Group:ProfileGroup:DefaultProfileGroup) ";
 		JsonObject params = new JsonObject()
 				.put("id", id)
 				.put("externalId", externalId)
@@ -103,20 +103,20 @@ public class Profile {
 				.put("props", function.put("id", UUID.randomUUID().toString()));
 		String query;
 		if (profileName != null && !profileName.trim().isEmpty()) {
-			query = "MATCH (p:Profile { name : {profileName}}) ";
+			query = "MATCH (p:Profile { name : $profileName}) ";
 			params.put("profileName", profileName);
 		} else {
-			query = "MATCH (p:Profile { externalId : {profileExternalId}}) ";
+			query = "MATCH (p:Profile { externalId : $profileExternalId}) ";
 			params.put("profileExternalId", profileExternalId);
 		}
-		query += "CREATE p<-[:COMPOSE]-(f:Function {props}) RETURN f.id as id ";
+		query += "CREATE (p)<-[:COMPOSE]-(f:Function $props) RETURN f.id as id ";
 		transaction.add(query, params);
 	}
 
 	public static void deleteFunction(String functionExternalId, TransactionHelper transaction) {
 		String query =
-				"MATCH (f:Function { externalId : {externalId}}) " +
-				"OPTIONAL MATCH f-[r]-() " +
+				"MATCH (f:Function { externalId : $externalId}) " +
+				"OPTIONAL MATCH (f)-[r]-() " +
 				"DELETE r,f ";
 		JsonObject params = new JsonObject().put("externalId", functionExternalId);
 		transaction.add(query, params);
@@ -124,8 +124,8 @@ public class Profile {
 
 	public static void deleteFunctionGroup(String functionGroupId, TransactionHelper transaction) {
 		String query =
-				"MATCH (f:FunctionGroup { id : {id}}) " +
-				"OPTIONAL MATCH f-[r]-() " +
+				"MATCH (f:FunctionGroup { id : $id}) " +
+				"OPTIONAL MATCH (f)-[r]-() " +
 				"DELETE r,f ";
 		JsonObject params = new JsonObject().put("id", functionGroupId);
 		transaction.add(query, params);

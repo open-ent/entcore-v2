@@ -40,15 +40,15 @@ public class GraphData {
 	static void loadData(final Neo4j neo4j, final Handler<Message<JsonObject>> handler) {
 		String query =
 				"MATCH (s:Structure) " +
-				"OPTIONAL MATCH s<-[:DEPENDS]-(g:Group) " +
-				"OPTIONAL MATCH s<-[:BELONGS]-(c:Class) " +
+				"OPTIONAL MATCH (s)<-[:DEPENDS]-(g:Group) " +
+				"OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class) " +
 				"return s, collect(distinct g.externalId) as groups, collect(distinct c.externalId) as classes ";
 		neo4j.execute(query, new JsonObject(), new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> message) {
 				String query =
 						"MATCH (p:Profile) " +
-						"OPTIONAL MATCH p<-[:COMPOSE]-(f:Function) " +
+						"OPTIONAL MATCH (p)<-[:COMPOSE]-(f:Function) " +
 						"return p, collect(distinct f.externalId) as functions ";
 				final AtomicInteger count = new AtomicInteger(2);
 				neo4j.execute(query, new JsonObject(), new Handler<Message<JsonObject>>() {

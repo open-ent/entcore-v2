@@ -165,7 +165,7 @@ public class DefaultUserBookServiceTest {
 
     private void assertUserHasOnlyOneUserBook(final String userId, final TestContext testContext, final Async async) {
         neo4j.execute(
-                "MATCH (u:User{id:{userId}})-[r:USERBOOK]->(ub:UserBook) return ub.userid as ub_user_id, ub as ub ",
+                "MATCH (u:User{id:$userId})-[r:USERBOOK]->(ub:UserBook) return ub.userid as ub_user_id, ub as ub ",
                 new JsonObject().put("userId", userId),
                 result -> {
                     if ("ok".equals(result.body().getString("status"))) {
@@ -191,9 +191,9 @@ public class DefaultUserBookServiceTest {
         final String query;
         final JsonObject params = new JsonObject().put("userId", userId);
         if(isEmpty(ubUserId)) {
-            query = "create (u1:User{id: {userId}})";
+            query = "create (u1:User{id: $userId})";
         } else {
-            query = "create (:UserBook{userid:{ubUserId}})<-[:USERBOOK]-(u1:User{id: {userId}})";
+            query = "create (:UserBook{userid:$ubUserId})<-[:USERBOOK]-(u1:User{id: $userId})";
             params.put("ubUserId", ubUserId);
         }
         neo4j.execute(query, params, e -> {

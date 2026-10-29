@@ -221,9 +221,9 @@
 //						assertEquals(177 * 5 + 167, groups.size());
 //						String countQuery =
 //								"MATCH (s:Structure) " +
-//								"OPTIONAL MATCH s<-[:BELONGS]-(c:Class) " +
-//								"OPTIONAL MATCH s<-[:DEPENDS]-(f:FunctionalGroup) " +
-//								"OPTIONAL MATCH s<-[:DEPENDS*2]-(p:ProfileGroup) " +
+//								"OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class) " +
+//								"OPTIONAL MATCH (s)<-[:DEPENDS]-(f:FunctionalGroup) " +
+//								"OPTIONAL MATCH (s)<-[:DEPENDS*2]-(p:ProfileGroup) " +
 //								"RETURN count(distinct s) as nbStructures, count(distinct c) as nbClasses, " +
 //								"count(distinct p) as nbClassProfileGroups, count(distinct f) as nbFunctionalGroups";
 //						neo4j.execute(countQuery, new JsonObject(), new Handler<Message<JsonObject>>() {
@@ -330,7 +330,7 @@
 //									assertEquals("ok", message.body().getString("status"));
 //									String countQuery =
 //											"MATCH (u:User) " +
-//											"WHERE HAS(u.disappearanceDate) " +
+//											"WHERE u.disappearanceDate IS NOT NULL " +
 //											"RETURN count(*) as nbUsers ";
 //									neo4j.execute(countQuery, new JsonObject(), new Handler<Message<JsonObject>>() {
 //										@Override

@@ -153,16 +153,16 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	 	String email, String phone, final String theme, final Boolean needRevalidateTerms, final HttpServerRequest request, final Handler<Either<String, String>> handler) {
 		String query =
 				"MATCH (n:User) " +
-				"WHERE n." + loginFieldName + "={login} AND n.activationCode = {activationCode} AND n.password IS NULL " +
-				"AND (NOT EXISTS(n.blocked) OR n.blocked = false) " +
-				"OPTIONAL MATCH n-[r:DUPLICATE]-() " +
-				"WHERE NOT(head(n.profiles) IN {allowActivateDuplicate}) " +
+				"WHERE n." + loginFieldName + "=$login AND n.activationCode = $activationCode AND n.password IS NULL " +
+				"AND (NOT n.blocked IS NOT NULL OR n.blocked = false) " +
+				"OPTIONAL MATCH (n)-[r:DUPLICATE]-() " +
+				"WHERE NOT(head(n.profiles) IN $allowActivateDuplicate) " +
 				"OPTIONAL MATCH (p:Profile) " +
-				"WHERE HAS(n.profiles) AND p.name = head(n.profiles) " +
-				"WITH n, LENGTH(FILTER(x IN COLLECT(distinct r.score) WHERE x > 3)) as duplicates, p.blocked as blockedProfile " +
+				"WHERE n.profiles IS NOT NULL AND p.name = head(n.profiles) " +
+				"WITH n, size([x IN COLLECT(distinct r.score) WHERE x > 3]) as duplicates, p.blocked as blockedProfile " +
 				"WHERE (blockedProfile IS NULL OR blockedProfile = false) " +
 				"FOREACH (duplicate IN CASE duplicates WHEN 0 THEN [1] ELSE [] END | " +
-				"SET n.password = {password}, n.oldPasswords = {oldPasswords}, n.activationCode = null, n.email = {email}, n.emailSearchField=LOWER({email}), n.mobile = {phone}, n.needRevalidateTerms = {needRevalidateTerms})  " +
+				"SET n.password = $password, n.oldPasswords = $oldPasswords, n.activationCode = null, n.email = $email, n.emailSearchField=toLower($email), n.mobile = $phone, n.needRevalidateTerms = $needRevalidateTerms)  " +
 				"RETURN n.password as password, n.id as id, HEAD(n.profiles) as profile, duplicates > 0 as hasDuplicate, " +
 				"n.login as login, n.loginAlias as loginAlias ";
 		final String encryptedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
@@ -218,7 +218,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 				} else {
 					String q =
 							"MATCH (n:User) " +
-							"WHERE n." + loginFieldName + "={login} AND n.activationCode IS NULL " +
+							"WHERE n." + loginFieldName + "=$login AND n.activationCode IS NULL " +
 							"AND NOT(n.password IS NULL) " +
 							"RETURN n.password as password, n.id as id";
 					Map<String, Object> p = new HashMap<>();
@@ -292,8 +292,8 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		 final Handler<Either<String, JsonObject>> handler) {
 		String query =
 				"MATCH (n:User) " +
-				"WHERE n." + loginFieldName + "={login} AND n.activationCode = {activationCode} AND n.password IS NULL " +
-				"AND (NOT EXISTS(n.blocked) OR n.blocked = false) " +
+				"WHERE n." + loginFieldName + "=$login AND n.activationCode = $activationCode AND n.password IS NULL " +
+				"AND (NOT n.blocked IS NOT NULL OR n.blocked = false) " +
 				"RETURN true as exists, n.displayName as displayName, n.email as email, n.mobile as mobile";
 
 		JsonObject params = new JsonObject()
@@ -323,8 +323,8 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		final Handler<Either<String, JsonObject>> handler) {
 		String query =
 				"MATCH (n:User) " +
-				"WHERE n." + loginFieldName + "={login} AND has(n.resetDate) " +
-				"AND n.resetDate > {nowMinusDelay} AND n.resetCode = {resetCode} " +
+				"WHERE n." + loginFieldName + "=$login AND n.resetDate IS NOT NULL " +
+				"AND n.resetDate > $nowMinusDelay AND n.resetCode = $resetCode " +
 				"RETURN true as exists, n.displayName as displayName, n.email as email, n.mobile as mobile";
 
 		JsonObject params = new JsonObject()
@@ -341,7 +341,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 
 	@Override
 	public void findByMail(final String email, final Handler<Either<String,JsonObject>> handler) {
-		String query = "MATCH (u:User) WHERE u.email = {mail} AND u.activationCode IS NULL RETURN u.login as login, u.mobile as mobile";
+		String query = "MATCH (u:User) WHERE u.email = $mail AND u.activationCode IS NULL RETURN u.login as login, u.mobile as mobile";
 		JsonObject params = new JsonObject().put("mail", email);
 
 		neo.execute(query, params, Neo4jResult.validUniqueResultHandler(event -> {
@@ -357,9 +357,9 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		boolean setFirstname = firstName != null && !firstName.trim().isEmpty();
 		boolean setStructure = structure != null && !structure.trim().isEmpty();
 
-		String query = "MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WHERE u.emailSearchField = {mail} " +
-				(setFirstname ? " AND u.firstNameSearchField = {firstName}" : "") +
-				(setStructure ? " AND s.id = {structure}" : "") +
+		String query = "MATCH (u:User)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WHERE u.emailSearchField = $mail " +
+				(setFirstname ? " AND u.firstNameSearchField = $firstName" : "") +
+				(setStructure ? " AND s.id = $structure" : "") +
 				" RETURN DISTINCT u.login as login, u.loginAlias as loginAlias, u.activationCode as activationCode, u.mobile as mobile, s.name as structureName, s.id as structureId";
 		//Feat #20790 match only lowercases values
 		JsonObject params = new JsonObject().put("mail", email.toLowerCase());
@@ -377,10 +377,10 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		final String baseQuery =
 				//"WHERE n.activationCode IS NULL " +
 				"WHERE 1=1 " +
-				(checkFederatedLogin ? "AND (NOT(HAS(n.federated)) OR n.federated = false) " : "") +
-				(setResetCode ? CREDENTIALS_UNLOCKED + "SET n.resetCode = {resetCode}, n.resetDate = {today} " : "") +
+				(checkFederatedLogin ? "AND (n.federated IS NULL OR n.federated = false) " : "") +
+				(setResetCode ? CREDENTIALS_UNLOCKED + "SET n.resetCode = $resetCode, n.resetDate = $today " : "") +
 				"RETURN n.email as email, n.mobile as mobile, n.displayName as displayName, n.activationCode as activationCode";
-		final String basicQuery = "MATCH (n:User {login:{login}}) " + baseQuery;
+		final String basicQuery = "MATCH (n:User {login:$login}) " + baseQuery;
 
 		final JsonObject params = new JsonObject().put("login", login);
 		if(setResetCode)
@@ -391,7 +391,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 			if(result.isLeft()){
 				handler.handle(result);
 			} else if (result.right().getValue().size() == 0) {
-				final String basicAliasQuery = "MATCH (n:User {loginAlias:{login}}) " + baseQuery;
+				final String basicAliasQuery = "MATCH (n:User {loginAlias:$login}) " + baseQuery;
 				neo.execute(basicAliasQuery, params, Neo4jResult.validUniqueResultHandler(result2 -> {
 					if(result2.isLeft()){
 						handler.handle(result2);
@@ -411,14 +411,14 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 
 		if(mail != null && config.getBoolean("teacherForgotPasswordEmail", false)){
 			final String teacherQuery =
-					"MATCH (n:User {login" + alias + ":{login}})-[:IN]->(sg:ProfileGroup)-[:DEPENDS]->(m:Class)" +
+					"MATCH (n:User {login" + alias + ":$login})-[:IN]->(sg:ProfileGroup)-[:DEPENDS]->(m:Class)" +
 					"<-[:DEPENDS]-(tg:ProfileGroup)<-[:IN]-(p:User), " +
-					"sg-[:DEPENDS]->(psg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name:'Student'}), " +
-					"tg-[:DEPENDS]->(ptg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name:'Teacher'}) " +
+					"(sg)-[:DEPENDS]->(psg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name:'Student'}), " +
+					"(tg)-[:DEPENDS]->(ptg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name:'Teacher'}) " +
 					//"WHERE NOT(p.email IS NULL) AND n.activationCode IS NULL AND " +
 					"WHERE NOT(p.email IS NULL) AND " +
-					"(NOT(HAS(n.federated)) OR n.federated = false) " +
-					(setResetCode ? "SET n.resetCode = {resetCode}, n.resetDate = {today} " : "") +
+					"(n.federated IS NULL OR n.federated = false) " +
+					(setResetCode ? "SET n.resetCode = $resetCode, n.resetDate = $today " : "") +
 					"RETURN p.email as email";
 			neo.execute(teacherQuery, params, Neo4jResult.validUniqueResultHandler(new Handler<Either<String,JsonObject>>() {
 				public void handle(Either<String, JsonObject> resultTeacher) {
@@ -686,13 +686,13 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	public void resetPassword(String login, String resetCode, String password, HttpServerRequest request, final Handler<String> handler) {
 			String query =
 				"MATCH (n:User) " +
-					"WHERE n.login={login} AND has(n.resetDate) " +
-					"AND n.resetDate > {nowMinusDelay} AND n.resetCode = {resetCode} " +
+					"WHERE n.login=$login AND n.resetDate IS NOT NULL " +
+					"AND n.resetDate > $nowMinusDelay AND n.resetCode = $resetCode " +
 					CREDENTIALS_UNLOCKED +
 					"OPTIONAL MATCH (n)-[:IN]->(f:FunctionGroup) " +
 					"OPTIONAL MATCH (n)-[:HAS_FUNCTION]->(func:Function) " +
-					"SET n.password = {password}, n.resetCode = null, n.resetDate = null, n.changePw = null," +
-					"    n.oldPasswords = {oldPasswords} " +
+					"SET n.password = $password, n.resetCode = null, n.resetDate = null, n.changePw = null," +
+					"    n.oldPasswords = $oldPasswords " +
 					"RETURN n.password as pw, head(n.profiles) as profile, n.id as id, " +
 					"COLLECT(func.name) + COLLECT(f.filter) as functions, " +
 					"n.login as login, n.loginAlias as loginAlias, n.email AS email, n.firstName AS firstName";
@@ -725,7 +725,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	private Future<List<String>> getOldPasswords(final String login, final String fieldName) {
 		final Promise<List<String>> promise = Promise.promise();
 		if(passwordHistoryLength >= 1) {
-			final String query = "MATCH (n:User) WHERE n." + fieldName + " = {login} " +
+			final String query = "MATCH (n:User) WHERE n." + fieldName + " = $login " +
 				" RETURN n.id as id, n.oldPasswords as oldPasswords";
 			final Map<String, Object> params = new HashMap<>();
 			params.put("login", login);
@@ -766,11 +766,11 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	public void changePassword(String login, String password, HttpServerRequest request, final Handler<String> handler) {
 		String query =
 				"MATCH (n:User) " +
-				"WHERE n.login={login} AND NOT(n.password IS NULL) " +
+				"WHERE n.login=$login AND NOT(n.password IS NULL) " +
 				CREDENTIALS_UNLOCKED +
 				"OPTIONAL MATCH (n)-[:IN]->(f:FunctionGroup) " +
 				"OPTIONAL MATCH (n)-[:HAS_FUNCTION]->(func:Function) " +
-				"SET n.password = {password}, n.changePw = null, n.oldPasswords = {oldPasswords} " +
+				"SET n.password = $password, n.changePw = null, n.oldPasswords = $oldPasswords " +
 				"RETURN n.password as pw, head(n.profiles) as profile, n.id as id, " +
 				"COLLECT(func.name) + COLLECT(f.filter) as functions, " +
 				"n.login as login, n.loginAlias as loginAlias, n.email AS email, n.firstName as firstName";
@@ -796,11 +796,11 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 
 		String query =
 				"MATCH (n:User) " +
-						"WHERE n.login={login} AND n.activationCode IS NULL " +
+						"WHERE n.login=$login AND n.activationCode IS NULL " +
 						CREDENTIALS_UNLOCKED +
-						"WITH n, (HAS(n.federated) AND n.federated = true) AS federated " +
-						"FOREACH (i IN CASE WHEN {checkFederatedLogin} AND federated THEN [] ELSE [1] END | " +
-						"SET n.resetCode = {resetCode}, n.resetDate = {today}) " +
+						"WITH n, (n.federated IS NOT NULL AND n.federated = true) AS federated " +
+						"FOREACH (i IN CASE WHEN $checkFederatedLogin AND federated THEN [] ELSE [1] END | " +
+						"SET n.resetCode = $resetCode, n.resetDate = $today) " +
 						"RETURN n.displayName as displayName, federated as federated";
 		JsonObject params = new JsonObject().put("login", login).put("resetCode", code).put("today", new Date().getTime()).put("checkFederatedLogin", checkFederatedLogin);
 		neo.execute(query, params, event -> {
@@ -889,10 +889,10 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 			resetCodes.put(userId, new JsonObject().put("code", code).put("date", today));
 		}
 
-		String query = "WITH {codes} AS data, [k in keys({codes})] AS userIds " +
+		String query = "WITH $codes AS data, [k in keys($codes)] AS userIds " +
 				"MATCH (n:User) WHERE n.id IN userIds " +
 				CREDENTIALS_UNLOCKED +
-				"SET n.resetCode = data[n.id], n.resetDate = {today}";
+				"SET n.resetCode = data[n.id], n.resetDate = $today";
 		JsonObject params = new JsonObject().put("codes", map).put("today", today);
 
 		neo.execute(query, params, res -> {
@@ -906,7 +906,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 
 	@Override
 	public void blockUser(String id, boolean block, final Handler<Boolean> handler) {
-		String query = "MATCH (n:`User` { id : {id}}) SET n.blocked = {block} return count(*) = 1 as exists";
+		String query = "MATCH (n:`User` { id : $id}) SET n.blocked = $block return count(*) = 1 as exists";
 		JsonObject params = new JsonObject().put("id", id).put("block", block);
 		neo.execute(query, params, new Handler<Message<JsonObject>>() {
 			@Override
@@ -928,7 +928,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	public void lockCredentials(String id, boolean lock, final Handler<Boolean> handler) {
 		// Poser le verrou efface aussi tout code de réinitialisation en attente : il resterait
 		// sinon valable jusqu'à son expiration.
-		String query = "MATCH (n:`User` { id : {id}}) SET n.lockedCredentials = {lock}" +
+		String query = "MATCH (n:`User` { id : $id}) SET n.lockedCredentials = $lock" +
 				(lock ? ", n.resetCode = null, n.resetDate = null, n.changePw = null" : "") +
 				" return count(*) = 1 as exists";
 		JsonObject params = new JsonObject().put("id", id).put("lock", lock);
@@ -941,7 +941,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 
 	@Override
 	public void anyCredentialsLocked(JsonArray ids, final Handler<Boolean> handler) {
-		String query = "MATCH (n:User) WHERE n.id IN {ids} AND n.lockedCredentials = true RETURN count(n) > 0 as locked";
+		String query = "MATCH (n:User) WHERE n.id IN $ids AND n.lockedCredentials = true RETURN count(n) > 0 as locked";
 		neo.execute(query, new JsonObject().put("ids", ids), r -> {
 			JsonArray res = r.body().getJsonArray("result");
 			handler.handle("ok".equals(r.body().getString("status")) && res != null && res.size() == 1
@@ -951,7 +951,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 
 	@Override
 	public void areCredentialsLocked(String login, final Handler<Boolean> handler) {
-		String query = "MATCH (n:User) WHERE (n.login = {login} OR n.loginAlias = {login}) " +
+		String query = "MATCH (n:User) WHERE (n.login = $login OR n.loginAlias = $login) " +
 				"AND n.lockedCredentials = true RETURN count(n) > 0 as locked";
 		neo.execute(query, new JsonObject().put("login", login), r -> {
 			JsonArray res = r.body().getJsonArray("result");
@@ -962,7 +962,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 
 	@Override
 	public void blockUsers(JsonArray ids, boolean block, final Handler<Boolean> handler) {
-		String query = "MATCH (n:`User`) WHERE n.id in {ids} SET n.blocked = {block} return count(n) = {size} as exists";
+		String query = "MATCH (n:`User`) WHERE n.id in $ids SET n.blocked = $block return count(n) = $size as exists";
 		JsonObject params = new JsonObject().put("ids", ids).put("block", block).put("size",ids.size());
 		neo.execute(query, params, new Handler<Message<JsonObject>>() {
 			@Override
@@ -984,7 +984,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	public void storeLockEvent(JsonArray ids, boolean block) {
 		if (storePasswordEventEnabled && ids != null && !ids.isEmpty()) {
 			final String query =
-					"MATCH (u:User) WHERE u.id IN {ids} AND u.blocked = {block} " +
+					"MATCH (u:User) WHERE u.id IN $ids AND u.blocked = $block " +
 					"RETURN u.id as id, u.login as login, u.loginAlias as loginAlias, head(u.profiles) as profile ";
 			final JsonObject params = new JsonObject().put("ids", ids).put("block", block);
 			neo.execute(query, params, new Handler<Message<JsonObject>>() {
@@ -1017,8 +1017,8 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	@Override
 	public void storeDomain(String id, String domain, String scheme, final Handler<Boolean> handler) {
 		String query =
-				"MATCH (u:User {id: {id}}) " +
-				"SET u.lastDomain = {domain}, u.lastScheme = {scheme}, u.lastLogin = {now} " +
+				"MATCH (u:User {id: $id}) " +
+				"SET u.lastDomain = $domain, u.lastScheme = $scheme, u.lastLogin = $now " +
 				"return count(*) = 1 as exists";
 		JsonObject params = new JsonObject()
 			.put("id", id)
@@ -1038,7 +1038,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	@Override
 	public void storeFederated(String id, final Handler<Boolean> handler) {
 		String query =
-				"MATCH (u:User {id: {id}}) " +
+				"MATCH (u:User {id: $id}) " +
 				"SET u.federated = true, u.changePw = null " +
 				"return count(*) = 1 as exists";
 		JsonObject params = new JsonObject().put("id", id);
@@ -1055,14 +1055,14 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	@Override
 	public void storeDomainByLogin(String login, String domain, String scheme, final Handler<Boolean> handler) {
 		String querySet =
-				"SET u.lastDomain = {domain}, u.lastScheme = {scheme}, u.lastLogin = {now} " +
+				"SET u.lastDomain = $domain, u.lastScheme = $scheme, u.lastLogin = $now " +
 				"return count(*) = 1 as exists";
 		JsonObject params = new JsonObject()
 			.put("login", login)
 			.put("domain", domain)
 			.put("scheme", scheme)
 			.put("now", DateTime.now().toString());
-		neo.execute("MATCH (u:User{login:{login}}) " + querySet, params, new Handler<Message<JsonObject>>() {
+		neo.execute("MATCH (u:User{login:$login}) " + querySet, params, new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> r) {
 				Boolean isOk = "ok".equals(r.body().getString("status")) &&
@@ -1073,7 +1073,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 					handler.handle(isOk);
 				else
 				{
-					neo.execute("MATCH (u:User{loginAlias:{login}}) " + querySet, params, new Handler<Message<JsonObject>>() {
+					neo.execute("MATCH (u:User{loginAlias:$login}) " + querySet, params, new Handler<Message<JsonObject>>() {
 						@Override
 						public void handle(Message<JsonObject> r2) {
 							handler.handle("ok".equals(r2.body().getString("status")) &&
@@ -1089,8 +1089,8 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	@Override
 	public void generateOTP(String id, Handler<Either<String, JsonObject>> handler) {
 		final String query =
-				"MATCH (u:User {id:{id}}) " +
-				"SET u.otp = {otp}, u.otpiat = {otpiat} ";
+				"MATCH (u:User {id:$id}) " +
+				"SET u.otp = $otp, u.otpiat = $otpiat ";
 		final String otp = StringValidation.generateRandomCode(8);
 		final long now = System.currentTimeMillis();
 		final JsonObject params = new JsonObject()
@@ -1180,7 +1180,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	 */
 	@Override
 	public void forceChangePassword(String userId, Handler<Either<String, JsonObject>> handler) {
-		String query = "MATCH (n:User) WHERE n.id = {userId} " + CREDENTIALS_UNLOCKED + "SET n.changePw = true return count(*) = 1 as exists;";
+		String query = "MATCH (n:User) WHERE n.id = $userId " + CREDENTIALS_UNLOCKED + "SET n.changePw = true return count(*) = 1 as exists;";
 		JsonObject params = new JsonObject().put("userId", userId);
 
 		neo.execute(query, params, res -> {
@@ -1214,15 +1214,15 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	private void doRequestTeacherPasswordReset(final String matchField, final String login,
 			final Handler<Either<String, JsonObject>> handler) {
 		final String query =
-				"MATCH (n:User {" + matchField + ":{login}})-[:IN]->(sg:ProfileGroup)-[:DEPENDS]->(c:Class)" +
+				"MATCH (n:User {" + matchField + ":$login})-[:IN]->(sg:ProfileGroup)-[:DEPENDS]->(c:Class)" +
 				"<-[:DEPENDS]-(tg:ProfileGroup)<-[:IN]-(p:User), " +
 				"(sg)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(sp:Profile {name:'Student'}), " +
 				"(tg)-[:DEPENDS]->(tpg:ProfileGroup)-[:HAS_PROFILE]->(tp:Profile {name:'Teacher'}) " +
-				"WHERE n.activationCode IS NULL AND (NOT(HAS(n.federated)) OR n.federated = false) " +
+				"WHERE n.activationCode IS NULL AND (n.federated IS NULL OR n.federated = false) " +
 				CREDENTIALS_UNLOCKED +
 				"WITH n, n.passwordResetRequestDate AS previousDate, " +
 				"COLLECT(DISTINCT {id: p.id, email: p.email}) AS teachers " +
-				"SET n.passwordResetRequested = true, n.passwordResetRequestDate = {today} " +
+				"SET n.passwordResetRequested = true, n.passwordResetRequestDate = $today " +
 				"RETURN n.displayName AS studentName, n.id AS studentId, previousDate, teachers";
 		final JsonObject params = new JsonObject().put("login", login).put("today", new Date().getTime());
 		neo.execute(query, params, Neo4jResult.validUniqueResultHandler(handler));
@@ -1235,10 +1235,10 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 		final String tempPassword = generateValidTempPassword(safeLength, request);
 		final String query =
 				"MATCH (n:User) " +
-				"WHERE n.login={login} AND NOT(n.password IS NULL) " +
-				"AND (NOT(HAS(n.federated)) OR n.federated = false) " +
+				"WHERE n.login=$login AND NOT(n.password IS NULL) " +
+				"AND (n.federated IS NULL OR n.federated = false) " +
 				CREDENTIALS_UNLOCKED +
-				"SET n.password = {password}, n.changePw = true, n.oldPasswords = {oldPasswords}, " +
+				"SET n.password = $password, n.changePw = true, n.oldPasswords = $oldPasswords, " +
 				"    n.resetCode = null, n.resetDate = null, " +
 				"    n.passwordResetRequested = null, n.passwordResetRequestDate = null " +
 				"RETURN n.password as pw, head(n.profiles) as profile, n.id as id, " +
@@ -1289,7 +1289,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 	}
 
 	private void validationFlag(Boolean flag,String userId, Handler<Boolean> handler) {
-		String query = "MATCH(u:User{id:{userId}}) SET u.needRevalidateTerms= "+ flag +" RETURN u";
+		String query = "MATCH(u:User{id:$userId}) SET u.needRevalidateTerms= "+ flag +" RETURN u";
 		JsonObject params = new JsonObject().put("userId", userId);
 		neo.execute(query, params, Neo4jResult.validUniqueResultHandler(res-> {
 			if(res.isRight()) {
@@ -1304,7 +1304,7 @@ public class DefaultUserAuthAccount extends TemplatedEmailRenders implements Use
 
 	@Override
 	public void erasePassword(String userId, Handler<Either<String, JsonObject>> handler) {
-		String query = "MATCH (n:User) WHERE n.id = {userId} " + CREDENTIALS_UNLOCKED + "SET n.password = null return count(*) = 1 as exists;";
+		String query = "MATCH (n:User) WHERE n.id = $userId " + CREDENTIALS_UNLOCKED + "SET n.password = null return count(*) = 1 as exists;";
 		JsonObject params = new JsonObject().put("userId", userId);
 
 		neo.execute(query, params, res -> {

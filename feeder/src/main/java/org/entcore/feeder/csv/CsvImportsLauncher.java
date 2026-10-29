@@ -93,7 +93,7 @@ public class CsvImportsLauncher implements Handler<Long> {
 									final String uai = matcher.group(1);
 									final String structureName = nameMatcher.group(1);
 									TransactionManager.getNeo4jHelper()
-											.execute("MATCH (s:Structure {UAI:{uai}}) return s.externalId as externalId",
+											.execute("MATCH (s:Structure {UAI:$uai}) return s.externalId as externalId",
 													new JsonObject().put("uai", uai), new Handler<Message<JsonObject>>() {
 										@Override
 										public void handle(Message<JsonObject> event) {

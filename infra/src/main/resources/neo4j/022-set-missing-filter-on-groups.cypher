@@ -11,4 +11,4 @@ match (g:CommunityGroup) where g.type='manager' set g.filter='CommunityManager';
 match (g:CommunityMemberGroup) set g.filter='CommunityMember';
 match (g:CommunityAdminGroup) set g.filter='CommunityAdmin';
 
-match (g:ManualGroup) where not has(g.filter) set g.filter="Manual";
+match (g:ManualGroup) where not g.filter IS NOT NULL set g.filter="Manual";

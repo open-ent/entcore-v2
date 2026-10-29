@@ -111,11 +111,11 @@ public class ManualFeeder extends BusModBase {
 		} else {
 			StatementsBuilder statementsBuilder = new StatementsBuilder();
 			String query =
-					"CREATE (s:Structure {props}) " +
+					"CREATE (s:Structure $props) " +
 					"WITH s " +
 					"MATCH (p:Profile) " +
-					"CREATE p<-[:HAS_PROFILE]-(g:Group:ProfileGroup {name : s.name+'-'+p.name, " +
-					"displayNameSearchField: {groupSearchField}, filter: p.name})-[:DEPENDS]->s " +
+					"CREATE (p)<-[:HAS_PROFILE]-(g:Group:ProfileGroup {name : s.name+'-'+p.name, " +
+					"displayNameSearchField: $groupSearchField, filter: p.name})-[:DEPENDS]->(s) " +
 					"SET g.id = id(g)+'-'+timestamp() " +
 					"RETURN DISTINCT s.id as id ";
 			JsonObject params = new JsonObject()
@@ -153,13 +153,13 @@ public class ManualFeeder extends BusModBase {
 		} else {
 			StatementsBuilder statementsBuilder = new StatementsBuilder();
 			String query =
-					"MATCH (s:Structure { id : {structureId}}) " +
-					"CREATE s<-[:BELONGS]-(c:Class {props}) " +
+					"MATCH (s:Structure { id : $structureId}) " +
+					"CREATE (s)<-[:BELONGS]-(c:Class $props) " +
 					"SET c.externalId = s.externalId + '$' + c.name " +
 					"WITH s, c " +
-					"MATCH s<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
-					"CREATE c<-[:DEPENDS]-(pg:Group:ProfileGroup {name : c.name+'-'+p.name, " +
-					"displayNameSearchField: {groupSearchField}, filter: p.name})-[:DEPENDS]->g " +
+					"MATCH (s)<-[:DEPENDS]-(g:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+					"CREATE (c)<-[:DEPENDS]-(pg:Group:ProfileGroup {name : c.name+'-'+p.name, " +
+					"displayNameSearchField: $groupSearchField, filter: p.name})-[:DEPENDS]->(g) " +
 					"SET pg.id = id(pg)+'-'+timestamp() " +
 					"RETURN DISTINCT c.id as id ";
 			JsonObject params = new JsonObject()
@@ -194,12 +194,12 @@ public class ManualFeeder extends BusModBase {
 			String rename = "";
 			if (c.getString("name") != null) {
 				rename = "WITH c " +
-						 "MATCH c<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
+						 "MATCH (c)<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
 						 "(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 						 "SET cpg.name = c.name+'-'+p.name ";
 			}
 			String query =
-					"MATCH (c:`Class` { id : {classId}}) " +
+					"MATCH (c:`Class` { id : $classId}) " +
 					"SET " + Neo4jUtils.nodeSetPropertiesFromJson("c", c) +
 					rename +
 					"RETURN DISTINCT c.id as id ";
@@ -219,8 +219,8 @@ public class ManualFeeder extends BusModBase {
 
 		//=== Find which users to remove from class
 		String queryUserIds =
-			"MATCH (c:`Class` {id: {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)" +
-			"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), cpg<-[:IN]-(m:User)-[:IN]->spg " +
+			"MATCH (c:`Class` {id: $classId})<-[:DEPENDS]-(cpg:ProfileGroup)" +
+			"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (cpg)<-[:IN]-(m:User)-[:IN]->(spg) " +
 			"RETURN COLLECT(m.id) as ids ";
 		neo4j.execute(queryUserIds, new JsonObject().put("classId", classId), new Handler<Message<JsonObject>>() {
 			@Override
@@ -265,8 +265,8 @@ public class ManualFeeder extends BusModBase {
 
 	private void prepareRemovingProfileGroupsOfClass(TransactionHelper tx, String classId) {
 		String query =
-			"MATCH (c:Class {id: {classId}})<-[:DEPENDS]-(cpg:Group) " +
-			"OPTIONAL MATCH cpg<-[:IN]-(u:User) " +
+			"MATCH (c:Class {id: $classId})<-[:DEPENDS]-(cpg:Group) " +
+			"OPTIONAL MATCH (cpg)<-[:IN]-(u:User) " +
 			"WITH cpg, cpg.id as groupId, cpg.name as groupName, collect(u.id) as userIds " +
 			"DETACH DELETE cpg " +
 			"RETURN groupId as group, groupName as groupName, userIds as users ";
@@ -275,7 +275,7 @@ public class ManualFeeder extends BusModBase {
 
 	private void prepareRemovingClass(TransactionHelper tx, String classId) {
 		String query =
-			"MATCH (c:Class {id: {classId}}) " +
+			"MATCH (c:Class {id: $classId}) " +
 			"DETACH DELETE c ";
 		tx.add(query, new JsonObject().put("classId", classId));
 	}
@@ -342,15 +342,15 @@ public class ManualFeeder extends BusModBase {
 			related =
 					"WITH u " +
 					"MATCH (student:User) " +
-					"WHERE student.id IN {childrenIds} " +
-					"CREATE student-[:RELATED {source: 'MANUAL'}]->u " +
+					"WHERE student.id IN $childrenIds " +
+					"CREATE (student)-[:RELATED {source: 'MANUAL'}]->(u) " +
 					"SET student.relative = coalesce(student.relative, []) + (u.externalId + '$10$1$1$0$0') ";
 			params.put("childrenIds", childrenIds);
 		}
 		String query =
-				"MATCH (s:Structure { id : {structureId}})<-[:DEPENDS]-" +
-				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : {profile}}) " +
-				"CREATE UNIQUE pg<-[:IN]-(u:User {props}) " +
+				"MATCH (s:Structure { id : $structureId})<-[:DEPENDS]-" +
+				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : $profile}) " +
+				"CREATE UNIQUE (pg)<-[:IN]-(u:User $props) " +
 				"SET u.structures = [s.externalId] " +
 				related +
 				"RETURN DISTINCT u.id as id, u.login AS login";
@@ -358,10 +358,10 @@ public class ManualFeeder extends BusModBase {
 		org.entcore.common.schema.structures.Structure.applyStructureManagedPreferences(tx, user.getString("id"), structureId);
 		if (classesNames != null && !classesNames.isEmpty()) {
 			final String classesQuery =
-					"MATCH (s:Structure {id:{structureId}})<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(cpg:ProfileGroup {filter: {profile}}), " +
-					"s<-[:DEPENDS]-(:ProfileGroup {filter: {profile}})<-[:IN]-(u:User {id: {userId}})" +
-					"WHERE c.name IN {classesNames} " +
-					"MERGE cpg<-[:IN {source: {source}}]-u ";
+					"MATCH (s:Structure {id:$structureId})<-[:BELONGS]-(c:Class)<-[:DEPENDS]-(cpg:ProfileGroup {filter: $profile}), " +
+					"(s)<-[:DEPENDS]-(:ProfileGroup {filter: $profile})<-[:IN]-(u:User {id: $userId})" +
+					"WHERE c.name IN $classesNames " +
+					"MERGE (cpg)<-[:IN {source: $source}]-(u) ";
 			final JsonObject classesParams = new JsonObject()
 					.put("structureId", structureId)
 					.put("profile", profile)
@@ -478,7 +478,7 @@ public class ManualFeeder extends BusModBase {
 	 */
 	private void unlessLocked(final Message<JsonObject> message, final JsonArray userIds, final String errorKey,
 			final Runnable action) {
-		final String q = "MATCH (u:User) WHERE u.id IN {userIds} AND u.lockedCredentials = true RETURN count(u) as locked";
+		final String q = "MATCH (u:User) WHERE u.id IN $userIds AND u.lockedCredentials = true RETURN count(u) as locked";
 		neo4j.execute(q, new JsonObject().put("userIds", userIds), r -> {
 			final JsonArray res = r.body().getJsonArray("result");
 			if (!"ok".equals(r.body().getString("status")) || res == null || res.size() != 1) {
@@ -547,10 +547,10 @@ public class ManualFeeder extends BusModBase {
 		JsonObject params = new JsonObject()
 				.put("structureId", newStructureId != null ? newStructureId : newStructureExternalId)
 				.put("userId", userId != null ? userId : userExternalId);
-		final String matchUser = "MATCH (u:User { " + (userId != null ? "id" : "externalId") + " : {userId}}) " +
-								(addNewStruct == false ? "WHERE HAS(u.removedFromStructures) AND u.removedFromStructures <> [] WITH u " : "");
+		final String matchUser = "MATCH (u:User { " + (userId != null ? "id" : "externalId") + " : $userId}) " +
+								(addNewStruct == false ? "WHERE u.removedFromStructures IS NOT NULL AND u.removedFromStructures <> [] WITH u " : "");
 		final String matchStructure = addNewStruct == true
-		  ? "MATCH (s:Structure { " + (newStructureId != null ? "id" : "externalId") + ": {structureId} }) "
+		  ? "MATCH (s:Structure { " + (newStructureId != null ? "id" : "externalId") + ": $structureId }) "
 			: "MATCH (s:Structure) " +
 				"WHERE s.externalId IN u.removedFromStructures ";
 		final String addToRemoved = addNewStruct == true
@@ -560,32 +560,32 @@ public class ManualFeeder extends BusModBase {
 		final String query =
 						matchUser +
 						matchStructure +
-						"MATCH u-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS*0..1]->" +
-						"(pg:ProfileGroup)-[:DEPENDS]->s, " +
-						"pg-[:HAS_PROFILE]->(p:Profile), p<-[:HAS_PROFILE]-(dpg:DefaultProfileGroup) " +
-						"MERGE dpg<-[:IN]-u " +
-						"SET u.structures = FILTER(sId IN u.structures WHERE sId <> s.externalId), " +
-						"u.classes = FILTER(cId IN u.classes WHERE NOT(cId =~ (s.externalId + '.*'))) " +
+						"MATCH (u)-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS*0..1]->" +
+						"(pg:ProfileGroup)-[:DEPENDS]->(s), " +
+						"(pg)-[:HAS_PROFILE]->(p:Profile), (p)<-[:HAS_PROFILE]-(dpg:DefaultProfileGroup) " +
+						"MERGE (dpg)<-[:IN]-(u) " +
+						"SET u.structures = [sId IN u.structures WHERE sId <> s.externalId], " +
+						"u.classes = [cId IN u.classes WHERE NOT(cId =~ (s.externalId + '.*'))] " +
 						addToRemoved +
 						"DELETE r " +
 						"RETURN DISTINCT u.id as id";
 		final String removeFunctions =
 				matchUser +
 				matchStructure +
-				"MATCH u-[r:HAS_FUNCTION]->() " +
-				"WHERE s.id IN r.scope AND (NOT(HAS(r.source)) OR r.source <> 'MANUAL') " +
+				"MATCH (u)-[r:HAS_FUNCTION]->() " +
+				"WHERE s.id IN r.scope AND (r.source IS NULL OR r.source <> 'MANUAL') " +
 				"OPTIONAL MATCH (s)-[:HAS_ATTACHMENT*1..]->(ss:Structure) " +
 						"WITH s, r, count(CASE WHEN ss.id IN r.scope THEN 1 ELSE NULL END) as parentADML " +
 						"WHERE parentADML = 0 " +
-						"SET r.scope = FILTER(sId IN r.scope WHERE sId <> s.id) " +
+						"SET r.scope = [sId IN r.scope WHERE sId <> s.id] " +
 						"WITH r " +
-						"WHERE LENGTH(r.scope) = 0 " +
+						"WHERE size(r.scope) = 0 " +
 						"DELETE r";
 		final String removeFunctionGroups =
 				matchUser +
 				matchStructure +
-				"MATCH u-[r:IN|COMMUNIQUE]-(:Group)-[:DEPENDS]->s " +
-						"WHERE NOT(HAS(r.source)) OR r.source <> 'MANUAL' " +
+				"MATCH (u)-[r:IN|COMMUNIQUE]-(:Group)-[:DEPENDS]->(s) " +
+						"WHERE r.source IS NULL OR r.source <> 'MANUAL' " +
 						"DELETE r";
 		final String removeDefaultGroup =
 				matchUser +
@@ -660,19 +660,19 @@ public class ManualFeeder extends BusModBase {
 			related =
 					"WITH u " +
 					"MATCH (student:User) " +
-					"WHERE student.id IN {childrenIds} " +
-					"CREATE student-[:RELATED {source: 'MANUAL'}]->u " +
+					"WHERE student.id IN $childrenIds " +
+					"CREATE (student)-[:RELATED {source: 'MANUAL'}]->(u) " +
 					"SET student.relative = coalesce(student.relative, []) + (u.externalId + '$10$1$1$0$0') ";
 			params.put("childrenIds", childrenIds);
 		}
 		String query =
-				"MATCH (s:Class { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
-				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : {profile}}), s-[:BELONGS]->(struct:Structure) " +
-				"CREATE UNIQUE pg<-[:IN]-(u:User {props}), cpg<-[:IN]-u " +
+				"MATCH (s:Class { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
+				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : $profile}), (s)-[:BELONGS]->(struct:Structure) " +
+				"CREATE UNIQUE (pg)<-[:IN]-(u:User $props), (cpg)<-[:IN]-(u) " +
 				"SET u.classes = [s.externalId], u.structures = [struct.externalId] " +
 				related +
 				"RETURN DISTINCT u.id as id, u.login AS login";
-		final String structureQuery = "MATCH (c:Class {id:{classId}})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
+		final String structureQuery = "MATCH (c:Class {id:$classId})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
 		neo4j.execute(structureQuery, new JsonObject().put("classId", classId), structRes -> {
 			final JsonArray sr = structRes.body().getJsonArray("result");
 			final String structureId = ("ok".equals(structRes.body().getString("status")) && sr != null && sr.size() > 0)
@@ -728,15 +728,15 @@ public class ManualFeeder extends BusModBase {
 				.put("classId", classId)
 				.put("userId", userId);
 		final String query =
-				"MATCH (u:User { id : {userId}})-[:IN]->(opg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+				"MATCH (u:User { id : $userId})-[:IN]->(opg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 						"WITH u, p " +
-						"MATCH (s:Class { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
-						"(pg:ProfileGroup)-[:HAS_PROFILE]->p " +
-						"CREATE UNIQUE (cpg)<-[:IN {source:'MANUAL'}]-(u) " +
+						"MATCH (s:Class { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
+						"(pg:ProfileGroup)-[:HAS_PROFILE]->(p) " +
+						"MERGE (cpg)<-[:IN {source:'MANUAL'}]-(u) " +
 						"SET u.classes = CASE WHEN s.externalId IN u.classes THEN " +
 						"u.classes ELSE coalesce(u.classes, []) + s.externalId END " +
 						"RETURN DISTINCT u.id as id";
-		final String structureQuery = "MATCH (c:Class {id:{classId}})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
+		final String structureQuery = "MATCH (c:Class {id:$classId})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
 		neo4j.execute(structureQuery, new JsonObject().put("classId", classId), structRes -> {
 			final JsonArray sr = structRes.body().getJsonArray("result");
 			final String structureId = ("ok".equals(structRes.body().getString("status")) && sr != null && sr.size() > 0)
@@ -764,7 +764,7 @@ public class ManualFeeder extends BusModBase {
 
 	private void addUsersInClass(final Message<JsonObject> message,
 								JsonArray userIds, String classId) {
-		final String structureQuery = "MATCH (c:Class {id:{classId}})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
+		final String structureQuery = "MATCH (c:Class {id:$classId})-[:BELONGS]->(s:Structure) RETURN s.id as structureId";
 		neo4j.execute(structureQuery, new JsonObject().put("classId", classId), structRes -> {
 			final JsonArray sr = structRes.body().getJsonArray("result");
 			final String structureId = ("ok".equals(structRes.body().getString("status")) && sr != null && sr.size() > 0)
@@ -776,11 +776,11 @@ public class ManualFeeder extends BusModBase {
 						.put("classId", classId)
 						.put("userId", uid);
 				String query =
-						"MATCH (u:User { id : {userId}})-[:IN]->(opg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+						"MATCH (u:User { id : $userId})-[:IN]->(opg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 								"WITH u, p " +
-								"MATCH (s:Class { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
+								"MATCH (s:Class { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
 								"(pg:ProfileGroup)-[:HAS_PROFILE]->(p) " +
-								"MERGE cpg<-[:IN {source:'MANUAL'}]-u " +
+								"MERGE (cpg)<-[:IN {source:'MANUAL'}]-(u) " +
 								"SET u.classes = CASE WHEN s.externalId IN u.classes THEN " +
 								"u.classes ELSE coalesce(u.classes, []) + s.externalId END " +
 								"RETURN DISTINCT u.id as id";
@@ -802,22 +802,22 @@ public class ManualFeeder extends BusModBase {
 					.put("classId", classId)
 					.put("userId", userId);
 			String query =
-					"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS]->(c:Class  {id : {classId}}) " +
-							"SET u.classes = FILTER(cId IN u.classes WHERE cId <> c.externalId) , u.headTeacherManual = FILTER(x IN u.headTeacherManual WHERE x <> c.externalId) " +
+					"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS]->(c:Class  {id : $classId}) " +
+							"SET u.classes = [cId IN u.classes WHERE cId <> c.externalId] , u.headTeacherManual = [x IN u.headTeacherManual WHERE x <> c.externalId] " +
 							"DELETE r " +
 							"RETURN DISTINCT u.id as id";
 
 			tx.add(query, params);
 
 			String query2 =
-					"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(c:Class {id : {classId}}) " +
+					"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(c:Class {id : $classId}) " +
 							"DELETE r ";
 
 			tx.add(query2, params);
 
 			String query3 =
-					"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure)<-[b:BELONGS]-(c:Class {id : {classId}}) " +
-							"WHERE length(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR length(u.headTeacher) = 0) " +
+					"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure)<-[b:BELONGS]-(c:Class {id : $classId}) " +
+							"WHERE size(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR size(u.headTeacher) = 0) " +
 							"DELETE r " +
 							"RETURN DISTINCT u.id as id";
 
@@ -872,22 +872,22 @@ public class ManualFeeder extends BusModBase {
 						.put("classId", classIdObj.toString())
 						.put("userId", userId);
 				String query =
-						"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS]->(c:Class  {id : {classId}}) " +
-								"SET u.classes = FILTER(cId IN u.classes WHERE cId <> c.externalId) , u.headTeacherManual = FILTER(x IN u.headTeacherManual WHERE x <> c.externalId) " +
+						"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]-(cpg:ProfileGroup)-[:DEPENDS]->(c:Class  {id : $classId}) " +
+								"SET u.classes = [cId IN u.classes WHERE cId <> c.externalId] , u.headTeacherManual = [x IN u.headTeacherManual WHERE x <> c.externalId] " +
 								"DELETE r " +
 								"RETURN DISTINCT u.id as id";
 
 				tx.add(query, params);
 
 				String query2 =
-						"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(c:Class {id : {classId}}) " +
+						"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(c:Class {id : $classId}) " +
 								"DELETE r ";
 
 				tx.add(query2, params);
 
 				String query3 =
-						"MATCH (u:User { id : {userId}})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure)<-[b:BELONGS]-(c:Class {id : {classId}}) " +
-								"WHERE length(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR length(u.headTeacher) = 0) " +
+						"MATCH (u:User { id : $userId})-[r:IN|COMMUNIQUE]->(g:Group:HTGroup)-[:DEPENDS]->(s:Structure)<-[b:BELONGS]-(c:Class {id : $classId}) " +
+								"WHERE size(u.headTeacherManual) = 0 AND (u.headTeacher IS NULL OR size(u.headTeacher) = 0) " +
 								"DELETE r " +
 								"RETURN DISTINCT u.id as id";
 
@@ -904,7 +904,7 @@ public class ManualFeeder extends BusModBase {
 		if (userId == null) return;
 		final Boolean useLoginAliasValidatorForAD = this.loginAliasValidatorForAD;
 		String q =
-				"MATCH (u:User { id : {userId}})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+				"MATCH (u:User { id : $userId})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 				"RETURN DISTINCT p.name as profile, u.login as login, u.loginAlias as loginAlias, " +
 				"u.email as email, u.mobile as mobile, coalesce(u.lockedCredentials, false) as lockedCredentials ";
 		neo4j.execute(q, new JsonObject().put("userId", userId), new Handler<Message<JsonObject>>() {
@@ -979,7 +979,7 @@ public class ManualFeeder extends BusModBase {
 					}
 					user.put("checksum", "manual");
 					String query =
-							"MATCH (u:User { id : {userId}}) " +
+							"MATCH (u:User { id : $userId}) " +
 							"SET " + Neo4jUtils.nodeSetPropertiesFromJson("u", user) +
 							"RETURN DISTINCT u.id as id ";
 					JsonObject params = user.put("userId", userId);
@@ -1035,7 +1035,7 @@ public class ManualFeeder extends BusModBase {
 		if (newLogin == null) return;
 
 		String q =
-				"MATCH (u:User { id : {userId}})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+				"MATCH (u:User { id : $userId})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 				"RETURN DISTINCT p.name as profile, u.login as login, " +
 				"coalesce(u.lockedCredentials, false) as lockedCredentials ";
 		neo4j.execute(q, new JsonObject().put("userId", userId), new Handler<Message<JsonObject>>()
@@ -1085,7 +1085,7 @@ public class ManualFeeder extends BusModBase {
 					}
 					else
 					{
-						String query = "MATCH (u:User {id: {userId}}) SET u.login = {login} RETURN u.id AS id";
+						String query = "MATCH (u:User {id: $userId}) SET u.login = $login RETURN u.id AS id";
 						JsonObject params = new JsonObject().put("userId", userId).put("login", newLogin);
 						neo4j.execute(query, params, new Handler<Message<JsonObject>>()
 						{
@@ -1118,8 +1118,8 @@ public class ManualFeeder extends BusModBase {
 	private void deleteUnlockedUsers(final Message<JsonObject> message, final JsonArray users) {
 		String query =
 				"MATCH (u:User)" +
-				"WHERE u.id IN {users} AND (u.source IN ['MANUAL', 'CSV', 'CLASS_PARAM', 'BE1D', 'SSO'] OR HAS(u.disappearanceDate)) " +
-				"return u.id as id, u.externalId AS externalId, u.login as login, u.loginAlias as loginAlias, has(u.activationCode) as inactive ";
+				"WHERE u.id IN $users AND (u.source IN ['MANUAL', 'CSV', 'CLASS_PARAM', 'BE1D', 'SSO'] OR u.disappearanceDate IS NOT NULL) " +
+				"return u.id as id, u.externalId AS externalId, u.login as login, u.loginAlias as loginAlias, u.activationCode IS NOT NULL as inactive ";
 		neo4j.execute(query, new JsonObject().put("users", users), new Handler<Message<JsonObject>>() {
 			@Override
 			public void handle(Message<JsonObject> event) {
@@ -1274,11 +1274,11 @@ public class ManualFeeder extends BusModBase {
 			String query;
 			if ("sc".equals(inherit)) {
 				query = "MATCH (s:Structure)<-[:HAS_ATTACHMENT*0..]-(:Structure)<-[:BELONGS*0..1]-(scope) " +
-						"WHERE s.id IN {scope} " +
+						"WHERE s.id IN $scope " +
 						"RETURN COLLECT(scope.id) as ids ";
 			} else {
 				query = "MATCH (s:Structure)<-[:HAS_ATTACHMENT*0..]-(scope:Structure) " +
-						"WHERE s.id IN {scope} " +
+						"WHERE s.id IN $scope " +
 						"RETURN COLLECT(scope.id) as ids ";
 			}
 			JsonObject params = new JsonObject()
@@ -1623,17 +1623,17 @@ public class ManualFeeder extends BusModBase {
 			JsonObject params = s.copy().put("structureId", structureId);
 			if (s.getString("name") != null)
 			{
-				query = "MATCH (s:`Structure` { id : {structureId}}) " +
-						"SET s.manualName = ({name} <> s.name), s.name = {name} " +
+				query = "MATCH (s:`Structure` { id : $structureId}) " +
+						"SET s.manualName = ($name <> s.name), s.name = $name " +
 						"WITH s " +
 						"MATCH (s)<-[:DEPENDS]-(g:Group) " +
 						"WHERE last(split(g.name, '-')) IN ['Student','Teacher','Personnel','Relative','Guest','AdminLocal','HeadTeacher', 'Direction', 'SCOLARITE'] " +
-						"SET g.name = {name} + '-' + last(split(g.name, '-')), g.displayNameSearchField = {sanitizeName}, ";
+						"SET g.name = $name + '-' + last(split(g.name, '-')), g.displayNameSearchField = $sanitizeName, ";
 				params.put("sanitizeName", Validator.sanitize(s.getString("name")));
 			}
 			else
 			{
-				query = "MATCH (s:`Structure` { id : {structureId}}) SET";
+				query = "MATCH (s:`Structure` { id : $structureId}) SET";
 
 			}
 			query = query + Neo4jUtils.nodeSetPropertiesFromJson("s", s) +

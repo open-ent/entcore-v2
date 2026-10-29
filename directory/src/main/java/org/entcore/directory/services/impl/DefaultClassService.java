@@ -83,7 +83,7 @@ public class DefaultClassService implements ClassService {
 		//=== Filter by type
 		String filterPart = "";
 		if (expectedTypes != null && expectedTypes.size()  >= 1) {
-			filterPart = " WHERE p.name IN {expected} ";
+			filterPart = " WHERE p.name IN $expected ";
 			params.put("expected", expectedTypes);
 		}
 		//=== Collect relative
@@ -94,21 +94,21 @@ public class DefaultClassService implements ClassService {
 		}
 		//=== Make query
 		String query =
-				"MATCH (c:`Class` { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)" +
-				"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), cpg<-[:IN]-(m:User)-[:IN]->spg " +
+				"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)" +
+				"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (cpg)<-[:IN]-(m:User)-[:IN]->(spg) " +
 						filterPart + collectPart +
-				" OPTIONAL MATCH m-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, m, p, relativeList " +
+				" OPTIONAL MATCH (m)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) WITH COLLECT(distinct s) as structureNodes, m, p, relativeList " +
 				" OPTIONAL MATCH (sAuth:Structure)-[:HAS_AUTH_DEFAULT]->(auths:AuthDefault { profile: HEAD(m.profiles), auth: 'FEDERATED' }) WHERE sAuth IN structureNodes " +
 				" WITH COLLECT(auths) as auths, m, p, relativeList "	+
 				"RETURN distinct m.lastName as lastName, m.firstName as firstName, m.id as id, " +
-				"(LENGTH(m.email)>0 AND EXISTS(m.email)) as hasEmail, " +
+				"(size(m.email)>0 AND m.email IS NOT NULL) as hasEmail, " +
 				"CASE WHEN m.loginAlias IS NOT NULL THEN m.loginAlias ELSE m.login END as login, m.login as originalLogin, m.activationCode as activationCode, m.displayName as displayName, m.birthDate as birthDate, m.lastLogin as lastLogin, " +
 				(ine 
 					? "m.ine as ine, " 
 					: "") +
 				"m.passwordResetRequested as passwordResetRequested, m.passwordResetRequestDate as passwordResetRequestDate, " +
 				"p.name as type, m.blocked as blocked, m.source as source, relativeList, " +
-				" (HAS(m.federatedIDP) AND NOT(m.federatedIDP IS NULL) AND HAS(m.federated) AND m.federated = true) OR " +
+				" (m.federatedIDP IS NOT NULL AND NOT(m.federatedIDP IS NULL) AND m.federated IS NOT NULL AND m.federated = true) OR " +
 				"  (size(auths) > 0 AND (m.source in ['AAF', 'AAF1D']) AND m.activationCode IS NOT NULL) as hasFederatedIdentity " +
 				"ORDER BY type, lastName ";
 		neo.execute(query, params, validResultHandler(results));
@@ -125,7 +125,7 @@ public class DefaultClassService implements ClassService {
 		}
 		//=== Make query
 		String customReturn =
-				"MATCH (c:`Class` { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (cpg)<-[:IN]-(visibles:User) " +
+				"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile), (cpg)<-[:IN]-(visibles:User) " +
 					collectPart +
 					"RETURN distinct visibles.displayName as displayName, visibles.lastName as lastName, visibles.firstName as firstName, " +
 					"visibles.id as id, p.name as type, relativeList " +
@@ -136,7 +136,7 @@ public class DefaultClassService implements ClassService {
 	@Override
 	public void get(String classId, Handler<Either<String, JsonObject>> result) {
 		if (validationParamsError(result, classId)) return;
-		String query = "MATCH (c:`Class` { id : {classId}}) RETURN c.id as id, c.externalId as externalId,  c.name as name, c.level as level";
+		String query = "MATCH (c:`Class` { id : $classId}) RETURN c.id as id, c.externalId as externalId,  c.name as name, c.level as level";
 		neo.execute(query, new JsonObject().put("classId", classId), validUniqueResultHandler(result));
 	}
 
@@ -158,7 +158,7 @@ public class DefaultClassService implements ClassService {
 			result.handle(new Either.Left<String, JsonObject>("invalid.userinfos"));
 			return;
 		}
-		neo.execute("MATCH (u:`User` {id : {id}})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
+		neo.execute("MATCH (u:`User` {id : $id})-[:IN]->(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile) " +
 				"RETURN distinct p.name as type", new JsonObject().put("id", userId),
 				new Handler<Message<JsonObject>>() {
 					@Override
@@ -167,11 +167,11 @@ public class DefaultClassService implements ClassService {
 						if ("ok".equals(r.body().getString("status")) && res != null && res.size() == 1) {
 							final String t = (res.getJsonObject(0)).getString("type");
 							String customReturn =
-									"MATCH (c:`Class` { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)" +
-									"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {name : {profile}}), " +
-									"c-[:BELONGS]->(s:Structure) " +
-									"WHERE visibles.id = {uId} " +
-									"CREATE UNIQUE visibles-[:IN {source:'MANUAL'}]->cpg " +
+									"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)" +
+									"-[:DEPENDS]->(spg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile {name : $profile}), " +
+									"(c)-[:BELONGS]->(s:Structure) " +
+									"WHERE visibles.id = $uId " +
+									"MERGE (visibles)-[:IN {source:'MANUAL'}]->(cpg) " +
 									"RETURN DISTINCT visibles.id as id, s.id as schoolId";
 							JsonObject params = new JsonObject()
 									.put("classId", classId)
@@ -185,10 +185,10 @@ public class DefaultClassService implements ClassService {
 									if (users != null && users.size() == 1) {
 										if ("Student".equals(t)) {
 											String query =
-													"MATCH (c:`Class` { id : {classId}})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)" +
+													"MATCH (c:`Class` { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->(spg:ProfileGroup)" +
 													"-[:HAS_PROFILE]->(p:Profile {name : 'Relative'}), " +
-													"(u:User {id: {uId}})-[:RELATED]->(relative: User) " +
-													"CREATE UNIQUE relative-[:IN {source:'MANUAL'}]->cpg " +
+													"(u:User {id: $uId})-[:RELATED]->(relative: User) " +
+													"MERGE (relative)-[:IN {source:'MANUAL'}]->(cpg) " +
 													"RETURN count(relative) as relativeNb";
 
 											JsonObject params = new JsonObject()
@@ -273,16 +273,16 @@ public class DefaultClassService implements ClassService {
 			UserInfos.Function f = userInfos.getFunctions().get(ADMIN_LOCAL);
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
-				condition = "WHERE (s.id IN {scope} OR c.id IN {scope}";
+				condition = "WHERE (s.id IN $scope OR c.id IN $scope";
 				params.put("scope", new JsonArray(scope));
 			}
 		}
 
 		if (structureId != null && !structureId.trim().isEmpty()) {
 			if (condition.isEmpty()) {
-				condition = "WHERE s.id = {structure} ";
+				condition = "WHERE s.id = $structure ";
 			} else {
-				condition += ") AND s.id = {structure} ";
+				condition += ") AND s.id = $structure ";
 			}
 			params.put("structure", structureId);
 		} else if (!condition.isEmpty()) {
@@ -312,7 +312,7 @@ public class DefaultClassService implements ClassService {
 		//=== Make query
 		String customReturn =
 				"MATCH (visibles:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure), (pg)-[:HAS_PROFILE]->(p:Profile) " +
-						"WHERE s.id IN {structureIds} AND NOT (visibles)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Class) "+
+						"WHERE s.id IN $structureIds AND NOT (visibles)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(:Class) "+
 						" WITH visibles, p, s " +
 						"OPTIONAL MATCH (visibles)-[:RELATED]->(relative) WITH visibles, p, s, relative "+
 						"RETURN distinct visibles.displayName as displayName, visibles.lastName as lastName, visibles.firstName as firstName, visibles.login as login, " +

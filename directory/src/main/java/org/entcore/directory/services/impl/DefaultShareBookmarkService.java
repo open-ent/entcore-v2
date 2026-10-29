@@ -66,9 +66,9 @@ public class DefaultShareBookmarkService implements ShareBookmarkService {
 	@Override
 	public void update(String userId, String id, JsonObject bookmark, Handler<Either<String, JsonObject>> handler) {
 		final String query =
-				"MATCH (u:User {id:{userId}}) " +
-				"MERGE u-[:HAS_SB]->(sb:ShareBookmark) " +
-				"SET sb." + cleanId(id) + " = {bookmark} ";
+				"MATCH (u:User {id:$userId}) " +
+				"MERGE (u)-[:HAS_SB]->(sb:ShareBookmark) " +
+				"SET sb." + cleanId(id) + " = $bookmark ";
 		JsonObject params = new JsonObject();
 		params.put("userId", userId);
 		params.put("bookmark", new JsonArray().add(bookmark.getString("name"))
@@ -80,7 +80,7 @@ public class DefaultShareBookmarkService implements ShareBookmarkService {
 	public void delete(String userId, String id, Handler<Either<String, JsonObject>> handler) {
 		final String cleanId = cleanId(id);
 		final String query =
-				"MATCH (u:User {id:{userId}})-[:HAS_SB]->(sb:ShareBookmark) " +
+				"MATCH (u:User {id:$userId})-[:HAS_SB]->(sb:ShareBookmark) " +
 				"REMOVE sb." + cleanId;
 		JsonObject params = new JsonObject();
 		params.put("userId", userId);
@@ -90,13 +90,13 @@ public class DefaultShareBookmarkService implements ShareBookmarkService {
 	private void get(String userId, String id, Handler<Either<String, JsonObject>> handler) {
 		final String cleanId = cleanId(id);
 		final String query =
-				"MATCH (:User {id:{userId}})-[:HAS_SB]->(sb:ShareBookmark) " +
+				"MATCH (:User {id:$userId})-[:HAS_SB]->(sb:ShareBookmark) " +
 				"UNWIND TAIL(sb." + cleanId + ") as vid " +
 				"MATCH (v:Visible {id : vid}) " +
-				"WHERE not(has(v.deleteDate)) " +
+				"WHERE v.deleteDate IS NULL " +
 				"RETURN \"" + cleanId + "\" as id, HEAD(sb." + cleanId + ") as name, " +
 				"COLLECT(DISTINCT {id : v.id, name : v.name, displayName :  v.displayName, groupType : labels(v), " +
-				"groupProfile : v.filter, nbUsers : v.nbUsers, profile : HEAD(v.profiles), activationCode : has(v.activationCode) }) as members;";
+				"groupProfile : v.filter, nbUsers : v.nbUsers, profile : HEAD(v.profiles), activationCode : v.activationCode IS NOT NULL }) as members;";
 		JsonObject params = new JsonObject();
 		params.put("userId", userId);
 		neo4j.execute(query, params, validUniqueResultHandler(handler));
@@ -155,7 +155,7 @@ public class DefaultShareBookmarkService implements ShareBookmarkService {
 
 	@Override
 	public void list(String userId, Handler<Either<String, JsonArray>> handler) {
-		final String query = "MATCH (:User {id:{userId}})-[:HAS_SB]->(sb:ShareBookmark) return sb";
+		final String query = "MATCH (:User {id:$userId})-[:HAS_SB]->(sb:ShareBookmark) return sb";
 		JsonObject params = new JsonObject();
 		params.put("userId", userId);
 		neo4j.execute(query, params, fullNodeMergeHandler("sb", node -> {

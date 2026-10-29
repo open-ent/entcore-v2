@@ -54,8 +54,8 @@ public class RelativeStudentFilter implements ResourcesProvider {
 		if ("Teacher".equals(user.getType())) {
 			// Usage from class-admin
 			String query =
-					"MATCH (:User { id : {userId}})-[:IN]->(:Group)-[:DEPENDS]->(s:Structure)" +
-							"<-[:DEPENDS]-(:Group)<-[:IN]-(:User { id : {id}}) " +
+					"MATCH (:User { id : $userId})-[:IN]->(:Group)-[:DEPENDS]->(s:Structure)" +
+							"<-[:DEPENDS]-(:Group)<-[:IN]-(:User { id : $id}) " +
 							"RETURN count(*) > 0 as exists ";
 			StatementsBuilder s = new StatementsBuilder()
 					.add(query, new JsonObject()
@@ -91,8 +91,8 @@ public class RelativeStudentFilter implements ResourcesProvider {
 		if (adminLocal != null && adminLocal.getScope() != null) {
 			// Usage from admin console
 			String query =
-					"MATCH (s)<-[:DEPENDS]-(:Group)<-[:IN]-(:User { id : {id}}) " +
-							"WHERE (s:Structure OR s:Class) AND s.id IN {scope} " +
+					"MATCH (s)<-[:DEPENDS]-(:Group)<-[:IN]-(:User { id : $id}) " +
+							"WHERE (s:Structure OR s:Class) AND s.id IN $scope " +
 							"RETURN count(*) > 0 as exists ";
 			JsonArray scope = new JsonArray(adminLocal.getScope());
 			StatementsBuilder s = new StatementsBuilder()

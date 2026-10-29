@@ -75,7 +75,7 @@ public final class ScimFilter {
                     parts.add(expr + ("eq".equals(op) ? " IS NULL" : " IS NOT NULL"));
                 } else if ("eq".equals(op) || "ne".equals(op)) {
                     params.put(param, Boolean.parseBoolean(raw.toLowerCase()));
-                    parts.add(expr + ("eq".equals(op) ? " = {" : " <> {") + param + "}");
+                    parts.add(expr + ("eq".equals(op) ? " = $" : " <> $") + param);
                 } else {
                     throw new InvalidFilterException("operator " + op + " needs a string");
                 }
@@ -84,11 +84,11 @@ public final class ScimFilter {
             params.put(param, unquote(raw).toLowerCase());
             final String lower = "toLower(" + expr + ")";
             switch (op) {
-                case "eq": parts.add(lower + " = {" + param + "}"); break;
-                case "ne": parts.add("(" + expr + " IS NULL OR " + lower + " <> {" + param + "})"); break;
-                case "co": parts.add(lower + " CONTAINS {" + param + "}"); break;
-                case "sw": parts.add(lower + " STARTS WITH {" + param + "}"); break;
-                default:   parts.add(lower + " ENDS WITH {" + param + "}"); break;
+                case "eq": parts.add(lower + " = $" + param); break;
+                case "ne": parts.add("(" + expr + " IS NULL OR " + lower + " <> $" + param + ")"); break;
+                case "co": parts.add(lower + " CONTAINS $" + param); break;
+                case "sw": parts.add(lower + " STARTS WITH $" + param); break;
+                default:   parts.add(lower + " ENDS WITH $" + param); break;
             }
         }
         return new Clause(String.join(" AND ", parts), params);

@@ -96,7 +96,7 @@ public class CsvValidator extends CsvReport implements ImportValidator {
 			public void handle(JsonObject event) {
 				if (isNotEmpty(getStructureExternalId())) {
 					final String query =
-							"MATCH (s:Structure {externalId:{externalId}})<-[:BELONGS]-(c:Class) " +
+							"MATCH (s:Structure {externalId:$externalId})<-[:BELONGS]-(c:Class) " +
 							"RETURN COLLECT(DISTINCT c.name) as classes";
 					final JsonObject params = new JsonObject().put("externalId", getStructureExternalId());
 					TransactionManager.getNeo4jHelper().execute(query, params, new Handler<Message<JsonObject>>() {
@@ -308,9 +308,9 @@ public class CsvValidator extends CsvReport implements ImportValidator {
 
 	private void loadStudentExternalIdMapping(String structure, Handler<Void> handler) {
 		final String query =
-				"MATCH (s:Structure {externalId:{externalId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
+				"MATCH (s:Structure {externalId:$externalId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) " +
 				"WHERE head(u.profiles) = 'Student' " +
-				"OPTIONAL MATCH u-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
+				"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(c:Class) " +
 				"RETURN u.externalId as externalId, u.surname as surname, " +
 				"u.lastName as lastName, u.firstName as firstName, u.email as email, u.title as title, " +
 				"u.homePhone as homePhone, u.mobile as mobile, c.name as className ";
@@ -570,19 +570,19 @@ public class CsvValidator extends CsvReport implements ImportValidator {
 			final TransactionHelper tx = TransactionManager.getTransaction();
 			final String query =
 					"MATCH (u:User) " +
-					"WHERE u.externalId in {externalIds} " +
+					"WHERE u.externalId in $externalIds " +
 					"RETURN COLLECT([u.externalId, u.login]) as ids";
 			tx.add(query, params);
 			final String q2 =
 					"MATCH (u:User) " +
-					"WHERE u.externalId IN {externalIds} AND u.source IN ['AAF', 'AAF1D'] " +
-					"AND NOT(HAS(u.deleteDate)) AND NOT(HAS(u.disappearanceDate)) " +
+					"WHERE u.externalId IN $externalIds AND u.source IN ['AAF', 'AAF1D'] " +
+					"AND u.deleteDate IS NULL AND u.disappearanceDate IS NULL " +
 					"RETURN COLLECT(u.externalId) as ids";
 			tx.add(q2, params);
 			if (admlStructures != null && admlStructures.size() > 0) {
 				final String q =
 						"MATCH (u:User)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(s:Structure) " +
-						"WHERE u.externalId in {externalIds} " +
+						"WHERE u.externalId in $externalIds " +
 						"RETURN s.id as structureId, COLLECT(distinct u.externalId) as userExtIds ";
 				tx.add(q, params);
 			}
@@ -1038,7 +1038,7 @@ public class CsvValidator extends CsvReport implements ImportValidator {
 				if (!checkChildExists.isEmpty()) {
 					final String query =
 							"MATCH (u:User) " +
-							"WHERE u.externalId IN {childExternalIds} " +
+							"WHERE u.externalId IN $childExternalIds " +
 							"RETURN COLLECT(u.externalId) as childExternalIds ";
 					final JsonObject params = new JsonObject().put("childExternalIds", new JsonArray(
 							new ArrayList<>(checkChildExists.fieldNames())));
@@ -1072,7 +1072,7 @@ public class CsvValidator extends CsvReport implements ImportValidator {
 	}
 
 	private void getStructure(final String path, final Handler<ImporterStructure> handler) {
-		String query = "MATCH (s:Structure {externalId:{id}})" +
+		String query = "MATCH (s:Structure {externalId:$id})" +
 				"return s.id as id, s.externalId as externalId, s.UAI as UAI, s.name as name";
 		TransactionManager.getNeo4jHelper().execute(query, new JsonObject().put("id", structureId), new Handler<Message<JsonObject>>() {
 			@Override

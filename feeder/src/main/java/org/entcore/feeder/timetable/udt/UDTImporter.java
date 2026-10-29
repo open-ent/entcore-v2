@@ -63,14 +63,14 @@ import static org.entcore.feeder.dictionary.structures.DefaultProfiles.TEACHER_P
 public class UDTImporter extends AbstractTimetableImporter {
 
 	private static final String STUDENTS_TO_GROUPS =
-			"MATCH (:Structure {externalId:{structureExternalId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User), " +
-			"(fg:FunctionalGroup {externalId:{externalId}}) " +
-			"WHERE lower(u.firstName) = {firstName} AND lower(u.lastName) = {lastName} AND u.birthDate = {birthDate} " +
-			"MERGE u-[r:IN]->fg " +
-			"SET r.lastUpdated = {now}, r.source = {source}, r.inDate = {inDate}, r.outDate = {outDate} ";
+			"MATCH (:Structure {externalId:$structureExternalId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User), " +
+			"(fg:FunctionalGroup {externalId:$externalId}) " +
+			"WHERE toLower(u.firstName) = $firstName AND toLower(u.lastName) = $lastName AND u.birthDate = $birthDate " +
+			"MERGE (u)-[r:IN]->(fg) " +
+			"SET r.lastUpdated = $now, r.source = $source, r.inDate = $inDate, r.outDate = $outDate ";
 	private static final String PERSIST_USED_GROUPS =
-			"MATCH (:Structure {externalId:{structureExternalId}})<-[:DEPENDS]-(fg:FunctionalGroup) " +
-			"WHERE fg.idgpe IN {usedGroups} " +
+			"MATCH (:Structure {externalId:$structureExternalId})<-[:DEPENDS]-(fg:FunctionalGroup) " +
+			"WHERE fg.idgpe IN $usedGroups " +
 			"SET fg.usedInCourses = true ";
 	public static final String UDT = "UDT";
 	public static final String CODE = "code";
@@ -454,7 +454,7 @@ public class UDTImporter extends AbstractTimetableImporter {
 			}
 			else
 			{
-				txXDT.add("MATCH (fg:Group:FunctionalGroup {externalId:{externalId}}) " + set, currentEntity);
+				txXDT.add("MATCH (fg:Group:FunctionalGroup {externalId:$externalId}) " + set, currentEntity);
 
 				functionalGroupExternalIdCopy.remove(externalId);
 				ttReport.groupUpdated(name);
@@ -522,7 +522,7 @@ public class UDTImporter extends AbstractTimetableImporter {
 		{
 			if(functionalGroupExternalId.containsKey(externalId) == false)
 			{
-				txXDT.add(CREATE_GROUPS + "SET fg.idrgpmt = {idrgpmt} " , new JsonObject()
+				txXDT.add(CREATE_GROUPS + "SET fg.idrgpmt = $idrgpmt " , new JsonObject()
 					.put("structureExternalId", structureExternalId)
 					.put("name", name).put("displayNameSearchField", Validator.sanitize(name))
 					.put("externalId", externalId)
@@ -535,7 +535,7 @@ public class UDTImporter extends AbstractTimetableImporter {
 			}
 			else
 			{
-				txXDT.add("MATCH (fg:Group:FunctionalGroup {externalId:{externalId}}) SET fg.idrgpmt = {idrgpmt}, fg.modified = {date}",
+				txXDT.add("MATCH (fg:Group:FunctionalGroup {externalId:$externalId}) SET fg.idrgpmt = $idrgpmt, fg.modified = $date",
 					currentEntity.put("externalId", externalId).put("idrgpmt", currentEntity.getString("id")).put("date", importDate));
 
 				functionalGroupExternalIdCopy.remove(externalId);
@@ -1022,7 +1022,7 @@ public class UDTImporter extends AbstractTimetableImporter {
 	{
 		super.removeUselessGroups(baseParams);
 		baseParams.put("date", importDate);
-		txXDT.add(get_DELETE_GROUPS("WHERE HEAD(u.profiles) = 'Teacher' OR g.created <> {date}"), baseParams);
+		txXDT.add(get_DELETE_GROUPS("WHERE HEAD(u.profiles) = 'Teacher' OR g.created <> $date"), baseParams);
 	}
 
 	private class LftComparator implements Comparator<JsonObject> {

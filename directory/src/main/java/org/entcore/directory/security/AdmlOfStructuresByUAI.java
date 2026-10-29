@@ -41,9 +41,9 @@ public class AdmlOfStructuresByUAI extends AdmlResourcesProvider {
 		}
 		String query =
 				"MATCH (s:Structure) " +
-				"WHERE s.UAI IN {structures} " +
+				"WHERE s.UAI IN $structures " +
 				"WITH COLLECT(s.id) as sIds " +
-				"RETURN LENGTH(FILTER(sId IN sIds WHERE sId IN {scope})) = LENGTH(sIds) as exists ";
+				"RETURN size([sId IN sIds WHERE sId IN $scope]) = size(sIds) as exists ";
 		JsonObject params = new JsonObject()
 				.put("structures", new JsonArray(structures))
 				.put("scope", new JsonArray(adminLocal.getScope()));

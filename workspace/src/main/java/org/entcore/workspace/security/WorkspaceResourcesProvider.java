@@ -208,8 +208,8 @@ public class WorkspaceResourcesProvider implements ResourcesProvider {
 		final UserInfos.Function adminLocal = getFunction(user, handler);
 		if (adminLocal == null)
 			return;
-		String query = "MATCH (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User {id : {userId}}) "
-				+ "WHERE s.id IN {structures} " + "RETURN count(*) > 0 as exists ";
+		String query = "MATCH (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User {id : $userId}) "
+				+ "WHERE s.id IN $structures " + "RETURN count(*) > 0 as exists ";
 		JsonObject params = new JsonObject()
 				.put("structures", new JsonArray(adminLocal.getScope()))
 				.put("userId", userId);
@@ -250,8 +250,8 @@ public class WorkspaceResourcesProvider implements ResourcesProvider {
 					handler.handle(false);
 					return;
 				}
-				String query = "MATCH (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User {id : {userId}}) "
-						+ "WHERE s.id IN {structures} " + "RETURN count(*) > 0 as exists ";
+				String query = "MATCH (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User {id : $userId}) "
+						+ "WHERE s.id IN $structures " + "RETURN count(*) > 0 as exists ";
 				JsonObject params = new JsonObject()
 						.put("structures", new JsonArray(adminLocal.getScope()))
 						.put("userId", ownerId);
@@ -275,7 +275,7 @@ public class WorkspaceResourcesProvider implements ResourcesProvider {
 			@Override
 			public void handle(JsonObject object) {
 				String query = "MATCH (s:Structure)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) "
-						+ "WHERE s.id IN {structures} AND u.id IN {users} " + "RETURN count(distinct u) as nb ";
+						+ "WHERE s.id IN $structures AND u.id IN $users " + "RETURN count(distinct u) as nb ";
 				final JsonArray users = object.getJsonArray("users", new JsonArray());
 				JsonObject params = new JsonObject()
 						.put("structures", new JsonArray(adminLocal.getScope()))
@@ -303,9 +303,9 @@ public class WorkspaceResourcesProvider implements ResourcesProvider {
 			return;
 		final String departmentCode = request.params().get("departmentCode");
 		String query = "MATCH (s:Structure) "
-				+ "WHERE coalesce(s.codeDepartement, s.departement, substring(s.zipCode, 0, 2)) = {departmentCode} "
+				+ "WHERE coalesce(s.codeDepartement, s.departement, substring(s.zipCode, 0, 2)) = $departmentCode "
 				+ "AND coalesce(s.structureType, 'ETABLISSEMENT') = 'ETABLISSEMENT' "
-				+ "AND NOT s.id IN {structures} "
+				+ "AND NOT s.id IN $structures "
 				+ "RETURN count(s) as notCovered ";
 		JsonObject params = new JsonObject()
 				.put("departmentCode", departmentCode)

@@ -733,7 +733,7 @@ public class DefaultWorkspaceService extends FolderManagerWithQuota implements W
 			handler.handle(new Either.Right<String, JsonArray>(new JsonArray()));
 			return;
 		}
-		final String query = "MATCH (s:Structure {id:{structureId}})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) "
+		final String query = "MATCH (s:Structure {id:$structureId})<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(u:User) "
 				+ "RETURN distinct u.id as id";
 		final JsonObject params = new JsonObject().put("structureId", structureId);
 		org.entcore.common.neo4j.Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {

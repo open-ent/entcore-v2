@@ -149,16 +149,16 @@ public class DefaultTimetableService implements TimetableService {
 	                          Handler<Either<String, JsonArray>> handler) {
 		final JsonObject params = new JsonObject().put("id", structureId);
 		StringBuilder query = new StringBuilder();
-		query.append("MATCH (:Structure {id:{id}})<-[:SUBJECT]-(sub:Subject)");
+		query.append("MATCH (:Structure {id:$id})<-[:SUBJECT]-(sub:Subject)");
 		StringBuilder whereClause = new StringBuilder().append(" WHERE 1=1");
 		if (teachers != null && !teachers.isEmpty()) {
 			query.append("<-[r:TEACHES]-(u:User)");
 			params.put("teacherIds", new JsonArray(teachers));
-			whereClause.append(" AND u.id IN  {teacherIds}");
+			whereClause.append(" AND u.id IN  $teacherIds");
 		}
 		if (!StringUtils.isEmpty(externalGroupId)) {
 			params.put("externalGroupId", externalGroupId);
-			whereClause.append(" AND ({externalGroupId} IN r.classes OR {externalGroupId} IN r.groups)");
+			whereClause.append(" AND ($externalGroupId IN r.classes OR $externalGroupId IN r.groups)");
 		}
 		query.append(whereClause.toString());
 		query.append(" RETURN sub.id as subjectId, sub.code as subjectCode, sub.label as subjectLabel");
@@ -187,8 +187,8 @@ public class DefaultTimetableService implements TimetableService {
 	@Override
 	public void classesMapping(String structureId, final Handler<Either<String, JsonObject>> handler) {
 		final String query =
-				"MATCH (s:Structure {id:{id}})<-[:MAPPING]-(cm:ClassesMapping) " +
-				"OPTIONAL MATCH s<-[:BELONGS]-(c:Class) " +
+				"MATCH (s:Structure {id:$id})<-[:MAPPING]-(cm:ClassesMapping) " +
+				"OPTIONAL MATCH (s)<-[:BELONGS]-(c:Class) " +
 				"return cm.classesMapping as classesMapping, cm.unknownClasses as unknownClasses, collect(c.name) as classNames ";
 		final JsonObject params = new JsonObject().put("id", structureId);
 		neo4j.execute(query, params, validUniqueResultHandler(new Handler<Either<String, JsonObject>>() {
@@ -230,8 +230,8 @@ public class DefaultTimetableService implements TimetableService {
 					}
 					mapping.put("classesMapping", m.encode());
 					final String query =
-							"MATCH (:Structure {id:{id}})<-[:MAPPING]-(cm:ClassesMapping) " +
-									"SET cm.classesMapping = {classesMapping} ";
+							"MATCH (:Structure {id:$id})<-[:MAPPING]-(cm:ClassesMapping) " +
+									"SET cm.classesMapping = $classesMapping ";
 					neo4j.execute(query, mapping.put("id", structureId), validEmptyHandler(handler));
 				} else {
 					handler.handle(event);
@@ -243,9 +243,9 @@ public class DefaultTimetableService implements TimetableService {
 	@Override
 	public void groupsMapping(String structureId, final Handler<Either<String, JsonObject>> handler) {
 		final String query =
-				"MATCH (s:Structure {id:{id}})<-[:MAPPING]-(cm:ClassesMapping) " +
-				"OPTIONAL MATCH s<-[:DEPENDS]-(g:Group) " +
-				"WHERE (NOT(EXISTS(g.source)) OR g.source <> cm.source) AND (g:FunctionalGroup OR g:ManualGroup) " +
+				"MATCH (s:Structure {id:$id})<-[:MAPPING]-(cm:ClassesMapping) " +
+				"OPTIONAL MATCH (s)<-[:DEPENDS]-(g:Group) " +
+				"WHERE (g.source IS NULL OR g.source <> cm.source) AND (g:FunctionalGroup OR g:ManualGroup) " +
 				"RETURN cm.groupsMapping AS groupsMapping, cm.unknownGroups AS unknownGroups, collect(g.name) AS groupNames";
 		final JsonObject params = new JsonObject().put("id", structureId);
 		neo4j.execute(query, params, validUniqueResultHandler(new Handler<Either<String, JsonObject>>() {
@@ -287,8 +287,8 @@ public class DefaultTimetableService implements TimetableService {
 					}
 					mapping.put("groupsMapping", m.encode());
 					final String query =
-							"MATCH (:Structure {id:{id}})<-[:MAPPING]-(cm:ClassesMapping) " +
-									"SET cm.groupsMapping = {groupsMapping} ";
+							"MATCH (:Structure {id:$id})<-[:MAPPING]-(cm:ClassesMapping) " +
+									"SET cm.groupsMapping = $groupsMapping ";
 					neo4j.execute(query, mapping.put("id", structureId), validEmptyHandler(handler));
 				} else {
 					handler.handle(event);
@@ -301,7 +301,7 @@ public class DefaultTimetableService implements TimetableService {
 	{
 		final JsonObject params = new JsonObject().put("id", structureId);
 		StringBuilder query = new StringBuilder();
-		query.append("MATCH (s:Structure {id:{id}}) RETURN s.UAI as UAI");
+		query.append("MATCH (s:Structure {id:$id}) RETURN s.UAI as UAI");
 
 		neo4j.execute(query.toString(), params, validUniqueResultHandler(new Handler<Either<String, JsonObject>>()
 		{
@@ -396,8 +396,8 @@ public class DefaultTimetableService implements TimetableService {
 			final String acceptLanguage, boolean uai, String timetableType, boolean groupsOnly, boolean timetableMode, boolean automaticMode,
 			final Handler<Either<JsonObject, JsonObject>> handler) {
 		final String  structureAttr = uai ? "UAI" : "id";
-		final String setPunctualTimetable = timetableType == null ? "REMOVE s.punctualTimetable" : "SET s.punctualTimetable = {punctualTT}";
-		final String query = "MATCH (s:Structure {" + structureAttr + ":{id}}) " + setPunctualTimetable + " RETURN s.UAI as UAI, s.timetable as timetable";
+		final String setPunctualTimetable = timetableType == null ? "REMOVE s.punctualTimetable" : "SET s.punctualTimetable = $punctualTT";
+		final String query = "MATCH (s:Structure {" + structureAttr + ":$id}) " + setPunctualTimetable + " RETURN s.UAI as UAI, s.timetable as timetable";
 		neo4j.execute(query, new JsonObject().put("id", structureId).put("punctualTT", timetableType),
 				validUniqueResultHandler(new Handler<Either<String, JsonObject>>() {
 			@Override
@@ -433,7 +433,7 @@ public class DefaultTimetableService implements TimetableService {
 		final String acceptLanguage, boolean uai, boolean automaticMode, final Handler<Either<JsonObject, JsonObject>> handler)
 	{
 		final String  structureAttr = uai ? "UAI" : "id";
-		final String query = "MATCH (s:Structure {" + structureAttr + ":{id}}) RETURN s.externalId AS externalId";
+		final String query = "MATCH (s:Structure {" + structureAttr + ":$id}) RETURN s.externalId AS externalId";
 		neo4j.execute(query, new JsonObject().put("id", structureId),
 				validUniqueResultHandler(new Handler<Either<String, JsonObject>>()
 		{

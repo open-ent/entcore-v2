@@ -124,7 +124,7 @@ public class OpenIdSloServiceImpl {
     public void logoutWithSlo(String token, OpenIdConnectClient oic, HttpServerRequest request) {
         oic.getJwtInstance().verifyAndGet(token, payload -> {
             if (payload != null) {
-                final String QUERY_SUB_CC = "MATCH (u:User {subCC : {sub}}) " + AbstractSSOProvider.RETURN_QUERY;
+                final String QUERY_SUB_CC = "MATCH (u:User {subCC : $sub}) " + AbstractSSOProvider.RETURN_QUERY;
                 final String subject = payload.getString("sub");
                 neo4j.execute(QUERY_SUB_CC, new JsonObject().put("sub", subject),
                         validUniqueResultHandler(event -> {

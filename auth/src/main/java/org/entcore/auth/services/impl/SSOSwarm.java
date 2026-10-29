@@ -18,7 +18,7 @@ public class SSOSwarm extends AbstractSSOProvider {
     @Override
     public void generate(EventBus eb, String userId, String host, String serviceProviderEntityId, JsonObject eventAttributes,
                          Handler<Either<String, JsonArray>> handler) {
-        String query = "MATCH (u:User {id:{userId}})\n" +
+        String query = "MATCH (u:User {id:$userId})\n" +
                 "RETURN u.id AS id,\n" +
                 "u.login AS login,\n" +
                 "u.displayName AS displayName,\n" +

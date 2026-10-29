@@ -32,7 +32,7 @@ public class User {
 
 	public static void getOldGroups(String userId, final Handler<JsonArray> handler) {
 		String query =
-				"MATCH (u:User { id : {userId}})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
+				"MATCH (u:User { id : $userId})-[:HAS_RELATIONSHIPS]->(b:Backup) " +
 				"RETURN b.IN_OUTGOING as groups ";
 		JsonObject params = new JsonObject().put("userId", userId);
 		Neo4j.getInstance().execute(query, params, new Handler<Message<JsonObject>>() {
