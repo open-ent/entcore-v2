@@ -6,6 +6,8 @@ export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delet
 export interface ActionContext {
   /** Vrai si l'usager gère (partage) l'élément sélectionné — toujours vrai dans « Mes documents ». */
   canManage?: boolean;
+  /** Vrai si l'usager gère TOUS les éléments sélectionnés (propriétaire ou droit de gestion) : conditionne renommer, déplacer, corbeille. */
+  managerOnAll?: boolean;
   /** Administrateur local ou super-administrateur : peut publier un document sur le portail public. */
   canPublish?: boolean;
   /** Résultats de recherche affichés : propose d'ouvrir l'emplacement d'un résultat. */
@@ -19,12 +21,15 @@ export interface ActionContext {
 }
 
 /**
- * Actions proposées pour la sélection, selon l'arbre :
- *  - « Mes documents » : renommer (un seul), partager (un seul), copier, déplacer, mettre à la corbeille, télécharger ;
- *  - « Documents partagés » : partager (un seul, si gestionnaire), copier dans mes documents, télécharger — déplacer, renommer et
- *    supprimer y dépendent d'autres droits, non repris ici ;
+ * Actions proposées pour la sélection, selon l'arbre et les droits (mêmes règles que l'ancienne interface : le droit requis doit
+ * être détenu sur TOUS les éléments sélectionnés) :
+ *  - « Mes documents » : tout, l'usager est propriétaire ;
+ *  - « Documents partagés » : copier et télécharger (lecture) ; renommer (un seul), partager (un seul), déplacer et mettre à la
+ *    corbeille, déplacer vers NextCloud avec le droit de gestion ; la corbeille y demande une confirmation, l'élément disparaît
+ *    pour tous ceux qui le voient ;
+ *  - « Documents ajoutés dans les applis » : copier, télécharger ; renommer, corbeille et déplacer vers NextCloud avec le droit de gestion ;
  *  - corbeille : restaurer, supprimer définitivement ;
- *  - autres arbres (applis, publics) : copier dans mes documents et télécharger.
+ *  - autres arbres (publics) : copier dans mes documents et télécharger.
  * « Historique des versions » (un seul document) et « Commentaires » (un seul élément) en « Mes documents » et « Documents partagés ».
  * « Publier au portail » : un seul document, par un administrateur ; un document publié se retrouve (et se retire) dans « Documents publics ». Aucune sélection → aucune action.
  */
@@ -33,10 +38,14 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if (tree === "trash" && !ctx.searching) return ["restore", "delete"];
   const single = selection.length === 1;
   const actions: ActionId[] = [];
-  if (tree === "owner" && single) actions.push("rename");
+  // droit de gestion sur tout ce qui est sélectionné : acquis dans « Mes documents », à établir ailleurs
+  const manager = tree === "owner" || ctx.managerOnAll === true;
+  const managed = tree === "owner" || tree === "shared" || tree === "protected";
+  if (managed && manager && single) actions.push("rename");
   if ((tree === "owner" || (tree === "shared" && ctx.canManage)) && single) actions.push("share");
   actions.push("copy");
-  if (tree === "owner") actions.push("move", "trash");
+  if ((tree === "owner" || tree === "shared") && manager) actions.push("move");
+  if (managed && manager) actions.push("trash");
   actions.push("download");
   if ((tree === "owner" || tree === "shared" || tree === "public") && single && selection[0].eType === "file" && ctx.canPublish) actions.push("publish");
   if ((tree === "owner" || tree === "shared") && single && selection[0].eType === "file") actions.push("history");
@@ -44,8 +53,10 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if (single && ctx.integration?.lool) actions.push("openLool");
   if (single && ctx.integration?.scratch) actions.push("openScratch");
   if (single && ctx.integration?.geogebra) actions.push("openGeogebra");
-  if (ctx.nextcloud && (tree === "owner" || tree === "shared") && selection.every((e) => e.eType === "file")) actions.push("ncCopy", "ncMove");
-  if (ctx.cloudDrive && (tree === "owner" || tree === "shared") && selection.every((e) => e.eType === "file")) actions.push("driveExport");
+  const filesOnly = selection.every((e) => e.eType === "file");
+  if (ctx.nextcloud && managed && filesOnly) actions.push("ncCopy");
+  if (ctx.nextcloud && managed && filesOnly && manager) actions.push("ncMove");
+  if (ctx.cloudDrive && managed && filesOnly) actions.push("driveExport");
   if (ctx.searching && single) actions.push("location");
   return actions;
 };

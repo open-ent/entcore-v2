@@ -86,3 +86,37 @@ describe("downloadUrl", () => {
     expect(downloadUrl([el({ _id: "f", eType: "folder" })])).toBe("/workspace/document/archive/f");
   });
 });
+
+describe("availableActions — droits dans « Documents partagés » et « applis »", () => {
+  const one = [el({})];
+  const folders = [el({ _id: "a", eType: "folder" }), el({ _id: "b", eType: "folder" })];
+  it("avec le droit de gestion sur tout : renommer (un seul), déplacer et mettre à la corbeille", () => {
+    expect(availableActions("shared", one, { managerOnAll: true, canManage: true })).toEqual(["rename", "share", "copy", "move", "trash", "download", "history", "comments"]);
+    // plusieurs éléments : plus de renommage ni de partage
+    expect(availableActions("shared", folders, { managerOnAll: true })).toEqual(["copy", "move", "trash", "download"]);
+  });
+  it("sans le droit de gestion (contribution ou lecture) : ni renommer, ni déplacer, ni corbeille", () => {
+    const a = availableActions("shared", one, { managerOnAll: false });
+    expect(a).not.toContain("rename");
+    expect(a).not.toContain("move");
+    expect(a).not.toContain("trash");
+    expect(a).toContain("copy");
+  });
+  it("le droit doit porter sur tous les éléments : un seul élément non géré retire l'action", () => {
+    expect(availableActions("shared", folders, { managerOnAll: false })).not.toContain("trash");
+  });
+  it("NextCloud : copier avec la lecture, déplacer vers NextCloud avec la gestion", () => {
+    expect(availableActions("shared", one, { nextcloud: true, managerOnAll: false })).toContain("ncCopy");
+    expect(availableActions("shared", one, { nextcloud: true, managerOnAll: false })).not.toContain("ncMove");
+    expect(availableActions("shared", one, { nextcloud: true, managerOnAll: true })).toContain("ncMove");
+  });
+  it("« Documents ajoutés dans les applis » : renommer, corbeille et NextCloud avec la gestion, jamais déplacer", () => {
+    const a = availableActions("protected", one, { managerOnAll: true, nextcloud: true });
+    expect(a).toEqual(expect.arrayContaining(["rename", "copy", "trash", "download", "ncCopy", "ncMove"]));
+    expect(a).not.toContain("move");
+    expect(availableActions("protected", one, { managerOnAll: false })).toEqual(["copy", "download"]);
+  });
+  it("« Documents publics » : copier et télécharger seulement", () => {
+    expect(availableActions("public", one, { managerOnAll: true })).toEqual(["copy", "download"]);
+  });
+});

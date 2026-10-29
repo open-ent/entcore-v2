@@ -375,6 +375,7 @@
   "workspace.react.select.none": "Désélectionner",
   "workspace.react.picker.copy": "Copier vers",
   "workspace.react.picker.move": "Déplacer vers",
+  "workspace.react.confirm.trash.shared": "En mettant ces éléments à la corbeille, vous les retirez aussi pour toutes les personnes avec qui ils sont partagés et pour leur propriétaire.",
   "workspace.react.confirm.delete": "Ces éléments seront supprimés définitivement.",
   "workspace.react.action.share": "Partager",
   "workspace.react.viewer.back": "Retour",

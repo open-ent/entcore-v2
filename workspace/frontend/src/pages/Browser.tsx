@@ -103,7 +103,7 @@ export const Browser = () => {
   const [picker, setPicker] = useState<"copy" | "move" | null>(null);
   const [renaming, setRenaming] = useState<WorkspaceElement | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<"delete" | "empty" | null>(null);
+  const [confirm, setConfirm] = useState<"delete" | "empty" | "trashShared" | null>(null);
   const [warnShare, setWarnShare] = useState<WorkspaceElement | null>(null);
   const [sharing, setSharing] = useState<WorkspaceElement | null>(null);
   const [copyingForShare, setCopyingForShare] = useState(false);
@@ -118,6 +118,7 @@ export const Browser = () => {
   const selection = useMemo(() => elements.filter((e) => selected.has(e._id)), [elements, selected]);
   const actions = availableActions(validTree, selection, {
     canManage: selection.length === 1 && rightsOn(selection[0], user?.userId, groupIds).manager,
+    managerOnAll: selection.every((e) => rightsOn(e, user?.userId, groupIds).manager),
     canPublish: canPublishToPortal,
     searching: !!query,
     nextcloud: ncAvailable,
@@ -167,7 +168,8 @@ export const Browser = () => {
 
   const onAction = (a: ActionId) => {
     if (a === "download") window.location.assign(downloadUrl(selection));
-    else if (a === "trash") void run(() => elementActions.trash(selection));
+    // dans « Documents partagés », mettre à la corbeille supprime aussi pour les autres personnes qui voient ces éléments : on confirme
+    else if (a === "trash") (validTree === "shared" ? setConfirm("trashShared") : void run(() => elementActions.trash(selection)));
     else if (a === "restore") void run(() => elementActions.restore(selection));
     else if (a === "delete") setConfirm("delete");
     else if (a === "share") (validTree === "owner" ? setWarnShare : setSharing)(selection[0]);
@@ -558,14 +560,15 @@ export const Browser = () => {
       />
       <ConfirmModal
         isOpen={confirm !== null}
-        title={confirm === "empty" ? t("workspace.empty.trash") : t("workspace.react.action.delete")}
-        message={confirm === "empty" ? t("workspace.delete.empty.trash") : t("workspace.react.confirm.delete")}
-        confirmLabel={confirm === "empty" ? t("workspace.empty.trash") : t("workspace.react.action.delete")}
+        title={confirm === "empty" ? t("workspace.empty.trash") : confirm === "trashShared" ? t("workspace.delete.confirm.title") : t("workspace.react.action.delete")}
+        message={confirm === "empty" ? t("workspace.delete.empty.trash") : confirm === "trashShared" ? t("workspace.react.confirm.trash.shared") : t("workspace.react.confirm.delete")}
+        confirmLabel={confirm === "empty" ? t("workspace.empty.trash") : confirm === "trashShared" ? t("workspace.delete.confirm.action") : t("workspace.react.action.delete")}
         onClose={() => setConfirm(null)}
         onConfirm={() => {
           const mode = confirm;
           setConfirm(null);
-          void run(() => (mode === "empty" ? elementActions.emptyTrash() : elementActions.deleteForever(selection)));
+          if (mode === "trashShared") void run(() => elementActions.trash(selection));
+          else void run(() => (mode === "empty" ? elementActions.emptyTrash() : elementActions.deleteForever(selection)));
         }}
       />
       <NewFolderModal parentId={folderId} isOpen={newFolderOpen} onClose={() => setNewFolderOpen(false)} />
