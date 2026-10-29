@@ -62,7 +62,9 @@ describe("NextcloudBrowser", () => {
   it("la sélection d'un fichier propose les actions NextCloud", () => {
     show({ isLoading: false, isError: false, isSuccess: true, data: [d({})] });
     fireEvent.click(document.querySelector("[data-nc-select]")!);
-    expect(actions()).toEqual(["download", "rename", "copyToWorkspace", "moveToWorkspace", "trash"]);
+    // actions fréquentes en boutons, transferts vers l'espace documentaire dans le menu « Organiser », corbeille en dernier
+    expect(actions()).toEqual(["download", "rename", "trash"]);
+    expect(document.querySelector('[data-menu-toggle="organise"]')?.getAttribute("data-menu-actions")).toBe("copyToWorkspace moveToWorkspace");
   });
 
   it("dans la corbeille NextCloud : restaurer, supprimer, vider ; pas d'envoi", () => {

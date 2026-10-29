@@ -1975,8 +1975,8 @@ public class WorkspaceController extends BaseController {
 			@Override
 			public void handle(final UserInfos user) {
 				if (user != null) {
-					// Défaut plateforme : AngularJS tant que la parité React n'est pas complète (`frontend-ui: react` pour basculer).
-					final String platformUi = "react".equals(config.getString("frontend-ui", "angular")) ? "react" : "angular";
+					// Défaut plateforme : React (`frontend-ui: angular` pour revenir à AngularJS). Le choix de l'usager dans ses paramètres prime.
+					final String platformUi = "angular".equals(config.getString("frontend-ui", "react")) ? "angular" : "react";
 					withPreferredUi(request, user, platformUi, ui -> {
 						if ("react".equals(ui)) {
 							// Les drapeaux publics descendent en JSON dans la vue React (balise #workspace-flags).

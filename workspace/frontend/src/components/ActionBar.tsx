@@ -1,5 +1,6 @@
-import { useTranslation } from "react-i18next";
 import { ActionId } from "../lib/actions";
+import { BarLayout } from "../lib/actionGroups";
+import { SelectionBar } from "./SelectionBar";
 
 const LABEL: Record<ActionId, string> = {
   rename: "workspace.rename",
@@ -22,31 +23,18 @@ const LABEL: Record<ActionId, string> = {
   driveExport: "workspace.cloud.drive.export.action",
 };
 
-/** Barre d'actions de la sélection (les actions viennent de `availableActions`). */
-export const ActionBar = ({
-  actions,
-  count,
-  onAction,
-  onClear,
-}: {
-  actions: ActionId[];
-  count: number;
-  onAction: (a: ActionId) => void;
-  onClear: () => void;
-}) => {
-  const { t } = useTranslation("workspace");
-  if (actions.length === 0) return null;
-  return (
-    <div className="d-flex flex-wrap gap-8 align-items-center mb-16" role="toolbar" data-action-bar>
-      <span data-selection-count>{t("workspace.react.selected", { count })}</span>
-      {actions.map((a) => (
-        <button key={a} type="button" className="btn btn-outline-primary btn-sm" data-action={a} onClick={() => onAction(a)}>
-          {t(LABEL[a])}
-        </button>
-      ))}
-      <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onClear}>
-        {t("workspace.react.select.none")}
-      </button>
-    </div>
-  );
+/** Partager (partage, portail public, NextCloud) · Organiser (copier, déplacer, vers NextCloud ou Drive) · Plus (versions, commentaires). */
+export const LAYOUT: BarLayout<ActionId> = {
+  direct: ["download", "rename", "openLool", "openScratch", "openGeogebra", "location", "restore"],
+  menus: [
+    { key: "share", label: "workspace.react.menu.share", ids: ["share", "publish", "ncCopy"] },
+    { key: "organise", label: "workspace.react.menu.organise", ids: ["copy", "move", "ncMove", "driveExport"] },
+    { key: "more", label: "workspace.react.menu.more", ids: ["history", "comments"] },
+  ],
+  danger: ["trash", "delete"],
 };
+
+/** Barre d'actions de la sélection (les actions viennent de `availableActions`). */
+export const ActionBar = ({ actions, count, onAction, onClear }: { actions: ActionId[]; count: number; onAction: (a: ActionId) => void; onClear: () => void }) => (
+  <SelectionBar actions={actions} layout={LAYOUT} labels={LABEL} count={count} attr={{ bar: "data-action-bar", action: "data-action" }} onAction={onAction} onClear={onClear} />
+);

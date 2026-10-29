@@ -1,5 +1,5 @@
 import { odeServices } from "@open-ent/client";
-import { Quota, Revision, TreeName, ViewMode, WorkspaceElement } from "../lib/types";
+import { Quota, Revision, TreeName, UiPreference, ViewMode, WorkspaceElement } from "../lib/types";
 
 const query = (params: Record<string, string | boolean | undefined>): string => {
   const sp = new URLSearchParams();
@@ -32,6 +32,25 @@ export const workspaceService = {
     } catch {
       return "icons";
     }
+  },
+
+  /** Préférence « workspaceUi » (paramètres du compte → interfaces en cours de renouvellement) : choix, compteurs et retour. */
+  async getUiPreference(): Promise<UiPreference> {
+    const res = await odeServices.http().get<{ preference?: string }>("/userbook/preference/workspaceUi");
+    try {
+      return (JSON.parse(res?.preference ?? "{}") as UiPreference) ?? {};
+    } catch {
+      return {};
+    }
+  },
+  /** La préférence est réécrite ENTIÈRE : on repart toujours de la dernière version connue. */
+  async saveUiPreference(preference: UiPreference): Promise<void> {
+    await fetch("/userbook/preference/workspaceUi", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-XSRF-TOKEN": xsrfToken() },
+      body: JSON.stringify(preference),
+    });
   },
 };
 

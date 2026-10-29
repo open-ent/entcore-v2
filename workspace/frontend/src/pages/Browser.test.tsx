@@ -89,7 +89,10 @@ describe("Browser", () => {
     expect(document.querySelector("[data-action-bar]")).not.toBeInTheDocument();
     fireEvent.click(document.querySelector("[data-element-select]")!);
     const actions = [...document.querySelectorAll("[data-action-bar] [data-action]")].map((b) => b.getAttribute("data-action"));
-    expect(actions).toEqual(["rename", "share", "copy", "move", "trash", "download", "history", "comments"]);
+    // boutons directs ; « Organiser » et « Plus » regroupent le reste ; la corbeille est à droite
+    expect(actions).toEqual(["download", "rename", "share", "trash"]);
+    const menus = Object.fromEntries([...document.querySelectorAll("[data-menu-toggle]")].map((b) => [b.getAttribute("data-menu-toggle"), b.getAttribute("data-menu-actions")]));
+    expect(menus).toEqual({ organise: "copy move", more: "history comments" });
   });
 
   it("dans la corbeille, la sélection propose restaurer et supprimer, et le vidage est proposé", () => {

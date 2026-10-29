@@ -6,6 +6,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FolderPicker } from "../components/FolderPicker";
 import { NextcloudNav } from "../components/NextcloudNav";
 import { QuotaGauge } from "../components/QuotaGauge";
+import { SelectionBar } from "../components/SelectionBar";
+import { BarLayout } from "../lib/actionGroups";
 import { TreeNav } from "../components/TreeNav";
 import { fileKind, formatSize, parseDate } from "../lib/elements";
 import { folderNameError } from "../lib/upload";
@@ -36,6 +38,13 @@ const LABEL: Record<NextcloudActionId, string> = {
   moveToWorkspace: "workspace.react.nc.move.workspace",
   restore: "workspace.trash.restore",
   deleteForever: "workspace.react.action.delete",
+};
+
+/** Même présentation que l'espace documentaire : actions fréquentes en boutons, transferts vers l'espace documentaire dans « Organiser », corbeille à droite. */
+const LAYOUT: BarLayout<NextcloudActionId> = {
+  direct: ["download", "edit", "rename", "restore"],
+  menus: [{ key: "organise", label: "workspace.react.menu.organise", ids: ["copyToWorkspace", "moveToWorkspace"] }],
+  danger: ["trash", "deleteForever"],
 };
 
 /**
@@ -199,6 +208,17 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
               <button type="button" className="btn btn-outline-primary" onClick={() => fileInput.current?.click()} data-nc-action="upload">
                 {t("import.file")}
               </button>
+              <button
+                type="button"
+                className="btn btn-outline-primary"
+                onClick={() => {
+                  setCreating(true);
+                  setNewName("");
+                }}
+                data-nc-toolbar-new-folder
+              >
+                {t("folder.new")}
+              </button>
               <input
                 ref={fileInput}
                 type="file"
@@ -218,16 +238,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
               {t("workspace.empty.trash")}
             </button>
           )}
-          {actions.length > 0 && (
-            <div className="d-flex flex-wrap gap-8 align-items-center mb-16" role="toolbar" data-nc-action-bar>
-              <span>{t("workspace.react.selected", { count: selection.length })}</span>
-              {actions.map((a) => (
-                <button key={a} type="button" className="btn btn-outline-primary btn-sm" disabled={busy} data-nc-action={a} onClick={() => onAction(a)}>
-                  {t(LABEL[a])}
-                </button>
-              ))}
-            </div>
-          )}
+          <SelectionBar actions={actions} layout={LAYOUT} labels={LABEL} count={selection.length} attr={{ bar: "data-nc-action-bar", action: "data-nc-action" }} busy={busy} onAction={onAction} />
           {notice && (
             <div className="alert alert-warning" role="alert" data-nc-notice>
               {notice}

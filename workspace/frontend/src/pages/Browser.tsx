@@ -317,8 +317,40 @@ export const Browser = () => {
               </span>
             ))}
           </nav>
+          <div className="d-flex flex-wrap gap-16 align-items-center justify-content-between mb-16" data-workspace-header>
+            {canWrite && (
+              <div className="d-flex flex-wrap gap-12" data-workspace-toolbar>
+                <button type="button" className="btn btn-outline-primary" onClick={() => fileInput.current?.click()} data-action="import">
+                  {t("import.file")}
+                </button>
+                {canWrite && driveAvailable && (
+                  <button type="button" className="btn btn-outline-primary" disabled={driveBusy} onClick={() => void importFromDrive()} data-action="drive-import">
+                    {t("workspace.cloud.drive.import.action")}
+                  </button>
+                )}
+                <button type="button" className="btn btn-outline-primary" onClick={() => setNewFolderOpen(true)} data-toolbar-new-folder>
+                  {t("folder.new")}
+                </button>
+                {canCreateOnline && (
+                  <button type="button" className="btn btn-outline-primary" onClick={() => setLoolCreate(true)} data-action="lool-create">
+                    {t("workspace.lool.create-document")}
+                  </button>
+                )}
+                <input
+                  ref={fileInput}
+                  type="file"
+                  multiple
+                  hidden
+                  data-import-input
+                  onChange={(e) => {
+                    importFiles([...(e.target.files ?? [])]);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+            )}
           <form
-            className="d-flex gap-8 align-items-center mb-16"
+            className="d-flex gap-8 align-items-center"
             role="search"
             data-workspace-search
             onSubmit={(e) => {
@@ -353,6 +385,7 @@ export const Browser = () => {
               </button>
             )}
           </form>
+          </div>
           {query && (
             <div className="mb-16" data-search-banner>
               <strong>{query.everywhere ? t("workspace.search.results.inworkspace") : `${t("workspace.search.results.infolder")} ${path.length ? path[path.length - 1].name : t(TREE_LABEL_KEY[validTree])}`}</strong>
@@ -393,34 +426,6 @@ export const Browser = () => {
               <button type="button" className="btn btn-outline-danger" data-action="empty-trash" onClick={() => setConfirm("empty")}>
                 {t("workspace.empty.trash")}
               </button>
-            </div>
-          )}
-          {canWrite && (
-            <div className="d-flex gap-12 mb-16" data-workspace-toolbar>
-              <button type="button" className="btn btn-outline-primary" onClick={() => fileInput.current?.click()} data-action="import">
-                {t("import.file")}
-              </button>
-              {canWrite && driveAvailable && (
-                <button type="button" className="btn btn-outline-primary" disabled={driveBusy} onClick={() => void importFromDrive()} data-action="drive-import">
-                  {t("workspace.cloud.drive.import.action")}
-                </button>
-              )}
-              {canCreateOnline && (
-                <button type="button" className="btn btn-outline-primary" onClick={() => setLoolCreate(true)} data-action="lool-create">
-                  {t("workspace.lool.create-document")}
-                </button>
-              )}
-              <input
-                ref={fileInput}
-                type="file"
-                multiple
-                hidden
-                data-import-input
-                onChange={(e) => {
-                  importFiles([...(e.target.files ?? [])]);
-                  e.target.value = "";
-                }}
-              />
             </div>
           )}
           {notice && (

@@ -70,3 +70,17 @@ export const TREE_LABEL_KEY: Record<TreeName, string> = {
   public: "workspace.react.tree.public",
   trash: "trash",
 };
+
+/**
+ * Préférence d'interface de l'usager (clé `workspaceUi`). Ex. `{ ui: 'react', returnShown: 2 }`.
+ * `ui` absent = la plateforme tranche et le bandeau de retour d'expérience peut s'afficher.
+ */
+export interface UiPreference {
+  ui?: "react" | "angular";
+  /** « Ne plus afficher » sur le bandeau de retour. */
+  returnDismissed?: boolean;
+  returnShown?: number;
+  /** Réponse libre à « Qu'est-ce qui vous manque ? », au moment du retour en arrière. */
+  feedback?: string;
+  feedbackAt?: string;
+}
