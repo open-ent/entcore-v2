@@ -23,7 +23,8 @@ vi.mock("../components/TransferDialog", () => ({ TransferDialog: ({ mode }: { mo
 vi.mock("../components/RenameModal", () => ({ RenameModal: () => null }));
 vi.mock("../components/ConfirmModal", () => ({ ConfirmModal: () => null }));
 const prefs = vi.hoisted(() => ({ value: { view: "icons" } as Record<string, unknown>, save: vi.fn() }));
-vi.mock("../services/workspace.service", () => ({ elementActions: {}, workspaceService: { savePreference: (p: unknown) => prefs.save(p) } }));
+const elementActionsMock = vi.hoisted(() => ({}) as Record<string, unknown>);
+vi.mock("../services/workspace.service", () => ({ elementActions: elementActionsMock, workspaceService: { savePreference: (p: unknown) => prefs.save(p) } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 const content = vi.hoisted(() => ({ value: {} as Record<string, unknown>, search: { isError: false, isFetching: false, data: undefined } as Record<string, unknown> }));
@@ -230,5 +231,26 @@ describe("Browser", () => {
     renderAt("/owner");
     fireEvent.keyDown(document, { key: "a", ctrlKey: true });
     expect(document.querySelectorAll('[data-element][data-selected="true"]').length).toBe(50);
+  });
+
+  it("un emplacement vide affiche le texte propre à son arbre", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
+    const { unmount } = renderAt("/shared");
+    expect(document.querySelector("[data-workspace-empty]")?.textContent).toContain("empty.workspace.shared.title");
+    expect(document.querySelector("[data-workspace-empty]")?.textContent).toContain("empty.workspace.shared");
+    unmount();
+    renderAt("/trash");
+    expect(document.querySelector("[data-workspace-empty]")?.textContent).toContain("empty.trash2");
+  });
+
+  it("met à la corbeille avec un message de succès", async () => {
+    const trash = vi.fn().mockResolvedValue(undefined);
+    elementActionsMock.trash = trash;
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [el({ _id: "d1", name: "a.txt" })] };
+    renderAt("/owner");
+    fireEvent.click(document.querySelector("[data-element-select]")!);
+    fireEvent.click(document.querySelector('[data-action-bar] [data-action="trash"]')!);
+    await vi.waitFor(() => expect(document.querySelector("[data-workspace-success]")?.textContent).toBe("workspace.removed.message"));
+    expect(trash).toHaveBeenCalled();
   });
 });

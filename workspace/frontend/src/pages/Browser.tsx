@@ -33,6 +33,7 @@ import {
   downloadUrl,
 } from "../lib/actions";
 import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
+import { emptyKeys } from "../lib/empty";
 import { nextSort, SORT_FIELD, sortKeyOf, viewOf } from "../lib/preferences";
 import { isTypingTarget, rangeIds, shortcutOf } from "../lib/selection";
 import { readFlags } from "../lib/flags";
@@ -285,10 +286,19 @@ export const Browser = () => {
     );
 
   /** Exécute une action serveur, rafraîchit la liste, l'arborescence et la jauge ; un échec est signalé. */
-  const run = async (fn: () => Promise<unknown>) => {
+  // Retour positif d'une action (« mis à la corbeille », « restauré »…), qui s'efface seul
+  const [success, setSuccess] = useState<string | null>(null);
+  useEffect(() => {
+    if (!success) return;
+    const timer = window.setTimeout(() => setSuccess(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [success]);
+  const run = async (fn: () => Promise<unknown>, successKey?: string) => {
     setNotice(null);
+    setSuccess(null);
     try {
       await fn();
+      if (successKey) setSuccess(t(successKey));
       setSelected(new Set());
       await Promise.all(
         ["content", "folders", "quota"].map((k) =>
@@ -325,8 +335,8 @@ export const Browser = () => {
     else if (a === "trash")
       validTree === "shared"
         ? setConfirm("trashShared")
-        : void run(() => elementActions.trash(selection));
-    else if (a === "restore") void run(() => elementActions.restore(selection));
+        : void run(() => elementActions.trash(selection), "workspace.removed.message");
+    else if (a === "restore") void run(() => elementActions.restore(selection), "workspace.restored.message");
     else if (a === "delete") setConfirm("delete");
     else if (a === "share") {
       setShareSet(selection);
@@ -719,6 +729,11 @@ export const Browser = () => {
               </button>
             </div>
           )}
+          {success && (
+            <div className="alert alert-success" role="status" data-workspace-success>
+              {success}
+            </div>
+          )}
           {notice && (
             <div
               className="alert alert-warning"
@@ -747,7 +762,10 @@ export const Browser = () => {
             </div>
           )}
           {content.isSuccess && elements.length === 0 && (
-            <p data-workspace-empty>{t("workspace.react.empty")}</p>
+            <div className="text-center my-24" data-workspace-empty>
+              <h2 className="h4">{t(emptyKeys(validTree, !folderId, !!query).title)}</h2>
+              {emptyKeys(validTree, !folderId, !!query).text && <p className="text-muted">{t(emptyKeys(validTree, !folderId, !!query).text as string)}</p>}
+            </div>
           )}
           {content.isSuccess && elements.length > 0 && (
             <>
@@ -972,12 +990,11 @@ export const Browser = () => {
           const mode = confirm;
           setConfirm(null);
           if (mode === "trashShared")
-            void run(() => elementActions.trash(selection));
+            void run(() => elementActions.trash(selection), "workspace.removed.message");
           else
-            void run(() =>
-              mode === "empty"
-                ? elementActions.emptyTrash()
-                : elementActions.deleteForever(selection),
+            void run(
+              () => (mode === "empty" ? elementActions.emptyTrash() : elementActions.deleteForever(selection)),
+              mode === "empty" ? "workspace.empty.trash.confirm" : "workspace.deleted.message",
             );
         }}
       />

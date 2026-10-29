@@ -1,4 +1,4 @@
-import { fileKind, FileKind } from "./elements";
+import { fileKind, FileKind, parseDate, SortKey } from "./elements";
 
 export const NEXTCLOUD_VIEW = "fr.openent.nextcloud.controller.NextcloudController|view";
 
@@ -23,6 +23,8 @@ export interface SyncDocument {
   size?: number;
   fileId?: number;
   lastModified?: string;
+  /** Propriétaire affiché (nom renvoyé par NextCloud). */
+  ownerName?: string;
   kind: FileKind | "folder";
   /** Document bureautique modifiable en ligne (texte, tableur, présentation) ; un PDF s'affiche dans le navigateur, il ne s'édite pas. */
   editable: boolean;
@@ -58,6 +60,7 @@ export const toSyncDocument = (raw: NextcloudRaw, userId: string): SyncDocument 
     size: raw.size,
     fileId: raw.fileId,
     lastModified: raw.lastModified,
+    ownerName: raw.ownerDisplayName,
     kind,
     editable: !raw.isFolder && ["doc", "sheet", "slides"].includes(kind),
   };
@@ -141,3 +144,27 @@ export const renamedPath = (d: Pick<SyncDocument, "path">, newName: string): str
 };
 
 export const folderPathFor = (current: string, name: string): string => (trimSlashes(current) ? `${trimSlashes(current)}/${name}` : name);
+
+/** Date de dernière modification d'un élément NextCloud (« 2026-08-25T10:00:00Z » ou « 2026-08-25 10:00:00 »), en millisecondes ; 0 si absente. */
+export const modifiedTime = (d: Pick<SyncDocument, "lastModified">): number => {
+  const raw = d.lastModified ?? "";
+  const iso = Date.parse(raw);
+  if (!Number.isNaN(iso)) return iso;
+  return parseDate(raw.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/(\d\d:\d\d):(\d\d)/, "$1.$2"))?.getTime() ?? 0;
+};
+
+/**
+ * Tri des éléments NextCloud comme celui des documents personnels : dossiers d'abord, puis le critère (titre, propriétaire,
+ * dernière modification, poids), dans le sens demandé. Sans `desc` : titre et propriétaire croissants, date et poids décroissants.
+ */
+export const sortSyncDocuments = (docs: SyncDocument[], key: SortKey = "name", desc?: boolean): SyncDocument[] => {
+  const down = desc ?? (key === "modified" || key === "size");
+  const text = (a?: string, b?: string) => (a ?? "").localeCompare(b ?? "", "fr", { sensitivity: "base", numeric: true });
+  const ascending = (a: SyncDocument, b: SyncDocument): number => {
+    if (key === "modified") return modifiedTime(a) - modifiedTime(b);
+    if (key === "size") return (a.size ?? 0) - (b.size ?? 0);
+    if (key === "owner") return text(a.ownerName, b.ownerName) || text(a.name, b.name);
+    return text(a.name, b.name);
+  };
+  return [...docs].sort((a, b) => (a.isFolder !== b.isFolder ? (a.isFolder ? -1 : 1) : down ? -ascending(a, b) : ascending(a, b)));
+};

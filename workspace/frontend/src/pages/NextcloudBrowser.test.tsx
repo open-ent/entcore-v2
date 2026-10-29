@@ -17,10 +17,11 @@ vi.mock("@open-ent/react", () => ({
 vi.mock("../components/ConfirmModal", () => ({
   ConfirmModal: ({ isOpen, onConfirm }: { isOpen: boolean; onConfirm: () => void }) => (isOpen ? <button type="button" data-confirm-submit onClick={onConfirm} /> : null),
 }));
-vi.mock("../services/workspace.service", () => ({ elementActions: { shareLike: vi.fn() } }));
+vi.mock("../services/workspace.service", () => ({ elementActions: { shareLike: vi.fn() }, workspaceService: { savePreference: (p: unknown) => prefs.save(p) } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
 const svc = vi.hoisted(() => ({ toWorkspace: vi.fn(), fromWorkspace: vi.fn() }));
+const prefs = vi.hoisted(() => ({ value: {} as Record<string, unknown>, save: vi.fn() }));
 vi.mock("../services/nextcloud.service", () => ({ nextcloudService: svc }));
 
 const state = vi.hoisted(() => ({ list: {} as Record<string, unknown> }));
@@ -30,6 +31,7 @@ vi.mock("../services/queries", () => ({
   useNextcloudQuota: () => ({ data: { used: 10, total: 100 } }),
   useFolders: () => ({ data: [] }),
   useQuota: () => ({ data: { storage: 5, quota: 50 } }),
+  useWorkspacePreference: () => ({ data: prefs.value }),
 }));
 
 const d = (p: Partial<SyncDocument>): SyncDocument => ({ path: "a.txt", name: "a.txt", isFolder: false, kind: "text", editable: false, ...p });
@@ -124,5 +126,31 @@ describe("NextcloudBrowser", () => {
     expect(button.getAttribute("href")).toBe("https://nc.example");
     expect(button.getAttribute("target")).toBe("_blank");
     expect(document.querySelector("[data-nc-url]")?.textContent).toContain("https://nc.example");
+  });
+
+  it("trie par colonne, mémorise le choix et inverse le sens au second clic", () => {
+    prefs.value = {};
+    prefs.save.mockClear();
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({ path: "a.txt", name: "a.txt", size: 5 }), d({ path: "b.txt", name: "b.txt", size: 50 })] });
+    const names = () => [...document.querySelectorAll("[data-nc-item]")].map((n) => n.getAttribute("data-nc-path"));
+    expect(names()).toEqual(["a.txt", "b.txt"]);
+    fireEvent.click(document.querySelector('[data-nc-sort-column="size"]')!);
+    expect(names()).toEqual(["a.txt", "b.txt"]);
+    expect(prefs.save).toHaveBeenLastCalledWith({ sortField: "metadata.size", sortDesc: false });
+    fireEvent.click(document.querySelector('[data-nc-sort-column="size"]')!);
+    expect(names()).toEqual(["b.txt", "a.txt"]);
+    expect(prefs.save).toHaveBeenLastCalledWith({ sortField: "metadata.size", sortDesc: true });
+  });
+
+  it("reprend le tri mémorisé dans la préférence", () => {
+    prefs.value = { sortField: "name", sortDesc: true };
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({ path: "a.txt", name: "a.txt" }), d({ path: "b.txt", name: "b.txt" })] });
+    expect([...document.querySelectorAll("[data-nc-item]")].map((n) => n.getAttribute("data-nc-path"))).toEqual(["b.txt", "a.txt"]);
+    prefs.value = {};
+  });
+
+  it("affiche le propriétaire renvoyé par NextCloud", () => {
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({ ownerName: "Alice" })] });
+    expect(document.querySelector("[data-nc-item]")?.textContent).toContain("Alice");
   });
 });

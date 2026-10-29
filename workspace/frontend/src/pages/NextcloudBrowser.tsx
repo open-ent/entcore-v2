@@ -1,6 +1,6 @@
 import { AppHeader, LoadingScreen, ShareModal, useEdificeClient } from "@open-ent/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -10,7 +10,8 @@ import { QuotaGauge } from "../components/QuotaGauge";
 import { SelectionBar } from "../components/SelectionBar";
 import { BarLayout } from "../lib/actionGroups";
 import { TreeNav } from "../components/TreeNav";
-import { fileKind, formatSize, parseDate } from "../lib/elements";
+import { fileKind, formatSize, parseDate, SortKey } from "../lib/elements";
+import { nextSort, SORT_FIELD, sortKeyOf } from "../lib/preferences";
 import { folderNameError } from "../lib/upload";
 import {
   downloadUrl,
@@ -24,11 +25,12 @@ import {
   parentPath,
   pathCrumbs,
   renamedPath,
+  sortSyncDocuments,
   SyncDocument,
 } from "../lib/nextcloud";
 import { nextcloudService } from "../services/nextcloud.service";
-import { elementActions } from "../services/workspace.service";
-import { useFolders, useNextcloudList, useNextcloudQuota, useNextcloudUrl, useQuota } from "../services/queries";
+import { elementActions, workspaceService } from "../services/workspace.service";
+import { useFolders, useNextcloudList, useNextcloudQuota, useNextcloudUrl, useQuota, useWorkspacePreference } from "../services/queries";
 
 const ICON: Record<string, string> = { folder: "📁", image: "🖼️", pdf: "📕", doc: "📝", sheet: "📊", slides: "📽️", audio: "🎵", video: "🎞️", text: "📄", archive: "🗜️", other: "📎" };
 const LABEL: Record<NextcloudActionId, string> = {
@@ -79,7 +81,22 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => setSelected(new Set()), [path, trash]);
 
-  const docs = list.data ?? [];
+  // Tri des colonnes, mémorisé dans la même préférence que les documents personnels
+  const preference = useWorkspacePreference();
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "name", desc: false });
+  const sortApplied = useRef(false);
+  useEffect(() => {
+    if (!preference.data || sortApplied.current) return;
+    sortApplied.current = true;
+    const key = sortKeyOf(preference.data.sortField);
+    if (key) setSort({ key, desc: preference.data.sortDesc === true });
+  }, [preference.data]);
+  const changeSort = (key: SortKey) => {
+    const next = nextSort(sort, key);
+    setSort(next);
+    void workspaceService.savePreference({ sortField: SORT_FIELD[next.key], sortDesc: next.desc });
+  };
+  const docs = useMemo(() => sortSyncDocuments(list.data ?? [], sort.key, sort.desc), [list.data, sort]);
   const selection = docs.filter((d) => selected.has(d.path));
   const actions = nextcloudActions(selection, trash);
   const refresh = () => qc.invalidateQueries({ queryKey: ["workspace", "nextcloud"] });
@@ -302,10 +319,13 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
               <thead>
                 <tr>
                   <th />
-                  <th>{t("name")}</th>
-                  <th>{t("owner")}</th>
-                  <th>{t("modified")}</th>
-                  <th>{t("size")}</th>
+                  {(["name", "owner", "modified", "size"] as const).map((key) => (
+                    <th key={key} aria-sort={sort.key === key ? (sort.desc ? "descending" : "ascending") : undefined}>
+                      <button type="button" className="btn btn-link p-0" style={{ color: "inherit", font: "inherit", fontWeight: 600 }} onClick={() => changeSort(key)} data-nc-sort-column={key}>
+                        {t(key)} {sort.key === key ? (sort.desc ? "↓" : "↑") : ""}
+                      </button>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -317,7 +337,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
                     <td>
                       <span aria-hidden="true">{ICON[d.isFolder ? "folder" : fileKind(d.contentType)]}</span> {trash ? d.name : open(d)}
                     </td>
-                    <td />
+                    <td>{d.ownerName}</td>
                     <td>{parseDate(d.lastModified?.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/(\d\d:\d\d):(\d\d)/, "$1.$2"))?.toLocaleDateString("fr-FR") ?? ""}</td>
                     <td>{d.isFolder ? "" : formatSize(d.size)}</td>
                   </tr>

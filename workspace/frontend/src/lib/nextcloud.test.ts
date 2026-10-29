@@ -1,4 +1,4 @@
-import { NEW_DOCUMENT_TYPES, newDocumentNameError, HIDDEN_FOLDER, downloadUrl, editInNextcloudUrl, folderPathFor, multiDownloadUrl, nextcloudActions, openInNextcloudUrl, parentPath, pathCrumbs, relativePath, renamedPath, toSyncDocument, visibleChildren } from "./nextcloud";
+import { sortSyncDocuments, SyncDocument, NEW_DOCUMENT_TYPES, newDocumentNameError, HIDDEN_FOLDER, downloadUrl, editInNextcloudUrl, folderPathFor, multiDownloadUrl, nextcloudActions, openInNextcloudUrl, parentPath, pathCrumbs, relativePath, renamedPath, toSyncDocument, visibleChildren } from "./nextcloud";
 
 const raw = (p: Partial<Parameters<typeof toSyncDocument>[0]>) => ({ path: "/remote.php/dav/files/u1/Cours/", displayname: "Cours", isFolder: true, ...p });
 const doc = (p: Partial<ReturnType<typeof toSyncDocument>>) => ({ ...toSyncDocument(raw({ path: "/remote.php/dav/files/u1/a.txt", displayname: "a.txt", isFolder: false, contentType: "text/plain" }), "u1"), ...p });
@@ -97,5 +97,30 @@ describe("document vierge", () => {
     expect([...NEW_DOCUMENT_TYPES]).toEqual(["docx", "xlsx", "pptx"]);
     expect(newDocumentNameError("  ")).toBe("empty");
     expect(newDocumentNameError("Devoir")).toBeNull();
+  });
+});
+
+describe("sortSyncDocuments", () => {
+  const f = (name: string, ownerName: string, size: number, lastModified: string, isFolder = false): SyncDocument =>
+    ({ path: name, name, isFolder, kind: isFolder ? "folder" : "text", editable: false, ownerName, size, lastModified }) as SyncDocument;
+  const docs = [f("b.txt", "Zoé", 10, "2026-08-02T10:00:00Z"), f("a.txt", "Alice", 30, "2026-08-01T10:00:00Z"), f("c.txt", "Marc", 20, "2026-08-03T10:00:00Z"), f("Zdossier", "Bob", 0, "2026-07-01T10:00:00Z", true)];
+  const names = (l: SyncDocument[]) => l.map((d) => d.name);
+  it("titre, croissant puis décroissant ; les dossiers restent en tête", () => {
+    expect(names(sortSyncDocuments(docs, "name", false))).toEqual(["Zdossier", "a.txt", "b.txt", "c.txt"]);
+    expect(names(sortSyncDocuments(docs, "name", true))).toEqual(["Zdossier", "c.txt", "b.txt", "a.txt"]);
+  });
+  it("propriétaire", () => {
+    expect(names(sortSyncDocuments(docs, "owner", false))).toEqual(["Zdossier", "a.txt", "c.txt", "b.txt"]);
+  });
+  it("dernière modification : la plus récente d'abord par défaut", () => {
+    expect(names(sortSyncDocuments(docs, "modified"))).toEqual(["Zdossier", "c.txt", "b.txt", "a.txt"]);
+    expect(names(sortSyncDocuments(docs, "modified", false))).toEqual(["Zdossier", "a.txt", "b.txt", "c.txt"]);
+  });
+  it("poids : le plus lourd d'abord par défaut", () => {
+    expect(names(sortSyncDocuments(docs, "size"))).toEqual(["Zdossier", "a.txt", "c.txt", "b.txt"]);
+    expect(names(sortSyncDocuments(docs, "size", false))).toEqual(["Zdossier", "b.txt", "c.txt", "a.txt"]);
+  });
+  it("lit le propriétaire renvoyé par NextCloud", () => {
+    expect(toSyncDocument({ path: "/remote.php/dav/files/u1/a.txt", displayname: "a.txt", isFolder: false, ownerDisplayName: "Alice" }, "u1").ownerName).toBe("Alice");
   });
 });
