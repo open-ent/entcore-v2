@@ -91,3 +91,9 @@ export const breadcrumb = (folders: WorkspaceElement[], folderId: string | null)
 };
 
 export const isTreeName = (value?: string): value is TreeName => !!value && (TREES as string[]).includes(value);
+
+/** Image que l'on peut retoucher en ligne (recadrer, légender) : jpg, jpeg, bmp, png — comme l'ancienne interface. */
+export const isEditableImage = (e: Pick<WorkspaceElement, "eType" | "metadata">): boolean => {
+  const ext = String(e.metadata?.["content-type"] ?? "").split("/")[1]?.toLowerCase();
+  return e.eType === "file" && ["jpg", "jpeg", "bmp", "png"].includes(ext ?? "");
+};

@@ -21,11 +21,12 @@ const LABEL: Record<ActionId, string> = {
   ncCopy: "nextcloud.share.copy.action",
   ncMove: "nextcloud.share.move.action",
   driveExport: "workspace.cloud.drive.export.action",
+  editImage: "workspace.react.edit.image",
 };
 
 /** Partager (partage, portail public, NextCloud) · Organiser (copier, déplacer, vers NextCloud ou Drive) · Plus (versions, commentaires). */
 export const LAYOUT: BarLayout<ActionId> = {
-  direct: ["download", "rename", "openLool", "openScratch", "openGeogebra", "location", "restore"],
+  direct: ["download", "rename", "editImage", "openLool", "openScratch", "openGeogebra", "location", "restore"],
   menus: [
     { key: "share", label: "workspace.react.menu.share", ids: ["share", "publish", "ncCopy"] },
     { key: "organise", label: "workspace.react.menu.organise", ids: ["copy", "move", "ncMove", "driveExport"] },

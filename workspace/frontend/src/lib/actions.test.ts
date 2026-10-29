@@ -120,3 +120,19 @@ describe("availableActions — droits dans « Documents partagés » et « appli
     expect(availableActions("public", one, { managerOnAll: true })).toEqual(["copy", "download"]);
   });
 });
+
+describe("availableActions — retouche d'image", () => {
+  const img = (t = "image/png") => [el({ metadata: { "content-type": t } as never })];
+  it("proposée pour une image jpg, jpeg, bmp ou png, un seul fichier", () => {
+    for (const type of ["image/png", "image/jpeg", "image/jpg", "image/bmp"]) expect(availableActions("owner", img(type))).toContain("editImage");
+    expect(availableActions("owner", img("image/gif"))).not.toContain("editImage");
+    expect(availableActions("owner", [...img(), ...img()])).not.toContain("editImage");
+    expect(availableActions("owner", [el({ eType: "folder" })])).not.toContain("editImage");
+  });
+  it("dans les partages et les applis, il faut le droit de contribution", () => {
+    expect(availableActions("shared", img(), { contribOnAll: true })).toContain("editImage");
+    expect(availableActions("shared", img(), { contribOnAll: false })).not.toContain("editImage");
+    expect(availableActions("protected", img(), { contribOnAll: true })).toContain("editImage");
+    expect(availableActions("public", img(), { contribOnAll: true })).not.toContain("editImage");
+  });
+});

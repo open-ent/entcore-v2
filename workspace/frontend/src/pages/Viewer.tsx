@@ -128,7 +128,8 @@ export const Viewer = () => {
   const flags = useMemo(() => readFlags(), []);
   const workflows = new Set(((user as { authorizedActions?: Array<{ name: string }> } | undefined)?.authorizedActions ?? []).map((a) => a.name));
   const lool = useLoolContext(flags.enableLool && workflows.has(LOOL_OPEN));
-  const [editingImage, setEditingImage] = useState(false);
+  // `?edit=image` (action « Retoucher l'image » de la liste) ouvre directement la retouche
+  const [editingImage, setEditingImage] = useState(() => new URLSearchParams(location.search).get("edit") === "image");
   const [editError, setEditError] = useState(false);
 
   const go = (target?: string) => target && navigate(`/view/${target}`, { state: { ids: siblings, from }, replace: true });
@@ -217,7 +218,7 @@ export const Viewer = () => {
       <div ref={box} style={{ background: "#fff" }}>
         <Content element={el} />
       </div>
-      {editingImage && (
+      {editingImage && rights.contrib && (
         <ImageEditor
           isOpen
           image={`/workspace/document/${el._id}`}

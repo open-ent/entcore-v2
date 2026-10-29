@@ -1,6 +1,7 @@
+import { isEditableImage } from "./elements";
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove" | "driveExport";
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove" | "driveExport" | "editImage";
 
 /** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
 export interface ActionContext {
@@ -8,6 +9,8 @@ export interface ActionContext {
   canManage?: boolean;
   /** Vrai si l'usager gère TOUS les éléments sélectionnés (propriétaire ou droit de gestion) : conditionne renommer, déplacer, corbeille. */
   managerOnAll?: boolean;
+  /** Vrai si l'usager peut contribuer sur TOUS les éléments sélectionnés (conditionne la retouche d'une image). */
+  contribOnAll?: boolean;
   /** Administrateur local ou super-administrateur : peut publier un document sur le portail public. */
   canPublish?: boolean;
   /** Résultats de recherche affichés : propose d'ouvrir l'emplacement d'un résultat. */
@@ -42,6 +45,7 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   const manager = tree === "owner" || ctx.managerOnAll === true;
   const managed = tree === "owner" || tree === "shared" || tree === "protected";
   if (managed && manager && single) actions.push("rename");
+  if (managed && single && isEditableImage(selection[0]) && (tree === "owner" || ctx.contribOnAll === true)) actions.push("editImage");
   if ((tree === "owner" || (tree === "shared" && ctx.canManage)) && single) actions.push("share");
   actions.push("copy");
   if ((tree === "owner" || tree === "shared") && manager) actions.push("move");

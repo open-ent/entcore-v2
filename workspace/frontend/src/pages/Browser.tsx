@@ -8,7 +8,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ActionBar } from "../components/ActionBar";
 import { CommentsModal } from "../components/CommentsModal";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -88,6 +88,7 @@ import {
 export const Browser = () => {
   const { t } = useTranslation("workspace");
   const { tree, folderId } = useParams();
+  const location = useLocation();
   const [view, setView] = useState<ViewMode>("icons");
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({
     key: "name",
@@ -335,6 +336,7 @@ export const Browser = () => {
     else if (a === "driveExport") void exportToDrive();
     else if (a === "ncCopy") setNcPicker("copy");
     else if (a === "ncMove") setNcPicker("move");
+    else if (a === "editImage") navigate(`/view/${selection[0]._id}?edit=image`, { state: { ids: [selection[0]._id], from: location.pathname } });
     else if (a === "openLool") window.open(loolUrl(selection[0]._id));
     else if (a === "openScratch") window.open(scratchUrl(selection[0]._id));
     else if (a === "openGeogebra") window.open(geogebraUrl(selection[0]));
