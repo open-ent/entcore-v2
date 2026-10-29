@@ -28,7 +28,8 @@ export const RenameModal = ({
   const { t } = useTranslation("workspace");
   const [name, setName] = useState("");
   const [local, setLocal] = useState<string | null>(null);
-  const parent = useParentInfo(element?.eParent ?? undefined, !!element);
+  // le serveur donne le dossier parent d'un élément à partir de l'identifiant de l'élément lui-même
+  const parent = useParentInfo(element?.eParent ? element._id : undefined, !!element);
   useEffect(() => {
     setName(element?.name ?? "");
     setLocal(null);
