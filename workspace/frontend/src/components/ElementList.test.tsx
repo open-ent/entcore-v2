@@ -44,4 +44,32 @@ describe("ElementList — vue liste", () => {
     expect(show([shared], { searching: true }).container.querySelector("[data-badge-shared]")).not.toBeNull();
     expect(show([shared]).container.querySelector("[data-badge-shared]")).toBeNull();
   });
+
+});
+
+describe("ElementList — vue en icônes", () => {
+  const icons = (elements: WorkspaceElement[], props: Record<string, unknown> = {}, tree = "owner") =>
+    render(
+      <MemoryRouter>
+        <ElementList tree={tree as never} elements={elements} view="icons" {...props} />
+      </MemoryRouter>,
+    );
+  it("la pastille de commentaires est dans la bande du nom, et ouvre les commentaires", () => {
+    const onShowComments = vi.fn();
+    const { container } = icons([el({ _id: "c", comments: [{ id: "1" }] as never })], { onShowComments });
+    const badge = container.querySelector("[data-element-id='c'] [data-badge-comments]")!;
+    expect(badge.textContent).toBe("1");
+    fireEvent.click(badge);
+    expect(onShowComments).toHaveBeenCalledWith(expect.objectContaining({ _id: "c" }));
+  });
+  it("cliquer la pastille ne coche pas la tuile", () => {
+    const onToggle = vi.fn();
+    const { container } = icons([el({ _id: "c", comments: [{ id: "1" }] as never })], { onToggle });
+    fireEvent.click(container.querySelector("[data-badge-comments]")!);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+  it("pas de pastille sans commentaire ni dans la corbeille", () => {
+    expect(icons([el({})]).container.querySelector("[data-badge-comments]")).toBeNull();
+    expect(icons([el({ comments: [{ id: "1" }] as never })], {}, "trash").container.querySelector("[data-badge-comments]")).toBeNull();
+  });
 });

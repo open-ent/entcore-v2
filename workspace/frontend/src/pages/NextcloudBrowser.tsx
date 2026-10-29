@@ -211,21 +211,13 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
           />
         </aside>
         <main style={{ flex: "1 1 320px", minWidth: 0 }}>
-          {link.data?.url && (
-            <div className="d-flex flex-wrap align-items-center gap-12 mb-12" data-nc-server>
-              {/* ouvre NextCloud déjà connecté : la connexion unique reconnaît l'usager de l'ENT */}
-              <a className="btn btn-primary" href={link.data.url} target="_blank" rel="noreferrer" title={t("workspace.react.nc.open.server.hint")} data-nc-open-server>
-                {t("workspace.react.nc.open.server")}
+          {link.data && !link.data.hidden && link.data.url && (
+            <p data-nc-url>
+              {t("nextcloud.url.connect")} :{" "}
+              <a href={link.data.url} target="_blank" rel="noreferrer">
+                {link.data.url}
               </a>
-              {!link.data.hidden && (
-                <span data-nc-url>
-                  {t("nextcloud.url.connect")} :{" "}
-                  <a href={link.data.url} target="_blank" rel="noreferrer">
-                    {link.data.url}
-                  </a>
-                </span>
-              )}
-            </div>
+            </p>
           )}
           {!trash && (
             <nav aria-label={t("workspace.react.breadcrumb")} data-nc-breadcrumb className="mb-12">
@@ -257,6 +249,12 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
               >
                 {t("folder.new")}
               </button>
+              {/* ouvre NextCloud déjà connecté : la connexion unique reconnaît l'usager de l'ENT ; à droite, aligné sur les autres boutons */}
+              {link.data?.url && (
+                <a className="btn btn-outline-primary" style={{ marginLeft: "auto" }} href={link.data.url} target="_blank" rel="noreferrer" title={t("workspace.react.nc.open.server.hint")} data-nc-open-server>
+                  {t("workspace.react.nc.open.server")}
+                </a>
+              )}
               <input
                 ref={fileInput}
                 type="file"
@@ -269,6 +267,13 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
                   if (files.length && userId) void run(() => nextcloudService.upload(userId, files, path));
                 }}
               />
+            </div>
+          )}
+          {trash && link.data?.url && (
+            <div className="d-flex gap-12 mb-16">
+              <a className="btn btn-outline-primary" style={{ marginLeft: "auto" }} href={link.data.url} target="_blank" rel="noreferrer" title={t("workspace.react.nc.open.server.hint")} data-nc-open-server>
+                {t("workspace.react.nc.open.server")}
+              </a>
             </div>
           )}
           {trash && docs.length > 0 && (

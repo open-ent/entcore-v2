@@ -105,6 +105,30 @@ export const ElementList = ({
       </Link>
     );
 
+  /** Pastille bleue du nombre de commentaires (comme l'ancienne interface) ; un clic ouvre les commentaires. Absente sans commentaire et dans la corbeille. */
+  const commentBadge = (e: WorkspaceElement, inline = false) =>
+    tree !== "trash" &&
+    (e.comments?.length ?? 0) > 0 && (
+      <button
+        type="button"
+        className="badge"
+        style={{
+          border: 0,
+          cursor: onShowComments ? "pointer" : "default",
+          ...(inline ? { background: "#2a9cc8", color: "#fff", borderRadius: 10, padding: "0 7px", marginRight: 6, fontSize: 11, lineHeight: "16px" } : {}),
+        }}
+        onClick={(ev) => {
+          ev.stopPropagation();
+          onShowComments?.(e);
+        }}
+        aria-label={t("workspace.react.action.comments")}
+        title={t("workspace.react.action.comments")}
+        data-badge-comments
+      >
+        {e.comments?.length}
+      </button>
+    );
+
   const checkbox = (e: WorkspaceElement) =>
     onToggle && (
       <input
@@ -177,15 +201,7 @@ export const ElementList = ({
               </td>
               <td>{dateOf(e)}</td>
               <td>{e.eType === "file" ? formatSize(e.metadata?.size) : ""}</td>
-              {tree !== "trash" && (
-                <td>
-                  {(e.comments?.length ?? 0) > 0 && (
-                    <button type="button" className="badge" style={{ border: 0, cursor: onShowComments ? "pointer" : "default" }} onClick={() => onShowComments?.(e)} aria-label={t("workspace.react.action.comments")} title={t("workspace.react.action.comments")} data-badge-comments>
-                      {e.comments?.length}
-                    </button>
-                  )}
-                </td>
-              )}
+              {tree !== "trash" && <td>{commentBadge(e)}</td>}
             </tr>
           ))}
         </tbody>
@@ -226,6 +242,7 @@ export const ElementList = ({
                 {thumb ? <img src={`/workspace/document/${e._id}?thumbnail=120x120`} alt="" style={{ maxWidth: "100%", maxHeight: 96 }} loading="lazy" /> : iconOf(e)}
               </div>
               <div style={{ background: isSelected ? "#2a9cc8" : "#7a7a7a", color: "#fff", padding: "5px 8px", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {commentBadge(e, true)}
                 {open(e, { color: "#fff" })}
               </div>
             </div>
