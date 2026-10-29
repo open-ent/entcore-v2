@@ -19,6 +19,7 @@ vi.mock("../services/queries", () => ({
   useNextcloudUrl: () => ({ data: { url: "https://nc.example", hidden: false } }),
   useNextcloudQuota: () => ({ data: { used: 10, total: 100 } }),
   useFolders: () => ({ data: [] }),
+  useQuota: () => ({ data: { storage: 5, quota: 50 } }),
 }));
 
 const d = (p: Partial<SyncDocument>): SyncDocument => ({ path: "a.txt", name: "a.txt", isFolder: false, kind: "text", editable: false, ...p });
@@ -43,6 +44,9 @@ describe("NextcloudBrowser", () => {
     expect(document.querySelector("[data-nc-url]")?.textContent).toContain("https://nc.example");
     expect(document.querySelector('[data-nc-action="new-folder"]')).toBeInTheDocument();
     expect(document.querySelector('[data-nc-action="create-document"]')).toBeInTheDocument();
+    // les deux jauges : espace des documents personnels et espace synchronisé NextCloud
+    expect(document.querySelector("[data-workspace-quota]")).toBeInTheDocument();
+    expect(document.querySelector("[data-nc-quota]")).toBeInTheDocument();
   });
 
   it("créer un document : choix du type, nom obligatoire", () => {

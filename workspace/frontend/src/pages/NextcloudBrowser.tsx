@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FolderPicker } from "../components/FolderPicker";
 import { NextcloudNav } from "../components/NextcloudNav";
+import { QuotaGauge } from "../components/QuotaGauge";
 import { TreeNav } from "../components/TreeNav";
 import { fileKind, formatSize, parseDate } from "../lib/elements";
 import { folderNameError } from "../lib/upload";
@@ -23,7 +24,7 @@ import {
   SyncDocument,
 } from "../lib/nextcloud";
 import { nextcloudService } from "../services/nextcloud.service";
-import { useFolders, useNextcloudList, useNextcloudQuota, useNextcloudUrl } from "../services/queries";
+import { useFolders, useNextcloudList, useNextcloudQuota, useNextcloudUrl, useQuota } from "../services/queries";
 
 const ICON: Record<string, string> = { folder: "📁", image: "🖼️", pdf: "📕", doc: "📝", sheet: "📊", slides: "📽️", audio: "🎵", video: "🎞️", text: "📄", archive: "🗜️", other: "📎" };
 const LABEL: Record<NextcloudActionId, string> = {
@@ -52,6 +53,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
   const list = useNextcloudList(userId, path, trash, true);
   const link = useNextcloudUrl(true);
   const folders = useFolders();
+  const quota = useQuota(user?.userId);
   const ncRoot = useNextcloudList(userId, "", false, true);
   const ncQuota = useNextcloudQuota(userId, true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -153,7 +155,9 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
         <aside style={{ flex: "0 0 260px", maxWidth: "100%" }}>
-          <TreeNav tree="owner" highlight={false} keepOpen folders={folders.data ?? []} />
+          <TreeNav tree="owner" highlight={false} keepOpen folders={folders.data ?? []}>
+            {quota.data && <QuotaGauge quota={quota.data} />}
+          </TreeNav>
           <NextcloudNav
             active
             trash={trash}
