@@ -385,6 +385,7 @@
   "workspace.react.nc.share.message": "A copy of the document is placed in your document space to be shared. If you cancel the share, it goes back to NextCloud.",
   "workspace.react.nc.open.server": "Open NextCloud",
   "workspace.react.nc.open.server.hint": "You are signed in automatically, no new password needed.",
+  "workspace.react.save": "Save",
   "workspace.react.confirm.delete": "These items will be permanently deleted.",
   "workspace.react.action.share": "Share",
   "workspace.react.viewer.back": "Back",

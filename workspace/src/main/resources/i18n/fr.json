@@ -386,6 +386,7 @@
   "workspace.react.nc.share.message": "Un exemplaire du document est placé dans votre espace documentaire pour être partagé. Si vous annulez le partage, il retourne dans NextCloud.",
   "workspace.react.nc.open.server": "Ouvrir NextCloud",
   "workspace.react.nc.open.server.hint": "Vous y êtes connecté automatiquement, sans nouveau mot de passe.",
+  "workspace.react.save": "Enregistrer",
   "workspace.react.confirm.delete": "Ces éléments seront supprimés définitivement.",
   "workspace.react.action.share": "Partager",
   "workspace.react.viewer.back": "Retour",

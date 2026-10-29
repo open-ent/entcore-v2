@@ -61,3 +61,7 @@ export const usePublishedIds = (structureIds: string[], enabled: boolean) =>
 
 export const useNextcloudQuota = (userId: string | undefined, enabled: boolean) =>
   useQuery({ queryKey: ["workspace", "nextcloud-quota", userId], queryFn: () => nextcloudService.quota(userId as string), enabled: enabled && !!userId });
+
+/** Dossier parent de l'élément dont on ouvre les propriétés (absent pour un élément à la racine). */
+export const useParentInfo = (elementId?: string, enabled = true) =>
+  useQuery({ queryKey: ["workspace", "parent", elementId], queryFn: () => workspaceService.parentInfo(elementId as string), enabled: !!elementId && enabled, staleTime: 30_000 });

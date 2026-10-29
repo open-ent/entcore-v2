@@ -934,6 +934,7 @@ export const Browser = () => {
       <RenameModal
         element={renaming}
         error={renameError}
+        parentHref={(parentId) => `#/${validTree === "shared" ? "shared" : "owner"}/${parentId}`}
         onClose={() => setRenaming(null)}
         onRename={async (name) => {
           if (!renaming) return;

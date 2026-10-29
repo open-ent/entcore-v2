@@ -1,5 +1,6 @@
 import { odeServices } from "@open-ent/client";
 import { WorkspacePreference } from "../lib/preferences";
+import { ParentInfo } from "../lib/properties";
 import { ShareJson, shareForm, sharePairs } from "../lib/share";
 import { Quota, Revision, TreeName, UiPreference, WorkspaceElement } from "../lib/types";
 
@@ -25,6 +26,9 @@ export const workspaceService = {
   listFolders: () => odeServices.http().get<WorkspaceElement[]>("/workspace/folders/list?filter=all"),
 
   getQuota: (userId: string) => odeServices.http().get<Quota>(`/workspace/quota/user/${userId}`),
+
+  /** Dossier parent d'un élément, avec ses droits hérités et les noms des personnes et groupes visibles. */
+  parentInfo: (id: string) => odeServices.http().get<ParentInfo>(`/workspace/document/parent/${id}`),
 
   /** Préférence « workspace » de l'usager (affichage et tri), la même que celle de l'ancienne interface. */
   async getPreference(): Promise<WorkspacePreference> {
