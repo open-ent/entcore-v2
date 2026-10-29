@@ -776,6 +776,7 @@ export const Browser = () => {
           {content.isSuccess && elements.length === 0 && (
             <div className="text-center my-24" data-workspace-empty>
               <h2 className="h4">{t(emptyKeys(validTree, !folderId, !!query).title)}</h2>
+              <img src="/workspace/public/img/empty-workspace.svg" alt="" style={{ maxWidth: 160 }} data-empty-image />
               {emptyKeys(validTree, !folderId, !!query).text && <p className="text-muted">{t(emptyKeys(validTree, !folderId, !!query).text as string)}</p>}
             </div>
           )}

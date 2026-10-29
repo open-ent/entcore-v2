@@ -8,6 +8,13 @@ vi.mock("@open-ent/react", () => ({
   AppHeader: ({ children }: { children: unknown }) => <div>{children as never}</div>,
   LoadingScreen: () => <div data-loading />,
   useEdificeClient: () => ({ user: { userId: "u1", username: "Lilit" } }),
+  SegmentedControl: ({ options, value, onChange }: { options: Array<{ label: string; value: string }>; value: string; onChange: (v: string) => void }) => (
+    <div>
+      {options.map((o) => (
+        <button key={o.value} type="button" data-view={o.value} aria-pressed={o.value === value} onClick={() => onChange(o.value)} />
+      ))}
+    </div>
+  ),
   ShareModal: ({ shareOptions, onCancel }: { shareOptions: { resourceId: string }; onCancel: () => void }) => (
     <div data-share-modal={shareOptions.resourceId}>
       <button type="button" data-share-cancel onClick={onCancel} />
@@ -128,8 +135,37 @@ describe("NextcloudBrowser", () => {
     expect(document.querySelector("[data-nc-url]")?.textContent).toContain("https://nc.example");
   });
 
-  it("trie par colonne, mémorise le choix et inverse le sens au second clic", () => {
+  it("affiche les éléments en icônes par défaut, bascule en liste et mémorise le choix", () => {
     prefs.value = {};
+    prefs.save.mockClear();
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({ path: "Cours", name: "Cours", isFolder: true, kind: "folder" }), d({})] });
+    expect(document.querySelector('[data-nc-list="icons"]')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-nc-list="icons"] [data-nc-item]')).toHaveLength(2);
+    expect(document.querySelector("table[data-nc-list]")).toBeNull();
+    fireEvent.click(document.querySelector('[data-view="list"]')!);
+    expect(document.querySelector("table[data-nc-list]")).toBeInTheDocument();
+    expect(prefs.save).toHaveBeenLastCalledWith({ view: "list" });
+  });
+
+  it("propose le tri aussi en icônes : critère puis sens", () => {
+    prefs.value = {};
+    prefs.save.mockClear();
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({ path: "a.txt", name: "a.txt", size: 5 }), d({ path: "b.txt", name: "b.txt", size: 50 })] });
+    fireEvent.change(document.querySelector("[data-nc-sort]")!, { target: { value: "size" } });
+    expect(prefs.save).toHaveBeenLastCalledWith({ sortField: "metadata.size", sortDesc: false });
+    fireEvent.click(document.querySelector("[data-nc-sort-direction]")!);
+    expect(prefs.save).toHaveBeenLastCalledWith({ sortField: "metadata.size", sortDesc: true });
+    expect([...document.querySelectorAll("[data-nc-item]")].map((n) => n.getAttribute("data-nc-path"))).toEqual(["b.txt", "a.txt"]);
+  });
+
+  it("reprend l'affichage en liste mémorisé dans la préférence", () => {
+    prefs.value = { view: "list" };
+    show({ isLoading: false, isError: false, isSuccess: true, data: [d({})] });
+    expect(document.querySelector("table[data-nc-list]")).toBeInTheDocument();
+  });
+
+  it("trie par colonne, mémorise le choix et inverse le sens au second clic", () => {
+    prefs.value = { view: "list" };
     prefs.save.mockClear();
     show({ isLoading: false, isError: false, isSuccess: true, data: [d({ path: "a.txt", name: "a.txt", size: 5 }), d({ path: "b.txt", name: "b.txt", size: 50 })] });
     const names = () => [...document.querySelectorAll("[data-nc-item]")].map((n) => n.getAttribute("data-nc-path"));
@@ -150,6 +186,7 @@ describe("NextcloudBrowser", () => {
   });
 
   it("affiche le propriétaire renvoyé par NextCloud", () => {
+    prefs.value = { view: "list" };
     show({ isLoading: false, isError: false, isSuccess: true, data: [d({ ownerName: "Alice" })] });
     expect(document.querySelector("[data-nc-item]")?.textContent).toContain("Alice");
   });

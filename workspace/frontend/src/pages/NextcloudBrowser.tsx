@@ -1,4 +1,4 @@
-import { AppHeader, LoadingScreen, ShareModal, useEdificeClient } from "@open-ent/react";
+import { AppHeader, LoadingScreen, SegmentedControl, ShareModal, useEdificeClient } from "@open-ent/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,7 +11,8 @@ import { SelectionBar } from "../components/SelectionBar";
 import { BarLayout } from "../lib/actionGroups";
 import { TreeNav } from "../components/TreeNav";
 import { fileKind, formatSize, parseDate, SortKey } from "../lib/elements";
-import { nextSort, SORT_FIELD, sortKeyOf } from "../lib/preferences";
+import { nextSort, SORT_FIELD, sortKeyOf, viewOf } from "../lib/preferences";
+import { ViewMode } from "../lib/types";
 import { folderNameError } from "../lib/upload";
 import {
   downloadUrl,
@@ -86,15 +87,21 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
   // Tri des colonnes, mémorisé dans la même préférence que les documents personnels
   const preference = useWorkspacePreference();
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "name", desc: false });
+  const [view, setView] = useState<ViewMode>("icons");
   const sortApplied = useRef(false);
   useEffect(() => {
     if (!preference.data || sortApplied.current) return;
     sortApplied.current = true;
+    setView(viewOf(preference.data));
     const key = sortKeyOf(preference.data.sortField);
     if (key) setSort({ key, desc: preference.data.sortDesc === true });
   }, [preference.data]);
-  const changeSort = (key: SortKey) => {
-    const next = nextSort(sort, key);
+  const changeView = (v: ViewMode) => {
+    setView(v);
+    void workspaceService.savePreference({ view: v });
+  };
+  const changeSort = (key: SortKey, toggle = true) => {
+    const next = toggle ? nextSort(sort, key) : { key, desc: false };
     setSort(next);
     void workspaceService.savePreference({ sortField: SORT_FIELD[next.key], sortDesc: next.desc });
   };
@@ -153,6 +160,20 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
       for (const m of moves) await nextcloudService.move(userId, m.from, m.to);
     });
   };
+
+  /** Glisser-déposer d'un élément (ligne ou tuile) : on emporte toute la sélection s'il en fait partie, sinon lui seul ; un dossier reçoit les éléments lâchés. */
+  const dndProps = (d: SyncDocument) => ({
+    draggable: !trash,
+    onDragStart: (ev: React.DragEvent) => {
+      const moved = selected.has(d.path) ? [...selected] : [d.path];
+      draggedPaths.current = moved;
+      ev.dataTransfer.setData(NC_DRAG_TYPE, JSON.stringify(moved));
+      ev.dataTransfer.effectAllowed = "move";
+    },
+    onDragOver: d.isFolder ? (ev: React.DragEvent) => dropAllowed(ev, d.path) && (ev.preventDefault(), setOverFolder(d.path)) : undefined,
+    onDragLeave: d.isFolder ? () => setOverFolder(null) : undefined,
+    onDrop: d.isFolder ? (ev: React.DragEvent) => dropOn(ev, d.path) : undefined,
+  });
 
   // Partage d'un document NextCloud : un exemplaire est placé dans l'espace documentaire et partagé là ; annuler le remet dans NextCloud
   const [shareWarn, setShareWarn] = useState(false);
@@ -315,7 +336,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
               {t("workspace.empty.trash")}
             </button>
           )}
-          <SelectionBar actions={actions} layout={LAYOUT} labels={LABEL} count={selection.length} attr={{ bar: "data-nc-action-bar", action: "data-nc-action" }} busy={busy} onAction={onAction} />
+          <SelectionBar actions={actions} layout={LAYOUT} labels={LABEL} count={selection.length} attr={{ bar: "data-nc-action-bar", action: "data-nc-action" }} busy={busy} onAction={onAction} onClear={() => setSelected(new Set())} />
           {notice && (
             <div className="alert alert-warning" role="alert" data-nc-notice>
               {notice}
@@ -330,8 +351,87 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
               </button>
             </div>
           )}
-          {list.isSuccess && docs.length === 0 && <p data-nc-empty>{t("workspace.react.empty")}</p>}
+          {list.isSuccess && docs.length === 0 && (
+            <div className="text-center my-24" data-nc-empty>
+              <h2 className="h4">{t(trash ? "empty.trash2" : path ? "empty.workspace.subfolder.title" : "empty.workspace.title")}</h2>
+              <img src="/workspace/public/img/empty-workspace.svg" alt="" style={{ maxWidth: 160 }} data-empty-image />
+              {!trash && !path && <p className="text-muted">{t("empty.workspace")}</p>}
+            </div>
+          )}
           {list.isSuccess && docs.length > 0 && (
+            <div className="d-flex gap-16 align-items-center mb-16">
+              <SegmentedControl
+                options={[
+                  { label: t("workspace.react.view.icons"), value: "icons" },
+                  { label: t("workspace.react.view.list"), value: "list" },
+                ]}
+                value={view}
+                onChange={(v: string) => changeView(v === "list" ? "list" : "icons")}
+              />
+              <label>
+                {t("workspace.react.sort")}{" "}
+                <select value={sort.key} onChange={(e) => changeSort(e.target.value as SortKey, false)} data-nc-sort>
+                  <option value="name">{t("name")}</option>
+                  <option value="owner">{t("owner")}</option>
+                  <option value="modified">{t("modified")}</option>
+                  <option value="size">{t("size")}</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => changeSort(sort.key)}
+                aria-label={t(sort.desc ? "workspace.react.sort.desc" : "workspace.react.sort.asc")}
+                title={t(sort.desc ? "workspace.react.sort.desc" : "workspace.react.sort.asc")}
+                data-nc-sort-direction
+              >
+                {sort.desc ? "↓" : "↑"}
+              </button>
+            </div>
+          )}
+          {list.isSuccess && docs.length > 0 && view === "icons" && (
+            <ul className="list-unstyled d-flex flex-wrap gap-16" data-nc-list="icons">
+              {docs.map((d) => {
+                const isSelected = selected.has(d.path);
+                return (
+                  <li
+                    key={d.path}
+                    data-nc-item={d.isFolder ? "folder" : "file"}
+                    data-nc-path={d.path}
+                    data-selected={isSelected}
+                    style={{ width: 132, cursor: "pointer" }}
+                    onClick={(ev) => {
+                      if (!(ev.target as HTMLElement).closest("a,input,button")) toggle(d.path);
+                    }}
+                    {...dndProps(d)}
+                  >
+                    <div
+                      style={{
+                        position: "relative",
+                        background: "#fff",
+                        borderRadius: 8,
+                        overflow: "hidden",
+                        boxShadow: "0 1px 4px rgba(0,0,0,.25)",
+                        outline: overFolder === d.path ? "2px dashed #2a9cc8" : isSelected ? "3px solid #2a9cc8" : "none",
+                      }}
+                    >
+                      <div style={{ position: "absolute", top: 6, left: 8 }}>
+                        <input type="checkbox" data-nc-select checked={isSelected} onChange={() => toggle(d.path)} aria-label={d.name} />
+                      </div>
+                      <div style={{ height: 96, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46 }} aria-hidden="true">
+                        {ICON[d.isFolder ? "folder" : fileKind(d.contentType)]}
+                      </div>
+                      <div style={{ background: isSelected ? "#2a9cc8" : "#7a7a7a", color: "#fff", padding: "5px 8px", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {trash ? d.name : open(d)}
+                      </div>
+                    </div>
+                    <small className="d-block text-muted text-center mt-4">{d.isFolder ? "" : formatSize(d.size)}</small>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {list.isSuccess && docs.length > 0 && view === "list" && (
             <table className="table w-100" data-nc-list>
               <thead>
                 <tr>
@@ -351,17 +451,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
                     key={d.path}
                     data-nc-item={d.isFolder ? "folder" : "file"}
                     data-nc-path={d.path}
-                    draggable={!trash}
-                    onDragStart={(ev) => {
-                      // on emporte toute la sélection si l'élément saisi en fait partie, sinon lui seul
-                      const moved = selected.has(d.path) ? [...selected] : [d.path];
-                      draggedPaths.current = moved;
-                      ev.dataTransfer.setData(NC_DRAG_TYPE, JSON.stringify(moved));
-                      ev.dataTransfer.effectAllowed = "move";
-                    }}
-                    onDragOver={d.isFolder ? (ev) => dropAllowed(ev, d.path) && (ev.preventDefault(), setOverFolder(d.path)) : undefined}
-                    onDragLeave={d.isFolder ? () => setOverFolder(null) : undefined}
-                    onDrop={d.isFolder ? (ev) => dropOn(ev, d.path) : undefined}
+                    {...dndProps(d)}
                     style={overFolder === d.path ? { outline: "2px dashed #2a9cc8" } : undefined}
                   >
                     <td>
