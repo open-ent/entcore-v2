@@ -1,5 +1,6 @@
 import { odeServices } from "@open-ent/client";
 import { WorkspacePreference } from "../lib/preferences";
+import { ShareJson, shareForm, sharePairs } from "../lib/share";
 import { Quota, Revision, TreeName, UiPreference, WorkspaceElement } from "../lib/types";
 
 const query = (params: Record<string, string | boolean | undefined>): string => {
@@ -91,6 +92,17 @@ const postForm = async <R>(url: string, form: URLSearchParams): Promise<R> => {
   return body as R;
 };
 
+/** PUT d'un formulaire (partage) : même précaution sur le type de contenu que `postForm`. */
+const putForm = async (url: string, form: URLSearchParams): Promise<void> => {
+  const res = await fetch(url, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-XSRF-TOKEN": xsrfToken() },
+    body: form.toString(),
+  });
+  if (!res.ok) throw new Error(String(res.status));
+};
+
 /** Clé de traduction de l'erreur d'envoi : 413 → fichier trop gros, 403 → pas de droit, sinon le code du serveur. */
 export const uploadErrorKey = (status: number, body?: string): string => {
   if (status === 413) return "file.too.large.limit";
@@ -144,6 +156,16 @@ export const elementActions = {
   /** Renvoie les copies créées ; chacune porte `copyFromId` (identifiant de l'original). */
   copy: (els: Array<{ _id: string }>, destId?: string) =>
     odeServices.http().postJson<Array<{ _id: string; name: string; eType: "file" | "folder"; copyFromId?: string; owner: string }>>(`/workspace/documents/copy/${destId ?? "root"}`, ids(els)),
+  /**
+   * Recopie sur d'autres éléments les droits de partage d'un élément (partage de plusieurs éléments à la fois : la fenêtre de partage
+   * règle le premier, ses droits sont appliqués aux autres). Les droits s'ajoutent à ceux déjà présents.
+   */
+  shareLike: async (sourceId: string, targetIds: string[]) => {
+    const json = await odeServices.http().get<ShareJson>(`/workspace/share/json/${sourceId}`);
+    const pairs = sharePairs(json);
+    for (const target of targetIds)
+      for (const pair of pairs) await putForm(`/workspace/share/json/${target}`, shareForm(pair));
+  },
   publish: (id: string) => odeServices.http().put<{ url?: string }>(`/workspace/document/${id}/portal-publish`),
   unpublish: (id: string) => odeServices.http().delete(`/workspace/document/${id}/portal-publish`),
   rename: (el: { _id: string; eType: string }, name: string) =>

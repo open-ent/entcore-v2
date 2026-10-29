@@ -9,7 +9,7 @@ describe("availableActions", () => {
   it("sans sélection, aucune action", () => expect(availableActions("owner", [])).toEqual([]));
   it("Mes documents : renommer seulement pour un élément", () => {
     expect(availableActions("owner", one)).toEqual(["rename", "share", "copy", "move", "trash", "download", "history", "comments"]);
-    expect(availableActions("owner", two)).toEqual(["copy", "move", "trash", "download"]);
+    expect(availableActions("owner", two)).toEqual(["share", "copy", "move", "trash", "download"]);
   });
   it("corbeille : restaurer et supprimer définitivement", () => expect(availableActions("trash", one)).toEqual(["restore", "delete"]));
   it("partagés : copier et télécharger, partager seulement si gestionnaire", () => {
@@ -92,8 +92,8 @@ describe("availableActions — droits dans « Documents partagés » et « appli
   const folders = [el({ _id: "a", eType: "folder" }), el({ _id: "b", eType: "folder" })];
   it("avec le droit de gestion sur tout : renommer (un seul), déplacer et mettre à la corbeille", () => {
     expect(availableActions("shared", one, { managerOnAll: true, canManage: true })).toEqual(["rename", "share", "copy", "move", "trash", "download", "history", "comments"]);
-    // plusieurs éléments : plus de renommage ni de partage
-    expect(availableActions("shared", folders, { managerOnAll: true })).toEqual(["copy", "move", "trash", "download"]);
+    // plusieurs éléments : plus de renommage, ni de versions ni de commentaires, mais le partage reste possible
+    expect(availableActions("shared", folders, { managerOnAll: true })).toEqual(["share", "copy", "move", "trash", "download"]);
   });
   it("sans le droit de gestion (contribution ou lecture) : ni renommer, ni déplacer, ni corbeille", () => {
     const a = availableActions("shared", one, { managerOnAll: false });
@@ -134,5 +134,17 @@ describe("availableActions — retouche d'image", () => {
     expect(availableActions("shared", img(), { contribOnAll: false })).not.toContain("editImage");
     expect(availableActions("protected", img(), { contribOnAll: true })).toContain("editImage");
     expect(availableActions("public", img(), { contribOnAll: true })).not.toContain("editImage");
+  });
+});
+
+describe("availableActions — partage de plusieurs éléments", () => {
+  const two = [el({ _id: "a" }), el({ _id: "b" })];
+  it("Mes documents : partager plusieurs éléments à la fois", () => {
+    expect(availableActions("owner", two)).toContain("share");
+  });
+  it("Documents partagés : seulement avec le droit de gestion sur tous les éléments", () => {
+    expect(availableActions("shared", two, { managerOnAll: true })).toContain("share");
+    expect(availableActions("shared", two, { managerOnAll: false })).not.toContain("share");
+    expect(availableActions("shared", two, { canManage: true })).not.toContain("share");
   });
 });

@@ -46,7 +46,8 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   const managed = tree === "owner" || tree === "shared" || tree === "protected";
   if (managed && manager && single) actions.push("rename");
   if (managed && single && isEditableImage(selection[0]) && (tree === "owner" || ctx.contribOnAll === true)) actions.push("editImage");
-  if ((tree === "owner" || (tree === "shared" && ctx.canManage)) && single) actions.push("share");
+  // partage : un seul élément ou plusieurs (même droit de gestion sur chacun), dans « Mes documents » et « Documents partagés »
+  if (tree === "owner" || (tree === "shared" && (ctx.managerOnAll === true || (single && ctx.canManage === true)))) actions.push("share");
   actions.push("copy");
   if ((tree === "owner" || tree === "shared") && manager) actions.push("move");
   if (managed && manager) actions.push("trash");

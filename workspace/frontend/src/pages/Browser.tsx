@@ -214,6 +214,8 @@ export const Browser = () => {
   >(null);
   const [warnShare, setWarnShare] = useState<WorkspaceElement | null>(null);
   const [sharing, setSharing] = useState<WorkspaceElement | null>(null);
+  // Éléments partagés ensemble : la fenêtre règle le premier, ses droits sont ensuite recopiés sur les autres
+  const [shareSet, setShareSet] = useState<WorkspaceElement[]>([]);
   const [copyingForShare, setCopyingForShare] = useState(false);
   const [publishing, setPublishing] = useState<WorkspaceElement | null>(null);
   const [versions, setVersions] = useState<WorkspaceElement | null>(null);
@@ -327,8 +329,10 @@ export const Browser = () => {
         : void run(() => elementActions.trash(selection));
     else if (a === "restore") void run(() => elementActions.restore(selection));
     else if (a === "delete") setConfirm("delete");
-    else if (a === "share")
+    else if (a === "share") {
+      setShareSet(selection);
       (validTree === "owner" ? setWarnShare : setSharing)(selection[0]);
+    }
     else if (a === "publish") setPublishing(selection[0]);
     else if (a === "history") setVersions(selection[0]);
     else if (a === "comments") setCommenting(selection[0]);
@@ -784,18 +788,26 @@ export const Browser = () => {
         }}
         onShareCopy={async () => {
           if (!warnShare) return;
-          const original = warnShare;
+          const originals = shareSet.length ? shareSet : [warnShare];
           setCopyingForShare(true);
           try {
-            const copies = await elementActions.copy([original]);
-            const copy =
-              copies.find((c) => c.copyFromId === original._id) ?? copies[0];
+            const copies = await elementActions.copy(originals);
+            // chaque copie remplace son original, dans le même ordre
+            const copied = originals
+              .map((o) => {
+                const copy = copies.find((c) => c.copyFromId === o._id);
+                return copy ? { ...o, ...copy } : undefined;
+              })
+              .filter((c): c is WorkspaceElement => !!c);
             await Promise.all(
               ["content", "folders", "quota"].map((k) =>
                 qc.invalidateQueries({ queryKey: ["workspace", k] }),
               ),
             );
-            if (copy) setSharing({ ...original, ...copy });
+            if (copied.length) {
+              setShareSet(copied);
+              setSharing(copied[0]);
+            }
             setWarnShare(null);
           } catch {
             setNotice(t("workspace.react.action.failed"));
@@ -816,13 +828,13 @@ export const Browser = () => {
           }}
           onCancel={() => setSharing(null)}
           onSuccess={() => {
+            const first = sharing;
+            const others = shareSet.filter((e) => e._id !== first._id).map((e) => e._id);
+            // plusieurs éléments : les droits réglés sur le premier sont recopiés sur les autres, puis on rafraîchit
+            const copied = others.length ? elementActions.shareLike(first._id, others).catch(() => setNotice(t("workspace.react.action.failed"))) : Promise.resolve();
             setSharing(null);
             setSelected(new Set());
-            void Promise.all(
-              ["content", "folders"].map((k) =>
-                qc.invalidateQueries({ queryKey: ["workspace", k] }),
-              ),
-            );
+            void copied.then(() => Promise.all(["content", "folders"].map((k) => qc.invalidateQueries({ queryKey: ["workspace", k] }))));
           }}
         />
       )}
