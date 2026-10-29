@@ -80,17 +80,31 @@ public class OpenIdConnectController extends AbstractFederateController {
 		renderJson(request, certificates);
 	}
 
+	/**
+	 * Adresse publique des pages que le NAVIGATEUR ouvre (connexion, déconnexion) : celle de l'ENT que voit l'usager, donc
+	 * l'émetteur configuré (`iss`), car c'est là que se trouve sa session. Les adresses appelées de serveur à serveur (échange du
+	 * code, clés, userinfo) restent celles de la requête : un client dans un conteneur peut joindre l'ENT par un autre nom
+	 * que le navigateur. En production les deux sont identiques. Ex. iss `http://localhost:8090`, requête reçue sur
+	 * `http://nextcloud.local:8090` → connexion `http://localhost:8090/auth/oauth2/auth`, échange `http://nextcloud.local:8090/auth/oauth2/token`.
+	 */
+	public static String browserBaseUrl(String issuer, String requestBaseUrl) {
+		if (issuer == null || issuer.trim().isEmpty()) return requestBaseUrl;
+		return issuer.endsWith("/") ? issuer.substring(0, issuer.length() - 1) : issuer;
+	}
+
 	@Get("/openid/.well-known/openid-configuration")
 	public void wellKnown(HttpServerRequest request) {
 		final JsonObject wellKnown = new JsonObject();
 		final String endpointBaseUrl = Renders.getScheme(request) + "://" +  Renders.getHost(request);
+		final String issuer = config.getJsonObject("openid-connect", new JsonObject()).getString("iss");
+		final String browserBaseUrl = browserBaseUrl(issuer, endpointBaseUrl);
 
-		wellKnown.put("issuer", config.getJsonObject("openid-connect", new JsonObject()).getString("iss"))
-				.put("authorization_endpoint", endpointBaseUrl + AUTHORIZATION_ENDPOINT)
+		wellKnown.put("issuer", issuer)
+				.put("authorization_endpoint", browserBaseUrl + AUTHORIZATION_ENDPOINT)
 				.put("token_endpoint", endpointBaseUrl + TOKEN_ENDPOINT)
 				.put("userinfo_endpoint", endpointBaseUrl + USERINFO_ENDPOINT)
 				.put("jwks_uri", endpointBaseUrl + JWKS_ENDPOINT)
-				.put("end_session_endpoint", endpointBaseUrl + LOGOUT_ENDPOINT)
+				.put("end_session_endpoint", browserBaseUrl + LOGOUT_ENDPOINT)
 				.put("response_types_supported", new JsonArray().add("code"))
 				.put("grant_types_supported", new JsonArray().add("authorization_code"))
 				.put("subject_types_supported", new JsonArray().add("public"))
