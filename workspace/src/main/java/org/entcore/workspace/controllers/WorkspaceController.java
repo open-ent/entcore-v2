@@ -2007,7 +2007,7 @@ public class WorkspaceController extends BaseController {
 			handler.handle(forced);
 			return;
 		}
-		final String query = "MATCH (:User {id:{userId}})-[:PREFERS]->(uac:UserAppConf) RETURN uac." + UI_PREFERENCE + " AS preference";
+		final String query = "MATCH (:User {id:$userId})-[:PREFERS]->(uac:UserAppConf) RETURN uac." + UI_PREFERENCE + " AS preference";
 		try {
 			org.entcore.common.neo4j.Neo4j.getInstance().execute(query, new JsonObject().put("userId", user.getUserId()),
 					message -> handler.handle(readUi(message.body(), platformUi)));
