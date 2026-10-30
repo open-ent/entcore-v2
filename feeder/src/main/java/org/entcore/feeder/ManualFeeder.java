@@ -980,7 +980,7 @@ public class ManualFeeder extends BusModBase {
 					user.put("checksum", "manual");
 					String query =
 							"MATCH (u:User { id : $userId}) " +
-							"SET " + Neo4jUtils.nodeSetPropertiesFromJson("u", user) +
+							"SET " + org.entcore.feeder.utils.CypherSet.set("u", user) +
 							"RETURN DISTINCT u.id as id ";
 					JsonObject params = user.put("userId", userId);
 					statementsBuilder.add(query, params);

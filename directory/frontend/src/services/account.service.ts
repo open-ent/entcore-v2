@@ -39,6 +39,9 @@ export interface Person {
 }
 
 export const accountService = {
+  /** Met à jour une partie de la fiche : seuls les champs envoyés changent. */
+  update: (id: string, body: Partial<Pick<UserInfos, "displayName" | "homePhone" | "loginAlias" | "mobile" | "email">>) =>
+    odeServices.http().put<unknown>(`/directory/user/${id}`, body),
   userId: async () => (await odeServices.http().get<{ userId: string }>("/auth/oauth2/userinfo")).userId,
   infos: (id: string) => odeServices.http().get<UserInfos>(`/directory/user/${id}`),
   person: async () => {

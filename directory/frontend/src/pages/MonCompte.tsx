@@ -1,8 +1,18 @@
-import { AppHeader, Layout, LoadingScreen, useEdificeClient } from "@open-ent/react";
+import { AppHeader, Button, Layout, LoadingScreen, useEdificeClient } from "@open-ent/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { classNames, profileRows } from "../lib/profile";
+import { EditFieldModal } from "../components/EditFieldModal";
+import { ValidationModal } from "../components/ValidationModal";
+import { apiErrorKind, classNames, isStudent, isValidPhone, loginError, profileRows } from "../lib/profile";
 import { WF, workflowsOf } from "../lib/workflows";
+import { accountService } from "../services/account.service";
 import { useAccount } from "../services/queries";
+
+type Editing = "displayName" | "tel" | "login" | null;
+
+/** Message d'une erreur de l'API (`{error: "…"}` dans la réponse). */
+const messageOf = (e: unknown): string | undefined => (e as { message?: string; error?: string } | undefined)?.error ?? (e as Error | undefined)?.message;
 
 /** Onglets de Mon compte : « Mon profil » est cette page ; les autres ouvrent les pages des modules concernés, selon les droits. */
 const Tabs = ({ workflows, hasEmail }: { workflows: Set<string>; hasEmail: boolean }) => {
@@ -37,12 +47,31 @@ export const MonCompte = () => {
   const { t } = useTranslation("directory");
   const { user } = useEdificeClient();
   const account = useAccount();
+  const qc = useQueryClient();
   const workflows = workflowsOf(user);
+  const [editing, setEditing] = useState<Editing>(null);
+  const [validating, setValidating] = useState<"email" | "sms" | null>(null);
 
   if (account.isLoading) return <LoadingScreen position={false} />;
   const person = account.data?.person;
   const infos = account.data?.infos;
   const rows = profileRows(infos, person);
+  const userId = account.data?.userId as string;
+  const student = isStudent(person?.type);
+  // ce que l'on peut modifier : l'élève ne change que son identifiant ; les autres profils leurs coordonnées
+  const editable: Record<string, () => void> = {};
+  if (!student) {
+    editable.displayName = () => setEditing("displayName");
+    editable.tel = () => setEditing("tel");
+    editable.email = () => setValidating("email");
+    editable.mobile = () => setValidating("sms");
+  }
+  if (workflows.has(WF.ALLOW_LOGIN_UPDATE)) editable.login = () => setEditing("login");
+  const refresh = () => qc.invalidateQueries({ queryKey: ["account"] });
+  const save = (body: Parameters<typeof accountService.update>[1]) => async (): Promise<void> => {
+    await accountService.update(userId, body);
+    await refresh();
+  };
 
   return (
     <Layout>
@@ -71,11 +100,64 @@ export const MonCompte = () => {
               {rows.map((row) => (
                 <div key={row.key} className="d-flex gap-16 mb-8" data-account-row={row.key}>
                   <dt style={{ width: 200, fontWeight: 600 }}>{t(row.label)}</dt>
-                  <dd className="mb-0">{row.value}</dd>
+                  <dd className="mb-0">
+                    {row.value}
+                    {editable[row.key] && (
+                      <Button type="button" color="primary" variant="ghost" size="sm" className="ms-8" onClick={editable[row.key]} data-account-edit={row.key}>
+                        {t("directory.login.update.button")}
+                      </Button>
+                    )}
+                  </dd>
                 </div>
               ))}
             </dl>
           </section>
+          <EditFieldModal
+            id="account-edit-displayName"
+            open={editing === "displayName"}
+            title={t("directory.displayName.update.title")}
+            label={t("userBook.profile.displayName")}
+            initial={infos?.displayName ?? ""}
+            validate={(v) => (v.trim() ? null : t("account.error.required", { defaultValue: "Ce champ est obligatoire." }))}
+            onSave={(v) => save({ displayName: v.trim() })()}
+            onClose={() => setEditing(null)}
+          />
+          <EditFieldModal
+            id="account-edit-tel"
+            open={editing === "tel"}
+            type="tel"
+            title={t("directory.telephone.update.title")}
+            label={t("userBook.profile.telephone")}
+            initial={infos?.homePhone ?? ""}
+            validate={(v) => (isValidPhone(v) ? null : t("pattern"))}
+            onSave={(v) => save({ homePhone: v })()}
+            onClose={() => setEditing(null)}
+          />
+          <EditFieldModal
+            id="account-edit-login"
+            open={editing === "login"}
+            title={t("directory.login.update.title")}
+            label={t("userBook.profile.login")}
+            initial={infos?.loginAlias || infos?.login || ""}
+            maxLength={64}
+            validate={(v) => (loginError(v) ? t("directory.form.login.pattern") : null)}
+            onSave={async (v) => {
+              try {
+                await save({ loginAlias: v })();
+              } catch (e) {
+                const m = messageOf(e);
+                throw new Error(apiErrorKind(m) === "exists" ? t("directory.notify.loginUpdate.error.alreadyExists") : (m ?? t("account.error.save", { defaultValue: "L'enregistrement a échoué." })));
+              }
+            }}
+            onClose={() => setEditing(null)}
+          />
+          <ValidationModal
+            kind={validating}
+            onClose={() => {
+              setValidating(null);
+              void refresh();
+            }}
+          />
           {(person?.schools?.length ?? 0) > 0 && (
             <section className="mt-24" data-account-schools>
               <h2 className="h4">{t("userBook.profile.schools")}</h2>

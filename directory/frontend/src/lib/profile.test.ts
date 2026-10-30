@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classNames, formatBirthDate, profileRows } from "./profile";
+import { apiErrorKind, classNames, formatBirthDate, isStudent, isValidPhone, loginError, profileRows } from "./profile";
 
 describe("profil", () => {
   it("affiche la date de naissance en jour/mois/année", () => {
@@ -22,5 +22,30 @@ describe("profil", () => {
   it("liste les noms de classes quelle que soit leur forme, sans entrées vides", () => {
     expect(classNames([{ name: "6A" }, "5B", { name: "" }, {}])).toEqual(["6A", "5B"]);
     expect(classNames(undefined)).toEqual([]);
+  });
+
+  it("valide les numéros de téléphone comme l'ancienne interface", () => {
+    expect(isValidPhone("")).toBe(true);
+    expect(isValidPhone("+33 6 12 34 56 78")).toBe(true);
+    expect(isValidPhone("0612345678")).toBe(true);
+    expect(isValidPhone("12")).toBe(false);
+    expect(isValidPhone("abc")).toBe(false);
+  });
+
+  it("valide l'identifiant : minuscules, chiffres, points", () => {
+    expect(loginError("jean.dupont2")).toBeNull();
+    expect(loginError("")).toBe("empty");
+    expect(loginError("Jean")).toBe("pattern");
+    expect(loginError("a b")).toBe("pattern");
+    expect(loginError("a".repeat(65))).toBe("length");
+  });
+
+  it("reconnaît le profil élève et l'erreur d'identifiant déjà pris", () => {
+    expect(isStudent(["Student"])).toBe(true);
+    expect(isStudent(["Teacher"])).toBe(false);
+    expect(isStudent(undefined)).toBe(false);
+    expect(apiErrorKind("login already exists")).toBe("exists");
+    expect(apiErrorKind("Cet identifiant existe déjà")).toBe("exists");
+    expect(apiErrorKind("autre")).toBe("other");
   });
 });
