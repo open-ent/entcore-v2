@@ -1,0 +1,40 @@
+{
+  "name": "@open-ent/timeline-account-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend React des pages Notifications externes et Historique de Mon compte — migration AngularJS -> React, cohabite avec l'IHM AngularJS (?ui=react|angular)",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b --noEmit && vite build",
+    "clean": "rm -rf dist node_modules",
+    "lint": "tsc -b --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@open-ent/bootstrap": "2.5.30-patched",
+    "@open-ent/client": "2.5.30-patched",
+    "@open-ent/react": "2.5.30-patched",
+    "@open-ent/utilities": "2.5.30-patched",
+    "@tanstack/react-query": "5.81.5",
+    "i18next": "23.8.1",
+    "i18next-http-backend": "2.4.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-i18next": "14.1.0",
+    "react-router-dom": "6.30.3"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "18.3.24",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "jsdom": "25.0.1",
+    "typescript": "5.7.2",
+    "vite": "5.4.20",
+    "vitest": "2.1.9"
+  },
+  "packageManager": "pnpm@9.12.2"
+}

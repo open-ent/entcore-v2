@@ -241,14 +241,88 @@ public class TimelineController extends BaseController {
 	@Get("/preferencesView")
 	@SecuredAction(value = "timeline.preferencesView", type = ActionType.AUTHENTICATED)
 	public void preferencesView(HttpServerRequest request) {
-		renderView(request);
+		withUi(request, ui -> {
+			if ("react".equals(ui)) {
+				renderView(request, new JsonObject(), "preferencesView-react.html", null);
+			} else {
+				renderView(request);
+			}
+		});
 	}
 
 	@Get("/historyView")
 	@SecuredAction(value = "timeline.historyView")
 	public void historyView(HttpServerRequest request) {
 		final JsonObject publicConf =  config.getJsonObject("publicConf", new JsonObject());
-		renderView(request, new JsonObject().put("lightMode",isLightmode()));
+		withUi(request, ui -> {
+			if ("react".equals(ui)) {
+				renderView(request, new JsonObject().put("lightMode", isLightmode()), "historyView-react.html", null);
+			} else {
+				renderView(request, new JsonObject().put("lightMode", isLightmode()));
+			}
+		});
+	}
+
+	/**
+	 * IHM servie par défaut pour les pages de Mon compte (notifications externes, historique), en l'absence de choix de
+	 * l'usager : l'ancienne, tant que la migration n'est pas finie ; React s'obtient par {@code ?ui=react}, la préférence de
+	 * l'usager ou {@code frontend-ui: react} dans la configuration.
+	 */
+	static String platformUi(final JsonObject config) {
+		return "react".equals(config.getString("frontend-ui")) ? "react" : "angular";
+	}
+
+	/** Clé de préférence usager portant le choix d'IHM. */
+	private static final String UI_PREFERENCE = "timelineUi";
+
+	/** `?ui=react|angular` dans l'adresse, sinon la préférence de l'usager, sinon le défaut de la plateforme. */
+	private void withUi(final HttpServerRequest request, final io.vertx.core.Handler<String> handler) {
+		final String platform = platformUi(config);
+		final String forced = request.getParam("ui");
+		if ("react".equals(forced) || "angular".equals(forced)) {
+			handler.handle(forced);
+			return;
+		}
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null) {
+				handler.handle(platform);
+				return;
+			}
+			// Syntaxe OpenCypher (`$userId`, ArcadeDB) d'abord ; un Neo4j épinglé en Cypher 2.3 la refuse : on retente avec l'ancienne.
+			final String tail = "-[:PREFERS]->(uac:UserAppConf) RETURN uac." + UI_PREFERENCE + " AS preference";
+			final JsonObject params = new JsonObject().put("userId", user.getUserId());
+			try {
+				final org.entcore.common.neo4j.Neo4j neo4j = org.entcore.common.neo4j.Neo4j.getInstance();
+				neo4j.execute("MATCH (:User {id:$userId})" + tail, params, message -> {
+					if (isOk(message.body())) {
+						handler.handle(readUi(message.body(), platform));
+					} else {
+						neo4j.execute("MATCH (:User {id:{userId}})" + tail, params, legacy -> handler.handle(readUi(legacy.body(), platform)));
+					}
+				});
+			} catch (Exception e) {
+				handler.handle(platform);
+			}
+		});
+	}
+
+	/** Une réponse Neo4j réussie porte « status: ok ». */
+	static boolean isOk(JsonObject body) {
+		return body != null && "ok".equals(body.getString("status"));
+	}
+
+	/** Extrait le choix d'IHM du résultat Neo4j — la préférence y est rangée en CHAÎNE JSON, ex. {"ui":"react"}. */
+	static String readUi(JsonObject body, String platformUi) {
+		try {
+			final JsonArray rows = body.getJsonArray("result", new JsonArray());
+			if (rows.isEmpty()) return platformUi;
+			final String raw = rows.getJsonObject(0).getString("preference");
+			if (raw == null || raw.trim().isEmpty()) return platformUi;
+			final String ui = new JsonObject(raw).getString("ui");
+			return ("react".equals(ui) || "angular".equals(ui)) ? ui : platformUi;
+		} catch (Exception e) {
+			return platformUi;
+		}
 	}
 
 	@Get("/i18nNotifications")
