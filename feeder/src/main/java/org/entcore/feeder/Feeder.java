@@ -67,6 +67,7 @@ import org.entcore.feeder.timetable.edt.EDTFeederLauncher;
 import org.entcore.feeder.timetable.edt.EDTImporter;
 import org.entcore.feeder.timetable.edt.EDTUtils;
 import org.entcore.feeder.timetable.udt.UDTImporter;
+import org.entcore.feeder.utils.GroupCountJob;
 import org.entcore.feeder.utils.Report;
 import org.entcore.feeder.utils.ResultMessage;
 import org.entcore.feeder.utils.TransactionManager;
@@ -100,6 +101,7 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 	private String defaultFeed;
 	private final Map<String, Feed> feeds = new HashMap<>();
 	private ManualFeeder manual;
+	private GroupCountJob groupCountJob;
 	private org.entcore.feeder.scim.ScimFeeder scim;
 	private boolean allowManualActionsDuringFeeds = false;
 	private Neo4j neo4j;
@@ -237,6 +239,9 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		scim = new org.entcore.feeder.scim.ScimFeeder(neo4j);
 		// Retrait des accès privilégiés arrivés à échéance (HAS_FUNCTION.validUntil).
 		new org.entcore.feeder.pim.PimExpiryJob(vertx, neo4j).start(config);
+		// Recalcul des compteurs nbUsers laissés en retard par les rattachements manuels.
+		groupCountJob = new GroupCountJob(vertx, neo4j);
+		groupCountJob.start(config);
 		duplicateUsers = new DuplicateUsers(config.getBoolean("timetable", true),
 				config.getBoolean("autoMergeOnlyInSameStructure", true), vertx.eventBus());
 		postImport = new PostImport(vertx, duplicateUsers, config);
@@ -380,12 +385,18 @@ public class Feeder extends BusModBase implements Handler<Message<JsonObject>> {
 		Message queueMessage = msg;
 		if((msg instanceof MessageReplyNotifier) == false)
 		{
+			final boolean manualAction = msg.body() instanceof JsonObject &&
+					getOrElse(((JsonObject) msg.body()).getString("action"), "").startsWith("manual-");
 			queueMessage = new MessageReplyNotifier(msg, new Handler<Void>()
 			{
 				@Override
 				public void handle(Void v)
 				{
 					checkEventQueue();
+					// La réponse part une fois la transaction validée : les compteurs peuvent être relus.
+					if (manualAction && groupCountJob != null) {
+						groupCountJob.requestRecount();
+					}
 				}
 			});
 		}
