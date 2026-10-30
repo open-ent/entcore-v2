@@ -1,6 +1,16 @@
 import { TREES, TreeName, WorkspaceElement } from "./types";
 
-export type FileKind = "image" | "pdf" | "doc" | "sheet" | "slides" | "audio" | "video" | "text" | "archive" | "other";
+export type FileKind =
+  | "image"
+  | "pdf"
+  | "doc"
+  | "sheet"
+  | "slides"
+  | "audio"
+  | "video"
+  | "text"
+  | "archive"
+  | "other";
 
 /**
  * Catégorie d'un fichier d'après son type MIME (icône et libellé).
@@ -40,7 +50,9 @@ export const formatSize = (bytes?: number): string => {
  */
 export const parseDate = (raw?: string): Date | undefined => {
   if (!raw) return undefined;
-  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})[.:](\d{2})(?:\.\d+)?$/.exec(raw.trim());
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})[.:](\d{2})(?:\.\d+)?$/.exec(
+    raw.trim(),
+  );
   if (!m) return undefined;
   const d = new Date(`${m[1]}T${m[2]}:${m[3]}`);
   return Number.isNaN(d.getTime()) ? undefined : d;
@@ -52,13 +64,27 @@ export type SortKey = "name" | "owner" | "modified" | "size";
  * Dossiers d'abord, puis le critère choisi (nom et propriétaire : ordre alphabétique insensible aux accents et à la casse).
  * `desc` absent : sens habituel de chaque critère (nom et propriétaire croissants, date et taille décroissantes) ; sinon le sens demandé.
  */
-export const sortElements = (elements: WorkspaceElement[], key: SortKey = "name", desc?: boolean): WorkspaceElement[] => {
+export const sortElements = (
+  elements: WorkspaceElement[],
+  key: SortKey = "name",
+  desc?: boolean,
+): WorkspaceElement[] => {
   const down = desc ?? (key === "modified" || key === "size");
-  const text = (a?: string, b?: string) => (a ?? "").localeCompare(b ?? "", "fr", { sensitivity: "base", numeric: true });
+  const text = (a?: string, b?: string) =>
+    (a ?? "").localeCompare(b ?? "", "fr", {
+      sensitivity: "base",
+      numeric: true,
+    });
   const ascending = (a: WorkspaceElement, b: WorkspaceElement): number => {
-    if (key === "modified") return (parseDate(a.modified)?.getTime() ?? 0) - (parseDate(b.modified)?.getTime() ?? 0);
-    if (key === "size") return (a.metadata?.size ?? 0) - (b.metadata?.size ?? 0);
-    if (key === "owner") return text(a.ownerName, b.ownerName) || text(a.name, b.name);
+    if (key === "modified")
+      return (
+        (parseDate(a.modified)?.getTime() ?? 0) -
+        (parseDate(b.modified)?.getTime() ?? 0)
+      );
+    if (key === "size")
+      return (a.metadata?.size ?? 0) - (b.metadata?.size ?? 0);
+    if (key === "owner")
+      return text(a.ownerName, b.ownerName) || text(a.name, b.name);
     return text(a.name, b.name);
   };
   const cmp = (a: WorkspaceElement, b: WorkspaceElement): number => {
@@ -69,15 +95,53 @@ export const sortElements = (elements: WorkspaceElement[], key: SortKey = "name"
 };
 
 /** Dossiers enfants directs d'un parent (null = racine de l'arbre). */
-export const childFolders = (folders: WorkspaceElement[], parentId: string | null): WorkspaceElement[] =>
+export const childFolders = (
+  folders: WorkspaceElement[],
+  parentId: string | null,
+): WorkspaceElement[] =>
   // un dossier mis à la corbeille (marqué par `trasher`) disparaît de l'arborescence, même si la liste serveur le renvoie encore
-  sortElements(folders.filter((f) => (f.eParent ?? null) === parentId && !f.trasher));
+  sortElements(
+    folders.filter((f) => (f.eParent ?? null) === parentId && !f.trasher),
+  );
+
+/**
+ * Dossiers qui relèvent d'un emplacement de l'arbre : « Documents personnels » = les dossiers à soi non partagés,
+ * « Documents partagés » = tous les dossiers partagés (par soi ou avec soi). Sans identifiant d'usager, tous les dossiers.
+ * Ex. [Cours (à moi), Équipe (partagé avec moi)] → owner : [Cours] ; shared : [Équipe].
+ */
+export const foldersOfTree = (
+  tree: "owner" | "shared",
+  folders: WorkspaceElement[],
+  userId?: string,
+): WorkspaceElement[] => {
+  if (!userId) return folders;
+  const shared = (f: WorkspaceElement) =>
+    (f.shared?.length ?? 0) > 0 || (f.inheritedShares?.length ?? 0) > 0;
+  return folders.filter(
+    (f) =>
+      !f.trasher &&
+      (tree === "shared" ? shared(f) : f.owner === userId && !shared(f)),
+  );
+};
+
+/** Dossiers de premier niveau d'un ensemble : sans parent, ou dont le parent n'en fait pas partie (dossier partagé directement). */
+export const rootFolders = (
+  folders: WorkspaceElement[],
+): WorkspaceElement[] => {
+  const ids = new Set(folders.map((f) => f._id));
+  return sortElements(
+    folders.filter((f) => !f.trasher && (!f.eParent || !ids.has(f.eParent))),
+  );
+};
 
 /**
  * Chemin du dossier courant, de la racine vers lui : [Mes dossiers, Cours, 6e].
  * Un dossier introuvable ou une boucle de parenté interrompent proprement le chemin (jamais de boucle infinie).
  */
-export const breadcrumb = (folders: WorkspaceElement[], folderId: string | null): WorkspaceElement[] => {
+export const breadcrumb = (
+  folders: WorkspaceElement[],
+  folderId: string | null,
+): WorkspaceElement[] => {
   const byId = new Map(folders.map((f) => [f._id, f]));
   const path: WorkspaceElement[] = [];
   const seen = new Set<string>();
@@ -90,10 +154,17 @@ export const breadcrumb = (folders: WorkspaceElement[], folderId: string | null)
   return path;
 };
 
-export const isTreeName = (value?: string): value is TreeName => !!value && (TREES as string[]).includes(value);
+export const isTreeName = (value?: string): value is TreeName =>
+  !!value && (TREES as string[]).includes(value);
 
 /** Image que l'on peut retoucher en ligne (recadrer, légender) : jpg, jpeg, bmp, png — comme l'ancienne interface. */
-export const isEditableImage = (e: Pick<WorkspaceElement, "eType" | "metadata">): boolean => {
-  const ext = String(e.metadata?.["content-type"] ?? "").split("/")[1]?.toLowerCase();
-  return e.eType === "file" && ["jpg", "jpeg", "bmp", "png"].includes(ext ?? "");
+export const isEditableImage = (
+  e: Pick<WorkspaceElement, "eType" | "metadata">,
+): boolean => {
+  const ext = String(e.metadata?.["content-type"] ?? "")
+    .split("/")[1]
+    ?.toLowerCase();
+  return (
+    e.eType === "file" && ["jpg", "jpeg", "bmp", "png"].includes(ext ?? "")
+  );
 };

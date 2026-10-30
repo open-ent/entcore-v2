@@ -35,6 +35,7 @@ export const useFolderStore = () => {
   const loadChildren = useCallback(
     async (id: string) => {
       if (!lazy || workspaceService.isLazyLoaded(id)) return;
+      await qc.ensureQueryData({ queryKey: FOLDERS_KEY, queryFn: workspaceService.listRootFolders });
       add(await workspaceService.listChildFolders(id));
     },
     [lazy, add],
@@ -42,6 +43,8 @@ export const useFolderStore = () => {
   const ensureFolder = useCallback(
     async (id: string) => {
       if (!lazy) return;
+      // les racines d'abord : leur réponse, en arrivant, remplacerait ce que l'on ajoute avant elle
+      await qc.ensureQueryData({ queryKey: FOLDERS_KEY, queryFn: workspaceService.listRootFolders });
       let cursor: string | null | undefined = id;
       const seen = new Set<string>();
       while (cursor && !seen.has(cursor)) {

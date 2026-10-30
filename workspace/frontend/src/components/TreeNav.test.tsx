@@ -6,6 +6,8 @@ import { WorkspaceElement } from "../lib/types";
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 const dossier = { _id: "f1", name: "Cours", eType: "folder", eParent: null, owner: "u1" } as WorkspaceElement;
+/** Flèche de dépliage de la ligne d'un dossier (pas celle des emplacements racines). */
+const flecheDe = (c: HTMLElement, id: string) => (c.querySelector(`[data-tree-folder="${id}"]`) as HTMLElement).parentElement!.querySelector("[data-tree-toggle]") as HTMLElement | null;
 const show = (props: Record<string, unknown>) =>
   render(
     <MemoryRouter>
@@ -47,22 +49,22 @@ describe("TreeNav", () => {
   it("mode lazy : un dossier dont les enfants ne sont pas chargés se déplie et déclenche le chargement", () => {
     const onExpand = vi.fn();
     const { container } = show({ lazy: { isLoaded: () => false, onExpand } });
-    const toggle = container.querySelector("[data-tree-toggle]") as HTMLElement;
+    const toggle = flecheDe(container, "f1");
     expect(toggle).not.toBeNull();
-    fireEvent.click(toggle);
+    fireEvent.click(toggle!);
     expect(onExpand).toHaveBeenCalledWith("f1");
   });
 
   it("mode lazy : plus de flèche une fois les enfants chargés et absents", () => {
     const { container } = show({ lazy: { isLoaded: () => true, onExpand: vi.fn() } });
-    expect(container.querySelector("[data-tree-toggle]")).toBeNull();
+    expect(flecheDe(container, "f1")).toBeNull();
   });
 
   it("hors mode lazy : aucune flèche pour un dossier sans enfant, et aucun chargement au dépliage d'un dossier qui en a", () => {
     const onExpand = vi.fn();
-    expect(show({}).container.querySelector("[data-tree-toggle]")).toBeNull();
+    expect(flecheDe(show({}).container, "f1")).toBeNull();
     const { container } = show({ folders: [dossier, enfant] });
-    fireEvent.click(container.querySelector("[data-tree-toggle]") as HTMLElement);
+    fireEvent.click(flecheDe(container, "f1")!);
     expect(container.querySelector('[data-tree-folder="f2"]')).not.toBeNull();
     expect(onExpand).not.toHaveBeenCalled();
   });
@@ -103,5 +105,28 @@ describe("TreeNav", () => {
     const racine = (container.querySelector('[data-tree-root="owner"]') as HTMLElement).parentElement as HTMLElement;
     fireEvent.drop(racine, { dataTransfer: { types: ["Files"], files: [] } });
     expect(onDrop).toHaveBeenLastCalledWith(null, expect.anything());
+  });
+
+  it("les emplacements racines se replient et se déplient avec leur flèche", () => {
+    const { container } = show({});
+    const racine = container.querySelector('[data-tree-root-toggle="owner"]') as HTMLElement;
+    expect(container.querySelector('[data-tree-folder="f1"]')).not.toBeNull();
+    fireEvent.click(racine);
+    expect(container.querySelector('[data-tree-folder="f1"]')).toBeNull();
+    fireEvent.click(racine);
+    expect(container.querySelector('[data-tree-folder="f1"]')).not.toBeNull();
+  });
+
+  it("entrer dans un sous-dossier déplie d'office son chemin dans l'arbre", () => {
+    const { container } = show({ folders: [dossier, enfant], folderId: "f2" });
+    expect(container.querySelector('[data-tree-folder="f2"]')).not.toBeNull();
+    expect(container.querySelector('[data-tree-folder="f1"]')!.parentElement!.parentElement!.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("mode lazy : le chemin du dossier courant déclenche le chargement des sous-dossiers de chaque étape", () => {
+    const onExpand = vi.fn();
+    show({ folders: [dossier, enfant], folderId: "f2", lazy: { isLoaded: () => true, onExpand } });
+    expect(onExpand).toHaveBeenCalledWith("f1");
+    expect(onExpand).toHaveBeenCalledWith("f2");
   });
 });

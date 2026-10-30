@@ -1,5 +1,5 @@
 import { fireEvent, render } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { ElementList } from "./ElementList";
 import { WorkspaceElement } from "../lib/types";
 
@@ -71,5 +71,43 @@ describe("ElementList — vue en icônes", () => {
   it("pas de pastille sans commentaire ni dans la corbeille", () => {
     expect(icons([el({})]).container.querySelector("[data-badge-comments]")).toBeNull();
     expect(icons([el({ comments: [{ id: "1" }] as never })], {}, "trash").container.querySelector("[data-badge-comments]")).toBeNull();
+  });
+});
+
+const Ou = () => <p data-ou>{useLocation().pathname}</p>;
+
+describe("ElementList — vue icônes", () => {
+  const icones = (elements: WorkspaceElement[], onToggle = vi.fn()) =>
+    render(
+      <MemoryRouter initialEntries={["/owner"]}>
+        <Routes>
+          <Route path="*" element={<><Ou /><ElementList tree="owner" elements={elements} view="icons" selected={new Set()} onToggle={onToggle} /></>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it("un clic sur un dossier y entre", () => {
+    const onToggle = vi.fn();
+    const { container } = icones([el({ _id: "d1", name: "Cours", eType: "folder" })], onToggle);
+    fireEvent.click(container.querySelector('[data-element="folder"]')!);
+    expect(container.querySelector("[data-ou]")!.textContent).toBe("/owner/d1");
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("Maj + clic ou la case à cocher sélectionne le dossier sans y entrer", () => {
+    const onToggle = vi.fn();
+    const { container } = icones([el({ _id: "d1", name: "Cours", eType: "folder" })], onToggle);
+    fireEvent.click(container.querySelector('[data-element="folder"]')!, { shiftKey: true });
+    fireEvent.click(container.querySelector("[data-element-select]")!);
+    expect(onToggle).toHaveBeenCalledTimes(2);
+    expect(container.querySelector("[data-ou]")!.textContent).toBe("/owner");
+  });
+
+  it("un clic sur un document le sélectionne, il n'ouvre rien", () => {
+    const onToggle = vi.fn();
+    const { container } = icones([el({ _id: "f1" })], onToggle);
+    fireEvent.click(container.querySelector('[data-element="file"]')!);
+    expect(onToggle).toHaveBeenCalledWith("f1", false);
+    expect(container.querySelector("[data-ou]")!.textContent).toBe("/owner");
   });
 });

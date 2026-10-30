@@ -48,8 +48,7 @@ import {
   LOOL_CREATE,
   LOOL_OPEN,
   loolUrl,
-  scratchUrl,
-} from "../lib/integrations";
+  scratchUrl, ADD_DOCUMENT, ADD_FOLDER } from "../lib/integrations";
 import { NEXTCLOUD_VIEW } from "../lib/nextcloud";
 import { rightsOn } from "../lib/rights";
 import {
@@ -154,6 +153,9 @@ export const Browser = () => {
     ).map((a) => a.name),
   );
   const canOpenOnline = flags.enableLool && workflows.has(LOOL_OPEN);
+  // droits de création de la plateforme : un profil en lecture seule (le parent) ne voit ni import ni « Créer un dossier »
+  const mayAddDocument = workflows.has(ADD_DOCUMENT);
+  const mayAddFolder = workflows.has(ADD_FOLDER);
   const driveAvailable = cloudDriveAvailable(flags);
   const ncAvailable = flags.enableNextcloud && workflows.has(NEXTCLOUD_VIEW);
   const canCreateOnline = flags.enableLool && workflows.has(LOOL_CREATE);
@@ -530,7 +532,7 @@ export const Browser = () => {
     if (isInternalDrag([...e.dataTransfer.types])) return;
     e.preventDefault();
     setDragging(false);
-    if (!canWrite) return;
+    if (!canWrite || !mayAddDocument) return;
     const items = [...e.dataTransfer.items];
     // Un dossier déposé ne peut pas être importé : seuls les fichiers le sont (comme dans l'ancienne interface).
     if (items.some((i) => i.webkitGetAsEntry?.()?.isDirectory)) {
@@ -579,7 +581,7 @@ export const Browser = () => {
             folderId={folderId}
             folders={folders.data ?? []}
             publicVisible={(publicRoot.data ?? []).length > 0}
-            onCreateFolder={canWrite ? () => setNewFolderOpen(true) : undefined}
+            onCreateFolder={canWrite && mayAddFolder ? () => setNewFolderOpen(true) : undefined}
             drop={
               validTree === "owner" || validTree === "protected"
                 ? {
@@ -594,12 +596,14 @@ export const Browser = () => {
                 : undefined
             }
             keys={validTree === "owner" ? treeKeys : undefined}
+            userId={user?.userId}
             lazy={lazy}
           >
             {quota.data && <QuotaGauge quota={quota.data} />}
           </TreeNav>
           {ncAvailable && (
             <NextcloudNav
+              userId={user?.userId}
               active={false}
               trash={false}
               folders={(ncRoot.data ?? []).filter((d) => d.isFolder)}
@@ -641,7 +645,7 @@ export const Browser = () => {
             className="d-flex flex-wrap gap-16 align-items-center justify-content-between mb-16"
             data-workspace-header
           >
-            {canWrite && (
+            {canWrite && mayAddDocument && (
               <div className="d-flex flex-wrap gap-12" data-workspace-toolbar>
                 <button
                   type="button"

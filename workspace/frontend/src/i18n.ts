@@ -14,6 +14,8 @@ i18n
     },
     defaultNS: "common",
     ns: ["common", "workspace"],
+    // une clé absente de /workspace/i18n se cherche dans le commun (ex. « empty.workspace.subfolder.title » = « Ce dossier est vide… »)
+    fallbackNS: "common",
     fallbackLng: "fr",
     lng: "fr",
     keySeparator: false,

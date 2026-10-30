@@ -248,10 +248,11 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
         <aside className="ws-aside" style={{ flex: "0 0 260px", maxWidth: "100%" }}>
-          <TreeNav tree="owner" highlight={false} keepOpen folders={folders.data ?? []} lazy={lazy}>
+          <TreeNav tree="owner" highlight={false} keepOpen folders={folders.data ?? []} lazy={lazy} userId={userId}>
             {quota.data && <QuotaGauge quota={quota.data} />}
           </TreeNav>
           <NextcloudNav
+            userId={userId}
             active
             trash={trash}
             folders={(ncRoot.data ?? []).filter((d) => d.isFolder)}
@@ -403,7 +404,10 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
                     data-selected={isSelected}
                     style={{ width: 132, cursor: "pointer" }}
                     onClick={(ev) => {
-                      if (!(ev.target as HTMLElement).closest("a,input,button")) toggle(d.path);
+                      if ((ev.target as HTMLElement).closest("a,input,button")) return;
+                      // un clic sur un dossier y entre ; Maj/Ctrl + clic le sélectionne (la case à cocher aussi) ; un document se sélectionne
+                      if (d.isFolder && !trash && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) navigate(`/nextcloud?path=${encodeURIComponent(d.path)}`);
+                      else toggle(d.path);
                     }}
                     {...dndProps(d)}
                   >

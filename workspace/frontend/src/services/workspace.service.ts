@@ -13,6 +13,8 @@ const query = (params: Record<string, string | boolean | undefined>): string => 
 
 /** Mode « lazy » : parents dont les sous-dossiers ont déjà été chargés (rechargés avec les racines après chaque modification). */
 const lazyLoaded = new Set<string>();
+/** Mode « lazy » : dossiers demandés un par un (ancêtres d'un lien direct), redemandés à chaque rafraîchissement pour rester à jour. */
+const lazyById = new Set<string>();
 const folderList = (params: Record<string, string | boolean | undefined>) =>
   odeServices.http().get<WorkspaceElement[]>(`/workspace/folders/list?${query(params)}`);
 
@@ -26,8 +28,11 @@ export const workspaceService = {
    */
   listRootFolders: async (): Promise<WorkspaceElement[]> => {
     const [owner, shared] = await Promise.all([folderList({ filter: "owner" }), folderList({ filter: "shared", directShared: true })]);
-    const children = await Promise.all([...lazyLoaded].map((id) => folderList({ filter: "all", parentId: id })));
-    return mergeFolders([], [...owner, ...shared, ...children.flat()]);
+    const [children, byId] = await Promise.all([
+      Promise.all([...lazyLoaded].map((id) => folderList({ filter: "all", parentId: id }))),
+      Promise.all([...lazyById].map((id) => folderList({ filter: "all", id }))),
+    ]);
+    return mergeFolders([], [...owner, ...shared, ...children.flat(), ...byId.flat()]);
   },
 
   /** Mode « lazy » : sous-dossiers directs d'un dossier. */
@@ -38,7 +43,11 @@ export const workspaceService = {
   },
 
   /** Un dossier par son identifiant (fil d'Ariane d'un lien direct, en mode « lazy »). */
-  getFolder: async (id: string): Promise<WorkspaceElement | undefined> => (await folderList({ filter: "all", id }))[0],
+  getFolder: async (id: string): Promise<WorkspaceElement | undefined> => {
+    const folder = (await folderList({ filter: "all", id }))[0];
+    if (folder) lazyById.add(id);
+    return folder;
+  },
 
   /**
    * Contenu d'un emplacement : dossiers ET documents (`includeall`) de l'arbre `tree`, sous `parentId`
@@ -48,7 +57,7 @@ export const workspaceService = {
     odeServices
       .http()
       .get<WorkspaceElement[]>(
-        `/workspace/documents?${query({ filter: tree, parentId, hierarchical: false, includeall: true })}`,
+        `/workspace/documents?${query({ filter: tree, parentId, hierarchical: false, includeall: true, directShared: tree === "shared" && !parentId ? true : undefined })}`,
       ),
 
   /** Tous les dossiers de l'usager (arborescence de gauche et fil d'Ariane). */

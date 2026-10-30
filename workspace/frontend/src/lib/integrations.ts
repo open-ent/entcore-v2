@@ -1,5 +1,8 @@
 import { WorkspaceElement } from "./types";
 
+/** Droits de création : importer un document (`workspace.document.add`) et créer un dossier (`workspace.folder.add`). Un parent n'a que « Lecture ». */
+export const ADD_DOCUMENT = "org.entcore.workspace.controllers.WorkspaceController|addDocument";
+export const ADD_FOLDER = "org.entcore.workspace.controllers.WorkspaceController|addFolder";
 export const LOOL_OPEN = "fr.openent.lool.controller.LoolController|open";
 export const LOOL_CREATE = "fr.openent.lool.controller.LoolController|createDocumentFromTemplate";
 

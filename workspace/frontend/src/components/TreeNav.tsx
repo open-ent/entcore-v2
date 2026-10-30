@@ -1,7 +1,12 @@
-import { CSSProperties, DragEvent, useState } from "react";
+import { CSSProperties, DragEvent, useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { childFolders } from "../lib/elements";
+import {
+  breadcrumb,
+  childFolders,
+  foldersOfTree,
+  rootFolders,
+} from "../lib/elements";
 import { canExpand } from "../lib/lazyFolders";
 import { treeMove, TreeRow } from "../lib/treeKeys";
 import {
@@ -100,6 +105,8 @@ const FolderNodes = ({
   depth,
   drop,
   lazy,
+  open,
+  onToggle,
 }: {
   tree: TreeName;
   folders: WorkspaceElement[];
@@ -108,10 +115,14 @@ const FolderNodes = ({
   depth: number;
   drop?: DropProps;
   lazy?: LazyProps;
+  /** Dossiers dépliés (id → vrai) et bascule : l'état est tenu par `TreeNav`. */
+  open: Record<string, boolean>;
+  onToggle: (folderId: string) => void;
 }) => {
-  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [over, setOver] = useState<string | null>(null);
-  const nodes = childFolders(folders, parentId);
+  // premier niveau : les dossiers dont le parent n'est pas dans l'emplacement (un dossier partagé directement n'a pas son parent visible)
+  const nodes =
+    parentId === null ? rootFolders(folders) : childFolders(folders, parentId);
   if (nodes.length === 0) return null;
   return (
     <ul className="list-unstyled mb-0" role="group">
@@ -144,10 +155,7 @@ const FolderNodes = ({
                   type="button"
                   style={CHEVRON}
                   aria-label={open[f._id] ? "−" : "+"}
-                  onClick={() => {
-                    if (!open[f._id]) lazy?.onExpand(f._id);
-                    setOpen((o) => ({ ...o, [f._id]: !o[f._id] }));
-                  }}
+                  onClick={() => onToggle(f._id)}
                   data-tree-toggle
                 >
                   {open[f._id] ? "▾" : "▸"}
@@ -172,6 +180,8 @@ const FolderNodes = ({
                 depth={depth + 1}
                 drop={drop}
                 lazy={lazy}
+                open={open}
+                onToggle={onToggle}
               />
             )}
           </li>
@@ -208,6 +218,7 @@ export const TreeNav = ({
   drop,
   keys,
   lazy,
+  userId,
   children,
 }: {
   tree: TreeName;
@@ -227,10 +238,38 @@ export const TreeNav = ({
   keys?: TreeKeys;
   /** Mode « lazy » de la plateforme : dossiers chargés au dépliage. */
   lazy?: LazyProps;
+  /** Usager connecté : sépare « Documents personnels » (ses dossiers non partagés) de « Documents partagés ». */
+  userId?: string;
   children?: React.ReactNode;
 }) => {
   const { t } = useTranslation("workspace");
   const [overRoot, setOverRoot] = useState<string | null>(null);
+  // Dossiers dépliés, et emplacements racines pliés/dépliés à la main (sinon : déplié quand c'est l'emplacement courant)
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [rootOpen, setRootOpen] = useState<Partial<Record<TreeName, boolean>>>(
+    {},
+  );
+  const toggle = (id: string) => {
+    if (!open[id]) lazy?.onExpand(id);
+    setOpen((o) => ({ ...o, [id]: !o[id] }));
+  };
+  // On entre dans un dossier (depuis la liste, un lien, la barre d'adresse) : son chemin se déplie d'office dans l'arbre,
+  // en mode « lazy » avec les sous-dossiers de chaque étape.
+  const chain = useMemo(
+    () => breadcrumb(folders, folderId ?? null).map((f) => f._id),
+    [folders, folderId],
+  );
+  const chainKey = chain.join("|");
+  useEffect(() => {
+    if (chain.length === 0) return;
+    chain.forEach((id) => lazy?.onExpand(id));
+    setOpen((o) =>
+      chain.every((id) => o[id])
+        ? o
+        : { ...o, ...Object.fromEntries(chain.map((id) => [id, true])) },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chainKey]);
   const trashHandlers = (over: boolean) =>
     drop?.trash
       ? {
@@ -295,12 +334,15 @@ export const TreeNav = ({
         {TREES.filter((n) => n !== "public" || publicVisible || n === tree).map(
           (name) => {
             const current = highlight && name === tree;
-            const expanded = current || (keepOpen && name === tree);
+            const expandable = name === "owner" || name === "shared";
+            const expanded =
+              rootOpen[name] ?? (current || (keepOpen && name === tree));
             return (
               <li
                 key={name}
                 role="treeitem"
                 aria-level={1}
+                aria-expanded={expandable ? expanded : undefined}
                 aria-selected={current}
               >
                 <div
@@ -318,16 +360,25 @@ export const TreeNav = ({
                       : {}),
                   }}
                 >
-                  <span
-                    style={{ ...CHEVRON, cursor: "default" }}
-                    aria-hidden="true"
-                  >
-                    {(name === "owner" || name === "shared") && expanded ? (
-                      <span style={{ color: "#ffb400" }}>▼</span>
-                    ) : (
-                      ""
-                    )}
-                  </span>
+                  {expandable ? (
+                    <button
+                      type="button"
+                      style={{ ...CHEVRON, color: "#ffb400" }}
+                      aria-label={expanded ? "−" : "+"}
+                      onClick={() =>
+                        setRootOpen((r) => ({ ...r, [name]: !expanded }))
+                      }
+                      data-tree-toggle
+                      data-tree-root-toggle={name}
+                    >
+                      {expanded ? "▼" : "▸"}
+                    </button>
+                  ) : (
+                    <span
+                      style={{ ...CHEVRON, cursor: "default" }}
+                      aria-hidden="true"
+                    />
+                  )}
                   <Link
                     to={`/${name}`}
                     data-tree-root={name}
@@ -339,12 +390,18 @@ export const TreeNav = ({
                 {(name === "owner" || name === "shared") && expanded && (
                   <FolderNodes
                     tree={name}
-                    folders={folders}
+                    folders={foldersOfTree(
+                      name as "owner" | "shared",
+                      folders,
+                      userId,
+                    )}
                     parentId={null}
                     currentId={folderId}
                     depth={1}
                     drop={name === "owner" ? drop : undefined}
                     lazy={lazy}
+                    open={open}
+                    onToggle={toggle}
                   />
                 )}
               </li>

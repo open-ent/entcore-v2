@@ -1,4 +1,4 @@
-import { breadcrumb, childFolders, fileKind, formatSize, isTreeName, parseDate, sortElements } from "./elements";
+import { breadcrumb, childFolders, fileKind, formatSize, isTreeName, parseDate, sortElements, foldersOfTree, rootFolders } from "./elements";
 import { WorkspaceElement } from "./types";
 
 const el = (p: Partial<WorkspaceElement>): WorkspaceElement => ({
@@ -123,5 +123,30 @@ describe("sortElements — sens et propriétaire", () => {
     const withFolder = [...docs, { _id: "d", name: "Zdossier", eType: "folder", eParent: null, owner: "u" } as never];
     expect(sortElements(withFolder, "name", true)[0]._id).toBe("d");
     expect(sortElements(withFolder, "size", false)[0]._id).toBe("d");
+  });
+});
+
+describe("foldersOfTree / rootFolders", () => {
+  const f = (_id: string, p: Partial<WorkspaceElement> = {}): WorkspaceElement => ({ _id, name: _id, eType: "folder", eParent: null, owner: "me", ...p }) as WorkspaceElement;
+  const folders = [
+    f("cours"), // à moi, non partagé
+    f("eleve", { eParent: "cours" }),
+    f("equipe", { owner: "autre", shared: [{ userId: "me" } as never] }), // partagé avec moi, parent invisible
+    f("equipe-sous", { owner: "autre", eParent: "equipe", inheritedShares: [{ userId: "me" } as never] }),
+    f("mon-partage", { shared: [{ userId: "x" } as never] }), // à moi mais partagé
+  ];
+
+  it("« Documents personnels » : mes dossiers non partagés ; « Documents partagés » : tous les dossiers partagés", () => {
+    expect(foldersOfTree("owner", folders, "me").map((x) => x._id)).toEqual(["cours", "eleve"]);
+    expect(foldersOfTree("shared", folders, "me").map((x) => x._id)).toEqual(["equipe", "equipe-sous", "mon-partage"]);
+  });
+
+  it("sans identifiant d'usager : tous les dossiers", () => {
+    expect(foldersOfTree("shared", folders)).toHaveLength(5);
+  });
+
+  it("premier niveau : sans parent, ou dont le parent n'est pas dans l'ensemble (dossier partagé directement)", () => {
+    expect(rootFolders(foldersOfTree("shared", folders, "me")).map((x) => x._id).sort()).toEqual(["equipe", "mon-partage"]);
+    expect(rootFolders(foldersOfTree("owner", folders, "me")).map((x) => x._id)).toEqual(["cours"]);
   });
 });

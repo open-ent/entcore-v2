@@ -4,12 +4,15 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Browser } from "./Browser";
 import { WorkspaceElement } from "../lib/types";
 
+const rights = vi.hoisted(() => ({
+  value: [{ name: "org.entcore.workspace.controllers.WorkspaceController|addDocument" }, { name: "org.entcore.workspace.controllers.WorkspaceController|addFolder" }] as Array<{ name: string }>,
+}));
 vi.mock("@open-ent/react", () => ({
   AppHeader: ({ children }: { children: unknown }) => <div>{children as never}</div>,
   LoadingScreen: () => <div data-loading />,
   SegmentedControl: ({ value }: { value: string }) => <div data-segmented={value} />,
   ShareModal: () => null,
-  useEdificeClient: () => ({ user: { userId: "u1" } }),
+  useEdificeClient: () => ({ user: { userId: "u1", authorizedActions: rights.value } }),
 }));
 vi.mock("../components/NewFolderModal", () => ({ NewFolderModal: () => null }));
 vi.mock("../components/ZipDialog", () => ({ ZipDialog: () => null }));
@@ -84,6 +87,19 @@ describe("Browser", () => {
     unmount();
     renderAt("/trash");
     expect(document.querySelector("[data-workspace-toolbar]")).not.toBeInTheDocument();
+  });
+
+  it("un profil en lecture seule (parent) ne voit ni « Créer un dossier » ni import", () => {
+    const droits = rights.value;
+    rights.value = [];
+    try {
+      content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
+      renderAt("/owner");
+      expect(document.querySelector('[data-action="new-folder"]')).not.toBeInTheDocument();
+      expect(document.querySelector("[data-workspace-toolbar]")).not.toBeInTheDocument();
+    } finally {
+      rights.value = droits;
+    }
   });
 
   it("sélectionner un élément de Mes documents propose les actions de gestion", () => {
