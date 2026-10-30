@@ -79,7 +79,16 @@
       '</div>' +
       '<button type="button" aria-haspopup="menu">⇄ ' + T.label + '</button>';
     var menu = fab.querySelector('.menu');
-    fab.querySelector('[aria-haspopup]').addEventListener('click', function () { menu.hidden = !menu.hidden; });
+    // L'interface affichée se relit à l'ouverture du menu : `window.angular` peut ne pas être encore chargé quand ce script s'exécute.
+    function sync() {
+      current = (typeof window.angular !== 'undefined') ? 'angular' : 'react';
+      Array.prototype.forEach.call(menu.querySelectorAll('[data-ui]'), function (item) {
+        var ui = item.getAttribute('data-ui'), is = ui === current;
+        if (is) item.setAttribute('aria-current', 'true'); else item.removeAttribute('aria-current');
+        item.textContent = (ui === 'react' ? T.next : T.prev) + (is ? ' (' + T.current + ')' : '');
+      });
+    }
+    fab.querySelector('[aria-haspopup]').addEventListener('click', function () { sync(); menu.hidden = !menu.hidden; });
     Array.prototype.forEach.call(menu.querySelectorAll('[data-ui]'), function (item) {
       item.addEventListener('click', function () {
         var ui = item.getAttribute('data-ui');

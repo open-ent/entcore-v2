@@ -1,3 +1,4 @@
+import { RichText } from "./RichText";
 import { DragEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -125,7 +126,7 @@ export const ImportTab = () => {
       )}
       {(phase === "choose" || phase === "uploading" || phase === "analysed") && (
         <>
-          <div className="alert alert-warning">{t("import.info")}</div>
+          <div className="alert alert-warning"><RichText text={t("import.info")} /></div>
           {phase === "choose" && (
             <div
               className="p-32 text-center rounded"
@@ -190,7 +191,7 @@ export const ImportTab = () => {
           <label className="d-block mt-8">
             <input type="checkbox" checked={available.every((a) => selected.includes(a))} onChange={() => setSelected(toggleAll(available, selected))} data-import-all /> {t("archive.all")}
           </label>
-          <div className="ms-32">
+          <div className="ms-32" style={{ columnWidth: 260, columnGap: 24 }}>
             {available.map((app) => (
               <label key={app} className="d-block mt-8">
                 <input type="checkbox" checked={selected.includes(app)} onChange={() => setSelected((s) => (s.includes(app) ? s.filter((a) => a !== app) : [...s, app]))} data-import-app={app} /> {t(app)}

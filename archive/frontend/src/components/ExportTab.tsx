@@ -1,3 +1,4 @@
+import { RichText } from "./RichText";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -61,7 +62,7 @@ export const ExportTab = () => {
   };
 
   const checkbox = (app: string) => (
-    <label key={app} className="d-block me-24 mt-8">
+    <label key={app} className="d-block me-24 mt-8" style={{ breakInside: "avoid" }}>
       <input type="checkbox" checked={selected.includes(app)} onChange={() => setSelected((s) => (s.includes(app) ? s.filter((a) => a !== app) : [...s, app]))} data-export-app={app} />{" "}
       {t(app)}
     </label>
@@ -77,11 +78,11 @@ export const ExportTab = () => {
       {apps.isLoading && <p>{t("archive.loading", { defaultValue: "…" })}</p>}
       {apps.isSuccess && !apps.data.preDeleted && !busy && (
         <div>
-          <div className="alert alert-info">{t("archive.info")}</div>
+          <div className="alert alert-info"><RichText text={t("archive.info")} /></div>
           <label className="d-block mt-16">
             <input type="checkbox" checked={available.length > 0 && available.every((a) => selected.includes(a))} onChange={() => setSelected(toggleAll(available, selected))} data-export-all /> {t("archive.all")}
           </label>
-          <div className="ms-32">{available.map(checkbox)}</div>
+          <div className="ms-32" style={{ columnWidth: 220, columnGap: 24 }}>{available.map(checkbox)}</div>
           <hr />
           <button type="button" className="btn btn-primary" disabled={selected.length === 0} onClick={() => void run("apps")} data-export-launch>
             {t("export")}
