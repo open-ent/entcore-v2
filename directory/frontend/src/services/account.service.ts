@@ -36,6 +36,7 @@ export interface Person {
   visibleInfos?: string[];
   hobbies?: Array<{ category: string; values?: string; visibility?: string }>;
   relatedName?: string | null;
+  relatedId?: string | null;
 }
 
 export interface AuthContext {
@@ -45,7 +46,79 @@ export interface AuthContext {
 
 const xsrf = (): string => decodeURIComponent(/(?:^|; )XSRF-TOKEN=([^;]*)/.exec(document.cookie)?.[1] ?? "");
 
+export interface Children {
+  structureName: string;
+  children: Array<{ id: string; displayName: string; classesNames?: string[] }>;
+}
+
+export interface Criteria {
+  structures: Array<{ id: string; name: string }>;
+  classes?: Array<{ id: string; name: string }>;
+  functions?: string[];
+  profiles?: string[];
+  positions?: Array<{ id: string; name: string }>;
+}
+
+export const directoryService = {
+  criteria: () => odeServices.http().get<Criteria>("/userbook/search/criteria?getClassesMonoStructureOnly=true"),
+  classesOf: async (structureId: string) => (await odeServices.http().get<{ classes: Array<{ id: string; label: string }> }>(`/userbook/search/criteria/${structureId}/classes`)).classes ?? [],
+  search: async (body: Record<string, unknown>) => (await odeServices.http().post<{ users: import("../lib/directory").Visible[] }>("/communication/visible", body)).users ?? [],
+  searchGroups: async (body: Record<string, unknown>) => (await odeServices.http().post<{ groups: import("../lib/directory").VisibleGroup[] }>("/communication/visible", body)).groups ?? [],
+  groupMembers: (id: string) => odeServices.http().get<import("../lib/directory").Visible[]>(`/communication/visible/group/${id}`),
+  favorites: () => odeServices.http().get<Array<{ id: string; name: string }>>("/directory/sharebookmark/all"),
+  favorite: (id: string) => odeServices.http().get<{ users?: Array<{ id: string; displayName?: string; username?: string }>; groups?: Array<{ id: string; name: string }> }>(`/directory/sharebookmark/${id}`),
+  createFavorite: (body: { name: string; members: string[] }) => odeServices.http().post<{ id: string }>("/directory/sharebookmark", body),
+  updateFavorite: (id: string, body: { name: string; members: string[] }) => odeServices.http().put<unknown>(`/directory/sharebookmark/${id}`, body),
+  deleteFavorite: (id: string) => odeServices.http().delete<unknown>(`/directory/sharebookmark/${id}`),
+  searchMembers: async (search: string) => {
+    const res = await odeServices.http().post<{ users: Array<{ id: string; displayName: string }>; groups: Array<{ id: string; name: string }> }>("/communication/visible", { search: search.trim().toLowerCase(), types: ["User", "Group"] });
+    return res;
+  },
+  discoverProfiles: async () => {
+    try {
+      return await odeServices.http().get<Array<{ type: string | null }>>("/communication/discover/visible/profiles");
+    } catch {
+      return [];
+    }
+  },
+  discoverStructures: () => odeServices.http().get<Array<{ id: string; name: string }>>("/communication/discover/visible/structures"),
+  discoverUsers: (body: Record<string, unknown>) => odeServices.http().post<Array<import("../lib/discover").DiscoverUser>>("/communication/discover/visible/users", body),
+  discoverGroups: () => odeServices.http().get<Array<import("../lib/discover").DiscoverGroup>>("/communication/discover/visible/groups"),
+  discoverGroupUsers: (id: string) => odeServices.http().get<Array<import("../lib/discover").DiscoverUser>>(`/communication/discover/visible/group/${id}/users`),
+  discoverAddRelation: (id: string) => odeServices.http().post<unknown>(`/communication/discover/visible/add/commuting/${id}`),
+  discoverRemoveRelation: (id: string) => odeServices.http().delete<unknown>(`/communication/discover/visible/remove/commuting/${id}`),
+  discoverCreateGroup: (name: string) => odeServices.http().post<unknown>("/communication/discover/visible/group", { name }),
+  discoverSetGroupUsers: (id: string, body: { oldUsers: string[]; newUsers: string[] }) => odeServices.http().put<unknown>(`/communication/discover/visible/group/${id}/users`, body),
+  /** Fiche d'un utilisateur visible : ce que son profil laisse voir (coordonnées si rendues publiques, centres d'intérêt, devise). */
+  person: async (id: string, type: string) => {
+    const res = await odeServices.http().get<{ result: Person[] }>(`/userbook/api/person?id=${id}&type=${type}`);
+    return res.result?.[0];
+  },
+};
+
 export const accountService = {
+  themeConf: async (): Promise<string> => (await fetch("/assets/theme-conf.js", { credentials: "same-origin" })).text(),
+  currentTheme: async (): Promise<string> => (await odeServices.http().get<{ themeName: string }>("/theme")).themeName,
+  themePreference: async (): Promise<string | null> => (await odeServices.http().get<{ preference: string | null }>("/userbook/preference/theme")).preference,
+  /** Le serveur attend le nom du thème tel quel, pas un objet JSON. */
+  setThemePreference: async (name: string): Promise<void> => {
+    const res = await fetch("/userbook/preference/theme", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "X-XSRF-TOKEN": xsrf() },
+      body: name,
+    });
+    if (!res.ok) throw new Error("theme");
+  },
+  children: (id: string) => odeServices.http().get<Children[]>(`/directory/user/${id}/children`),
+  /** Devise, humeur, centres d'intérêt, divers : seules les clés envoyées changent. */
+  saveUserbook: (id: string, body: { motto?: string; mood?: string; health?: string; hobbies?: Array<{ category: string; values?: string; visibility?: string }> }) =>
+    odeServices.http().put<unknown>(`/directory/userbook/${id}`, body),
+  setHobbyVisibility: (category: string, value: "PUBLIC" | "PRIVE") =>
+    odeServices.http().get<unknown>(`/userbook/api/set-visibility?value=${value}&category=${encodeURIComponent(category)}`),
+  setInfoVisibility: (info: string, state: "public" | "prive") =>
+    odeServices.http().get<unknown>(`/userbook/api/edit-user-info-visibility?info=${info}&state=${state}`),
+  moods: () => odeServices.http().get<string[]>("/directory/userbook/moods"),
   authContext: () => odeServices.http().get<AuthContext>("/auth/context"),
   /**
    * Change le mot de passe (formulaire classique du module d'authentification). Le serveur répond 200 dans tous les cas :

@@ -1,11 +1,14 @@
 import { AppHeader, Button, Layout, LoadingScreen, useEdificeClient } from "@open-ent/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EditFieldModal } from "../components/EditFieldModal";
 import { OtpModal } from "../components/OtpModal";
+import { UserbookPanel, VisibilityToggle } from "../components/UserbookPanel";
+import { ThemePanel } from "../components/ThemePanel";
 import { PasswordModal } from "../components/PasswordModal";
 import { ValidationModal } from "../components/ValidationModal";
+import { ROW_VISIBILITY, isVisible, nextVisibility } from "../lib/userbook";
 import { apiErrorKind, classNames, isStudent, isValidPhone, loginError, profileRows } from "../lib/profile";
 import { WF, workflowsOf } from "../lib/workflows";
 import { accountService } from "../services/account.service";
@@ -17,13 +20,13 @@ type Editing = "displayName" | "tel" | "login" | null;
 const messageOf = (e: unknown): string | undefined => (e as { message?: string; error?: string } | undefined)?.error ?? (e as Error | undefined)?.message;
 
 /** Onglets de Mon compte : « Mon profil » est cette page ; les autres ouvrent les pages des modules concernés, selon les droits. */
-const Tabs = ({ workflows, hasEmail }: { workflows: Set<string>; hasEmail: boolean }) => {
+const Tabs = ({ workflows, hasEmail, themes }: { workflows: Set<string>; hasEmail: boolean; themes: boolean }) => {
   const { t } = useTranslation("directory");
   const tabs = [
-    { id: "profile", label: "panel.my.profile", href: "/userbook/mon-compte", current: true, show: true },
+    { id: "profile", label: "panel.my.profile", href: "/userbook/mon-compte#/edit-me", current: !themes, show: true },
     { id: "notifications", label: "panel.notifications.set", href: "/timeline/preferencesView", show: hasEmail && workflows.has(WF.EXTERNAL_NOTIFICATIONS) },
     { id: "history", label: "panel.user.history", href: "/timeline/historyView", show: workflows.has(WF.HISTORY) },
-    { id: "theme", label: "panel.user.pickTheme", href: "/userbook/mon-compte#/themes", show: workflows.has(WF.SWITCH_THEME) },
+    { id: "theme", label: "panel.user.pickTheme", href: "/userbook/mon-compte#/themes", current: themes, show: workflows.has(WF.SWITCH_THEME) },
   ].filter((tab) => tab.show);
   return (
     <nav role="tablist" className="d-flex gap-16 mb-24" style={{ borderBottom: "1px solid #dee2e6" }} data-account-tabs>
@@ -53,6 +56,13 @@ export const MonCompte = () => {
   const workflows = workflowsOf(user);
   const [editing, setEditing] = useState<Editing>(null);
   const [validating, setValidating] = useState<"email" | "sms" | null>(null);
+  // l'onglet « Thème » est la même page avec `#/themes` dans l'adresse
+  const [themesTab, setThemesTab] = useState(window.location.hash.startsWith("#/themes"));
+  useEffect(() => {
+    const onHash = () => setThemesTab(window.location.hash.startsWith("#/themes"));
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [otp, setOtp] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -97,7 +107,11 @@ export const MonCompte = () => {
         </div>
       ) : (
         <>
-          <Tabs workflows={workflows} hasEmail={!!infos?.email} />
+          <Tabs workflows={workflows} hasEmail={!!infos?.email} themes={themesTab} />
+          {themesTab ? (
+            <ThemePanel />
+          ) : (
+            <>
           {notice && (
             <div className="alert alert-success" role="status" data-account-notice>
               {notice}
@@ -118,6 +132,16 @@ export const MonCompte = () => {
                   <dt style={{ width: 200, fontWeight: 600 }}>{t(row.label)}</dt>
                   <dd className="mb-0">
                     {row.value}
+                    {ROW_VISIBILITY[row.key] && (
+                      <VisibilityToggle
+                        id={ROW_VISIBILITY[row.key]}
+                        visible={isVisible(person, ROW_VISIBILITY[row.key])}
+                        onToggle={async () => {
+                          await accountService.setInfoVisibility(ROW_VISIBILITY[row.key], nextVisibility(isVisible(person, ROW_VISIBILITY[row.key])));
+                          await refresh();
+                        }}
+                      />
+                    )}
                     {editable[row.key] && (
                       <Button type="button" color="primary" variant="ghost" size="sm" className="ms-8" onClick={editable[row.key]} data-account-edit={row.key}>
                         {t("directory.login.update.button")}
@@ -246,11 +270,8 @@ export const MonCompte = () => {
               </ul>
             </section>
           )}
-          {person?.motto && (
-            <section className="mt-24" data-account-motto>
-              <h2 className="h4">{t("userBook.profile.motto")}</h2>
-              <p>{person.motto}</p>
-            </section>
+          <UserbookPanel userId={userId} person={person} type={(user as { type?: string } | undefined)?.type} mottoAllowed={workflows.has(WF.MOTTO_MOOD)} />
+            </>
           )}
         </>
       )}

@@ -4,6 +4,7 @@ export const WF = {
   HISTORY: "org.entcore.timeline.controllers.TimelineController|historyView",
   SWITCH_THEME: "org.entcore.directory.controllers.UserBookController|userBookSwitchTheme",
   MOTTO_MOOD: "org.entcore.directory.controllers.UserBookController|userBookMottoMood",
+  SHARE_BOOKMARKS: "org.entcore.directory.controllers.ShareBookmarkController|allowSharebookmarks",
   ALLOW_LOGIN_UPDATE: "org.entcore.directory.controllers.UserController|allowLoginUpdate",
 } as const;
 

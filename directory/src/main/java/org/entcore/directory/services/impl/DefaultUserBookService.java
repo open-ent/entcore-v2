@@ -351,7 +351,7 @@ public class DefaultUserBookService implements UserBookService {
 					final String category = hobbyJson.getString("category");
 					final String values = hobbyJson.getString("values","");
 					if(!StringUtils.isEmpty(category) && ALLOWED_HOBBIES.contains(category)){
-						updateClauses.add(String.format("ub.hobby_%s = {%s}", category, category));
+						updateClauses.add(String.format("ub.hobby_%s = $%s", category, category));
 						params.put(category, new JsonArray().add(visibility).add(values));
 					}
 				}
@@ -605,7 +605,7 @@ public class DefaultUserBookService implements UserBookService {
 					log.warn("Invalid hobby on initUserBook");
 					continue;
 				}
-				updateClauses.add(String.format("m.hobby_%s = {%s} ", hobby, hobby));
+				updateClauses.add(String.format("m.hobby_%s = $%s ", hobby, hobby));
 				params.put(hobby, new JsonArray().add(PRIVE).add(""));
 			}
 			final String query2 = "MATCH (n:User)-[:USERBOOK]->(m) WHERE n.id = $userId SET "+StringUtils.join(updateClauses, ",");
@@ -648,7 +648,7 @@ public class DefaultUserBookService implements UserBookService {
 		params.put("id", user.getUserId());
 		params.put("visibility", visibility);
 		final StringBuilder query = new StringBuilder();
-		query.append(String.format("MATCH (u:User)-[:USERBOOK]->(ub) WHERE u.id = $id AND EXISTS(ub.hobby_%s) ", category));
+		query.append(String.format("MATCH (u:User)-[:USERBOOK]->(ub) WHERE u.id = $id AND ub.hobby_%s IS NOT NULL ", category));
 		query.append(String.format("SET ub.hobby_%s =  [$visibility, ub.hobby_%s[1]] ", category, category));
 		query.append(String.format("RETURN ub.hobby_%s ", category));
 		UserUtils.removeSessionAttribute(eb, user.getUserId(), PERSON_ATTRIBUTE, null);

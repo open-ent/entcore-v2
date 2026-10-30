@@ -583,8 +583,8 @@ public class DefaultSchoolService implements SchoolService {
 		}
 
 		query.append("COLLECT(DISTINCT fg.filter) " +
-									" + CASE WHEN LENGTH(COLLECT(distinct htg)) = 0 THEN [] ELSE 'HeadTeacher' END " +
-									" + CASE WHEN LENGTH(COLLECT(distinct dirg)) = 0 THEN [] ELSE 'Direction' END " +
+									" + CASE WHEN SIZE(COLLECT(distinct htg)) = 0 THEN [] ELSE 'HeadTeacher' END " +
+									" + CASE WHEN SIZE(COLLECT(distinct dirg)) = 0 THEN [] ELSE 'Direction' END " +
 									" as functions, ");
 		query.append("['Teacher', 'Personnel', 'Student', 'Relative', 'Guest'] as profiles, ");
 		query.append("['ManualGroup','FunctionalGroup','CommunityGroup'] as groupTypes");
