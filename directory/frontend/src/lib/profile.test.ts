@@ -14,6 +14,11 @@ describe("profil", () => {
     expect(rows.find((r) => r.key === "login")?.value).toBe("alias");
   });
 
+  it("garde les lignes modifiables même vides, pour pouvoir les renseigner", () => {
+    const rows = profileRows({ id: "1", login: "a" }, undefined, ["tel", "mobile"]);
+    expect(rows.map((r) => r.key)).toEqual(["login", "mobile", "tel"]);
+  });
+
   it("complète depuis la fiche userbook quand l'annuaire ne donne rien", () => {
     const rows = profileRows(undefined, { id: "1", userId: "1", login: "l", displayName: "D", type: ["Personnel"], address: "1 rue", birthdate: "2000-01-02" });
     expect(rows.map((r) => `${r.key}=${r.value}`)).toEqual(["displayName=D", "login=l", "birthDate=02/01/2000", "address=1 rue"]);

@@ -13,8 +13,11 @@ export const formatBirthDate = (value?: string | null): string => {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : (value ?? "");
 };
 
-/** Les lignes d'identité affichées dans « Mon profil » : seules celles qui ont une valeur apparaissent. */
-export const profileRows = (infos: UserInfos | undefined, person: Person | undefined): ProfileRow[] => {
+/**
+ * Les lignes d'identité affichées dans « Mon profil » : seules celles qui ont une valeur apparaissent, sauf celles que l'on
+ * peut renseigner soi-même (`alwaysShow`) : sans cela, on ne pourrait pas ajouter un téléphone vide.
+ */
+export const profileRows = (infos: UserInfos | undefined, person: Person | undefined, alwaysShow: string[] = []): ProfileRow[] => {
   const rows: ProfileRow[] = [
     { key: "lastName", label: "userBook.profile.lastName", value: infos?.lastName ?? "" },
     { key: "firstName", label: "userBook.profile.firstName", value: infos?.firstName ?? "" },
@@ -26,7 +29,7 @@ export const profileRows = (infos: UserInfos | undefined, person: Person | undef
     { key: "tel", label: "userBook.profile.telephone", value: infos?.homePhone ?? person?.tel ?? "" },
     { key: "address", label: "userBook.profile.address", value: person?.address ?? "" },
   ];
-  return rows.filter((r) => r.value);
+  return rows.filter((r) => r.value || alwaysShow.includes(r.key));
 };
 
 /** Noms des classes d'un établissement : la fiche les rend tantôt en objets `{name}`, tantôt en simples libellés ; les vides sont écartés. */

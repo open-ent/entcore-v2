@@ -1,8 +1,10 @@
 import { AppHeader, Button, Layout, LoadingScreen, useEdificeClient } from "@open-ent/react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EditFieldModal } from "../components/EditFieldModal";
+import { OtpModal } from "../components/OtpModal";
+import { PasswordModal } from "../components/PasswordModal";
 import { ValidationModal } from "../components/ValidationModal";
 import { apiErrorKind, classNames, isStudent, isValidPhone, loginError, profileRows } from "../lib/profile";
 import { WF, workflowsOf } from "../lib/workflows";
@@ -51,11 +53,15 @@ export const MonCompte = () => {
   const workflows = workflowsOf(user);
   const [editing, setEditing] = useState<Editing>(null);
   const [validating, setValidating] = useState<"email" | "sms" | null>(null);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [otp, setOtp] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [avatarVersion, setAvatarVersion] = useState(0);
+  const context = useQuery({ queryKey: ["auth-context"], queryFn: accountService.authContext, staleTime: Infinity });
 
   if (account.isLoading) return <LoadingScreen position={false} />;
   const person = account.data?.person;
   const infos = account.data?.infos;
-  const rows = profileRows(infos, person);
   const userId = account.data?.userId as string;
   const student = isStudent(person?.type);
   // ce que l'on peut modifier : l'élève ne change que son identifiant ; les autres profils leurs coordonnées
@@ -67,6 +73,11 @@ export const MonCompte = () => {
     editable.mobile = () => setValidating("sms");
   }
   if (workflows.has(WF.ALLOW_LOGIN_UPDATE)) editable.login = () => setEditing("login");
+  const rows = profileRows(infos, person, Object.keys(editable));
+  const me = user as { federated?: unknown; hasPw?: boolean; hasApp?: boolean } | undefined;
+  // mot de passe : un compte fédéré ne le change que s'il en possède un ; mot de passe temporaire : comptes fédérés avec l'application mobile
+  const canChangePassword = !me?.federated || !!me?.hasPw;
+  const canGenerateOtp = !!me?.federated && !!me?.hasApp;
   const refresh = () => qc.invalidateQueries({ queryKey: ["account"] });
   const save = (body: Parameters<typeof accountService.update>[1]) => async (): Promise<void> => {
     await accountService.update(userId, body);
@@ -87,9 +98,14 @@ export const MonCompte = () => {
       ) : (
         <>
           <Tabs workflows={workflows} hasEmail={!!infos?.email} />
+          {notice && (
+            <div className="alert alert-success" role="status" data-account-notice>
+              {notice}
+            </div>
+          )}
           <section data-account-profile className="d-flex gap-24 flex-wrap">
             <img
-              src={`/userbook/avatar/${account.data?.userId}?thumbnail=100x100`}
+              src={`/userbook/avatar/${account.data?.userId}?thumbnail=100x100&v=${avatarVersion}`}
               alt=""
               width={96}
               height={96}
@@ -111,6 +127,56 @@ export const MonCompte = () => {
                 </div>
               ))}
             </dl>
+          </section>
+          <section className="d-flex gap-16 flex-wrap mt-24" data-account-actions>
+            <label className="btn btn-outline-primary mb-0" data-account-avatar-change>
+              {t("userBook.profile.changeavatar")}
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                data-account-avatar-input
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  try {
+                    await accountService.uploadAvatar(userId, file);
+                    setAvatarVersion((v) => v + 1);
+                  } catch {
+                    setNotice(t("account.error.save", { defaultValue: "L'enregistrement a échoué." }));
+                  }
+                }}
+              />
+            </label>
+            <Button
+              type="button"
+              color="tertiary"
+              variant="outline"
+              onClick={async () => {
+                await accountService.removeAvatar(userId);
+                setAvatarVersion((v) => v + 1);
+              }}
+              data-account-avatar-remove
+            >
+              {t("userBook.remove", { defaultValue: "Supprimer" })}
+            </Button>
+            {canChangePassword && (
+              <Button type="button" color="primary" variant="outline" onClick={() => setPasswordOpen(true)} data-account-password>
+                {t("change.password")}
+              </Button>
+            )}
+            {canGenerateOtp && (
+              <Button
+                type="button"
+                color="primary"
+                variant="outline"
+                onClick={async () => setOtp((await accountService.generateOtp()).otp)}
+                data-account-otp
+              >
+                {t("directory.generate.otp")}
+              </Button>
+            )}
           </section>
           <EditFieldModal
             id="account-edit-displayName"
@@ -158,6 +224,15 @@ export const MonCompte = () => {
               void refresh();
             }}
           />
+          <PasswordModal
+            open={passwordOpen}
+            login={infos?.login ?? person?.login ?? ""}
+            regex={context.data?.passwordRegex ?? "^.{6,}$"}
+            rule={context.data?.passwordRegexI18n?.fr}
+            onClose={() => setPasswordOpen(false)}
+            onDone={() => setNotice(t("account.password.done", { defaultValue: "Votre mot de passe a été modifié." }))}
+          />
+          <OtpModal login={infos?.login ?? person?.login ?? ""} otp={otp} onClose={() => setOtp(null)} />
           {(person?.schools?.length ?? 0) > 0 && (
             <section className="mt-24" data-account-schools>
               <h2 className="h4">{t("userBook.profile.schools")}</h2>
