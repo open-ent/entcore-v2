@@ -33,7 +33,7 @@ import {
 } from "../lib/nextcloud";
 import { nextcloudService } from "../services/nextcloud.service";
 import { elementActions, workspaceService } from "../services/workspace.service";
-import { useFolders, useNextcloudList, useNextcloudQuota, useNextcloudUrl, useQuota, useWorkspacePreference } from "../services/queries";
+import { useFolders, useFolderStore, useNextcloudList, useNextcloudQuota, useNextcloudUrl, useQuota, useWorkspacePreference } from "../services/queries";
 
 const ICON: Record<string, string> = { folder: "📁", image: "🖼️", pdf: "📕", doc: "📝", sheet: "📊", slides: "📽️", audio: "🎵", video: "🎞️", text: "📄", archive: "🗜️", other: "📎" };
 const LABEL: Record<NextcloudActionId, string> = {
@@ -70,6 +70,8 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
   const list = useNextcloudList(userId, path, trash, true);
   const link = useNextcloudUrl(true);
   const folders = useFolders();
+  const folderStore = useFolderStore();
+  const lazy = folderStore.lazy ? { isLoaded: folderStore.isLoaded, onExpand: folderStore.loadChildren } : undefined;
   const quota = useQuota(user?.userId);
   const ncRoot = useNextcloudList(userId, "", false, true);
   const ncQuota = useNextcloudQuota(userId, true);
@@ -246,7 +248,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
         <aside className="ws-aside" style={{ flex: "0 0 260px", maxWidth: "100%" }}>
-          <TreeNav tree="owner" highlight={false} keepOpen folders={folders.data ?? []}>
+          <TreeNav tree="owner" highlight={false} keepOpen folders={folders.data ?? []} lazy={lazy}>
             {quota.data && <QuotaGauge quota={quota.data} />}
           </TreeNav>
           <NextcloudNav
@@ -541,6 +543,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
         title={picker === "copy" ? t("workspace.react.picker.copy") : t("workspace.react.picker.move")}
         folders={folders.data ?? []}
         forbidden={new Set()}
+        lazy={lazy}
         onClose={() => setPicker(null)}
         onPick={(dest) => {
           const verb = picker === "move" ? "move" : "copy";

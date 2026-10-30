@@ -1994,18 +1994,12 @@ public class WorkspaceController extends BaseController {
 	}
 
 	/**
-	 * IHM servie par défaut, en l'absence de choix de l'usager : React, sauf si la plateforme demande {@code frontend-ui: angular}, ou si
-	 * elle active le mode « lazy » (chargement des dossiers à la demande, pour de très gros volumes), que l'IHM React ne reprend pas encore :
-	 * AngularJS reste alors le défaut, sauf {@code frontend-ui: react} explicite.
-	 * Ex. {} → react ; {frontend-ui: angular} → angular ; {publicConf: {lazy-mode: true}} → angular ;
-	 * {frontend-ui: react, publicConf: {lazy-mode: true}} → react.
+	 * IHM servie par défaut, en l'absence de choix de l'usager : React, sauf si la plateforme demande {@code frontend-ui: angular}.
+	 * Le mode « lazy » (dossiers chargés à la demande, pour de très gros volumes) est repris par l'IHM React : il ne change plus l'IHM par défaut.
+	 * Ex. {} → react ; {frontend-ui: angular} → angular ; {publicConf: {lazy-mode: true}} → react.
 	 */
 	static String platformUi(final JsonObject config) {
-		final String configured = config.getString("frontend-ui");
-		if ("angular".equals(configured)) return "angular";
-		if ("react".equals(configured)) return "react";
-		final boolean lazy = config.getJsonObject("publicConf", new JsonObject()).getBoolean("lazy-mode", false);
-		return lazy ? "angular" : "react";
+		return "angular".equals(config.getString("frontend-ui")) ? "angular" : "react";
 	}
 
 	/** Clé de préférence usager (« Paramètres du compte → Interfaces en cours de renouvellement ») portant le choix d'IHM. */

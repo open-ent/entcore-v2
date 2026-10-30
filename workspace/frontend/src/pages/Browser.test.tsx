@@ -35,6 +35,7 @@ vi.mock("../services/queries", () => ({
   usePublishedIds: () => ({ data: [] }),
   useNextcloudList: () => ({ data: [] }),
   useNextcloudQuota: () => ({ data: undefined }),
+  useFolderStore: () => ({ lazy: false, isLoaded: () => false, loadChildren: async () => undefined, ensureFolder: async () => undefined }),
   useFolders: () => ({ data: [{ _id: "f1", name: "Cours", eType: "folder", eParent: null, owner: "u1" }] }),
   useQuota: () => ({ data: { quota: 1000, storage: 250 } }),
   useWorkspacePreference: () => ({ data: prefs.value }),

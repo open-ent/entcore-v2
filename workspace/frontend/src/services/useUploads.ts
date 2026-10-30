@@ -23,13 +23,14 @@ export const useUploads = (parentId?: string) => {
   const patch = (id: number, p: Partial<UploadItem>) => setItems((list) => list.map((i) => (i.id === id ? { ...i, ...p } : i)));
 
   const send = useCallback(
-    async (files: File[], zip = false) => {
+    /** `target` : dossier de destination imposé (`null` = racine de « Mes documents ») ; absent = dossier courant. */
+    async (files: File[], zip = false, target?: string | null) => {
       await Promise.all(
         files.map(async (file) => {
           const id = ++counter;
           setItems((list) => [...list, { id, name: file.name, status: "loading", percent: 0 }]);
           try {
-            const url = uploadUrl({ zip, parentId, image: fileKind(file.type) === "image" });
+            const url = uploadUrl({ zip, parentId: target === undefined ? parentId : (target ?? undefined), image: fileKind(file.type) === "image" });
             await uploadFile(file, url, (percent) => patch(id, { percent }));
             patch(id, { status: "done", percent: 100 });
           } catch (key) {

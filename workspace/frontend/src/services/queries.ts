@@ -1,5 +1,9 @@
 import { odeServices } from "@open-ent/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import { readFlags } from "../lib/flags";
+import { mergeFolders } from "../lib/lazyFolders";
+import { WorkspaceElement } from "../lib/types";
 import { LoolContext } from "../lib/integrations";
 import { nextcloudService } from "./nextcloud.service";
 import { TreeName } from "../lib/types";
@@ -11,8 +15,48 @@ export const useContent = (tree: TreeName, parentId?: string) =>
     queryFn: () => workspaceService.listContent(tree, parentId),
   });
 
+const FOLDERS_KEY = ["workspace", "folders"];
+
+/** Mode « lazy » de la plateforme : l'arbre ne charge que les racines, le reste au dépliage. */
+const lazyMode = () => readFlags().lazyMode;
+
 export const useFolders = () =>
-  useQuery({ queryKey: ["workspace", "folders"], queryFn: workspaceService.listFolders });
+  useQuery({ queryKey: FOLDERS_KEY, queryFn: lazyMode() ? workspaceService.listRootFolders : workspaceService.listFolders });
+
+/**
+ * Mode « lazy » : chargement des dossiers à la demande. `loadChildren` ajoute les sous-dossiers d'un dossier que l'on déplie ;
+ * `ensureFolder` remonte la chaîne des parents d'un dossier ouvert par lien direct (fil d'Ariane).
+ * Hors mode lazy tout est déjà chargé : les deux ne font rien et `lazy` est faux.
+ */
+export const useFolderStore = () => {
+  const qc = useQueryClient();
+  const lazy = useMemo(lazyMode, []);
+  const add = useCallback((incoming: WorkspaceElement[]) => qc.setQueryData<WorkspaceElement[]>(FOLDERS_KEY, (cur) => mergeFolders(cur ?? [], incoming)), [qc]);
+  const loadChildren = useCallback(
+    async (id: string) => {
+      if (!lazy || workspaceService.isLazyLoaded(id)) return;
+      add(await workspaceService.listChildFolders(id));
+    },
+    [lazy, add],
+  );
+  const ensureFolder = useCallback(
+    async (id: string) => {
+      if (!lazy) return;
+      let cursor: string | null | undefined = id;
+      const seen = new Set<string>();
+      while (cursor && !seen.has(cursor)) {
+        seen.add(cursor);
+        const known = (qc.getQueryData<WorkspaceElement[]>(FOLDERS_KEY) ?? []).find((f) => f._id === cursor);
+        const folder: WorkspaceElement | undefined = known ?? (await workspaceService.getFolder(cursor));
+        if (!folder) return;
+        if (!known) add([folder]);
+        cursor = folder.eParent;
+      }
+    },
+    [lazy, qc, add],
+  );
+  return { lazy, isLoaded: workspaceService.isLazyLoaded, loadChildren, ensureFolder };
+};
 
 export const useQuota = (userId?: string) =>
   useQuery({

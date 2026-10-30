@@ -78,6 +78,7 @@ import {
 import {
   useContent,
   useFolders,
+  useFolderStore,
   useLoolContext,
   useNextcloudList,
   useNextcloudQuota,
@@ -124,6 +125,14 @@ export const Browser = () => {
   const validTree = isTreeName(tree) ? tree : "owner";
   const content = useContent(validTree, folderId);
   const folders = useFolders();
+  const folderStore = useFolderStore();
+  // Mode « lazy » : sous-dossiers chargés au dépliage (arbre, sélecteurs) et chaîne des parents remontée pour le fil d'Ariane
+  const lazy = folderStore.lazy
+    ? { isLoaded: folderStore.isLoaded, onExpand: folderStore.loadChildren }
+    : undefined;
+  useEffect(() => {
+    if (folderId) void folderStore.ensureFolder(folderId);
+  }, [folderId, folderStore.ensureFolder]);
   const publicRoot = useContent("public");
   const { user } = useEdificeClient();
   const quota = useQuota(user?.userId);
@@ -394,6 +403,28 @@ export const Browser = () => {
     } else if (a === "copy" || a === "move") setPicker(a);
   };
 
+  // F2 / Suppr sur un dossier de l'arbre « Mes documents » : renommer (fenêtre Propriétés) ou mettre à la corbeille
+  const treeKeys = {
+    onRename: (id: string) => {
+      const f = (folders.data ?? []).find((x) => x._id === id);
+      if (!f) return;
+      setRenameError(null);
+      setRenaming(f);
+    },
+    onDelete: (id: string) => {
+      const f = (folders.data ?? []).find((x) => x._id === id);
+      if (!f) return;
+      void run(
+        () => elementActions.trash([f]),
+        "workspace.removed.message",
+      ).then((ok) => {
+        // on supprimait le dossier affiché (ou l'un de ses parents) : retour à son parent
+        if (ok && (folderId === id || path.some((p) => p._id === id)))
+          navigate(f.eParent ? `/owner/${f.eParent}` : "/owner");
+      });
+    },
+  };
+
   // Raccourcis de l'ancienne interface : Ctrl+A tout sélectionner, Ctrl+C copier, Ctrl+X déplacer (jamais dans un champ de saisie,
   // ni quand une fenêtre est ouverte, ni quand du texte est sélectionné pour être copié)
   const shortcut = useRef<(ev: KeyboardEvent) => void>(() => undefined);
@@ -471,7 +502,9 @@ export const Browser = () => {
     }
   };
 
-  const importFiles = (list: File[]) => {
+  const zipTarget = useRef<string | null | undefined>(undefined);
+  /** `target` : dossier de destination quand les fichiers sont lâchés sur l'arbre (`null` = « Mes documents ») ; absent = dossier courant. */
+  const importFiles = (list: File[], target?: string | null) => {
     setNotice(null);
     const maxSize = parseInt(t("max.file.size"), 10) || 0;
     const plan = planUpload(list, quota.data, maxSize);
@@ -486,8 +519,11 @@ export const Browser = () => {
     if (messages.size) setNotice([...messages].join(" "));
     const zips = plan.accepted.filter(isZip);
     const others = plan.accepted.filter((f) => !isZip(f));
-    if (others.length) void uploads.send(others);
-    if (zips.length) setPendingZip(zips[0]);
+    if (others.length) void uploads.send(others, false, target);
+    if (zips.length) {
+      zipTarget.current = target;
+      setPendingZip(zips[0]);
+    }
   };
 
   const onDrop = (e: DragEvent) => {
@@ -504,6 +540,19 @@ export const Browser = () => {
       return;
     }
     importFiles([...e.dataTransfer.files]);
+  };
+
+  /** Fichiers du poste lâchés sur un dossier de l'arbre : envoyés dans ce dossier, sans quitter la page courante. */
+  const onFilesOnTree = (targetId: string | null, e: globalThis.DragEvent) => {
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    if ([...dt.items].some((i) => i.webkitGetAsEntry?.()?.isDirectory)) {
+      setNotice(
+        `${t("workspace.import.warning")}. ${t("workspace.import.solution").replace(/<[^>]+>/g, "")}`,
+      );
+      return;
+    }
+    importFiles([...dt.files], targetId);
   };
 
   const path = useMemo(
@@ -533,9 +582,19 @@ export const Browser = () => {
             onCreateFolder={canWrite ? () => setNewFolderOpen(true) : undefined}
             drop={
               validTree === "owner" || validTree === "protected"
-                ? { canDrop, onDrop: (id) => moveDragged(id), trash: trashDrop }
+                ? {
+                    canDrop,
+                    onDrop: (id) => moveDragged(id),
+                    trash: trashDrop,
+                    files:
+                      validTree === "owner"
+                        ? { onDrop: onFilesOnTree }
+                        : undefined,
+                  }
                 : undefined
             }
+            keys={validTree === "owner" ? treeKeys : undefined}
+            lazy={lazy}
           >
             {quota.data && <QuotaGauge quota={quota.data} />}
           </TreeNav>
@@ -1028,6 +1087,7 @@ export const Browser = () => {
           userId={user?.userId}
           groupIds={groupIds}
           fromTree={validTree}
+          lazy={lazy}
           onClose={() => setPicker(null)}
           onDone={() => {
             setPicker(null);
@@ -1110,7 +1170,7 @@ export const Browser = () => {
         onChoose={(uncompress) => {
           const file = pendingZip;
           setPendingZip(null);
-          if (file) void uploads.send([file], uncompress);
+          if (file) void uploads.send([file], uncompress, zipTarget.current);
         }}
       />
     </>

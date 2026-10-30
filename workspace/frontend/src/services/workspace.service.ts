@@ -2,6 +2,7 @@ import { odeServices } from "@open-ent/client";
 import { WorkspacePreference } from "../lib/preferences";
 import { ParentInfo } from "../lib/properties";
 import { ShareJson, shareForm, sharePairs } from "../lib/share";
+import { mergeFolders } from "../lib/lazyFolders";
 import { Quota, Revision, TreeName, UiPreference, WorkspaceElement } from "../lib/types";
 
 const query = (params: Record<string, string | boolean | undefined>): string => {
@@ -10,7 +11,35 @@ const query = (params: Record<string, string | boolean | undefined>): string => 
   return sp.toString();
 };
 
+/** Mode « lazy » : parents dont les sous-dossiers ont déjà été chargés (rechargés avec les racines après chaque modification). */
+const lazyLoaded = new Set<string>();
+const folderList = (params: Record<string, string | boolean | undefined>) =>
+  odeServices.http().get<WorkspaceElement[]>(`/workspace/folders/list?${query(params)}`);
+
 export const workspaceService = {
+  /** Mode « lazy » : un parent est-il déjà déplié côté données ? */
+  isLazyLoaded: (parentId: string) => lazyLoaded.has(parentId),
+
+  /**
+   * Mode « lazy » : seulement les dossiers de premier niveau (les siens et ceux partagés directement avec soi), plus les
+   * sous-dossiers des parents déjà dépliés. Les autres se chargent au dépliage (`listChildFolders`).
+   */
+  listRootFolders: async (): Promise<WorkspaceElement[]> => {
+    const [owner, shared] = await Promise.all([folderList({ filter: "owner" }), folderList({ filter: "shared", directShared: true })]);
+    const children = await Promise.all([...lazyLoaded].map((id) => folderList({ filter: "all", parentId: id })));
+    return mergeFolders([], [...owner, ...shared, ...children.flat()]);
+  },
+
+  /** Mode « lazy » : sous-dossiers directs d'un dossier. */
+  listChildFolders: async (parentId: string): Promise<WorkspaceElement[]> => {
+    const list = await folderList({ filter: "all", parentId });
+    lazyLoaded.add(parentId);
+    return list;
+  },
+
+  /** Un dossier par son identifiant (fil d'Ariane d'un lien direct, en mode « lazy »). */
+  getFolder: async (id: string): Promise<WorkspaceElement | undefined> => (await folderList({ filter: "all", id }))[0],
+
   /**
    * Contenu d'un emplacement : dossiers ET documents (`includeall`) de l'arbre `tree`, sous `parentId`
    * (absent = racine de l'arbre). Même appel que l'interface AngularJS.

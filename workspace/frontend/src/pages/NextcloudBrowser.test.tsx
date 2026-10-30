@@ -36,6 +36,7 @@ vi.mock("../services/queries", () => ({
   useNextcloudList: () => state.list,
   useNextcloudUrl: () => ({ data: { url: "https://nc.example", hidden: false } }),
   useNextcloudQuota: () => ({ data: { used: 10, total: 100 } }),
+  useFolderStore: () => ({ lazy: false, isLoaded: () => false, loadChildren: async () => undefined, ensureFolder: async () => undefined }),
   useFolders: () => ({ data: [] }),
   useQuota: () => ({ data: { storage: 5, quota: 50 } }),
   useWorkspacePreference: () => ({ data: prefs.value }),

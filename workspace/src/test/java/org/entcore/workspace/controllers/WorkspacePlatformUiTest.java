@@ -7,7 +7,7 @@ import static org.junit.Assert.assertEquals;
 
 /**
  * Interface servie par défaut quand l'usager n'a rien choisi : React, sauf demande contraire de la plateforme
- * ou mode « lazy » (gros volumes) que React ne reprend pas encore.
+ * Le mode « lazy » (gros volumes) est repris par React : il ne change pas l'IHM par défaut.
  */
 public class WorkspacePlatformUiTest {
 
@@ -26,8 +26,8 @@ public class WorkspacePlatformUiTest {
     }
 
     @Test
-    public void lazyModeKeepsAngularByDefault() {
-        assertEquals("angular", WorkspaceController.platformUi(lazy(true)));
+    public void lazyModeNoLongerChangesDefault() {
+        assertEquals("react", WorkspaceController.platformUi(lazy(true)));
         assertEquals("react", WorkspaceController.platformUi(lazy(false)));
     }
 
