@@ -1,0 +1,45 @@
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fc;margin:0;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(20,35,65,.08);">
+        <!-- ===== Bandeau / logo : même bandeau que les autres e-mails de l'ENT
+             (logo cadré 2,5:1 à 150 x 60, filet d'accent). Gabarit réglé dans le dashboard
+             (Mongo email_templates/new-device). ===== -->
+        <tr>
+          <td style="background:#ffffff;padding:24px 32px 16px;" align="left">
+            {{#logoFramed}}<img src="{{logoUrl}}" alt="{{brandName}}" width="150" height="60" style="display:block;border:0;width:150px;height:60px;">{{/logoFramed}}
+            {{^logoFramed}}<img src="{{logoUrl}}" alt="{{brandName}}" height="60" style="display:block;border:0;height:60px;max-width:300px;">{{/logoFramed}}
+          </td>
+        </tr>
+        <tr><td style="height:4px;line-height:4px;font-size:0;background:{{accentColor}};">&nbsp;</td></tr>
+        <!-- ===== Corps ===== -->
+        <tr>
+          <td style="padding:32px;color:#15223d;font-size:15px;line-height:1.6;">
+            <h1 style="margin:0 0 16px;font-size:22px;color:#15223d;">{{title}}</h1>
+            <p style="margin:0 0 12px;">Bonjour {{displayName}},</p>
+            <p style="margin:0 0 20px;">{{intro}}</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fc;border-radius:10px;margin:0 0 24px;">
+              <tr><td style="padding:16px 20px;">
+                <div style="margin-bottom:8px;"><span style="color:#7e879c;">Appareil&nbsp;:</span> <b style="color:#15223d;">{{deviceLabel}}</b></div>
+                <div style="margin-bottom:8px;"><span style="color:#7e879c;">Adresse IP&nbsp;:</span> <b style="color:#15223d;">{{ip}}</b></div>
+                <div><span style="color:#7e879c;">Date&nbsp;:</span> <b style="color:#15223d;">{{date}}</b></div>
+              </td></tr>
+            </table>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+              <tr><td style="border-radius:8px;background:{{accentColor}};">
+                <a href="{{devicesUrl}}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;">{{ctaLabel}}</a>
+              </td></tr>
+            </table>
+            <p style="margin:0;color:#48526c;white-space:pre-line;">{{signature}}</p>
+          </td>
+        </tr>
+        <!-- ===== Pied ===== -->
+        {{#hasFooter}}
+        <tr>
+          <td style="padding:16px 32px;border-top:1px solid #e5ebf4;color:#aab2c4;font-size:12px;line-height:1.5;">{{footerNote}}</td>
+        </tr>
+        {{/hasFooter}}
+      </table>
+    </td>
+  </tr>
+</table>
