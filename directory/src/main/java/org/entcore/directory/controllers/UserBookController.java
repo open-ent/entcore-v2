@@ -203,12 +203,11 @@ public class UserBookController extends BaseController {
 	}
 
 	/**
-	 * IHM servie par défaut, en l'absence de choix de l'usager. Tant que la migration de Mon compte et de l'annuaire n'est pas
-	 * terminée, l'ancienne interface reste le défaut : React s'obtient par {@code ?ui=react}, la préférence de l'usager ou
-	 * {@code frontend-ui: react} dans la configuration.
+	 * IHM servie par défaut, en l'absence de choix de l'usager : React, sauf si la plateforme demande {@code frontend-ui: angular}.
+	 * L'ancienne interface s'obtient par {@code ?ui=angular} ou par la préférence de l'usager.
 	 */
 	static String platformUi(final JsonObject config) {
-		return "react".equals(config.getString("frontend-ui")) ? "react" : "angular";
+		return "angular".equals(config.getString("frontend-ui")) ? "angular" : "react";
 	}
 
 	/** Clé de préférence usager (« Paramètres du compte → Interfaces en cours de renouvellement ») portant le choix d'IHM. */
@@ -311,9 +310,10 @@ public class UserBookController extends BaseController {
 				if (userId == null || userId.equals(user.getUserId())) {
 					userBookService.getCurrentUserInfos(user, forceReload, defaultResponseHandler(request));
 				} else {
-					Future<JsonArray> visible = UserUtils.filterFewOrGetAllVisibles(eb, user.getUserId(), new JsonArray(Lists.newArrayList(userId)));
-					visible.onSuccess( arr -> {
-						boolean filter = arr.stream().noneMatch(o -> ((JsonObject)o).getString("id").equals(userId));
+					// requête propre (voir VisibleIds) : celle de UserUtils.filterFewOrGetAllVisibles échoue sous ArcadeDB
+					Future<java.util.Set<String>> visible = org.entcore.directory.utils.VisibleIds.among(user.getUserId(), Lists.newArrayList(userId));
+					visible.onSuccess( ids -> {
+						boolean filter = !ids.contains(userId);
 						userBookService.getPersonInfos(userId, filter, defaultResponseHandler(request));
 					});
 					visible.onFailure(err -> unauthorized(request));

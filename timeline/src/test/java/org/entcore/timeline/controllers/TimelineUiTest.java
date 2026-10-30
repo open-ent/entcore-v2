@@ -8,18 +8,18 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** Interface servie par défaut pour Mon compte et l'annuaire : l'ancienne tant que la migration n'est pas finie, sauf demande de la plateforme ; préférence de l'usager lue telle que stockée. */
+/** Interface servie par défaut pour Mon compte et l'annuaire : React, sauf demande contraire de la plateforme ; préférence de l'usager lue telle que stockée. */
 public class TimelineUiTest {
 
     @Test
-    public void angularIsTheDefaultUntilMigrationIsDone() {
-        assertEquals("angular", TimelineController.platformUi(new JsonObject()));
+    public void reactIsTheDefault() {
+        assertEquals("react", TimelineController.platformUi(new JsonObject()));
     }
 
     @Test
-    public void platformCanAskForReact() {
-        assertEquals("react", TimelineController.platformUi(new JsonObject().put("frontend-ui", "react")));
-        assertEquals("angular", TimelineController.platformUi(new JsonObject().put("frontend-ui", "n'importe quoi")));
+    public void platformCanAskForAngular() {
+        assertEquals("angular", TimelineController.platformUi(new JsonObject().put("frontend-ui", "angular")));
+        assertEquals("react", TimelineController.platformUi(new JsonObject().put("frontend-ui", "n'importe quoi")));
     }
 
     private static JsonObject rows(String preference) {

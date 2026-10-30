@@ -23,10 +23,10 @@ const messageOf = (e: unknown): string | undefined => (e as { message?: string; 
 const Tabs = ({ workflows, hasEmail, themes }: { workflows: Set<string>; hasEmail: boolean; themes: boolean }) => {
   const { t } = useTranslation("directory");
   const tabs = [
-    { id: "profile", label: "panel.my.profile", href: "/userbook/mon-compte#/edit-me", current: !themes, show: true },
-    { id: "notifications", label: "panel.notifications.set", href: "/timeline/preferencesView", show: hasEmail && workflows.has(WF.EXTERNAL_NOTIFICATIONS) },
-    { id: "history", label: "panel.user.history", href: "/timeline/historyView", show: workflows.has(WF.HISTORY) },
-    { id: "theme", label: "panel.user.pickTheme", href: "/userbook/mon-compte#/themes", current: themes, show: workflows.has(WF.SWITCH_THEME) },
+    { id: "profile", label: "panel.my.profile", href: "/userbook/mon-compte?ui=react#/edit-me", current: !themes, show: true },
+    { id: "notifications", label: "panel.notifications.set", href: "/timeline/preferencesView?ui=react", show: hasEmail && workflows.has(WF.EXTERNAL_NOTIFICATIONS) },
+    { id: "history", label: "panel.user.history", href: "/timeline/historyView?ui=react", show: workflows.has(WF.HISTORY) },
+    { id: "theme", label: "panel.user.pickTheme", href: "/userbook/mon-compte?ui=react#/themes", current: themes, show: workflows.has(WF.SWITCH_THEME) },
   ].filter((tab) => tab.show);
   return (
     <nav role="tablist" className="d-flex gap-16 mb-24" style={{ borderBottom: "1px solid #dee2e6" }} data-account-tabs>

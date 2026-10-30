@@ -32,25 +32,25 @@ export const AccountTabs = ({
     {
       id: "profile",
       label: "panel.my.profile",
-      href: "/userbook/mon-compte#/edit-me",
+      href: "/userbook/mon-compte?ui=react#/edit-me",
       show: true,
     },
     {
       id: "notifications",
       label: "panel.notifications.set",
-      href: "/timeline/preferencesView",
+      href: "/timeline/preferencesView?ui=react",
       show: hasEmail && workflows.has(WF.EXTERNAL_NOTIFICATIONS),
     },
     {
       id: "history",
       label: "panel.user.history",
-      href: "/timeline/historyView",
+      href: "/timeline/historyView?ui=react",
       show: workflows.has(WF.HISTORY),
     },
     {
       id: "theme",
       label: "panel.user.pickTheme",
-      href: "/userbook/mon-compte#/themes",
+      href: "/userbook/mon-compte?ui=react#/themes",
       show: workflows.has(WF.SWITCH_THEME),
     },
   ].filter((x) => x.show || x.id === current);

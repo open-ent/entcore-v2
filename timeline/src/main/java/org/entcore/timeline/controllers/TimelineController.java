@@ -264,12 +264,11 @@ public class TimelineController extends BaseController {
 	}
 
 	/**
-	 * IHM servie par défaut pour les pages de Mon compte (notifications externes, historique), en l'absence de choix de
-	 * l'usager : l'ancienne, tant que la migration n'est pas finie ; React s'obtient par {@code ?ui=react}, la préférence de
-	 * l'usager ou {@code frontend-ui: react} dans la configuration.
+	 * IHM servie par défaut, en l'absence de choix de l'usager : React, sauf si la plateforme demande {@code frontend-ui: angular}.
+	 * L'ancienne interface s'obtient par {@code ?ui=angular} ou par la préférence de l'usager.
 	 */
 	static String platformUi(final JsonObject config) {
-		return "react".equals(config.getString("frontend-ui")) ? "react" : "angular";
+		return "angular".equals(config.getString("frontend-ui")) ? "angular" : "react";
 	}
 
 	/** Clé de préférence usager portant le choix d'IHM. */

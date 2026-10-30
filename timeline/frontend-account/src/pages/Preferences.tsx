@@ -70,7 +70,7 @@ export const Preferences = () => {
         preference.data,
       );
       setGroups(g);
-      setOpen((cur) => cur ?? g[0]?.type ?? null);
+      // tout est replié à l'ouverture : on déplie une application en cliquant sur son nom
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaults.data, preference.data, apps.join("|")]);
@@ -93,7 +93,9 @@ export const Preferences = () => {
           </h1>
         </AppHeader>
         <div className="alert alert-warning" role="alert" data-page-forbidden>
-          {t("account.page.forbidden", { defaultValue: "Vous n'avez pas accès à cette page." })}
+          {t("account.page.forbidden", {
+            defaultValue: "Vous n'avez pas accès à cette page.",
+          })}
         </div>
       </Layout>
     );

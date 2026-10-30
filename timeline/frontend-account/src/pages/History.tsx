@@ -111,7 +111,9 @@ export const History = () => {
           </h1>
         </AppHeader>
         <div className="alert alert-warning" role="alert" data-page-forbidden>
-          {t("account.page.forbidden", { defaultValue: "Vous n'avez pas accès à cette page." })}
+          {t("account.page.forbidden", {
+            defaultValue: "Vous n'avez pas accès à cette page.",
+          })}
         </div>
       </Layout>
     );
