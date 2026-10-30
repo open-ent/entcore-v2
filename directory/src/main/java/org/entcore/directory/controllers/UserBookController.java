@@ -167,8 +167,14 @@ public class UserBookController extends BaseController {
 	@SecuredAction(value = "userbook.authent", type = ActionType.AUTHENTICATED)
 	public void monCompte(HttpServerRequest request) {
 		JsonObject configuration = new JsonObject().put("hidePersonalData", serverMap.get("hidePersonalData"));
-		renderView(request, configuration, "mon-compte.html", null);
-		eventStore.createAndStoreEvent(DirectoryEvent.ACCESS.name(), request, new JsonObject().put("override-module", "MyAccount"));
+		withUi(request, ui -> {
+			if ("react".equals(ui)) {
+				renderView(request, configuration, "mon-compte-react.html", null);
+			} else {
+				renderView(request, configuration, "mon-compte.html", null);
+			}
+			eventStore.createAndStoreEvent(DirectoryEvent.ACCESS.name(), request, new JsonObject().put("override-module", "MyAccount"));
+		});
 	}
 
 	@Get("/birthday")
@@ -186,8 +192,76 @@ public class UserBookController extends BaseController {
 	@Get("/annuaire")
 	@SecuredAction(value = "userbook.authent", type = ActionType.AUTHENTICATED)
 	public void annuaire(HttpServerRequest request) {
-		renderView(request);
-		eventStore.createAndStoreEvent(DirectoryEvent.ACCESS.name(), request);
+		withUi(request, ui -> {
+			if ("react".equals(ui)) {
+				renderView(request, new JsonObject(), "annuaire-react.html", null);
+			} else {
+				renderView(request);
+			}
+			eventStore.createAndStoreEvent(DirectoryEvent.ACCESS.name(), request);
+		});
+	}
+
+	/**
+	 * IHM servie par défaut, en l'absence de choix de l'usager. Tant que la migration de Mon compte et de l'annuaire n'est pas
+	 * terminée, l'ancienne interface reste le défaut : React s'obtient par {@code ?ui=react}, la préférence de l'usager ou
+	 * {@code frontend-ui: react} dans la configuration.
+	 */
+	static String platformUi(final JsonObject config) {
+		return "react".equals(config.getString("frontend-ui")) ? "react" : "angular";
+	}
+
+	/** Clé de préférence usager (« Paramètres du compte → Interfaces en cours de renouvellement ») portant le choix d'IHM. */
+	private static final String UI_PREFERENCE = "userbookUi";
+
+	/** `?ui=react|angular` dans l'adresse, sinon la préférence de l'usager, sinon le défaut de la plateforme. */
+	private void withUi(final HttpServerRequest request, final Handler<String> handler) {
+		final String platform = platformUi(config);
+		final String forced = request.getParam("ui");
+		if ("react".equals(forced) || "angular".equals(forced)) {
+			handler.handle(forced);
+			return;
+		}
+		UserUtils.getUserInfos(eb, request, user -> {
+			if (user == null) {
+				handler.handle(platform);
+				return;
+			}
+			// Syntaxe OpenCypher (`$userId`, ArcadeDB) d'abord ; un Neo4j épinglé en Cypher 2.3 la refuse : on retente avec l'ancienne (`{userId}`).
+			final String tail = "-[:PREFERS]->(uac:UserAppConf) RETURN uac." + UI_PREFERENCE + " AS preference";
+			final JsonObject params = new JsonObject().put("userId", user.getUserId());
+			try {
+				final org.entcore.common.neo4j.Neo4j neo4j = org.entcore.common.neo4j.Neo4j.getInstance();
+				neo4j.execute("MATCH (:User {id:$userId})" + tail, params, message -> {
+					if (isOk(message.body())) {
+						handler.handle(readUi(message.body(), platform));
+					} else {
+						neo4j.execute("MATCH (:User {id:{userId}})" + tail, params, legacy -> handler.handle(readUi(legacy.body(), platform)));
+					}
+				});
+			} catch (Exception e) {
+				handler.handle(platform);
+			}
+		});
+	}
+
+	/** Une réponse Neo4j réussie porte « status: ok ». */
+	static boolean isOk(JsonObject body) {
+		return body != null && "ok".equals(body.getString("status"));
+	}
+
+	/** Extrait le choix d'IHM du résultat Neo4j — la préférence y est rangée en CHAÎNE JSON, ex. {"ui":"react"}. */
+	static String readUi(JsonObject body, String platformUi) {
+		try {
+			final io.vertx.core.json.JsonArray rows = body.getJsonArray("result", new io.vertx.core.json.JsonArray());
+			if (rows.isEmpty()) return platformUi;
+			final String raw = rows.getJsonObject(0).getString("preference");
+			if (raw == null || raw.trim().isEmpty()) return platformUi;
+			final String ui = new JsonObject(raw).getString("ui");
+			return ("react".equals(ui) || "angular".equals(ui)) ? ui : platformUi;
+		} catch (Exception e) {
+			return platformUi;
+		}
 	}
 
 	@Get("/api/search")
