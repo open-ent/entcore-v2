@@ -43,6 +43,8 @@
   }
 
   function build() {
+    // Interface actuellement affichée : AngularJS charge `window.angular` (ng-app.js), la page React non. Le menu s'y adapte.
+    var current = (typeof window.angular !== 'undefined') ? 'angular' : 'react';
     var style = document.createElement('style');
     style.textContent =
       '#openent-ui-fab{position:fixed;right:16px;bottom:16px;z-index:9500;font:14px/1.3 sans-serif}' +
@@ -59,8 +61,8 @@
     fab.hidden = true;
     fab.innerHTML =
       '<div class="menu" role="menu" hidden>' +
-      '<button type="button" role="menuitem" data-ui="react">' + T.next + '</button>' +
-      '<button type="button" role="menuitem" data-ui="angular" aria-current="true">' + T.prev + ' (' + T.current + ')</button>' +
+      '<button type="button" role="menuitem" data-ui="react"' + (current === 'react' ? ' aria-current="true"' : '') + '>' + T.next + (current === 'react' ? ' (' + T.current + ')' : '') + '</button>' +
+      '<button type="button" role="menuitem" data-ui="angular"' + (current === 'angular' ? ' aria-current="true"' : '') + '>' + T.prev + (current === 'angular' ? ' (' + T.current + ')' : '') + '</button>' +
       '</div>' +
       '<button type="button" aria-haspopup="menu">⇄ ' + T.label + '</button>';
     var menu = fab.querySelector('.menu');
@@ -68,7 +70,7 @@
     Array.prototype.forEach.call(menu.querySelectorAll('[data-ui]'), function (item) {
       item.addEventListener('click', function () {
         var ui = item.getAttribute('data-ui');
-        if (ui === 'angular') { menu.hidden = true; return; }
+        if (ui === current) { menu.hidden = true; return; }
         window.location.href = window.location.pathname + '?ui=' + ui;
       });
     });
