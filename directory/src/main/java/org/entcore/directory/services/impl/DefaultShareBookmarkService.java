@@ -127,32 +127,29 @@ public class DefaultShareBookmarkService implements ShareBookmarkService {
 				.map(JsonObject.class::cast)
 				.forEach(member -> membersMap.put(member.getString("id"), member));
 
-			// Check bookmarked members' visibility.
-			// Requête propre au service : `UserUtils.filterFewOrGetAllVisibles` (bibliothèque commune) échoue sous ArcadeDB
-			// (erreur de syntaxe), ce qui vidait tous les favoris puis les supprimait.
+			// Check bookmarked members' visibility
 			final Set<String> membersMapIds = membersMap.keySet();
-			final String visibleQuery =
-					"MATCH (u:User {id:$userId}) " +
-					"OPTIONAL MATCH (u)-[:IN]->(:Group)-[:COMMUNIQUE]->(g:Group) " +
-					"OPTIONAL MATCH (g)<-[:IN]-(v:User) WHERE v.id IN $ids " +
-					"OPTIONAL MATCH (u)-[:COMMUNIQUE_DIRECT]->(d:User) WHERE d.id IN $ids " +
-					"WITH COLLECT(DISTINCT v.id) + COLLECT(DISTINCT CASE WHEN g.id IN $ids THEN g.id END) + COLLECT(DISTINCT d.id) AS vs " +
-					"UNWIND vs AS id WITH id WHERE id IS NOT NULL RETURN DISTINCT id";
-			final JsonObject visibleParams = new JsonObject()
-					.put("userId", userId)
-					.put("ids", new JsonArray(new ArrayList<>(membersMapIds)));
-			neo4j.execute(visibleQuery, visibleParams, visible -> {
-				if (visible.body() != null && "ok".equals(visible.body().getString("status"))) {
-					final Set<String> visibleIds = new HashSet<>();
-					visible.body().getJsonArray("result", new JsonArray()).forEach(o -> visibleIds.add(((JsonObject) o).getString("id")));
-					// soi-même n'est jamais écarté
-					final int initialCount = membersMapIds.size() - (membersMapIds.contains(userId) ? 1 : 0);
-					membersMap.keySet().removeIf(mid -> !visibleIds.contains(mid) && !mid.equals(userId));
-					members.clear();
-					membersMap.values().forEach(members::add);
-					res.put("notVisibleCount", Math.max(0, initialCount - (members.size() - (membersMap.containsKey(userId) ? 1 : 0))));
-				}
-				// en cas d'échec de la requête, on rend le favori tel quel plutôt que de le vider
+			UserUtils.filterFewOrGetAllVisibles(
+				eb, 
+				userId,
+				new JsonArray( membersMapIds.stream().collect(Collectors.toList()) )
+			)
+			.onSuccess( visibleInfos -> {
+				List<String> visibleIds = visibleInfos.stream()
+					.map(JsonObject.class::cast)
+					.map(jo -> jo.getString("id"))
+					.collect(Collectors.toList());
+				// Keep only visible users, in the *membersMap*
+				//eliminate himself from the memebers to check
+				int initialCount = membersMapIds.size() - (membersMapIds.contains(userId) ? 1 : 0);
+				membersMapIds.retainAll(visibleIds);
+				// Update members array
+				members.clear();
+				membersMap.values().stream().forEach( member -> members.add(member) );
+				res.put("notVisibleCount", initialCount - members.size());
+			})
+			.onComplete( ar -> {
+				// Filtered or not, handle the results anyway.
 				handler.handle(r);
 			});
 		});

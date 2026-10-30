@@ -310,10 +310,9 @@ public class UserBookController extends BaseController {
 				if (userId == null || userId.equals(user.getUserId())) {
 					userBookService.getCurrentUserInfos(user, forceReload, defaultResponseHandler(request));
 				} else {
-					// requête propre (voir VisibleIds) : celle de UserUtils.filterFewOrGetAllVisibles échoue sous ArcadeDB
-					Future<java.util.Set<String>> visible = org.entcore.directory.utils.VisibleIds.among(user.getUserId(), Lists.newArrayList(userId));
-					visible.onSuccess( ids -> {
-						boolean filter = !ids.contains(userId);
+					Future<JsonArray> visible = UserUtils.filterFewOrGetAllVisibles(eb, user.getUserId(), new JsonArray(Lists.newArrayList(userId)));
+					visible.onSuccess( arr -> {
+						boolean filter = arr.stream().noneMatch(o -> ((JsonObject)o).getString("id").equals(userId));
 						userBookService.getPersonInfos(userId, filter, defaultResponseHandler(request));
 					});
 					visible.onFailure(err -> unauthorized(request));
