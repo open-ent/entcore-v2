@@ -1,5 +1,6 @@
-import { template, quota, Quota, $ } from "entcore";
+import { template, quota, Quota, $, notify } from "entcore";
 import { models, workspaceService } from "../services";
+import { treeMove, TreeRow } from "../utils/treeKeys";
 
 
 
@@ -39,7 +40,8 @@ export interface TreeDelegateScope {
     setHighlightTree(els: { folder: models.Node, count: number }[]);
     firstVisibleAscendant(folder: models.Node): models.Node;
     refresh(): void;
-
+    onTreeKeydown(event: KeyboardEvent, folder: models.Node): void;
+    openRenameView(document?: models.Element);
 }
 export function TreeDelegate($scope: TreeDelegateScope, $location) {
     let refreshPromise: Promise<models.Tree[]> = null;
@@ -215,6 +217,53 @@ export function TreeDelegate($scope: TreeDelegateScope, $location) {
             }
             $scope.applySort();
             $scope.safeApply()
+        }
+    }
+    /**
+     * Clavier dans l'arbre (comme les explorateurs de fichiers) : flèches, Début, Fin pour naviguer et déplier, Entrée pour ouvrir,
+     * F2 pour renommer et Suppr pour mettre à la corbeille le dossier ayant le focus (seulement un dossier à soi, non partagé).
+     */
+    $scope.onTreeKeydown = function (event: KeyboardEvent, folder: models.Node) {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const link = event.currentTarget as HTMLElement;
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            link.click();
+            return;
+        }
+        const element = folder as models.Element;
+        const own = !!element && element.eType === "folder" && !!element._id && (!element.shared || element.shared.length === 0)
+            && (typeof element.owner === "string" ? element.owner : (element.owner as any || {}).userId) === (window as any).model.me.userId;
+        if (own && event.key === "F2") {
+            event.preventDefault();
+            $scope.openRenameView(element);
+            return;
+        }
+        if (own && event.key === "Delete") {
+            event.preventDefault();
+            const wasOpened = $scope.openedFolder.folder === folder;
+            workspaceService.trashAll([element]).then(() => {
+                notify.info('workspace.removed.message');
+                if (wasOpened) $scope.setCurrentTreeRoute("owner");
+                $scope.safeApply();
+            });
+            return;
+        }
+        const nav = $(link).closest("nav")[0];
+        if (!nav) return;
+        const links = [].slice.call(nav.querySelectorAll("a.folder-list-item")) as HTMLElement[];
+        const rows: TreeRow[] = links.map(a => ({
+            level: $(a).parentsUntil(nav, "ul").length + 1,
+            expandable: !!a.querySelector("i.arrow"),
+            expanded: a.classList.contains("opened")
+        }));
+        const move = treeMove(event.key, rows, links.indexOf(link));
+        if (!move) return;
+        event.preventDefault();
+        if ("focus" in move) links[move.focus].focus();
+        else {
+            const arrow = link.querySelector("i.arrow") as HTMLElement;
+            arrow && arrow.click();
         }
     }
     $scope.isRolledFolder = function (folder) {

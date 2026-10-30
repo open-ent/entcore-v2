@@ -32,7 +32,7 @@
 				<span class="count-badge">[[getHighlightCount(folder)]]</span>
 			</span>
 			<a ng-class="{ selected: isSelectedFolder(folder), opened: isRolledFolder(folder) }" ng-click="openFolderRoute(folder)" ng-if="folder.name !== undefined"
-			   class="folder-list-item"
+			   class="folder-list-item" tabindex="0" ng-keydown="onTreeKeydown($event, folder)"
 			   dragdrop="dropTo(folder, $originalEvent)"
 			   dropcondition="dropCondition(folder)"
 			   help-box-step="[[folder.helpbox]]">

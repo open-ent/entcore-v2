@@ -16,7 +16,7 @@ export interface RenameDelegateScope {
     renameTarget: models.Element
     canRenameFolder(): boolean
     canRenameDocument(): boolean
-    openRenameView(document: models.Element)
+    openRenameView(document?: models.Element)
     rename(item: models.Element, newName: string)
     getRenameManagers():Array<{id:string, name:string}>
     preventForbiddenChars(event: KeyboardEvent): void; 
@@ -40,10 +40,11 @@ export function ActionRenameDelegate($scope: RenameDelegateScope) {
         return totalFold == 1 && totalDoc == 0 && $scope.currentTree.filter != "trash" && $scope.currentTree.filter != "external";
     }
 
-    $scope.openRenameView = async function () {
+    // `target` : élément à renommer (F2 sur un dossier de l'arbre) ; absent = l'élément sélectionné dans la liste
+    $scope.openRenameView = async function (target?: models.Element) {
         $scope.renameManagers=[];
         try {
-            const document = $scope.selectedItems()[0];
+            const document = target || $scope.selectedItems()[0];
             let ownerId = "-1";
             if (document.eParent) $scope.renameParent = await workspaceService.fetchParentInfo(document._id);
             else $scope.renameParent = undefined;
