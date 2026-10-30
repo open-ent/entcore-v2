@@ -10,6 +10,11 @@ import { Preferences } from "./pages/Preferences";
 // Une seule IHM servie par deux vues : /timeline/preferencesView (notifications externes) et /timeline/historyView (historique).
 const isHistory = window.location.pathname.endsWith("/historyView");
 
+// Le thème de la plateforme rend les `.btn-link` quasi invisibles (même couleur que le fond) : ils reprennent la couleur du texte, soulignés.
+const style = document.createElement("style");
+style.textContent = ".btn-link{color:inherit !important;text-decoration:underline}";
+document.head.appendChild(style);
+
 const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(
