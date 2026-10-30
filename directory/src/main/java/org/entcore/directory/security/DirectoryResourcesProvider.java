@@ -161,6 +161,7 @@ public class DirectoryResourcesProvider implements ResourcesProvider {
 				case "listChildren":
 				case "resetStructureName":
 					isAdminOfStructure(request, user, handler);
+					break;
 				case "classAdminMassMail" :
 					isClassTeacherForUserIds(request, user, handler);
 					break;

@@ -976,19 +976,27 @@ public class SamlValidator extends BusModBase implements Handler<Message<JsonObj
 		final SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
 		Signature signature = response.getSignature();
 
+		// Une seule assertion, en clair ou chiffrée : c'est elle que l'appelant utilise ensuite
+		// (getAssertions().get(0) ou decryptAssertion). Sans cette règle, une réponse non signée
+		// portant une assertion en clair légitimement signée et une assertion chiffrée forgée
+		// (chiffrable par quiconque avec la clé publique du SP) validait la première et
+		// authentifiait avec la seconde.
+		final int plainAssertions = response.getAssertions() == null ? 0 : response.getAssertions().size();
+		final int encryptedAssertions = response.getEncryptedAssertions() == null ? 0 : response.getEncryptedAssertions().size();
+		if (plainAssertions + encryptedAssertions != 1) {
+			logger.error("Exactly one assertion expected, found " + plainAssertions + " plain and "
+					+ encryptedAssertions + " encrypted.");
+			throw new ValidationException("Exactly one assertion expected.");
+		}
+
 		if (signature == null) {
-			if (response.getAssertions() != null && !response.getAssertions().isEmpty()) {
-				for (Assertion a : response.getAssertions()) {
-					signature = a.getSignature();
-				}
-			} else if (response.getEncryptedAssertions() != null && !response.getEncryptedAssertions().isEmpty()) {
+			if (plainAssertions == 1) {
+				signature = response.getAssertions().get(0).getSignature();
+			} else {
 				Assertion a = decryptAssertion(response);
 				if (a != null) {
 					signature = a.getSignature();
 				}
-			} else {
-				logger.error("Assertions not founds.");
-				throw new ValidationException("Assertions not founds.");
 			}
 		}
 		if (signature == null) {

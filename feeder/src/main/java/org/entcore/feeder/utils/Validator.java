@@ -49,6 +49,8 @@ public class Validator {
 	private final boolean notStoreLogins;
 	private static final String[] alphabet =
 			{"a","b","c","d","e","f","g","h","j","k","m","n","p","r","s","t","v","w","x","y","z","3","4","5","6","7","8","9"};
+	// Le code d'activation suffit, avec l'identifiant, à prendre possession d'un compte : tirage cryptographique.
+	private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 	private static final Map<String, Pattern> patterns = new HashMap<>();
 	static {
 		patterns.put("email", Pattern.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,63}$"));
@@ -375,7 +377,7 @@ public class Validator {
 		if (password == null || password.trim().isEmpty()) {
 			StringBuilder sb = new StringBuilder();
 			for(int i = 0; i < 8; i++) {
-				sb.append(alphabet[Integer.parseInt(Long.toString(Math.abs(Math.round(Math.random() * 27D))))]);
+				sb.append(alphabet[RANDOM.nextInt(alphabet.length)]);
 			}
 			object.put(attr, sb.toString());
 		}

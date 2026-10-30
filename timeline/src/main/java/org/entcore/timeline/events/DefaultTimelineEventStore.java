@@ -293,8 +293,11 @@ public class DefaultTimelineEventStore implements TimelineEventStore {
 	public void report(String id, UserInfos user, Handler<Either<String, JsonObject>> result) {
 		String now = mongoFormat.format(Calendar.getInstance().getTime());
 
+		// Seul un destinataire signale : sinon le signalement d'un identifiant quelconque ouvrirait la
+		// notification aux administrateurs des établissements du signaleur (reportedStructures).
 		JsonObject criteria = new JsonObject()
 				.put("_id", id)
+				.put("recipients.userId", user.getUserId())
 				.put("reporters.userId", new JsonObject()
 						.put("$ne", user.getUserId()));
 

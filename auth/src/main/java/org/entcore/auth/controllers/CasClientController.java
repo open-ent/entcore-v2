@@ -119,8 +119,21 @@ public class CasClientController extends BaseController
     }
 
     protected void serviceValidate(HttpServerRequest request, Handler<AuthenticationSuccessType> handler) {
+        final String ticket = request.getParam("ticket");
+        if (ticket == null || ticket.isEmpty()) {
+            request.response().setStatusCode(400).end();
+            return;
+        }
         request.pause();
-        String validateURL = this.serviceValidateURL + "?service=" + this.serviceRedirection + "&ticket=" + request.getParam("ticket");
+        String validateURL;
+        try {
+            // Le ticket vient de la requête : non encodé, il ajoute ses propres paramètres à l'appel de validation.
+            validateURL = this.serviceValidateURL + "?service=" + this.serviceRedirection + "&ticket=" + URLEncoder.encode(ticket, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            request.resume();
+            request.response().setStatusCode(500).end();
+            return;
+        }
         this.httpClient.request(new RequestOptions()
             .setMethod(HttpMethod.GET)
             .setAbsoluteURI(validateURL)
