@@ -42,6 +42,19 @@
     return false;
   }
 
+  // Distance entre le bas de la fenêtre et le haut du bandeau du module (fixe lui aussi, en bas à droite) : le bouton se pose juste au-dessus
+  // au lieu de disparaître derrière lui. 0 sans bandeau.
+  function bannerOffset() {
+    var list = document.querySelectorAll(BANNERS), top = null;
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i];
+      if (!shown(el) || window.getComputedStyle(el).position !== 'fixed') continue;
+      var t = el.getBoundingClientRect().top;
+      if (top === null || t < top) top = t;
+    }
+    return top === null ? 0 : Math.max(0, window.innerHeight - top);
+  }
+
   function build() {
     // Interface actuellement affichée : AngularJS charge `window.angular` (ng-app.js), la page React non. Le menu s'y adapte.
     var current = (typeof window.angular !== 'undefined') ? 'angular' : 'react';
@@ -81,12 +94,18 @@
   Promise.resolve().then(function () {
     var fab = build();
     // N'écrit que si l'état change : réaffecter `hidden` avec la même valeur crée tout de même un enregistrement de
-    // mutation, que l'observateur relirait aussitôt — boucle sans fin qui gèle la page.
-    var refresh = function () { var h = bannerVisible(); if (fab.hidden !== h) fab.hidden = h; };
+    var refresh = function () {
+      // pas de doublon : si le socle React affiche déjà sa propre bascule (`[data-ui-fab]`), celle-ci s'efface ; sinon elle reste TOUJOURS visible
+      var h = !!document.querySelector('[data-ui-fab]');
+      if (fab.hidden !== h) fab.hidden = h;
+      var offset = bannerOffset();
+      var bottom = offset ? (offset + 8) + 'px' : '16px';
+      if (fab.style.bottom !== bottom) fab.style.bottom = bottom;
+    };
     // Le bandeau du module apparaît après sa propre lecture de la préférence : on laisse un instant puis on suit ses changements.
     setTimeout(function () {
       refresh();
-      new MutationObserver(refresh).observe(document.body, { attributes: true, attributeFilter: ['hidden'], subtree: true, childList: true });
+      new MutationObserver(refresh).observe(document.body, { attributes: true, attributeFilter: ['hidden', 'class', 'style'], subtree: true, childList: true });
     }, 1200);
   });
 })();
