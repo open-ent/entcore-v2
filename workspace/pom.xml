@@ -13,7 +13,7 @@
     <artifactId>workspace</artifactId>
 
     <properties>
-        <lame4jVersion>2.1.0</lame4jVersion>
+        <lame4jVersion>2.1.5</lame4jVersion>
     </properties>
 
     <dependencies>
