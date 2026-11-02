@@ -19,6 +19,8 @@ export const ExportTab = () => {
   // un export lancé depuis cette page : on attend qu'il soit prêt
   const [waiting, setWaiting] = useState(false);
   const [spinner, setSpinner] = useState(false);
+  // archive prête : lien affiché en plus du téléchargement automatique (un navigateur peut bloquer ce dernier)
+  const [readyUrl, setReadyUrl] = useState<string | null>(null);
 
   const apps = useQuery({
     queryKey: ["archive", "apps"],
@@ -52,8 +54,10 @@ export const ExportTab = () => {
     window.setTimeout(async () => {
       try {
         await archiveService.verifyExport(started.exportId);
-        window.location.href = archiveService.downloadUrl(started.exportId);
+        const url = archiveService.downloadUrl(started.exportId);
+        setReadyUrl(url);
         setSpinner(false);
+        window.location.href = url;
       } catch (e) {
         setNotice(t(e instanceof HttpError && e.status === 404 ? "archive.error.404" : "archive.error"));
         window.setTimeout(() => window.location.reload(), 3000);
@@ -106,6 +110,14 @@ export const ExportTab = () => {
         <p className="text-center" data-export-waiting>
           {exists && !waiting ? t("archive.exists") : t("archive.waiting")}
         </p>
+      )}
+      {readyUrl && (
+        <div className="alert alert-success text-center" role="status" data-export-ready>
+          <p className="mb-8">{t("archive.ready")}</p>
+          <a className="btn btn-primary" href={readyUrl} data-export-download>
+            {t("archive.ready.link")}
+          </a>
+        </div>
       )}
       {spinner && (
         <p className="text-center" role="status" data-export-spinner>

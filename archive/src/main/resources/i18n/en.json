@@ -1,4 +1,6 @@
 {
+  "archive.ready": "Your archive is ready. If the download does not start by itself, click the button.",
+  "archive.ready.link": "Download my archive",
   "archive.info": "Select the applications from which you would like to export data and documents.<br/>Please note: exports from all applications except Filespace and Rack will be in raw JSON format.",
   "archive.title": "My Data",
   "archive.waiting": "The download will start automatically in a few moments. Large files might take several minutes to download. If you leave this page before the download begins, a link will be sent to your newsfeed.",

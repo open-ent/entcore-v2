@@ -1,4 +1,6 @@
 {
+  "archive.ready": "Votre archive est prête. Si le téléchargement ne démarre pas tout seul, cliquez sur le bouton.",
+  "archive.ready.link": "Télécharger mon archive",
   "archive.all": "Tous",
   "archive.cancel": "Annuler",
   "archive.download.all": "Toutes vos données seront exportées.",
