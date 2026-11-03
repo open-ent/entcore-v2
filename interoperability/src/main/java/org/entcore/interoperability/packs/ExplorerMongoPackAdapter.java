@@ -36,14 +36,16 @@ public class ExplorerMongoPackAdapter implements PackResourceAdapter {
     private final String serviceId;
     private final String collection;
     private final String readRight;
+    private final String editRight;
     private final ExplorerPluginClient client;
     private final MongoDb mongo = MongoDb.getInstance();
 
     public ExplorerMongoPackAdapter(Vertx vertx, String serviceId, String application, String resourceType,
-                                    String collection, String readRight) {
+                                    String collection, String readRight, String editRight) {
         this.serviceId = serviceId;
         this.collection = collection;
         this.readRight = readRight;
+        this.editRight = editRight;
         this.client = IExplorerPluginClient.withBus(vertx, application, resourceType);
     }
 
@@ -52,6 +54,36 @@ public class ExplorerMongoPackAdapter implements PackResourceAdapter {
 
     @Override
     public String readRight() { return readRight; }
+
+    @Override
+    public String editRight() { return editRight; }
+
+    /** Copie faite par le plugin de l'application (mode copie), comme une duplication dans l'appli. */
+    @Override
+    public Future<String> fork(PackOwner owner, String localId) {
+        final Promise<JsonObject> found = Promise.promise();
+        mongo.findOne(collection, MongoQueryBuilder.build(Filters.eq("_id", localId)), res -> {
+            final JsonObject result = res.body().getJsonObject("result");
+            if (result == null) {
+                found.fail("[packs] " + serviceId + " : ressource " + localId + " introuvable");
+            } else {
+                found.complete(result);
+            }
+        });
+        return found.future().compose(original -> client.createAll(owner.asUser(),
+                Collections.singletonList(withoutLocalFields(original).put("shared", new JsonArray())), true))
+                .compose(ids -> ids.isEmpty()
+                        ? Future.<String>failedFuture("[packs] " + serviceId + " : copie refusée par l'application")
+                        : Future.succeededFuture(ids.get(0)));
+    }
+
+    @Override
+    public Future<Void> delete(PackOwner owner, Set<String> localIds) {
+        if (localIds.isEmpty()) {
+            return Future.succeededFuture();
+        }
+        return client.deleteById(owner.asUser(), localIds).mapEmpty();
+    }
 
     @Override
     public Future<String> create(PackOwner owner, JsonObject resource) {

@@ -106,6 +106,65 @@ public class WorkspacePackAdapter implements PackResourceAdapter {
         return Future.succeededFuture();
     }
 
+    @Override
+    public String editRight() { return "workspace.contrib"; }
+
+    /** Copie du document ET de son binaire : la variante doit pouvoir être remplacée sans toucher l'original. */
+    @Override
+    public Future<String> fork(PackOwner owner, String localId) {
+        final Promise<JsonObject> found = Promise.promise();
+        mongo.findOne(DOCUMENTS, MongoQueryBuilder.build(Filters.eq("_id", localId)), res -> {
+            final JsonObject result = res.body().getJsonObject("result");
+            if (result == null) {
+                found.fail("[packs] workspace : document " + localId + " introuvable");
+            } else {
+                found.complete(result);
+            }
+        });
+        return found.future().compose(original -> {
+            final Promise<String> promise = Promise.promise();
+            storage.copyFile(original.getString("file"), copied -> {
+                if (!"ok".equals(copied.getString("status"))) {
+                    promise.fail("[packs] workspace : copie du fichier impossible : " + copied.getString("message"));
+                    return;
+                }
+                final String id = UUID.randomUUID().toString();
+                final JsonObject doc = original.copy()
+                        .put("_id", id)
+                        .put("file", copied.getString("_id"))
+                        .put("shared", new JsonArray()).put("inheritedShares", new JsonArray()).put("isShared", false)
+                        .put("created", MongoDb.formatDate(new java.util.Date()))
+                        .put("modified", MongoDb.formatDate(new java.util.Date()));
+                doc.remove("packGlobalId");
+                mongo.insert(DOCUMENTS, doc, res -> {
+                    if ("ok".equals(res.body().getString("status"))) {
+                        promise.complete(id);
+                    } else {
+                        promise.fail("[packs] workspace : insertion de la copie impossible : "
+                                + res.body().getString("message"));
+                    }
+                });
+            });
+            return promise.future();
+        });
+    }
+
+    @Override
+    public Future<Void> delete(PackOwner owner, Set<String> localIds) {
+        if (localIds.isEmpty()) {
+            return Future.succeededFuture();
+        }
+        final Promise<Void> promise = Promise.promise();
+        mongo.find(DOCUMENTS, MongoQueryBuilder.build(Filters.in("_id", new ArrayList<String>(localIds))), found -> {
+            for (Object o : found.body().getJsonArray("results", new JsonArray())) {
+                storage.removeFile(((JsonObject) o).getString("file"), removed -> {});
+            }
+            mongo.delete(DOCUMENTS, MongoQueryBuilder.build(Filters.in("_id", new ArrayList<String>(localIds))),
+                    res -> promise.complete());
+        });
+        return promise.future();
+    }
+
     // ------------------------------------------------------------------ utilitaires
 
     /** Écrit le binaire de la ressource dans le stockage ; rend {name, file, metadata}. */

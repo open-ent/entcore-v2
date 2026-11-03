@@ -224,34 +224,151 @@ public class PackService {
                 return new Subscriptions(explicit, offeredAudience, audiences);
             });
         }).compose(subs -> directory.profileGroups(subs.expanded.keySet()).compose(groups ->
-                store.resources(packId).compose(resources -> {
-                    final Map<String, Set<String>> idsByService = new LinkedHashMap<String, Set<String>>();
-                    for (Object o : resources) {
-                        final JsonObject r = (JsonObject) o;
-                        Set<String> ids = idsByService.get(r.getString("service"));
-                        if (ids == null) {
-                            ids = new LinkedHashSet<String>();
-                            idsByService.put(r.getString("service"), ids);
+                store.resources(packId).compose(resources -> store.variants(packId).compose(variants ->
+                        applyAccess(resources, variants, subs, groups)))));
+    }
+
+    /**
+     * Écrit l'accès de chaque ressource du pack et de chaque variante d'établissement.
+     *
+     * <ul>
+     *   <li>original sans variante : partage commun à tous les abonnés (par lots, par service) ;</li>
+     *   <li>original qui a des variantes : le même, sauf les établissements qui ont la leur ;</li>
+     *   <li>variante : son seul établissement, selon le public de son abonnement, plus ses éditeurs
+     *       (lecture et modification). Un établissement désabonné ne garde rien, pas même sa variante.</li>
+     * </ul>
+     */
+    private Future<Void> applyAccess(JsonArray resources, JsonArray variants, Subscriptions subs,
+                                     Map<String, Map<String, String>> groups) {
+        final Map<String, Set<String>> variantStructures = new LinkedHashMap<String, Set<String>>();
+        for (Object o : variants) {
+            final JsonObject v = (JsonObject) o;
+            Set<String> structures = variantStructures.get(v.getString("globalId"));
+            if (structures == null) {
+                structures = new LinkedHashSet<String>();
+                variantStructures.put(v.getString("globalId"), structures);
+            }
+            structures.add(v.getString("structure"));
+        }
+        Future<Void> chain = Future.succeededFuture();
+        for (final String service : adapters.keySet()) {
+            final PackResourceAdapter adapter = adapters.get(service);
+            final Set<String> shared = new LinkedHashSet<String>();
+            final List<JsonObject> withVariants = new ArrayList<JsonObject>();
+            for (Object o : resources) {
+                final JsonObject r = (JsonObject) o;
+                if (!service.equals(r.getString("service"))) {
+                    continue;
+                }
+                if (variantStructures.containsKey(r.getString("globalId"))) {
+                    withVariants.add(r);
+                } else {
+                    shared.add(r.getString("localId"));
+                }
+            }
+            final List<JsonObject> forks = new ArrayList<JsonObject>();
+            for (Object o : variants) {
+                if (service.equals(((JsonObject) o).getString("service"))) {
+                    forks.add((JsonObject) o);
+                }
+            }
+            if (shared.isEmpty() && withVariants.isEmpty() && forks.isEmpty()) {
+                continue;
+            }
+            chain = chain.compose(v -> rights(adapter.readRight()).compose(read -> rights(adapter.editRight())
+                    .compose(edit -> {
+                        final Set<String> touched = new LinkedHashSet<String>(shared);
+                        Future<Void> step = adapter.setAccess(shared, new PackAccess(
+                                share(subs.expanded, groups, read, null), subs.explicit, subs.everyone));
+                        for (final JsonObject r : withVariants) {
+                            final Set<String> excluded = variantStructures.get(r.getString("globalId"));
+                            touched.add(r.getString("localId"));
+                            step = step.compose(w -> adapter.setAccess(Collections.singleton(r.getString("localId")),
+                                    new PackAccess(share(subs.expanded, groups, read, excluded),
+                                            subs.explicit, subs.everyone)));
                         }
-                        ids.add(r.getString("localId"));
-                    }
-                    Future<Void> chain = Future.succeededFuture();
-                    for (Map.Entry<String, Set<String>> entry : idsByService.entrySet()) {
-                        final PackResourceAdapter adapter = adapters.get(entry.getKey());
-                        if (adapter == null) {
-                            continue;
+                        for (final JsonObject fork : forks) {
+                            final String structure = fork.getString("structure");
+                            final String audience = subs.expanded.get(structure);
+                            final Map<String, String> only = audience == null
+                                    ? Collections.<String, String>emptyMap()
+                                    : Collections.singletonMap(structure, audience);
+                            final JsonArray forkShared = share(only, groups, read, null);
+                            if (audience != null) {
+                                final List<String> editActions = new ArrayList<String>(read);
+                                editActions.addAll(edit);
+                                PackShares.withUsers(forkShared,
+                                        fork.getJsonArray("editors", new JsonArray()).getList(), editActions);
+                            }
+                            touched.add(fork.getString("localId"));
+                            step = step.compose(w -> adapter.setAccess(Collections.singleton(fork.getString("localId")),
+                                    new PackAccess(forkShared, only, null)));
                         }
-                        final Future<List<String>> actions = adapter.readRight() == null
-                                ? Future.succeededFuture(Collections.<String>emptyList())
-                                : directory.actions(adapter.readRight());
-                        chain = chain.compose(v -> actions
-                                .compose(names -> adapter.setAccess(entry.getValue(), new PackAccess(
-                                        names.isEmpty() ? new JsonArray()
-                                                : PackShares.compute(subs.expanded, groups, new ArrayList<String>(names), null),
-                                        subs.explicit, subs.everyone)))
-                                .compose(w -> adapter.reindex(owner, entry.getValue())));
-                    }
-                    return chain;
-                })));
+                        return step.compose(w -> adapter.reindex(owner, touched));
+                    })));
+        }
+        return chain;
+    }
+
+    private Future<List<String>> rights(String right) {
+        return right == null ? Future.succeededFuture(Collections.<String>emptyList()) : directory.actions(right);
+    }
+
+    private static JsonArray share(Map<String, String> audiences, Map<String, Map<String, String>> groups,
+                                   List<String> actions, Set<String> excluded) {
+        return actions.isEmpty() ? new JsonArray()
+                : PackShares.compute(audiences, groups, new ArrayList<String>(actions), excluded);
+    }
+
+    // ------------------------------------------------------------------ variantes d'établissement
+
+    /**
+     * Variante d'un établissement : copie de la ressource, au nom du compte technique, partagée avec
+     * ce seul établissement et modifiable par {@code editor} (l'ADML qui la demande). L'original
+     * reste commun aux autres abonnés et n'est plus montré à cet établissement.
+     */
+    public Future<JsonObject> createVariant(String packId, String structureId, String globalId, String editor) {
+        final String key = PackStore.key(packId, globalId);
+        return store.resource(key).compose(resource -> {
+            if (resource == null) {
+                return Future.failedFuture("[packs] ressource inconnue dans ce pack : " + globalId);
+            }
+            final PackResourceAdapter adapter = adapters.get(resource.getString("service"));
+            if (adapter == null) {
+                return Future.failedFuture("[packs] service sans adaptateur : " + resource.getString("service"));
+            }
+            return store.variant(PackStore.key(key, structureId)).compose(existing -> existing != null
+                    ? Future.succeededFuture(existing)
+                    : store.pack(packId).compose(pack -> adapter.fork(owner, resource.getString("localId"))
+                            .compose(localId -> {
+                                final JsonObject variant = new JsonObject()
+                                        .put("_id", PackStore.key(key, structureId))
+                                        .put("pack", packId)
+                                        .put("globalId", globalId)
+                                        .put("service", adapter.serviceId())
+                                        .put("structure", structureId)
+                                        .put("localId", localId)
+                                        .put("editors", new JsonArray().add(editor))
+                                        .put("basedOnVersion", pack == null ? null : pack.getString("version"))
+                                        .put("by", editor)
+                                        .put("at", System.currentTimeMillis());
+                                return store.saveVariant(variant).map(v -> variant);
+                            })));
+        }).compose(variant -> recomputeShares(packId).map(v -> variant));
+    }
+
+    /** Abandonne la variante : l'établissement retrouve l'original commun, la copie est supprimée. */
+    public Future<Void> deleteVariant(String packId, String structureId, String globalId) {
+        final String id = PackStore.key(PackStore.key(packId, globalId), structureId);
+        return store.variant(id).compose(variant -> {
+            if (variant == null) {
+                return Future.<Void>succeededFuture();
+            }
+            final PackResourceAdapter adapter = adapters.get(variant.getString("service"));
+            return store.deleteVariant(id)
+                    .compose(v -> recomputeShares(packId))
+                    .compose(v -> adapter == null ? Future.<Void>succeededFuture()
+                            : adapter.delete(owner, Collections.singleton(variant.getString("localId"))));
+        });
     }
 }

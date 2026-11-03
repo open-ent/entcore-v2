@@ -25,6 +25,8 @@ public class PackStore {
     public static final String PACKS = "oeip.packs";
     public static final String RESOURCES = "oeip.packResources";
     public static final String SUBSCRIPTIONS = "oeip.packSubscriptions";
+    /** Variante d'un établissement : {@code _id} = pack|ressource|établissement. */
+    public static final String VARIANTS = "oeip.packVariants";
     /** Établissement fictif d'un abonnement offert à tous les établissements. */
     public static final String EVERY_STRUCTURE = "*";
 
@@ -52,6 +54,33 @@ public class PackStore {
 
     public Future<Void> saveResource(JsonObject resource) {
         return upsert(RESOURCES, Filters.eq("_id", resource.getString("_id")), resource);
+    }
+
+    public Future<JsonObject> resource(String id) {
+        return findOne(RESOURCES, Filters.eq("_id", id));
+    }
+
+    public Future<JsonArray> variants(String packId) {
+        return find(VARIANTS, Filters.eq("pack", packId));
+    }
+
+    public Future<JsonArray> variantsOf(String structureId) {
+        return find(VARIANTS, Filters.eq("structure", structureId));
+    }
+
+    public Future<JsonObject> variant(String id) {
+        return findOne(VARIANTS, Filters.eq("_id", id));
+    }
+
+    public Future<Void> saveVariant(JsonObject variant) {
+        return upsert(VARIANTS, Filters.eq("_id", variant.getString("_id")), variant);
+    }
+
+    public Future<Void> deleteVariant(String id) {
+        final Promise<Void> promise = Promise.promise();
+        mongo.delete(VARIANTS, MongoQueryBuilder.build(Filters.eq("_id", id)),
+                res -> complete(promise, res.body(), "suppression de variante"));
+        return promise.future();
     }
 
     public Future<JsonArray> subscriptions(String packId) {

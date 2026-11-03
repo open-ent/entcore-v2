@@ -76,6 +76,17 @@ public class PackSharesTest {
     }
 
     @Test
+    public void les_editeurs_d_une_variante_recoivent_lecture_et_modification() {
+        final JsonArray shared = PackShares.compute(Collections.singletonMap("A", PackShares.TEACHERS), groups(), READ, null);
+        PackShares.withUsers(shared, Collections.singletonList("adml-A"),
+                Arrays.asList(READ.get(0), "net.atos.entng.wiki.controllers.WikiController|updatePage"));
+        assertEquals(2, shared.size());
+        final JsonObject editor = shared.getJsonObject(1);
+        assertEquals("adml-A", editor.getString("userId"));
+        assertTrue(editor.getBoolean("net-atos-entng-wiki-controllers-WikiController|updatePage"));
+    }
+
+    @Test
     public void un_document_de_pack_ne_peut_imposer_ni_auteur_ni_droits() {
         final JsonObject doc = new JsonObject().put("_id", "x").put("title", "T")
                 .put("owner", new JsonObject().put("userId", "super-admin"))

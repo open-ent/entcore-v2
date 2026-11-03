@@ -38,4 +38,27 @@ public interface PackResourceAdapter {
 
     /** Demande à l'application de réindexer ces ressources dans l'explorateur, s'il y a lieu. */
     Future<Void> reindex(PackOwner owner, Set<String> localIds);
+
+    /**
+     * Libellé du droit de modification ({@code wiki.contrib}) donné aux personnes qui éditent la
+     * variante d'un établissement, ou {@code null} si l'application n'a pas de variante par
+     * établissement.
+     */
+    default String editRight() {
+        return null;
+    }
+
+    /**
+     * Variante d'établissement : copie de la ressource, toujours au nom du compte technique, sans
+     * aucun accès. Rend l'identifiant local de la copie.
+     */
+    default Future<String> fork(PackOwner owner, String localId) {
+        return Future.failedFuture("[packs] " + serviceId() + " : pas de variante par établissement ; "
+                + "chaque enseignant peut copier la ressource dans son propre espace");
+    }
+
+    /** Supprime des ressources du compte technique (variantes abandonnées). */
+    default Future<Void> delete(PackOwner owner, Set<String> localIds) {
+        return Future.succeededFuture();
+    }
 }

@@ -153,7 +153,8 @@ public class PackController extends BaseController {
     @ResourceFilter(AdmlOfStructure.class)
     public void ofStructure(final HttpServerRequest request) {
         final String structureId = param(request, "structureId");
-        packs.store().packs().compose(all -> packs.store().subscriptionsOf(structureId).map(subscriptions -> {
+        packs.store().packs().compose(all -> packs.store().subscriptionsOf(structureId).compose(subscriptions ->
+                packs.store().variantsOf(structureId).map(variants -> {
             final JsonArray result = new JsonArray();
             for (Object o : all) {
                 final JsonObject pack = ((JsonObject) o).copy();
@@ -167,10 +168,19 @@ public class PackController extends BaseController {
                         pack.put("subscription", sub);
                     }
                 }
-                result.add(pack);
+                // Variantes de l'établissement, et celles dont le pack a changé de version depuis.
+                final JsonArray own = new JsonArray();
+                for (Object v : variants) {
+                    final JsonObject variant = ((JsonObject) v).copy();
+                    if (pack.getString("_id").equals(variant.getString("pack"))) {
+                        own.add(variant.put("updateAvailable",
+                                !String.valueOf(pack.getString("version")).equals(variant.getString("basedOnVersion"))));
+                    }
+                }
+                result.add(pack.put("variants", own));
             }
             return result;
-        })).onSuccess(result -> renderJson(request, new JsonObject().put("packs", result)))
+        }))).onSuccess(result -> renderJson(request, new JsonObject().put("packs", result)))
                 .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
     }
 
@@ -187,6 +197,32 @@ public class PackController extends BaseController {
                         .onSuccess(v -> renderJson(request, new JsonObject().put("pack", packId)
                                 .put("structure", structureId)))
                         .onFailure(error -> badRequest(request, error.getMessage()))));
+    }
+
+    /**
+     * Variante de l'établissement pour une ressource du pack. Corps : {@code {"globalId": …}}.
+     * L'ADML qui la demande en devient l'éditeur.
+     */
+    @Post("/packs/:packId/variants/:structureId")
+    @SecuredAction(value = "", type = ActionType.RESOURCE)
+    @ResourceFilter(AdmlOfStructure.class)
+    public void createVariant(final HttpServerRequest request) {
+        final String packId = param(request, "packId");
+        final String structureId = param(request, "structureId");
+        UserUtils.getUserInfos(eb, request, user -> RequestUtils.bodyToJson(request, body ->
+                packs.createVariant(packId, structureId, body.getString("globalId"), user.getUserId())
+                        .onSuccess(variant -> renderJson(request, variant, 201))
+                        .onFailure(error -> badRequest(request, error.getMessage()))));
+    }
+
+    /** Abandonne la variante ({@code ?globalId=…}) : l'établissement retrouve la ressource commune. */
+    @Delete("/packs/:packId/variants/:structureId")
+    @SecuredAction(value = "", type = ActionType.RESOURCE)
+    @ResourceFilter(AdmlOfStructure.class)
+    public void deleteVariant(final HttpServerRequest request) {
+        packs.deleteVariant(param(request, "packId"), param(request, "structureId"), request.params().get("globalId"))
+                .onSuccess(v -> noContent(request))
+                .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
     }
 
     @Delete("/packs/:packId/subscriptions/:structureId")

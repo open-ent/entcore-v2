@@ -75,6 +75,21 @@ public final class PackShares {
         }
     }
 
+    /**
+     * Ajoute des personnes nommées au tableau {@code shared} (éditeurs d'une variante
+     * d'établissement), avec les actions données. Rend le même tableau.
+     */
+    public static JsonArray withUsers(JsonArray shared, Collection<String> userIds, Collection<String> actions) {
+        for (String userId : userIds) {
+            final JsonObject entry = new JsonObject().put("userId", userId);
+            for (String action : actions) {
+                entry.put(shareKey(action), true);
+            }
+            shared.add(entry);
+        }
+        return shared;
+    }
+
     /** {@code net.atos.entng.wiki.controllers.WikiController|getWiki} → clé du tableau shared. */
     public static String shareKey(String action) {
         return action.replace('.', '-');

@@ -161,9 +161,9 @@ public class Interoperability extends BaseServer {
                                 org.entcore.common.neo4j.Neo4j.getInstance()),
                         org.entcore.interoperability.packs.PackOwner.fromConfig(config.getJsonObject("packs")))
                 .register(new org.entcore.interoperability.packs.ExplorerMongoPackAdapter(
-                        vertx, "wiki", "wiki", "wiki", "wiki", "wiki.read"))
+                        vertx, "wiki", "wiki", "wiki", "wiki", "wiki.read", "wiki.contrib"))
                 .register(new org.entcore.interoperability.packs.ExplorerMongoPackAdapter(
-                        vertx, "mindmap", "mindmap", "mindmap", "mindmap", "mindmap.read"))
+                        vertx, "mindmap", "mindmap", "mindmap", "mindmap", "mindmap.read", "mindmap.contrib"))
                 // Exercices : schéma SQL propre et catalogue filtré par établissement, géré par le
                 // module lui-même derrière exercizer.packs.
                 .register(new org.entcore.interoperability.packs.BusPackAdapter(
