@@ -180,8 +180,32 @@ public class PackController extends BaseController {
                 result.add(pack.put("variants", own));
             }
             return result;
-        }))).onSuccess(result -> renderJson(request, new JsonObject().put("packs", result)))
+        }))).compose(this::withResources)
+                .onSuccess(result -> renderJson(request, new JsonObject().put("packs", result)))
                 .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
+    }
+
+    /** Ajoute à chaque pack ses ressources (titre, service, identifiant global, énoncés). */
+    private Future<JsonArray> withResources(JsonArray packList) {
+        Future<Void> chain = Future.succeededFuture();
+        for (Object o : packList) {
+            final JsonObject pack = (JsonObject) o;
+            chain = chain.compose(v -> packs.store().resources(pack.getString("_id")).map(resources -> {
+                final JsonArray summary = new JsonArray();
+                for (Object r : resources) {
+                    final JsonObject resource = (JsonObject) r;
+                    summary.add(new JsonObject()
+                            .put("globalId", resource.getString("globalId"))
+                            .put("service", resource.getString("service"))
+                            .put("title", resource.getString("title"))
+                            .put("localId", resource.getString("localId"))
+                            .put("alignments", resource.getJsonArray("alignments", new JsonArray())));
+                }
+                pack.put("resources", summary);
+                return (Void) null;
+            }));
+        }
+        return chain.map(v -> packList);
     }
 
     /** Corps : {@code {"audience": "teachers" | "teachers+students"}}. */
