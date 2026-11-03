@@ -12,7 +12,8 @@ Dossier source :
                          {"key": "sequence", "service": "wiki", "title", "description",
                           "alignments": [{"item": <CFItem>, "code": "C2.MAT…"}],
                           "body": {"mediaType": "text/html", "content": "…"},   (facultatif)
-                          "document": {…document natif de l'application…}}
+                          "document": {…document natif de l'application…},
+                          "file": "fiches/x.pdf", "mediaType": "application/pdf"}  (binaire, facultatif)
 
 L'identifiant global d'une ressource est dérivé du pack et de sa clé : une nouvelle version du pack
 désigne donc la MÊME ressource, et l'installer la met à jour au lieu de la dupliquer.
@@ -70,12 +71,19 @@ def build(source, output):
             item["description"] = r["description"]
         item["language"] = pack.get("language", "fr")
         item["state"] = "published"
-        if r.get("body"):
+        if r.get("file"):
+            # Binaire (fiche PDF…) : copié dans le paquet, désigné par body.href et son empreinte.
+            data = open(os.path.join(source, r["file"]), "rb").read()
+            href = f"resources/{service}/content/{slug(r['key'])}/{os.path.basename(r['file'])}"
+            files[href] = data
+            item["body"] = {"mediaType": r.get("mediaType", "application/pdf"), "href": href, "sha256": sha256(data)}
+        elif r.get("body"):
             item["body"] = r["body"]
         if r.get("alignments"):
             item["alignments"] = [{k: v for k, v in a.items() if k in ("framework", "item", "code")}
                                   for a in r["alignments"]]
-        item["extensions"] = {service: r["document"]}
+        if r.get("document") is not None:
+            item["extensions"] = {service: r["document"]}
         items_by_service[service].append(item)
 
     services = []

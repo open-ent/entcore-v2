@@ -24,7 +24,8 @@ import java.util.List;
  *
  * <p>Correspondance avec le modèle OEIP : une ressource de {@code resources/<service>/*.json}
  * (jeu {@code resources}) devient une ressource du pack ; son document natif est
- * {@code extensions.<service>}, ses énoncés de référentiel {@code alignments[].item}.</p>
+ * {@code extensions.<service>}, son binaire éventuel {@code body.href} (fiche PDF de
+ * l'espace documentaire), ses énoncés de référentiel {@code alignments[].item}.</p>
  */
 public final class PackPackage {
 
@@ -64,17 +65,30 @@ public final class PackPackage {
             for (Object o : dataset.getJsonArray("items", new JsonArray())) {
                 final JsonObject item = (JsonObject) o;
                 final String service = item.getString("serviceId");
-                final JsonObject document = item.getJsonObject("extensions", new JsonObject()).getJsonObject(service);
-                if (document == null) {
+                final JsonObject nativeDocument = item.getJsonObject("extensions", new JsonObject()).getJsonObject(service);
+                final String href = item.getJsonObject("body", new JsonObject()).getString("href");
+                if (nativeDocument == null && href == null) {
                     warnings.add("ressource " + item.getString("globalId") + " sans document natif "
-                            + "(extensions." + service + ") : écartée");
+                            + "(extensions." + service + ") ni fichier (body.href) : écartée");
                     continue;
                 }
+                final JsonObject document = nativeDocument == null ? new JsonObject() : nativeDocument;
                 final JsonArray alignments = new JsonArray();
                 for (Object a : item.getJsonArray("alignments", new JsonArray())) {
                     alignments.add(((JsonObject) a).getString("item"));
                 }
-                resources.add(new JsonObject()
+                final JsonObject resource = new JsonObject();
+                if (href != null) {
+                    // Le binaire est couvert par le relevé de sommes : son intégrité est déjà vérifiée.
+                    final Path binary = root.resolve(href).normalize();
+                    if (!binary.startsWith(root)) {
+                        throw new PackException("chemin hors du paquet : " + href);
+                    }
+                    resource.put("file", binary.toString());
+                    document.put("contentType", document.getString("contentType",
+                            item.getJsonObject("body").getString("mediaType")));
+                }
+                resources.add(resource
                         .put("globalId", item.getString("globalId"))
                         .put("service", service)
                         .put("title", item.getString("title"))

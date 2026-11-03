@@ -167,7 +167,9 @@ public class Interoperability extends BaseServer {
                 // Exercices : schéma SQL propre et catalogue filtré par établissement, géré par le
                 // module lui-même derrière exercizer.packs.
                 .register(new org.entcore.interoperability.packs.BusPackAdapter(
-                        vertx.eventBus(), "exercizer", "exercizer.packs"));
+                        vertx.eventBus(), "exercizer", "exercizer.packs"))
+                // Fiches à imprimer et à déposer dans les casiers : fichiers de l'espace documentaire.
+                .register(new org.entcore.interoperability.packs.WorkspacePackAdapter(vertx, storage));
         addController(new org.entcore.interoperability.controllers.PackController(packs,
                 new org.entcore.interoperability.schema.OeipValidator(
                         new OeipSchemaRegistry(org.entcore.interoperability.OeipFormat.VERSION_1_1)),
