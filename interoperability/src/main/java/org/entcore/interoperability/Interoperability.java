@@ -163,7 +163,11 @@ public class Interoperability extends BaseServer {
                 .register(new org.entcore.interoperability.packs.ExplorerMongoPackAdapter(
                         vertx, "wiki", "wiki", "wiki", "wiki", "wiki.read"))
                 .register(new org.entcore.interoperability.packs.ExplorerMongoPackAdapter(
-                        vertx, "mindmap", "mindmap", "mindmap", "mindmap", "mindmap.read"));
+                        vertx, "mindmap", "mindmap", "mindmap", "mindmap", "mindmap.read"))
+                // Exercices : schéma SQL propre et catalogue filtré par établissement, géré par le
+                // module lui-même derrière exercizer.packs.
+                .register(new org.entcore.interoperability.packs.BusPackAdapter(
+                        vertx.eventBus(), "exercizer", "exercizer.packs"));
         addController(new org.entcore.interoperability.controllers.PackController(packs,
                 new org.entcore.interoperability.schema.OeipValidator(
                         new OeipSchemaRegistry(org.entcore.interoperability.OeipFormat.VERSION_1_1)),

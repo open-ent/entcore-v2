@@ -316,6 +316,23 @@
         },
         "license": {
           "type": "string"
+        },
+        "offer": {
+          "type": "object",
+          "description": "Abonnement offert à tous les établissements, créé à la première installation du pack (un retrait ultérieur est respecté). Absent : le pack n'est visible que des établissements qui s'y abonnent.",
+          "properties": {
+            "audience": {
+              "type": "string",
+              "enum": [
+                "teachers",
+                "teachers+students"
+              ]
+            }
+          },
+          "required": [
+            "audience"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

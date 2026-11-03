@@ -54,8 +54,8 @@ public class ExplorerMongoPackAdapter implements PackResourceAdapter {
     public String readRight() { return readRight; }
 
     @Override
-    public Future<String> create(PackOwner owner, JsonObject document) {
-        final JsonObject json = withoutLocalFields(document).put("shared", new JsonArray());
+    public Future<String> create(PackOwner owner, JsonObject resource) {
+        final JsonObject json = withoutLocalFields(resource.getJsonObject("document")).put("shared", new JsonArray());
         return client.createAll(owner.asUser(), Collections.singletonList(json), false)
                 .compose(ids -> ids.isEmpty()
                         ? Future.<String>failedFuture("[packs] " + serviceId + " : création refusée par l'application")
@@ -63,18 +63,20 @@ public class ExplorerMongoPackAdapter implements PackResourceAdapter {
     }
 
     @Override
-    public Future<Void> update(PackOwner owner, String localId, JsonObject document) {
-        final JsonObject set = withoutLocalFields(document).put("version", System.currentTimeMillis());
+    public Future<Void> update(PackOwner owner, String localId, JsonObject resource) {
+        final JsonObject set = withoutLocalFields(resource.getJsonObject("document"))
+                .put("version", System.currentTimeMillis());
         return write(Filters.eq("_id", localId), set)
                 .compose(v -> reindex(owner, Collections.singleton(localId)));
     }
 
     @Override
-    public Future<Void> setShared(Set<String> localIds, JsonArray shared) {
+    public Future<Void> setAccess(Set<String> localIds, PackAccess access) {
         if (localIds.isEmpty()) {
             return Future.succeededFuture();
         }
-        final JsonObject set = new JsonObject().put("shared", shared).put("version", System.currentTimeMillis());
+        final JsonObject set = new JsonObject().put("shared", access.shared())
+                .put("version", System.currentTimeMillis());
         return write(Filters.in("_id", new ArrayList<String>(localIds)), set);
     }
 

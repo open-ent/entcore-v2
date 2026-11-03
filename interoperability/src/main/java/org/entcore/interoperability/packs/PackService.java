@@ -31,6 +31,19 @@ import java.util.Set;
  */
 public class PackService {
 
+    /** Abonnements d'un pack : explicites, offert à tous, et leur extension aux établissements. */
+    private static final class Subscriptions {
+        final Map<String, String> explicit;
+        final String everyone;
+        final Map<String, String> expanded;
+
+        Subscriptions(Map<String, String> explicit, String everyone, Map<String, String> expanded) {
+            this.explicit = explicit;
+            this.everyone = everyone;
+            this.expanded = expanded;
+        }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(PackService.class);
 
     private final PackStore store;
@@ -92,8 +105,36 @@ public class PackService {
                     }
                     return chain;
                 })
+                .compose(v -> offerOnFirstInstall(packId, pack, installedBy))
                 .compose(v -> recomputeShares(packId))
                 .map(v -> report);
+    }
+
+    /**
+     * Abonnement offert à tous, quand le pack le déclare ({@code pack.offer.audience}) — c'est ainsi
+     * que le catalogue d'exercices reste ouvert à tous les établissements. Créé à la PREMIÈRE
+     * installation seulement : un super administrateur qui l'a retiré ne le voit pas revenir avec
+     * la version suivante du pack.
+     */
+    private Future<Void> offerOnFirstInstall(String packId, JsonObject pack, String by) {
+        final String audience = pack.getJsonObject("offer", new JsonObject()).getString("audience");
+        if (audience == null) {
+            return Future.succeededFuture();
+        }
+        return store.pack(packId).compose(saved -> {
+            if (saved != null && saved.getBoolean("offerApplied", false)) {
+                return Future.<Void>succeededFuture();
+            }
+            return store.saveSubscription(new JsonObject()
+                            .put("_id", PackStore.key(packId, PackStore.EVERY_STRUCTURE))
+                            .put("pack", packId)
+                            .put("structure", PackStore.EVERY_STRUCTURE)
+                            .put("audience", audience)
+                            .put("offered", true)
+                            .put("by", by)
+                            .put("at", System.currentTimeMillis()))
+                    .compose(v -> store.savePack(new JsonObject().put("_id", packId).put("offerApplied", true)));
+        });
     }
 
     private Future<Void> installOne(String packId, String version, JsonObject resource, JsonObject installed,
@@ -106,10 +147,9 @@ public class PackService {
                     .put("reason", adapter == null ? "service sans adaptateur de pack" : "identifiant global absent"));
             return Future.succeededFuture();
         }
-        final JsonObject document = resource.getJsonObject("document", new JsonObject());
         final Future<String> localId = installed != null
-                ? adapter.update(owner, installed.getString("localId"), document).map(v -> installed.getString("localId"))
-                : adapter.create(owner, document);
+                ? adapter.update(owner, installed.getString("localId"), resource).map(v -> installed.getString("localId"))
+                : adapter.create(owner, resource);
         return localId.compose(id -> {
             report.getJsonArray(installed != null ? "updated" : "created").add(globalId);
             return store.saveResource(new JsonObject()
@@ -172,6 +212,7 @@ public class PackService {
                 }
             }
             final String offeredAudience = everyone;
+            final Map<String, String> explicit = new LinkedHashMap<String, String>(audiences);
             final Future<List<String>> schools = offeredAudience == null
                     ? Future.succeededFuture(Collections.<String>emptyList()) : directory.schools();
             return schools.map(ids -> {
@@ -180,9 +221,9 @@ public class PackService {
                         audiences.put(id, offeredAudience);
                     }
                 }
-                return audiences;
+                return new Subscriptions(explicit, offeredAudience, audiences);
             });
-        }).compose(audiences -> directory.profileGroups(audiences.keySet()).compose(groups ->
+        }).compose(subs -> directory.profileGroups(subs.expanded.keySet()).compose(groups ->
                 store.resources(packId).compose(resources -> {
                     final Map<String, Set<String>> idsByService = new LinkedHashMap<String, Set<String>>();
                     for (Object o : resources) {
@@ -200,9 +241,14 @@ public class PackService {
                         if (adapter == null) {
                             continue;
                         }
-                        chain = chain.compose(v -> directory.actions(adapter.readRight())
-                                .compose(actions -> adapter.setShared(entry.getValue(),
-                                        PackShares.compute(audiences, groups, new ArrayList<String>(actions), null)))
+                        final Future<List<String>> actions = adapter.readRight() == null
+                                ? Future.succeededFuture(Collections.<String>emptyList())
+                                : directory.actions(adapter.readRight());
+                        chain = chain.compose(v -> actions
+                                .compose(names -> adapter.setAccess(entry.getValue(), new PackAccess(
+                                        names.isEmpty() ? new JsonArray()
+                                                : PackShares.compute(subs.expanded, groups, new ArrayList<String>(names), null),
+                                        subs.explicit, subs.everyone)))
                                 .compose(w -> adapter.reindex(owner, entry.getValue())));
                     }
                     return chain;
