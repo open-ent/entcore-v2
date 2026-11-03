@@ -34,6 +34,19 @@ public class PackController extends BaseController {
         this.packs = packs;
     }
 
+    /**
+     * Paramètre de chemin décodé : un identifiant de pack est une URN ({@code urn:openent:pack:…}),
+     * qu'un client peut envoyer encodée ; le routeur, lui, ne décode pas.
+     */
+    private static String param(HttpServerRequest request, String name) {
+        final String raw = request.params().get(name);
+        try {
+            return raw == null ? null : java.net.URLDecoder.decode(raw, "UTF-8");
+        } catch (java.io.UnsupportedEncodingException e) {
+            return raw;
+        }
+    }
+
     @Post("/packs/install")
     @SecuredAction(value = "", type = ActionType.RESOURCE)
     @ResourceFilter(SuperAdminFilter.class)
@@ -57,7 +70,7 @@ public class PackController extends BaseController {
     @SecuredAction(value = "", type = ActionType.RESOURCE)
     @ResourceFilter(SuperAdminFilter.class)
     public void get(final HttpServerRequest request) {
-        final String packId = request.params().get("packId");
+        final String packId = param(request, "packId");
         packs.store().pack(packId).compose(pack -> pack == null
                 ? Future.<JsonObject>succeededFuture(null)
                 : packs.store().resources(packId).compose(resources -> packs.store().subscriptions(packId)
@@ -78,7 +91,7 @@ public class PackController extends BaseController {
     @SecuredAction(value = "", type = ActionType.RESOURCE)
     @ResourceFilter(AdmlOfStructure.class)
     public void ofStructure(final HttpServerRequest request) {
-        final String structureId = request.params().get("structureId");
+        final String structureId = param(request, "structureId");
         packs.store().packs().compose(all -> packs.store().subscriptionsOf(structureId).map(subscriptions -> {
             final JsonArray result = new JsonArray();
             for (Object o : all) {
@@ -105,8 +118,8 @@ public class PackController extends BaseController {
     @SecuredAction(value = "", type = ActionType.RESOURCE)
     @ResourceFilter(AdmlOfStructure.class)
     public void subscribe(final HttpServerRequest request) {
-        final String packId = request.params().get("packId");
-        final String structureId = request.params().get("structureId");
+        final String packId = param(request, "packId");
+        final String structureId = param(request, "structureId");
         UserUtils.getUserInfos(eb, request, user -> RequestUtils.bodyToJson(request, body ->
                 packs.subscribe(packId, structureId, body.getString("audience", PackShares.TEACHERS),
                                 PackStore.EVERY_STRUCTURE.equals(structureId), user.getUserId())
@@ -119,7 +132,7 @@ public class PackController extends BaseController {
     @SecuredAction(value = "", type = ActionType.RESOURCE)
     @ResourceFilter(AdmlOfStructure.class)
     public void unsubscribe(final HttpServerRequest request) {
-        packs.unsubscribe(request.params().get("packId"), request.params().get("structureId"))
+        packs.unsubscribe(param(request, "packId"), param(request, "structureId"))
                 .onSuccess(v -> noContent(request))
                 .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
     }
