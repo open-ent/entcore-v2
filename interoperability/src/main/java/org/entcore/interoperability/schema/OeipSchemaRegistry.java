@@ -37,10 +37,20 @@ public class OeipSchemaRegistry {
     private final Map<String, String> rawByFileName = new LinkedHashMap<>();
     private final JsonSchemaFactory factory;
     private final String bundleSha256;
+    private final String version;
 
     public OeipSchemaRegistry() {
-        for (String name : OeipFormat.SCHEMA_FILES) {
-            String path = OeipFormat.SCHEMA_CLASSPATH_DIR + "/" + name;
+        this(OeipFormat.VERSION);
+    }
+
+    /** Lot de schémas d'une version donnée du format ({@link OeipFormat#READABLE_VERSIONS}). */
+    public OeipSchemaRegistry(String version) {
+        if (!OeipFormat.READABLE_VERSIONS.contains(version)) {
+            throw new IllegalArgumentException("Version OEIP non prise en charge : " + version);
+        }
+        this.version = version;
+        for (String name : OeipFormat.schemaFiles(version)) {
+            String path = OeipFormat.schemaClasspathDir(version) + "/" + name;
             String content = readClasspath(path);
             if (content == null) {
                 throw new IllegalStateException("Schéma OEIP introuvable dans le classpath : " + path);
@@ -81,7 +91,7 @@ public class OeipSchemaRegistry {
         List<String> lines = new ArrayList<>();
         for (Map.Entry<String, String> e : rawByFileName.entrySet()) {
             String sha = sha256(e.getValue().getBytes(StandardCharsets.UTF_8));
-            lines.add(sha + "  " + OeipFormat.SCHEMA_PACKAGE_DIR + "/" + e.getKey());
+            lines.add(sha + "  " + OeipFormat.schemaPackageDir(version) + "/" + e.getKey());
         }
         Collections.sort(lines);
         StringBuilder sb = new StringBuilder();
@@ -89,6 +99,10 @@ public class OeipSchemaRegistry {
             sb.append(l).append('\n');
         }
         return sha256(sb.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    public String getVersion() {
+        return version;
     }
 
     public String getBundleSha256() {
@@ -105,8 +119,8 @@ public class OeipSchemaRegistry {
 
     public JsonObject index() {
         JsonObject json = new JsonObject()
-                .put("oeipVersion", OeipFormat.VERSION)
-                .put("baseUri", OeipFormat.SCHEMA_BASE_URI)
+                .put("oeipVersion", version)
+                .put("baseUri", OeipFormat.schemaBaseUri(version))
                 .put("bundleSha256", bundleSha256);
         io.vertx.core.json.JsonArray names = new io.vertx.core.json.JsonArray();
         for (String n : rawByFileName.keySet()) {
@@ -125,7 +139,7 @@ public class OeipSchemaRegistry {
         // résolues, et donc interceptées par le fetcher classpath.
         try {
             JsonNode node = MAPPER.readTree(raw);
-            return factory.getSchema(URI.create(OeipFormat.SCHEMA_BASE_URI + fileName), node);
+            return factory.getSchema(URI.create(OeipFormat.schemaBaseUri(version) + fileName), node);
         } catch (java.io.IOException e) {
             throw new IllegalStateException("Schéma OEIP illisible : " + fileName, e);
         }

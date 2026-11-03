@@ -75,6 +75,13 @@ public class OeipValidator {
     }
 
     /** Choisit le schéma applicable d'après l'emplacement du fichier dans le paquet. */
+    /** Schéma d'un fichier du paquet dans la version de format donnée. */
+    public static String schemaFor(String packagePath, String version) {
+        final String name = schemaFor(packagePath);
+        return name == null || OeipFormat.VERSION.equals(version)
+                ? name : name.replace("-" + OeipFormat.VERSION + ".", "-" + version + ".");
+    }
+
     public static String schemaFor(String packagePath) {
         if (OeipFormat.MANIFEST.equals(packagePath)) {
             return OeipFormat.SCHEMA_MANIFEST;

@@ -67,4 +67,48 @@ public final class OeipFormat {
     public static final String FIDELITY_PARTIAL = "partial";
     public static final String FIDELITY_NATIVE_ONLY = "native-only";
     public static final String FIDELITY_NONE = "none";
+
+    // ------------------------------------------------------------------ versions
+
+    /**
+     * Versions du format que ce module sait LIRE. Il n'écrit en 1.1 que les packs : un export de
+     * compte reste en 1.0, lisible par tout destinataire qui ne connaît que 1.0.
+     *
+     * <p>1.1 = 1.0 + profil « pack » (manifeste) + {@code alignments} (ressources). Changements
+     * purement additifs : un lecteur 1.1 lit aussi bien un paquet 1.0.</p>
+     */
+    public static final String VERSION_1_1 = "1.1";
+    public static final List<String> READABLE_VERSIONS =
+            Collections.unmodifiableList(Arrays.asList(VERSION, VERSION_1_1));
+
+    /** Profil d'un paquet de ressources pédagogiques communes (OEIP 1.1). */
+    public static final String PROFILE_PACK = "pack";
+
+    /** Nom d'un schéma du lot pour une version : {@code schemaName("resource", "1.1")}. */
+    public static String schemaName(String kind, String version) {
+        return kind + "-" + version + ".schema.json";
+    }
+
+    public static List<String> schemaFiles(String version) {
+        if (VERSION.equals(version)) {
+            return SCHEMA_FILES;
+        }
+        final List<String> files = new java.util.ArrayList<String>();
+        for (String name : SCHEMA_FILES) {
+            files.add(name.replace("-" + VERSION + ".", "-" + version + "."));
+        }
+        return Collections.unmodifiableList(files);
+    }
+
+    public static String schemaClasspathDir(String version) {
+        return "oeip/schemas/" + version;
+    }
+
+    public static String schemaPackageDir(String version) {
+        return "schemas/" + version;
+    }
+
+    public static String schemaBaseUri(String version) {
+        return "https://open-ent.fr/oeip/" + version + "/";
+    }
 }

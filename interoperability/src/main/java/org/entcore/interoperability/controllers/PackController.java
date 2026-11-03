@@ -16,7 +16,14 @@ import org.entcore.common.http.filter.AdmlOfStructure;
 import org.entcore.common.http.filter.ResourceFilter;
 import org.entcore.common.http.filter.SuperAdminFilter;
 import org.entcore.common.user.UserUtils;
+import io.vertx.core.file.OpenOptions;
+import org.entcore.interoperability.OeipFormat;
+import org.entcore.interoperability.packaging.OeipPackageReader;
+import org.entcore.interoperability.packs.PackPackage;
 import org.entcore.interoperability.packs.PackService;
+import org.entcore.interoperability.schema.OeipValidator;
+
+import java.nio.file.Path;
 import org.entcore.interoperability.packs.PackShares;
 import org.entcore.interoperability.packs.PackStore;
 
@@ -29,10 +36,64 @@ import org.entcore.interoperability.packs.PackStore;
 public class PackController extends BaseController {
 
     private final PackService packs;
+    private final OeipValidator validator;
+    private final Path workDir;
 
-    public PackController(PackService packs) {
+    public PackController(PackService packs, OeipValidator validator, Path workDir) {
         this.packs = packs;
+        this.validator = validator;
+        this.workDir = workDir;
     }
+
+    /**
+     * Installe un pack reçu comme fichier {@code .oeip} (OEIP 1.1, profil « pack »).
+     * Le paquet est refusé en entier s'il est altéré ou non conforme ; rien n'est alors installé.
+     */
+    @Post("/packs/import")
+    @SecuredAction(value = "", type = ActionType.RESOURCE)
+    @ResourceFilter(SuperAdminFilter.class)
+    public void importPackage(final HttpServerRequest request) {
+        UserUtils.getUserInfos(eb, request, user -> {
+            final Path dir = workDir.resolve("packs").resolve(java.util.UUID.randomUUID().toString());
+            final Path file = dir.resolve("pack" + OeipFormat.EXTENSION);
+            request.pause();
+            request.setExpectMultipart(true);
+            vertx.fileSystem().mkdirs(dir.toString(), mk -> {
+                if (mk.failed()) {
+                    renderError(request, new JsonObject().put("error", String.valueOf(mk.cause())));
+                    return;
+                }
+                vertx.fileSystem().open(file.toString(), new OpenOptions(), opened -> {
+                    if (opened.failed()) {
+                        renderError(request, new JsonObject().put("error", String.valueOf(opened.cause())));
+                        return;
+                    }
+                    request.uploadHandler(upload -> upload.pipeTo(opened.result()));
+                    request.endHandler(v -> vertx.<JsonObject>executeBlocking(blocking -> {
+                        try {
+                            blocking.complete(PackPackage.read(
+                                    OeipPackageReader.open(file, dir.resolve("unzipped"), MAX_UNCOMPRESSED), validator));
+                        } catch (Exception e) {
+                            blocking.fail(e);
+                        }
+                    }, false).compose(descriptor -> packs.install(descriptor, user.getUserId())
+                            .map(report -> report.put("warnings", descriptor.getJsonArray("warnings"))))
+                            .onComplete(done -> {
+                                vertx.fileSystem().deleteRecursive(dir.toString(), true, cleaned -> {});
+                                if (done.succeeded()) {
+                                    renderJson(request, done.result(), 201);
+                                } else {
+                                    badRequest(request, done.cause().getMessage());
+                                }
+                            }));
+                    request.resume();
+                });
+            });
+        });
+    }
+
+    /** Plafond de décompression d'un pack : bien au-delà d'une séquence avec ses fiches PDF. */
+    private static final long MAX_UNCOMPRESSED = 2L * 1024 * 1024 * 1024;
 
     /**
      * Paramètre de chemin décodé : un identifiant de pack est une URN ({@code urn:openent:pack:…}),
