@@ -336,7 +336,7 @@ public class DefaultUserBookService implements UserBookService {
 		final boolean updateUserBook = userbook.size() > 0;
 		if (updateUserBook) {
 			final StringBuilder query = new StringBuilder("MATCH (u:`User` { id : $id})-[:USERBOOK]->(ub:UserBook) ");
-			query.append(" WITH ub.picture as oldpic,ub,u SET " + org.entcore.directory.utils.CypherSet.set("ub", userbook));
+			query.append(" WITH ub.picture as oldpic,ub,u SET " + org.entcore.common.neo4j.Neo4jUtils.nodeSetPropertiesFromJson("ub", userbook));
 			query.append(" RETURN oldpic,ub.picture as picture");
 			queries.add(query.toString(), userbook.put("id", userId));
 		}
