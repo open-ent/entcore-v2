@@ -152,6 +152,20 @@ public class Interoperability extends BaseServer {
         addController(new OeipExportController(exportService, eventStore));
         addController(new OeipImportController(importService, eventStore));
 
+        // Packs pédagogiques : ressources communes installées une fois, au nom d'un compte
+        // technique, et partagées avec les établissements abonnés (cf. packs/PackService).
+        final org.entcore.interoperability.packs.PackService packs =
+                new org.entcore.interoperability.packs.PackService(
+                        new org.entcore.interoperability.packs.PackStore(),
+                        new org.entcore.interoperability.packs.PackDirectory(
+                                org.entcore.common.neo4j.Neo4j.getInstance()),
+                        org.entcore.interoperability.packs.PackOwner.fromConfig(config.getJsonObject("packs")))
+                .register(new org.entcore.interoperability.packs.ExplorerMongoPackAdapter(
+                        vertx, "wiki", "wiki", "wiki", "wiki", "wiki.read"))
+                .register(new org.entcore.interoperability.packs.ExplorerMongoPackAdapter(
+                        vertx, "mindmap", "mindmap", "mindmap", "mindmap", "mindmap.read"));
+        addController(new org.entcore.interoperability.controllers.PackController(packs));
+
         log.info("[OEIP] Module d'interopérabilité démarré — format " + OeipFormat.VERSION
                 + ", lot de schémas " + schemas.getBundleSha256().substring(0, 12)
                 + ", " + registry.size() + " mapper(s) sémantique(s), niveau Native actif"
