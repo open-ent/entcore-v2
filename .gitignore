@@ -24,6 +24,8 @@ mods
 */mods
 **/temp
 **/dist
+# Bundles ?ui=react copiés depuis <module>/frontend*/dist par le CI
+**/src/main/resources/public/react/
 **/ts/entcore
 **/template/entcore
 developer.id
@@ -92,6 +94,8 @@ conversation/src/main/resources/view/
 *.tsbuildinfo
 # Ignore package.json in "frontend" folders (where a template exists)
 **/frontend/package.json
+# … sauf les fronts ?ui=react sans gabarit (package.json versionné tel quel)
+!directory/frontend/package.json
 **/frontend/scripts/get-tokens/config.json
 
 # Ignore resources files in "backend/public" folders

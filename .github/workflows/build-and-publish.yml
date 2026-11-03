@@ -232,6 +232,25 @@ jobs:
           test -f "$DST/view/index.html" || { echo "::error::conversation view/index.html manquant après build"; exit 1; }
           test -n "$(ls "$DST"/public/index-*.js 2>/dev/null)" || { echo "::error::bundle public/index-*.js manquant"; exit 1; }
 
+      - name: Build React frontends ?ui=react (directory, timeline)
+        # Les vues *-react.html (mon-compte, annuaire, historique, préférences) chargent un
+        # bundle IIFE unique /<module>/public/react/<module>.js produit par Vite. Sans cette
+        # étape le jar ne l'embarque pas : la vue répond 200 mais la page reste blanche
+        # (script en 404) — /userbook/mon-compte?ui=react le 2026-11-03.
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.OPENENT_PACKAGES_TOKEN }}
+        run: |
+          corepack enable || true
+          for spec in directory:frontend:directory timeline:frontend-account:timeline; do
+            IFS=: read -r mod dir entry <<< "$spec"
+            (cd "$mod/$dir" && pnpm install --no-frozen-lockfile && pnpm build)
+            DST="$mod/src/main/resources/public/react"
+            rm -rf "$DST" && mkdir -p "$DST"
+            cp -R "$mod/$dir/dist/." "$DST/"
+            rm -f "$DST/index.html"
+            test -f "$DST/$entry.js" || { echo "::error::${mod} : bundle public/react/${entry}.js manquant"; exit 1; }
+          done
+
       - name: Build admin Angular frontend
         # L'admin (/admin) est une app Angular MODERNE (admin/src/main/ts). Sans build,
         # le fat-mod ne contient NI public/dist NI view/admin.html -> renderView casse
