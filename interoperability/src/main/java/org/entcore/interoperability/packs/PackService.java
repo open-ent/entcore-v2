@@ -79,7 +79,8 @@ public class PackService {
             return Future.failedFuture("[packs] descripteur sans identifiant de pack");
         }
         final JsonObject report = new JsonObject().put("pack", packId).put("version", pack.getString("version"))
-                .put("created", new JsonArray()).put("updated", new JsonArray()).put("refused", new JsonArray());
+                .put("created", new JsonArray()).put("adopted", new JsonArray()).put("updated", new JsonArray())
+                .put("refused", new JsonArray());
         final long now = System.currentTimeMillis();
         return store.savePack(new JsonObject()
                         .put("_id", packId)
@@ -147,11 +148,16 @@ public class PackService {
                     .put("reason", adapter == null ? "service sans adaptateur de pack" : "identifiant global absent"));
             return Future.succeededFuture();
         }
-        final Future<String> localId = installed != null
-                ? adapter.update(owner, installed.getString("localId"), resource).map(v -> installed.getString("localId"))
-                : adapter.create(owner, resource);
-        return localId.compose(id -> {
-            report.getJsonArray(installed != null ? "updated" : "created").add(globalId);
+        // Une ressource déjà là (réinstallation, ou reprise par l'application d'un contenu d'avant
+        // le pack) n'est pas « créée » : le rapport le distingue.
+        final Future<JsonObject> outcome = installed != null
+                ? adapter.update(owner, installed.getString("localId"), resource)
+                        .map(v -> new JsonObject().put("id", installed.getString("localId")).put("bucket", "updated"))
+                : adapter.createOrAdopt(owner, resource).map(r -> new JsonObject().put("id", r.getString("id"))
+                        .put("bucket", r.getBoolean("adopted", false) ? "adopted" : "created"));
+        return outcome.compose(result -> {
+            final String id = result.getString("id");
+            report.getJsonArray(result.getString("bucket")).add(globalId);
             return store.saveResource(new JsonObject()
                     .put("_id", PackStore.key(packId, globalId))
                     .put("pack", packId)

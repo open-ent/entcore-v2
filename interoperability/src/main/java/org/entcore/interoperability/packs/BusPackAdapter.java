@@ -48,6 +48,14 @@ public class BusPackAdapter implements PackResourceAdapter {
         return install(owner, null, resource);
     }
 
+    /** L'application répond {@code created: false} quand elle a repris une ressource existante. */
+    @Override
+    public Future<JsonObject> createOrAdopt(PackOwner owner, JsonObject resource) {
+        return send(installMessage(owner, null, resource)).map(body -> new JsonObject()
+                .put("id", String.valueOf(body.getValue("id")))
+                .put("adopted", Boolean.FALSE.equals(body.getBoolean("created"))));
+    }
+
     @Override
     public Future<Void> update(PackOwner owner, String localId, JsonObject resource) {
         return install(owner, localId, resource).mapEmpty();
@@ -69,14 +77,17 @@ public class BusPackAdapter implements PackResourceAdapter {
     }
 
     private Future<String> install(PackOwner owner, String localId, JsonObject resource) {
-        return send(new JsonObject().put("action", "install")
+        return send(installMessage(owner, localId, resource)).map(body -> String.valueOf(body.getValue("id")));
+    }
+
+    private JsonObject installMessage(PackOwner owner, String localId, JsonObject resource) {
+        return new JsonObject().put("action", "install")
                 .put("globalId", resource.getString("globalId"))
                 .put("localId", localId)
                 .put("owner", new JsonObject().put("id", owner.getId()).put("name", owner.getName()))
                 .put("title", resource.getString("title"))
                 .put("alignments", resource.getJsonArray("alignments", new JsonArray()))
-                .put("document", resource.getJsonObject("document", new JsonObject())))
-                .map(body -> String.valueOf(body.getValue("id")));
+                .put("document", resource.getJsonObject("document", new JsonObject()));
     }
 
     private Future<JsonObject> send(JsonObject message) {

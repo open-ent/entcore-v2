@@ -30,6 +30,15 @@ public interface PackResourceAdapter {
     /** Crée la ressource au nom du compte technique, sans aucun accès. Rend l'identifiant local. */
     Future<String> create(PackOwner owner, JsonObject resource);
 
+    /**
+     * Comme {@link #create}, mais dit si l'application a REPRIS une ressource qui existait avant le
+     * pack (sujet du catalogue d'exercices de même titre, par exemple) au lieu d'en créer une :
+     * {@code {id, adopted}}. Par défaut, rien n'est repris.
+     */
+    default Future<JsonObject> createOrAdopt(PackOwner owner, JsonObject resource) {
+        return create(owner, resource).map(id -> new JsonObject().put("id", id).put("adopted", false));
+    }
+
     /** Remplace le contenu d'une ressource déjà installée ; son accès n'est pas touché. */
     Future<Void> update(PackOwner owner, String localId, JsonObject resource);
 
