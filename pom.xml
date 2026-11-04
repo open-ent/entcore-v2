@@ -220,6 +220,19 @@
 
     <build>
         <plugins>
+            <!-- Depuis le JDK 23, javac n'exécute plus les processeurs d'annotations trouvés sur le
+                 classpath : sans `-proc:full`, le build reste vert mais les jars partent sans
+                 securedaction/, routes/ ni swagger/ (404 sur chaque route sécurisée). Posé ici, au
+                 niveau du réacteur, il vaut pour tous les sous-modules. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <compilerArgs>
+                        <arg>-proc:full</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
             <plugin> <!-- Plugin enabling parent pom version to be resolved when building any submodule alone -->
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>

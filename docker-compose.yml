@@ -1,6 +1,6 @@
 services:
   maven:
-    image: maven:3.9-eclipse-temurin-21
+    image: maven:3.9-eclipse-temurin-25
     user: "$DEFAULT_DOCKER_USER"
     working_dir: /usr/src/maven
     volumes:
@@ -10,7 +10,7 @@ services:
       MAVEN_CONFIG: /var/maven/.m2
 
   node:
-    image: opendigitaleducation/node:20-alpine-pnpm
+    image: node:26 # Debian : git requis par les dépendances npm en URL git (generic-icons)
     working_dir: /home/node/app
     volumes:
       - ./:/home/node/app
@@ -19,7 +19,7 @@ services:
       - ../infra-front:/home/node/infra-front
 
   node16:
-    image: opendigitaleducation/node:16-alpine-pnpm
+    image: node:26 # Angular 14 : se construit sous Node 26 sans --openssl-legacy-provider
     working_dir: /home/node/app
     volumes:
       - ./admin/src/main/ts:/home/node/app
@@ -44,7 +44,7 @@ services:
       DEFAULT_PASSWORD: password
       RECREATE_STRUCTURES: false # Set to 'true' if you want to run the tests on brand new structures
   node22:
-    image: opendigitaleducation/node:22-alpine-pnpm
+    image: node:26
     working_dir: /home/node/app
     volumes:
       - ./broker-parent/broker-client/nest:/home/node/app

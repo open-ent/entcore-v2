@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/setup-java@v6
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: temurin
           cache: maven
           server-id: github
@@ -178,6 +178,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v7
+        with:
+          node-version: 26
 
       - name: Build frontends gulp (archive, auth, directory, timeline, workspace)
         # Ces 5 modules ont un frontend GÉNÉRÉ, pas versionné :
@@ -188,7 +190,8 @@ jobs:
         # fat-jars amputés : renderView() ne trouve plus son template et la page casse SANS
         # aucune stack dans le launcher (panne muette). C'est ce qui a cassé /userbook/mon-compte
         # (directory), l'écran de sauvegarde (archive) et les vues timeline le 2026-08-10.
-        # Équivalent CI de `build.sh buildNode` (image opendigitaleducation/node:20-alpine-pnpm).
+        # Équivalent CI de `build.sh buildNode` (Node 26 ; gulp 5, webpack 1.x de webpack-stream
+        # appelé en direct par le gulpfile).
         run: |
           npm install --legacy-peer-deps
           node_modules/gulp/bin/gulp.js build
@@ -209,8 +212,8 @@ jobs:
           # le GITHUB_TOKEN par défaut (scope repo) renvoie 403, il faut un PAT org (read:packages).
           NODE_AUTH_TOKEN: ${{ secrets.OPENENT_PACKAGES_TOKEN }}
         run: |
-          corepack enable || true
-          corepack prepare pnpm@8.6.6 --activate
+          # Node ≥ 25 n'embarque plus corepack : pnpm s'installe explicitement (packageManager).
+          npm i -g pnpm@8.6.6
           cd conversation/frontend
           # package.json est généré depuis package.json.template (cf. build.sh init).
           # Sans manifeste, pnpm remonte à la racine entcore-v2 et n'installe pas vite.
@@ -240,7 +243,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.OPENENT_PACKAGES_TOKEN }}
         run: |
-          corepack enable || true
+          # packageManager de ces trois sous-projets : pnpm@9.12.2 (pas de corepack sous Node 26).
+          npm i -g pnpm@9.12.2
           for spec in directory:frontend:directory timeline:frontend-account:timeline workspace:frontend:workspace; do
             IFS=: read -r mod dir entry <<< "$spec"
             (cd "$mod/$dir" && pnpm install --no-frozen-lockfile && pnpm build)
@@ -259,9 +263,8 @@ jobs:
         # npm run build-prod = `ng build --prod && gulp build` : gulp copie dist ->
         # src/main/resources/public/dist et renomme index.html -> view/admin.html (packagé
         # par mvn). Deps 100% publiques (aucun @open-ent/@edifice) -> pas de token requis.
-        env:
-          # Angular 14 (webpack 5) sur Node 20 : évite ERR_OSSL_EVP_UNSUPPORTED.
-          NODE_OPTIONS: --openssl-legacy-provider
+        # Angular 14 se construit tel quel sous Node 26 (sortie identique octet pour octet à
+        # celle de Node 20 avec les mêmes dépendances) : --openssl-legacy-provider n'est plus requis.
         run: |
           cd admin/src/main/ts
           npm install --legacy-peer-deps
@@ -283,7 +286,7 @@ jobs:
         #
         # `-pl '!tests'` : le module `tests` n'est PAS un livrable (scénarios de charge Gatling
         # 2.3.1 en Scala 2.12.3, compilés par org.scala-tools:maven-scala-plugin:2.15.2). Scalac
-        # 2.12.3 ne sait pas relire les .class du JDK 21 et meurt sur
+        # 2.12.3 ne sait pas relire les .class des JDK récents (21, 25) et meurt sur
         # `bad constant pool index: 0` en lisant java.lang.String. Le défaut était masqué :
         # jusqu'ici le reactor mourait dès la racine sur un 409 (aucun package n'était purgé
         # avant le deploy), 409 avalé comme « succès idempotent » -> les 24 modules étaient
@@ -315,6 +318,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
+
+      # Depuis le JDK 23, javac n'exécute plus les processeurs d'annotations trouvés sur le
+      # classpath : sans `-proc:full` (pom racine), les jars partent sans securedaction/ ni
+      # routes/, et chaque route sécurisée répond 404 — sans aucune erreur de build. Contrôle
+      # avant la publication sur rct-nexus (celle que sert le launcher). feeder n'a pas de
+      # contrôleur @SecuredAction : il n'a ni l'un ni l'autre.
+      - name: Verify annotation metadata
+        run: |
+          for m in admin app-registry archive audience auth cas communication conversation directory infra interoperability portal timeline workspace; do
+            FAT_JAR=$(find . -path '*/target/*' -name "org.entcore~${m}~*-fat.jar" | head -1)
+            [ -n "$FAT_JAR" ] || { echo "::error::fat-jar de ${m} introuvable"; exit 1; }
+            for d in securedaction routes; do
+              unzip -Z1 "$FAT_JAR" | grep -q "^$d/" || { echo "::error::$d/ absent de $FAT_JAR"; exit 1; }
+            done
+          done
 
       - name: Publish fat JARs to rct-nexus
         env:
