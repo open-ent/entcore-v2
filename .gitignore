@@ -96,6 +96,7 @@ conversation/src/main/resources/view/
 **/frontend/package.json
 # … sauf les fronts ?ui=react sans gabarit (package.json versionné tel quel)
 !directory/frontend/package.json
+!workspace/frontend/package.json
 **/frontend/scripts/get-tokens/config.json
 
 # Ignore resources files in "backend/public" folders
