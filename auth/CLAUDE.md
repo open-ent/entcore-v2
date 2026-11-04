@@ -9,48 +9,6 @@
 
 ## Frontend React (WAYF v2)
 
-### Stack
-- React 18 + TypeScript
-- Vite (dev server port 4200, build output `dist/`)
-- React Router v6 (basename `/auth` en prod, vide en dev)
-- i18next + i18next-http-backend + react-i18next
-- TanStack Query v5
-- Zustand (state management)
-- @edifice.io/bootstrap (Design System)
-
-### Commandes
-```bash
-cd auth/frontend
-pnpm run dev      # dev server :4200
-pnpm run build    # build prod → dist/
-pnpm run test     # vitest
-pnpm run lint     # eslint
-```
-
-### Structure src/
-```
-src/
-├── components/         # Composants UI réutilisables — chacun dans son propre dossier
-│   ├── App.tsx         # Entry point React
-│   ├── Level2Stub/
-│   ├── ProviderButton/
-│   └── ProviderList/
-├── config/             # Configuration statique (wayf.config.ts)
-├── hooks/              # Custom hooks (useWayfConfig, useI18n)
-├── models/             # Types TypeScript (wayf.ts)
-├── providers/          # Wrappers React (QueryClientProvider)
-├── routes/
-│   ├── index.tsx       # React Router
-│   ├── errors/         # Composants d'erreur (not-found, page-error)
-│   ├── root/           # Route root
-│   └── pages/          # Pages — un fichier .tsx par page
-│       └── Wayf.tsx
-├── services/           # API calls
-├── store/              # Zustand stores
-├── i18n.ts             # Config i18next (namespaces: common, auth)
-└── main.tsx            # Entry point
-```
-
 ### Convention de structure (IMPORTANT)
 - **Chaque composant** vit dans `components/{NomComposant}/` avec :
   - `NomComposant.tsx` — le composant (fichier nommé après le composant, pas `index.tsx`)
