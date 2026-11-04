@@ -63,6 +63,7 @@ import org.entcore.directory.pojo.Ent;
 import org.entcore.directory.pojo.structure.DefaultAuthModeConfig;
 import org.entcore.directory.security.AdminStructureFilter;
 import org.entcore.directory.security.AnyAdminOfUser;
+import org.entcore.directory.services.SchoolLevels;
 import org.entcore.directory.services.StructureBrandingService;
 import org.entcore.directory.services.MassMailService;
 import org.entcore.directory.services.SchoolService;
@@ -499,8 +500,36 @@ public class StructureController extends BaseController {
 					return;
 				}
 				sets.append(sets.length() == 0 ? "SET " : ", ")
-						.append("s.").append(champ.getValue()).append(" = {").append(cle).append("}");
+						// Syntaxe $param : la forme {param} est refusée par ArcadeDB (« Deprecated syntax »).
+						.append("s.").append(champ.getValue()).append(" = $").append(cle);
 				params.put(cle, StringUtils.isEmpty(valeur) ? null : valeur);
+			}
+			// Niveaux d'enseignement servis : une liste, à null pour revenir à ceux que l'on déduit de
+			// la nature AAF. levelsOfEducation (1er / 2nd degré) suit, pour les filtres de la console.
+			if (body.containsKey("schoolLevels")) {
+				final JsonArray asked = body.getValue("schoolLevels") == null ? null : body.getJsonArray("schoolLevels");
+				final java.util.List<String> levels = asked == null ? null : SchoolLevels.validate(asked);
+				if (asked != null && (levels == null || levels.isEmpty())) {
+					Renders.badRequest(request, "directory.structure.branding.invalid.levels");
+					return;
+				}
+				sets.append(sets.length() == 0 ? "SET " : ", ")
+						.append("s.schoolLevels = $schoolLevels, s.levelsOfEducation = $levelsOfEducation");
+				params.put("schoolLevels", levels == null ? null : new JsonArray(levels));
+				params.put("levelsOfEducation", levels == null ? null : new JsonArray(SchoolLevels.degrees(levels)));
+			}
+			// Thème par niveau (primaire, college, lycee → nom de thème) pour un établissement qui
+			// n'est rattaché à aucun ENT particulier : prime sur la correspondance du thème de l'ENT.
+			// Rangé en JSON (une propriété de nœud ne peut pas être un objet) ; null pour l'effacer.
+			if (body.containsKey("levelThemes")) {
+				final Object asked = body.getValue("levelThemes");
+				final JsonObject levelThemes = asked instanceof JsonObject ? SchoolLevels.validateLevelThemes((JsonObject) asked) : null;
+				if (asked != null && levelThemes == null) {
+					Renders.badRequest(request, "directory.structure.branding.invalid.themes");
+					return;
+				}
+				sets.append(sets.length() == 0 ? "SET " : ", ").append("s.levelThemes = $levelThemes");
+				params.put("levelThemes", levelThemes == null || levelThemes.isEmpty() ? null : levelThemes.encode());
 			}
 			if (sets.length() == 0) {
 				Renders.badRequest(request, "directory.structure.branding.empty");
@@ -522,7 +551,23 @@ public class StructureController extends BaseController {
 		final String query = "MATCH (s:Structure {id: $id}) " +
 				"RETURN " + brandingReturn() + ", s.name as name, s.type as type, s.city as city";
 		final JsonObject params = new JsonObject().put("id", structureId);
-		Neo4j.getInstance().execute(query, params, Neo4jResult.validUniqueResultHandler(defaultResponseHandler(request)));
+		Neo4j.getInstance().execute(query, params, Neo4jResult.validUniqueResultHandler(event -> {
+			// Les niveaux que l'on déduit de la nature AAF : ceux qui valent tant que l'administrateur
+			// n'en a pas choisi, et que l'écran propose comme point de départ.
+			if (event.isRight()) {
+				final Object levelThemes = event.right().getValue().getValue("levelThemes");
+				if (levelThemes instanceof String) {
+					try {
+						event.right().getValue().put("levelThemes", new JsonObject((String) levelThemes));
+					} catch (RuntimeException e) {
+						event.right().getValue().remove("levelThemes");
+					}
+				}
+				event.right().getValue().put("schoolLevelsDerived",
+						new JsonArray(SchoolLevels.fromType(event.right().getValue().getString("type"))));
+			}
+			defaultResponseHandler(request).handle(event);
+		}));
 	}
 
 	/** Clause RETURN commune : toutes les propriétés de branding, sous leur nom d'API. */
@@ -532,6 +577,7 @@ public class StructureController extends BaseController {
 			if (sb.length() > 0) sb.append(", ");
 			sb.append("s.").append(champ.getValue()).append(" as ").append(champ.getKey());
 		}
+		sb.append(", s.schoolLevels as schoolLevels, s.levelThemes as levelThemes");
 		return sb.toString();
 	}
 
