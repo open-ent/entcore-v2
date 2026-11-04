@@ -232,7 +232,7 @@ jobs:
           test -f "$DST/view/index.html" || { echo "::error::conversation view/index.html manquant après build"; exit 1; }
           test -n "$(ls "$DST"/public/index-*.js 2>/dev/null)" || { echo "::error::bundle public/index-*.js manquant"; exit 1; }
 
-      - name: Build React frontends ?ui=react (directory, timeline)
+      - name: Build React frontends ?ui=react (directory, timeline, workspace)
         # Les vues *-react.html (mon-compte, annuaire, historique, préférences) chargent un
         # bundle IIFE unique /<module>/public/react/<module>.js produit par Vite. Sans cette
         # étape le jar ne l'embarque pas : la vue répond 200 mais la page reste blanche
@@ -241,7 +241,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.OPENENT_PACKAGES_TOKEN }}
         run: |
           corepack enable || true
-          for spec in directory:frontend:directory timeline:frontend-account:timeline; do
+          for spec in directory:frontend:directory timeline:frontend-account:timeline workspace:frontend:workspace; do
             IFS=: read -r mod dir entry <<< "$spec"
             (cd "$mod/$dir" && pnpm install --no-frozen-lockfile && pnpm build)
             DST="$mod/src/main/resources/public/react"
