@@ -12,7 +12,12 @@ const isAnnuaire = window.location.pathname.endsWith("/annuaire");
 
 // Le thème de la plateforme rend les `.btn-link` quasi invisibles (même couleur que le fond) : ils reprennent la couleur du texte, soulignés.
 const style = document.createElement("style");
-style.textContent = ".btn-link{color:inherit !important;text-decoration:underline}";
+// `.account-slot` : colonnes fixes (visibilité, modifier) pour aligner les actions des lignes de « Mon profil ».
+style.textContent =
+  ".btn-link{color:inherit !important;text-decoration:underline}" +
+  ".account-value{flex:1 1 16rem;min-width:0}" +
+  ".account-slot{flex:0 0 9.5rem;display:flex;justify-content:flex-end}" +
+  "@media (max-width:767.98px){.account-slot{flex-basis:auto}.account-slot:empty{display:none}}";
 document.head.appendChild(style);
 
 const root = document.getElementById("root");

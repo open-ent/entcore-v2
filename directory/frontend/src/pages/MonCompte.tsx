@@ -1,4 +1,5 @@
-import { AppHeader, Button, Layout, LoadingScreen, useEdificeClient } from "@open-ent/react";
+import { AppHeader, Avatar, Badge, Button, Layout, LoadingScreen, useEdificeClient } from "@open-ent/react";
+import { IconCamera, IconDelete, IconEdit, IconLock } from "@open-ent/react/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,21 +30,15 @@ const Tabs = ({ workflows, hasEmail, themes }: { workflows: Set<string>; hasEmai
     { id: "theme", label: "panel.user.pickTheme", href: "/userbook/mon-compte?ui=react#/themes", current: themes, show: workflows.has(WF.SWITCH_THEME) },
   ].filter((tab) => tab.show);
   return (
-    <nav role="tablist" className="d-flex gap-16 mb-24" style={{ borderBottom: "1px solid #dee2e6" }} data-account-tabs>
+    <ul className="nav nav-tabs mb-24" role="tablist" data-account-tabs>
       {tabs.map((tab) => (
-        <a
-          key={tab.id}
-          role="tab"
-          aria-selected={!!tab.current}
-          href={tab.href}
-          className="btn btn-link"
-          style={{ borderBottom: tab.current ? "3px solid #ffb400" : "3px solid transparent", fontWeight: tab.current ? 700 : 400, borderRadius: 0, color: "inherit", textDecoration: "none" }}
-          data-account-tab={tab.id}
-        >
-          {t(tab.label)}
-        </a>
+        <li key={tab.id} className="nav-item" role="presentation">
+          <a role="tab" aria-selected={!!tab.current} href={tab.href} className={`nav-link${tab.current ? " active" : ""}`} data-account-tab={tab.id}>
+            {t(tab.label)}
+          </a>
+        </li>
       ))}
-    </nav>
+    </ul>
   );
 };
 
@@ -117,91 +112,133 @@ export const MonCompte = () => {
               {notice}
             </div>
           )}
-          <section data-account-profile className="d-flex gap-24 flex-wrap">
-            <img
-              src={`/userbook/avatar/${account.data?.userId}?thumbnail=100x100&v=${avatarVersion}`}
-              alt=""
-              width={96}
-              height={96}
-              style={{ borderRadius: "50%", objectFit: "contain", background: "#e9ecef" }}
-              data-account-avatar
-            />
-            <dl className="mb-0" style={{ minWidth: 280 }}>
-              {rows.map((row) => (
-                <div key={row.key} className="d-flex gap-16 mb-8" data-account-row={row.key}>
-                  <dt style={{ width: 200, fontWeight: 600 }}>{t(row.label)}</dt>
-                  <dd className="mb-0">
-                    {row.value}
-                    {ROW_VISIBILITY[row.key] && (
-                      <VisibilityToggle
-                        id={ROW_VISIBILITY[row.key]}
-                        visible={isVisible(person, ROW_VISIBILITY[row.key])}
-                        onToggle={async () => {
-                          await accountService.setInfoVisibility(ROW_VISIBILITY[row.key], nextVisibility(isVisible(person, ROW_VISIBILITY[row.key])));
-                          await refresh();
+          <div className="row g-24" data-account-profile>
+            <div className="col-12 col-lg-4">
+              <section className="card h-100" data-account-identity>
+                <div className="card-body d-flex flex-column align-items-center text-center gap-12">
+                  <Avatar
+                    alt={t("userBook.profile.title")}
+                    size="xl"
+                    variant="circle"
+                    src={`/userbook/avatar/${userId}?thumbnail=290x290&v=${avatarVersion}`}
+                    data-account-avatar
+                  />
+                  <div>
+                    <h2 className="h3 mb-4" data-account-displayname>
+                      {infos?.displayName ?? person?.displayName}
+                    </h2>
+                    <div className="text-gray-700">{infos?.loginAlias || infos?.login || person?.login}</div>
+                  </div>
+                  <div className="d-flex gap-8 flex-wrap justify-content-center">
+                    <label className="btn btn-outline-primary btn-sm mb-0 d-inline-flex align-items-center gap-8" data-account-avatar-change>
+                      <IconCamera width={16} height={16} />
+                      {t("admin.changeavatar", { defaultValue: "Changer la photo" })}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        data-account-avatar-input
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file) return;
+                          try {
+                            await accountService.uploadAvatar(userId, file);
+                            setAvatarVersion((v) => v + 1);
+                          } catch {
+                            setNotice(t("account.error.save", { defaultValue: "L'enregistrement a échoué." }));
+                          }
                         }}
                       />
-                    )}
-                    {editable[row.key] && (
-                      <Button type="button" color="primary" variant="ghost" size="sm" className="ms-8" onClick={editable[row.key]} data-account-edit={row.key}>
-                        {t("directory.login.update.button")}
-                      </Button>
-                    )}
-                  </dd>
+                    </label>
+                    <Button
+                      type="button"
+                      color="tertiary"
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<IconDelete width={16} height={16} />}
+                      title={t("userBook.remove.avatar")}
+                      onClick={async () => {
+                        await accountService.removeAvatar(userId);
+                        setAvatarVersion((v) => v + 1);
+                      }}
+                      data-account-avatar-remove
+                    >
+                      {t("userBook.remove", { defaultValue: "Supprimer" })}
+                    </Button>
+                  </div>
+                  {(canChangePassword || canGenerateOtp) && (
+                    <div className="d-flex flex-column gap-8 w-100 pt-16 border-top" data-account-actions>
+                      {canChangePassword && (
+                        <Button type="button" color="primary" variant="outline" leftIcon={<IconLock width={16} height={16} />} onClick={() => setPasswordOpen(true)} data-account-password>
+                          {t("change.password")}
+                        </Button>
+                      )}
+                      {canGenerateOtp && (
+                        <Button
+                          type="button"
+                          color="primary"
+                          variant="ghost"
+                          onClick={async () => setOtp((await accountService.generateOtp()).otp)}
+                          data-account-otp
+                        >
+                          {t("directory.generate.otp")}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </dl>
-          </section>
-          <section className="d-flex gap-16 flex-wrap mt-24" data-account-actions>
-            <label className="btn btn-outline-primary mb-0" data-account-avatar-change>
-              {t("userBook.profile.changeavatar")}
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                data-account-avatar-input
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (!file) return;
-                  try {
-                    await accountService.uploadAvatar(userId, file);
-                    setAvatarVersion((v) => v + 1);
-                  } catch {
-                    setNotice(t("account.error.save", { defaultValue: "L'enregistrement a échoué." }));
-                  }
-                }}
-              />
-            </label>
-            <Button
-              type="button"
-              color="tertiary"
-              variant="outline"
-              onClick={async () => {
-                await accountService.removeAvatar(userId);
-                setAvatarVersion((v) => v + 1);
-              }}
-              data-account-avatar-remove
-            >
-              {t("userBook.remove", { defaultValue: "Supprimer" })}
-            </Button>
-            {canChangePassword && (
-              <Button type="button" color="primary" variant="outline" onClick={() => setPasswordOpen(true)} data-account-password>
-                {t("change.password")}
-              </Button>
-            )}
-            {canGenerateOtp && (
-              <Button
-                type="button"
-                color="primary"
-                variant="outline"
-                onClick={async () => setOtp((await accountService.generateOtp()).otp)}
-                data-account-otp
-              >
-                {t("directory.generate.otp")}
-              </Button>
-            )}
-          </section>
+              </section>
+            </div>
+            <div className="col-12 col-lg-8">
+              <section className="card h-100" data-account-infos>
+                <div className="card-body d-block">
+                  <h2 className="h4 mb-16">{t("account.section.infos", { defaultValue: "Informations personnelles" })}</h2>
+                  <dl className="mb-0">
+                    {rows.map((row) => (
+                      <div key={row.key} className="row align-items-center py-8 border-bottom mx-0" data-account-row={row.key}>
+                        <dt className="col-12 col-md-4 ps-0 fw-bold">{t(row.label)}</dt>
+                        <dd className="col-12 col-md-8 px-0 mb-0 d-flex flex-wrap align-items-center gap-8">
+                          <span className="account-value text-break">
+                            {row.value || <span className="text-gray-700 fst-italic">{t("account.empty", { defaultValue: "Non renseigné" })}</span>}
+                          </span>
+                          <span className="account-slot">
+                            {ROW_VISIBILITY[row.key] && (
+                              <VisibilityToggle
+                                id={ROW_VISIBILITY[row.key]}
+                                visible={isVisible(person, ROW_VISIBILITY[row.key])}
+                                onToggle={async () => {
+                                  await accountService.setInfoVisibility(ROW_VISIBILITY[row.key], nextVisibility(isVisible(person, ROW_VISIBILITY[row.key])));
+                                  await refresh();
+                                }}
+                              />
+                            )}
+                          </span>
+                          <span className="account-slot">
+                            {editable[row.key] && (
+                              <Button
+                                type="button"
+                                color="primary"
+                                variant="ghost"
+                                size="sm"
+                                leftIcon={<IconEdit width={16} height={16} />}
+                                aria-label={`${t("directory.login.update.button")} — ${t(row.label)}`}
+                                onClick={editable[row.key]}
+                                data-account-edit={row.key}
+                              >
+                                {t("directory.login.update.button")}
+                              </Button>
+                            )}
+                          </span>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="small text-gray-700 mt-12 mb-0">{t("account.visibility.hint", { defaultValue: "Public : visible par les utilisateurs de l'ENT. Privé : visible de vous seul." })}</p>
+                </div>
+              </section>
+            </div>
+          </div>
           <EditFieldModal
             id="account-edit-displayName"
             open={editing === "displayName"}
@@ -258,16 +295,24 @@ export const MonCompte = () => {
           />
           <OtpModal login={infos?.login ?? person?.login ?? ""} otp={otp} onClose={() => setOtp(null)} />
           {(person?.schools?.length ?? 0) > 0 && (
-            <section className="mt-24" data-account-schools>
-              <h2 className="h4">{t("userBook.profile.schools")}</h2>
-              <ul>
-                {person?.schools?.map((school) => (
-                  <li key={school.id}>
-                    {school.name}
-                    {classNames(school.classes).length > 0 && <> — {classNames(school.classes).join(", ")}</>}
-                  </li>
-                ))}
-              </ul>
+            <section className="card mt-24" data-account-schools>
+              <div className="card-body d-block">
+                <h2 className="h4 mb-16">{t("userBook.profile.schools")}</h2>
+                <ul className="list-unstyled mb-0 d-flex flex-column gap-12">
+                  {person?.schools?.map((school) => (
+                    <li key={school.id}>
+                      <div className="fw-bold mb-8">{school.name}</div>
+                      <div className="d-flex flex-wrap gap-8">
+                        {classNames(school.classes).map((c) => (
+                          <Badge key={c} variant={{ type: "chip" }}>
+                            {c}
+                          </Badge>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </section>
           )}
           <UserbookPanel userId={userId} person={person} type={(user as { type?: string } | undefined)?.type} mottoAllowed={workflows.has(WF.MOTTO_MOOD)} />

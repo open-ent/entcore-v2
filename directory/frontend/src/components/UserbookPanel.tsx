@@ -1,18 +1,30 @@
 import { Button } from "@open-ent/react";
+import { IconHide, IconSee } from "@open-ent/react/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hobbyIsPublic, isVisible, MOTTO_MAX, mottoChanged, nextVisibility, showsChildren, showsRelatives, toggledHobbyVisibility } from "../lib/userbook";
 import { accountService, Person } from "../services/account.service";
 
-/** Œil ouvert / fermé : visibilité d'une information pour les autres utilisateurs. */
+/** Œil ouvert / fermé : visibilité d'une information pour les autres utilisateurs, libellé court à côté de l'icône. */
 export const VisibilityToggle = ({ visible, onToggle, id }: { visible: boolean; onToggle: () => void; id: string }) => {
   const { t } = useTranslation("directory");
   const label = t(visible ? "public" : "prive");
   return (
-    <button type="button" className="btn btn-link p-0 ms-8" title={label} aria-label={label} aria-pressed={visible} onClick={onToggle} data-visibility={id}>
-      {visible ? "👁" : "🚫"}
-    </button>
+    <Button
+      type="button"
+      color="tertiary"
+      variant="ghost"
+      size="sm"
+      leftIcon={visible ? <IconSee width={16} height={16} /> : <IconHide width={16} height={16} />}
+      title={label}
+      aria-label={label}
+      aria-pressed={visible}
+      onClick={onToggle}
+      data-visibility={id}
+    >
+      {visible ? t("account.visible.public", { defaultValue: "Public" }) : t("account.visible.private", { defaultValue: "Privé" })}
+    </Button>
   );
 };
 
@@ -45,10 +57,11 @@ export const UserbookPanel = ({ userId, person, type, mottoAllowed }: { userId: 
   };
 
   return (
-    <div data-account-userbook>
+    <section className="card mt-24" data-account-userbook>
+      <div className="card-body d-flex flex-column align-items-stretch gap-24">
       {mottoAllowed && (
-        <section className="mt-24" data-account-motto-edit>
-          <h2 className="h4">{t("userBook.profile.motto")}</h2>
+        <section data-account-motto-edit>
+          <h2 className="h4 mb-12">{t("userBook.profile.motto")}</h2>
           <div className="d-flex gap-8">
             <input
               className="form-control"
@@ -82,8 +95,8 @@ export const UserbookPanel = ({ userId, person, type, mottoAllowed }: { userId: 
             </small>
           )}
           {(moods.data?.length ?? 0) > 1 && (
-            <label className="d-block mt-16">
-              {t("userBook.profile.mood")}
+            <label className="d-block mt-16" style={{ maxWidth: "32rem" }}>
+              <span className="form-label d-block">{t("userBook.profile.mood")}</span>
               <select
                 className="form-select"
                 value={mood}
@@ -105,8 +118,8 @@ export const UserbookPanel = ({ userId, person, type, mottoAllowed }: { userId: 
       )}
 
       {showsChildren(type) && (children.data?.length ?? 0) > 0 && (
-        <section className="mt-24" data-account-children>
-          <h2 className="h4">{t("userBook.profile.children")}</h2>
+        <section data-account-children>
+          <h2 className="h4 mb-12">{t("userBook.profile.children")}</h2>
           {children.data?.map((s) => (
             <div key={s.structureName} className="mb-16">
               <strong>{s.structureName}</strong>
@@ -128,8 +141,8 @@ export const UserbookPanel = ({ userId, person, type, mottoAllowed }: { userId: 
       )}
 
       {showsRelatives(type) && person?.relatedName && (
-        <section className="mt-24" data-account-relatives>
-          <h2 className="h4">{t("userBook.profile.relatives")}</h2>
+        <section data-account-relatives>
+          <h2 className="h4 mb-12">{t("userBook.profile.relatives")}</h2>
           <div className="d-flex align-items-center gap-8">
             {person.relatedId && <img src={`/userbook/avatar/${person.relatedId}?thumbnail=100x100`} alt="" width={32} height={32} style={{ borderRadius: "50%" }} />}
             <span>{person.relatedName}</span>
@@ -138,37 +151,44 @@ export const UserbookPanel = ({ userId, person, type, mottoAllowed }: { userId: 
       )}
 
       {hobbies.length > 0 && (
-        <section className="mt-24" data-account-hobbies>
-          <h2 className="h4">{t("userBook.interests")}</h2>
-          {hobbies
-            .slice()
-            .sort((a, b) => a.category.localeCompare(b.category))
-            .map((h) => (
-              <div key={h.category} className="d-flex align-items-center gap-16 mb-8" data-hobby={h.category}>
-                <span style={{ width: 160 }}>{t(`userBook.hobby.${h.category}`)}</span>
-                <input
-                  className="form-control"
-                  value={h.values ?? ""}
-                  onChange={(e) => setHobbies(hobbies.map((x) => (x.category === h.category ? { ...x, values: e.target.value } : x)))}
-                  onBlur={() => saveHobbies(hobbies)}
-                  data-hobby-input={h.category}
-                />
-                <VisibilityToggle
-                  id={`hobby-${h.category}`}
-                  visible={hobbyIsPublic(h.visibility)}
-                  onToggle={async () => {
-                    const value = toggledHobbyVisibility(h.visibility);
-                    setHobbies(hobbies.map((x) => (x.category === h.category ? { ...x, visibility: value } : x)));
-                    await accountService.setHobbyVisibility(h.category, value);
-                  }}
-                />
-              </div>
-            ))}
+        <section data-account-hobbies>
+          <h2 className="h4 mb-12">{t("userBook.interests")}</h2>
+          <div className="row g-16">
+            {hobbies
+              .slice()
+              .sort((a, b) => a.category.localeCompare(b.category))
+              .map((h) => (
+                <div key={h.category} className="col-12 col-md-6" data-hobby={h.category}>
+                  <div className="d-flex align-items-center justify-content-between mb-4">
+                    <label className="form-label mb-0" htmlFor={`hobby-${h.category}`}>
+                      {t(`userBook.hobby.${h.category}`)}
+                    </label>
+                    <VisibilityToggle
+                      id={`hobby-${h.category}`}
+                      visible={hobbyIsPublic(h.visibility)}
+                      onToggle={async () => {
+                        const value = toggledHobbyVisibility(h.visibility);
+                        setHobbies(hobbies.map((x) => (x.category === h.category ? { ...x, visibility: value } : x)));
+                        await accountService.setHobbyVisibility(h.category, value);
+                      }}
+                    />
+                  </div>
+                  <input
+                    id={`hobby-${h.category}`}
+                    className="form-control"
+                    value={h.values ?? ""}
+                    onChange={(e) => setHobbies(hobbies.map((x) => (x.category === h.category ? { ...x, values: e.target.value } : x)))}
+                    onBlur={() => saveHobbies(hobbies)}
+                    data-hobby-input={h.category}
+                  />
+                </div>
+              ))}
+          </div>
         </section>
       )}
 
-      <section className="mt-24" data-account-health>
-        <h2 className="h4 d-flex align-items-center">
+      <section data-account-health>
+        <h2 className="h4 mb-12 d-flex align-items-center justify-content-between">
           {t("userBook.profile.health")}
           <VisibilityToggle
             id="health"
@@ -190,6 +210,7 @@ export const UserbookPanel = ({ userId, person, type, mottoAllowed }: { userId: 
           data-health-input
         />
       </section>
-    </div>
+      </div>
+    </section>
   );
 };
