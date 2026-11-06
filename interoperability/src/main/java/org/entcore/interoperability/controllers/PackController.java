@@ -153,6 +153,68 @@ public class PackController extends BaseController {
                 .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
     }
 
+    /**
+     * Icône du pack, pour toute personne connectée : les applications la montrent à côté des
+     * ressources qui viennent du pack. Un SVG est servi sans pouvoir rien exécuter (CSP en bac à
+     * sable), même ouvert directement ; l'empreinte sert d'ETag, et de paramètre {@code v} aux
+     * clients qui veulent un cache sans revalidation.
+     */
+    @Get("/packs/:packId/icon")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void icon(final HttpServerRequest request) {
+        packs.store().icon(param(request, "packId"))
+                .onSuccess(icon -> {
+                    if (icon == null || icon.getString("data") == null) {
+                        notFound(request, "pack sans icône");
+                        return;
+                    }
+                    final String etag = "\"" + icon.getString("sha256") + "\"";
+                    final boolean pinned = icon.getString("sha256").equals(request.params().get("v"));
+                    request.response()
+                            .putHeader("ETag", etag)
+                            .putHeader("Cache-Control", pinned ? "private, max-age=31536000, immutable"
+                                    : "private, no-cache")
+                            .putHeader("X-Content-Type-Options", "nosniff")
+                            .putHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+                    if (etag.equals(request.headers().get("If-None-Match"))) {
+                        request.response().setStatusCode(304).end();
+                        return;
+                    }
+                    request.response()
+                            .putHeader("Content-Type", icon.getString("mediaType"))
+                            .end(io.vertx.core.buffer.Buffer.buffer(
+                                    java.util.Base64.getDecoder().decode(icon.getString("data"))));
+                })
+                .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
+    }
+
+    /**
+     * Pack d'origine de ressources d'une application ({@code ?ids=a,b,c}, identifiants locaux), pour
+     * toute personne connectée : ne dit que le titre et l'icône du pack, rien des ressources.
+     */
+    @Get("/packs/origins/:service")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void origins(final HttpServerRequest request) {
+        final java.util.Set<String> ids = new java.util.LinkedHashSet<String>();
+        for (String raw : request.params().getAll("ids")) {
+            for (String id : raw.split(",")) {
+                if (!id.trim().isEmpty()) {
+                    ids.add(id.trim());
+                }
+            }
+        }
+        if (ids.size() > MAX_ORIGINS) {
+            badRequest(request, "au plus " + MAX_ORIGINS + " identifiants par demande");
+            return;
+        }
+        packs.origins(request.params().get("service"), ids)
+                .onSuccess(result -> renderJson(request, new JsonObject().put("origins", result)))
+                .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
+    }
+
+    /** Une page de liste d'une application, largement. */
+    private static final int MAX_ORIGINS = 500;
+
     /** {@code urn:openent:pack:ce1-soustraction-posee} en 1.2.0 → {@code ce1-soustraction-posee-1.2.0.oeip}. */
     private static String downloadName(JsonObject pack) {
         final String id = pack.getString("_id");

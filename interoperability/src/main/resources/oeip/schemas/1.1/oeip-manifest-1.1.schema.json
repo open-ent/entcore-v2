@@ -333,6 +333,32 @@
             "audience"
           ],
           "additionalProperties": false
+        },
+        "icon": {
+          "type": "object",
+          "description": "Icône du pack, embarquée dans le paquet. Les applications la montrent à côté des ressources qui en viennent, pour en dire l'origine.",
+          "properties": {
+            "href": {
+              "$ref": "common-1.1.schema.json#/definitions/packagePath"
+            },
+            "mediaType": {
+              "type": "string",
+              "enum": [
+                "image/svg+xml",
+                "image/png",
+                "image/webp"
+              ]
+            },
+            "sha256": {
+              "$ref": "common-1.1.schema.json#/definitions/sha256"
+            }
+          },
+          "required": [
+            "href",
+            "mediaType",
+            "sha256"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

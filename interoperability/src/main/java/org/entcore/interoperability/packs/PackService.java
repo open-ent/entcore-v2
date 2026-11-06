@@ -26,6 +26,7 @@ import java.util.Set;
  * <p>Descripteur d'installation (produit par la lecture d'un paquet OEIP de profil {@code pack}) :
  * <pre>
  * { "pack": { "id", "version", "title", "description", "framework" },
+ *   "icon": { "mediaType", "sha256", "data" },                                    (facultatif)
  *   "resources": [ { "globalId", "service", "title", "alignments": [CFItem…], "document": {…} } ] }
  * </pre></p>
  */
@@ -82,7 +83,10 @@ public class PackService {
                 .put("created", new JsonArray()).put("adopted", new JsonArray()).put("updated", new JsonArray())
                 .put("refused", new JsonArray());
         final long now = System.currentTimeMillis();
-        return store.savePack(new JsonObject()
+        // Une version sans icône retire celle de la version précédente : le pack dit ce qu'il est.
+        final JsonObject icon = descriptor.getJsonObject("icon");
+        return (icon == null ? store.deleteIcon(packId) : store.saveIcon(packId, icon))
+                .compose(saved -> store.savePack(new JsonObject()
                         .put("_id", packId)
                         .put("version", pack.getString("version"))
                         .put("title", pack.getString("title"))
@@ -90,7 +94,10 @@ public class PackService {
                         .put("framework", pack.getString("framework"))
                         .put("owner", owner.getId())
                         .put("installedBy", installedBy)
-                        .put("installedAt", now))
+                        .put("installedAt", now)
+                        .put("icon", icon == null ? null : new JsonObject()
+                                .put("mediaType", icon.getString("mediaType"))
+                                .put("sha256", icon.getString("sha256")))))
                 .compose(v -> store.resources(packId))
                 .compose(existing -> {
                     final Map<String, JsonObject> byGlobalId = new LinkedHashMap<String, JsonObject>();
@@ -174,6 +181,48 @@ public class PackService {
                     .put("service", adapter.serviceId()).put("reason", String.valueOf(error.getMessage())));
             return null;
         });
+    }
+
+    // ------------------------------------------------------------------ origine des ressources
+
+    /**
+     * Pack d'origine de ressources d'une application, pour qu'elle le montre (titre, icône) à côté
+     * d'elles. Une variante d'établissement vient du même pack que l'original. Les identifiants qui
+     * ne viennent d'aucun pack sont absents du résultat :
+     * <pre>{ "&lt;localId&gt;": { "pack", "title", "icon": sha256 | null, "variant": bool } }</pre>
+     */
+    public Future<JsonObject> origins(String service, Set<String> localIds) {
+        if (localIds.isEmpty()) {
+            return Future.succeededFuture(new JsonObject());
+        }
+        return store.resourcesByLocalId(service, localIds).compose(resources ->
+                store.variantsByLocalId(service, localIds).compose(variants -> store.packs().map(all -> {
+                    final Map<String, JsonObject> packsById = new LinkedHashMap<String, JsonObject>();
+                    for (Object o : all) {
+                        packsById.put(((JsonObject) o).getString("_id"), (JsonObject) o);
+                    }
+                    final JsonObject result = new JsonObject();
+                    origins(result, resources, packsById, false);
+                    origins(result, variants, packsById, true);
+                    return result;
+                })));
+    }
+
+    private static void origins(JsonObject result, JsonArray entries, Map<String, JsonObject> packsById,
+                                boolean variant) {
+        for (Object o : entries) {
+            final JsonObject entry = (JsonObject) o;
+            final JsonObject pack = packsById.get(entry.getString("pack"));
+            if (pack == null) {
+                continue;
+            }
+            final JsonObject icon = pack.getJsonObject("icon");
+            result.put(entry.getString("localId"), new JsonObject()
+                    .put("pack", pack.getString("_id"))
+                    .put("title", pack.getString("title"))
+                    .put("icon", icon == null ? null : icon.getString("sha256"))
+                    .put("variant", variant));
+        }
     }
 
     // ------------------------------------------------------------------ abonnements

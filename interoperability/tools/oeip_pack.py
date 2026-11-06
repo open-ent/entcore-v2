@@ -7,7 +7,9 @@ Fabrique un pack pédagogique au format OEIP 1.1 (profil « pack ») à partir d
 Dossier source :
     pack.json            {"id": "urn:openent:pack:…", "version", "title", "description",
                           "language", "framework", "frameworkUri", "educationLevels", "license",
-                          "sourceSystem"}
+                          "sourceSystem", "icon": "icon.svg"}
+    icon.svg             icône du pack (SVG, PNG ou WebP, 256 Kio au plus), facultative : les
+                         applications la montrent à côté des ressources qui viennent du pack
     resources/*.json     une ressource par fichier :
                          {"key": "sequence", "service": "wiki", "title", "description",
                           "alignments": [{"item": <CFItem>, "code": "C2.MAT…"}],
@@ -32,6 +34,8 @@ from collections import defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCHEMAS = os.path.join(HERE, "..", "src", "main", "resources", "oeip", "schemas", "1.1")
 VERSION = "1.1"
+ICON_TYPES = {".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp"}
+ICON_MAX = 256 * 1024
 FIXED_ZIP_TIME = (2026, 1, 1, 0, 0, 0)
 
 
@@ -54,6 +58,17 @@ def build(source, output):
     pack_slug = slug(pack["id"].split(":")[-1])
 
     files = {}
+    if pack.get("icon"):
+        # Même plafond et mêmes types qu'à l'installation (PackPackage) : un pack refusé là doit
+        # l'être dès sa fabrication.
+        name = pack["icon"]
+        ext = os.path.splitext(name)[1].lower()
+        assert ext in ICON_TYPES, f"icône {name} : SVG, PNG ou WebP attendu"
+        data = open(os.path.join(source, name), "rb").read()
+        assert len(data) <= ICON_MAX, f"icône {name} : {len(data)} octets, {ICON_MAX} au plus"
+        href = f"pack/icon{ext}"
+        files[href] = data
+        pack["icon"] = {"href": href, "mediaType": ICON_TYPES[ext], "sha256": sha256(data)}
     items_by_service = defaultdict(list)
     for name in sorted(os.listdir(os.path.join(source, "resources"))):
         if not name.endswith(".json"):

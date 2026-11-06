@@ -16,6 +16,8 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -79,7 +81,53 @@ public class PackPackageTest {
         }
     }
 
+    @Test
+    public void l_icone_du_pack_accompagne_le_descripteur() throws Exception {
+        final JsonObject manifest = manifest();
+        manifest.getJsonObject("pack").put("icon", new JsonObject().put("href", "pack/icon.svg")
+                .put("mediaType", "image/svg+xml").put("sha256", sha256(ICON)));
+        final JsonObject icon = PackPackage.read(open(build(manifest, true, null)), validator).getJsonObject("icon");
+        assertEquals("image/svg+xml", icon.getString("mediaType"));
+        assertEquals(ICON, new String(Base64.getDecoder().decode(icon.getString("data")), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void une_icone_qui_n_est_pas_une_image_est_refusee() throws Exception {
+        final JsonObject manifest = manifest();
+        manifest.getJsonObject("pack").put("icon", new JsonObject().put("href", "pack/icon.svg")
+                .put("mediaType", "text/html").put("sha256", sha256(ICON)));
+        try {
+            PackPackage.read(open(build(manifest, true, null)), validator);
+            fail("icône HTML acceptée");
+        } catch (PackPackage.PackException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("schéma OEIP 1.1"));
+        }
+    }
+
+    @Test
+    public void une_icone_qui_ne_correspond_pas_au_manifeste_est_refusee() throws Exception {
+        final JsonObject manifest = manifest();
+        manifest.getJsonObject("pack").put("icon", new JsonObject().put("href", "pack/icon.svg")
+                .put("mediaType", "image/svg+xml").put("sha256", sha256("<svg/>")));
+        try {
+            PackPackage.read(open(build(manifest, true, null)), validator);
+            fail("icône d'empreinte fausse acceptée");
+        } catch (PackPackage.PackException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("empreinte"));
+        }
+    }
+
     // ------------------------------------------------------------------ construction du paquet
+
+    private static final String ICON = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8 8\"><circle cx=\"4\" cy=\"4\" r=\"4\"/></svg>";
+
+    private static String sha256(String content) throws Exception {
+        final StringBuilder hex = new StringBuilder();
+        for (byte b : MessageDigest.getInstance("SHA-256").digest(content.getBytes(StandardCharsets.UTF_8))) {
+            hex.append(String.format("%02x", b));
+        }
+        return hex.toString();
+    }
 
     private static JsonObject manifest() {
         return new JsonObject()
@@ -124,6 +172,7 @@ public class PackPackageTest {
         final Path root = tmp.newFolder().toPath();
         write(root.resolve(OeipFormat.MANIFEST), manifest.encodePrettily());
         write(root.resolve("resources/wiki/resources.json"), resources().encodePrettily());
+        write(root.resolve("pack/icon.svg"), ICON);
         if (checksums) {
             OeipChecksums.write(root);
         }

@@ -17,7 +17,9 @@ import org.bson.conversions.Bson;
  *   <li>{@code oeip.packResources} — une ressource du pack et son identifiant LOCAL sur cette
  *       plateforme ({@code _id} = pack|identifiant global de la ressource) ;</li>
  *   <li>{@code oeip.packSubscriptions} — un abonnement d'établissement ({@code _id} =
- *       pack|établissement ; l'établissement {@code *} désigne l'abonnement offert à tous).</li>
+ *       pack|établissement ; l'établissement {@code *} désigne l'abonnement offert à tous) ;</li>
+ *   <li>{@code oeip.packIcons} — l'icône d'un pack ({@code _id} = pack ; {@code mediaType},
+ *       {@code sha256}, {@code data} en base 64), à part pour que la liste des packs reste légère.</li>
  * </ul>
  */
 public class PackStore {
@@ -27,6 +29,7 @@ public class PackStore {
     public static final String SUBSCRIPTIONS = "oeip.packSubscriptions";
     /** Variante d'un établissement : {@code _id} = pack|ressource|établissement. */
     public static final String VARIANTS = "oeip.packVariants";
+    public static final String ICONS = "oeip.packIcons";
     /** Établissement fictif d'un abonnement offert à tous les établissements. */
     public static final String EVERY_STRUCTURE = "*";
 
@@ -58,6 +61,30 @@ public class PackStore {
 
     public Future<JsonObject> resource(String id) {
         return findOne(RESOURCES, Filters.eq("_id", id));
+    }
+
+    /** Ressources de ces identifiants locaux d'une application : d'où vient ce qu'elle montre. */
+    public Future<JsonArray> resourcesByLocalId(String service, java.util.Collection<String> localIds) {
+        return find(RESOURCES, Filters.and(Filters.eq("service", service), Filters.in("localId", localIds)));
+    }
+
+    public Future<JsonArray> variantsByLocalId(String service, java.util.Collection<String> localIds) {
+        return find(VARIANTS, Filters.and(Filters.eq("service", service), Filters.in("localId", localIds)));
+    }
+
+    public Future<JsonObject> icon(String packId) {
+        return findOne(ICONS, Filters.eq("_id", packId));
+    }
+
+    public Future<Void> saveIcon(String packId, JsonObject icon) {
+        return upsert(ICONS, Filters.eq("_id", packId), icon.copy().put("_id", packId));
+    }
+
+    public Future<Void> deleteIcon(String packId) {
+        final Promise<Void> promise = Promise.promise();
+        mongo.delete(ICONS, MongoQueryBuilder.build(Filters.eq("_id", packId)),
+                res -> complete(promise, res.body(), "suppression d'icône"));
+        return promise.future();
     }
 
     public Future<JsonArray> variants(String packId) {

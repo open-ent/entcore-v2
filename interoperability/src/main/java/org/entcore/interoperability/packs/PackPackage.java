@@ -9,9 +9,14 @@ import org.entcore.interoperability.schema.OeipValidationError;
 import org.entcore.interoperability.schema.OeipValidator;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Lecture d'un paquet OEIP 1.1 de profil {@code pack} en descripteur d'installation
@@ -25,9 +30,16 @@ import java.util.List;
  * <p>Correspondance avec le modèle OEIP : une ressource de {@code resources/<service>/*.json}
  * (jeu {@code resources}) devient une ressource du pack ; son document natif est
  * {@code extensions.<service>}, son binaire éventuel {@code body.href} (fiche PDF de
- * l'espace documentaire), ses énoncés de référentiel {@code alignments[].item}.</p>
+ * l'espace documentaire), ses énoncés de référentiel {@code alignments[].item}. L'icône du pack
+ * ({@code pack.icon}) devient {@code icon: {mediaType, sha256, data}}, l'image en base 64.</p>
  */
 public final class PackPackage {
+
+    /** Types d'icône admis : ceux que l'on peut montrer tels quels dans une balise {@code <img>}. */
+    public static final Set<String> ICON_TYPES = new HashSet<String>(
+            Arrays.asList("image/svg+xml", "image/png", "image/webp"));
+    /** Une icône est montrée à côté de chaque ressource du pack : elle reste petite. */
+    public static final long ICON_MAX_BYTES = 256L * 1024;
 
     private PackPackage() {
     }
@@ -99,10 +111,42 @@ public final class PackPackage {
         if (!errors.isEmpty()) {
             throw new PackException("pack non conforme au schéma OEIP 1.1 : " + head(errors));
         }
-        return new JsonObject()
+        final JsonObject descriptor = new JsonObject()
                 .put("pack", manifest.getJsonObject("pack"))
                 .put("resources", resources)
                 .put("warnings", warnings);
+        final JsonObject icon = icon(root, manifest.getJsonObject("pack"));
+        return icon == null ? descriptor : descriptor.put("icon", icon);
+    }
+
+    /**
+     * Icône déclarée par le pack, vérifiée : dans le paquet, d'un type d'image admis, petite, et
+     * conforme à l'empreinte du manifeste (le relevé de sommes l'a déjà couverte, mais le manifeste
+     * pourrait désigner un autre fichier que celui qu'il décrit).
+     */
+    private static JsonObject icon(Path root, JsonObject pack) throws PackException, IOException {
+        final JsonObject declared = pack == null ? null : pack.getJsonObject("icon");
+        if (declared == null) {
+            return null;
+        }
+        final String href = declared.getString("href");
+        final String mediaType = declared.getString("mediaType");
+        final Path file = root.resolve(href).normalize();
+        if (!file.startsWith(root) || !Files.isRegularFile(file)) {
+            throw new PackException("icône du pack introuvable dans le paquet : " + href);
+        }
+        if (!ICON_TYPES.contains(mediaType)) {
+            throw new PackException("icône du pack : type " + mediaType + " refusé (SVG, PNG ou WebP attendu)");
+        }
+        if (Files.size(file) > ICON_MAX_BYTES) {
+            throw new PackException("icône du pack trop lourde : " + Files.size(file) + " octets, "
+                    + ICON_MAX_BYTES + " au plus");
+        }
+        if (!OeipChecksums.sha256(file).equals(declared.getString("sha256"))) {
+            throw new PackException("icône du pack : empreinte différente de celle du manifeste");
+        }
+        return new JsonObject().put("mediaType", mediaType).put("sha256", declared.getString("sha256"))
+                .put("data", Base64.getEncoder().encodeToString(Files.readAllBytes(file)));
     }
 
     private static void collect(List<String> acc, List<OeipValidationError> errors) {
