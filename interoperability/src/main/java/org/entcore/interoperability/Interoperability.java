@@ -173,7 +173,7 @@ public class Interoperability extends BaseServer {
         addController(new org.entcore.interoperability.controllers.PackController(packs,
                 new org.entcore.interoperability.schema.OeipValidator(
                         new OeipSchemaRegistry(org.entcore.interoperability.OeipFormat.VERSION_1_1)),
-                workDir));
+                workDir, storage));
 
         log.info("[OEIP] Module d'interopérabilité démarré — format " + OeipFormat.VERSION
                 + ", lot de schémas " + schemas.getBundleSha256().substring(0, 12)

@@ -9,12 +9,14 @@ import fr.wseduc.security.SecuredAction;
 import fr.wseduc.webutils.http.BaseController;
 import fr.wseduc.webutils.request.RequestUtils;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.entcore.common.http.filter.AdmlOfStructure;
 import org.entcore.common.http.filter.ResourceFilter;
 import org.entcore.common.http.filter.SuperAdminFilter;
+import org.entcore.common.storage.Storage;
 import org.entcore.common.user.UserUtils;
 import io.vertx.core.file.OpenOptions;
 import org.entcore.interoperability.OeipFormat;
@@ -38,11 +40,13 @@ public class PackController extends BaseController {
     private final PackService packs;
     private final OeipValidator validator;
     private final Path workDir;
+    private final Storage storage;
 
-    public PackController(PackService packs, OeipValidator validator, Path workDir) {
+    public PackController(PackService packs, OeipValidator validator, Path workDir, Storage storage) {
         this.packs = packs;
         this.validator = validator;
         this.workDir = workDir;
+        this.storage = storage;
     }
 
     /**
@@ -78,6 +82,14 @@ public class PackController extends BaseController {
                         }
                     }, false).compose(descriptor -> packs.install(descriptor, user.getUserId())
                             .map(report -> report.put("warnings", descriptor.getJsonArray("warnings"))))
+                            // Le pack est installé : ne pas pouvoir le retélécharger n'en fait pas un échec.
+                            .compose(report -> keepPackage(report.getString("pack"), file)
+                                    .recover(error -> {
+                                        report.getJsonArray("warnings").add("paquet d'origine non conservé, "
+                                                + "il ne pourra pas être téléchargé : " + error.getMessage());
+                                        return Future.succeededFuture();
+                                    })
+                                    .map(kept -> report))
                             .onComplete(done -> {
                                 vertx.fileSystem().deleteRecursive(dir.toString(), true, cleaned -> {});
                                 if (done.succeeded()) {
@@ -90,6 +102,64 @@ public class PackController extends BaseController {
                 });
             });
         });
+    }
+
+    /**
+     * Conserve le paquet tel qu'il a été reçu, signature comprise, pour qu'il puisse être
+     * retéléchargé (et réinstallé ailleurs) ; celui de la version précédente est supprimé.
+     */
+    private Future<Void> keepPackage(String packId, Path file) {
+        final String fileId = java.util.UUID.randomUUID().toString();
+        final Promise<JsonObject> written = Promise.promise();
+        storage.writeFsFile(fileId, file.toString(), written::complete);
+        return written.future().compose(res -> "ok".equals(res.getString("status"))
+                        ? vertx.fileSystem().props(file.toString())
+                        : Future.failedFuture(String.valueOf(res.getString("message"))))
+                .compose(props -> packs.store().pack(packId).compose(previous -> packs.store().savePack(
+                        new JsonObject().put("_id", packId).put("package", new JsonObject()
+                                .put("file", fileId)
+                                .put("size", props.size())
+                                .put("storedAt", System.currentTimeMillis())))
+                        .map(v -> {
+                            final String old = previous == null ? null
+                                    : previous.getJsonObject("package", new JsonObject()).getString("file");
+                            if (old != null) {
+                                storage.removeFile(old, removed -> {});
+                            }
+                            return (Void) null;
+                        })));
+    }
+
+    /**
+     * Télécharge le paquet {@code .oeip} d'origine du pack. Un pack installé avant que les paquets
+     * soient conservés n'en a pas : le réinstaller le rend téléchargeable.
+     */
+    @Get("/packs/:packId/package")
+    @SecuredAction(value = "", type = ActionType.RESOURCE)
+    @ResourceFilter(SuperAdminFilter.class)
+    public void download(final HttpServerRequest request) {
+        final String packId = param(request, "packId");
+        packs.store().pack(packId)
+                .onSuccess(pack -> {
+                    final JsonObject kept = pack == null ? null : pack.getJsonObject("package");
+                    if (kept == null || kept.getString("file") == null) {
+                        notFound(request, pack == null ? "pack inconnu"
+                                : "paquet d'origine non conservé : réinstaller le pack pour pouvoir le télécharger");
+                        return;
+                    }
+                    storage.sendFile(kept.getString("file"), downloadName(pack), request, false,
+                            new JsonObject().put("content-type", OeipFormat.MEDIA_TYPE).put("size", kept.getLong("size")));
+                })
+                .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
+    }
+
+    /** {@code urn:openent:pack:ce1-soustraction-posee} en 1.2.0 → {@code ce1-soustraction-posee-1.2.0.oeip}. */
+    private static String downloadName(JsonObject pack) {
+        final String id = pack.getString("_id");
+        final String version = pack.getString("version");
+        final String base = (id.substring(id.lastIndexOf(':') + 1)
+                + (version == null ? "" : "-" + version)).replaceAll("[^A-Za-z0-9._-]", "_");
+        return base + OeipFormat.EXTENSION;
     }
 
     /** Plafond de décompression d'un pack : bien au-delà d'une séquence avec ses fiches PDF. */
