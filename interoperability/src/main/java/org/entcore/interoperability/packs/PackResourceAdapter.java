@@ -66,6 +66,14 @@ public interface PackResourceAdapter {
                 + "chaque enseignant peut copier la ressource dans son propre espace");
     }
 
+    /**
+     * Adresse sous laquelle une autre ressource du pack peut citer celle-ci ({@code oeip-ref:}, cf.
+     * {@link PackReferences}), ou {@code null} si l'application n'en donne pas.
+     */
+    default String href(String localId) {
+        return null;
+    }
+
     /** Supprime des ressources du compte technique (variantes abandonnées). */
     default Future<Void> delete(PackOwner owner, Set<String> localIds) {
         return Future.succeededFuture();

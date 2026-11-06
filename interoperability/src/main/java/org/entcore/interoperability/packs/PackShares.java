@@ -31,6 +31,15 @@ public final class PackShares {
         return TEACHERS_AND_STUDENTS.equals(audience);
     }
 
+    /** Les mêmes établissements, chacun ouvert aux enseignants ET aux élèves. */
+    public static Map<String, String> withStudents(Map<String, String> audiences) {
+        final Map<String, String> all = new LinkedHashMap<String, String>();
+        for (String structure : audiences.keySet()) {
+            all.put(structure, TEACHERS_AND_STUDENTS);
+        }
+        return all;
+    }
+
     /**
      * Tableau {@code shared} au format des modules (clé d'action : nom de la méthode sécurisée,
      * points remplacés par des tirets).

@@ -109,6 +109,10 @@ public class WorkspacePackAdapter implements PackResourceAdapter {
     @Override
     public String editRight() { return "workspace.contrib"; }
 
+    /** L'adresse que l'éditeur écrit lui-même pour un enregistrement : {@code <audio src="…">}. */
+    @Override
+    public String href(String localId) { return "/workspace/document/" + localId; }
+
     /** Copie du document ET de son binaire : la variante doit pouvoir être remplacée sans toucher l'original. */
     @Override
     public Future<String> fork(PackOwner owner, String localId) {

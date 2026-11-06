@@ -101,15 +101,27 @@ public class PackService {
                 .compose(v -> store.resources(packId))
                 .compose(existing -> {
                     final Map<String, JsonObject> byGlobalId = new LinkedHashMap<String, JsonObject>();
+                    // Où trouver chaque ressource citée (oeip-ref:) : service et identifiant local,
+                    // complétés au fil de l'installation.
+                    final Map<String, String> services = new LinkedHashMap<String, String>();
+                    final Map<String, String> localIds = new LinkedHashMap<String, String>();
                     for (Object o : existing) {
                         final JsonObject r = (JsonObject) o;
                         byGlobalId.put(r.getString("globalId"), r);
+                        services.put(r.getString("globalId"), r.getString("service"));
+                        localIds.put(r.getString("globalId"), r.getString("localId"));
                     }
+                    final JsonArray incoming = descriptor.getJsonArray("resources", new JsonArray());
+                    for (Object o : incoming) {
+                        final JsonObject r = (JsonObject) o;
+                        services.put(r.getString("globalId"), r.getString("service"));
+                    }
+                    final Set<String> components = PackReferences.components(incoming);
                     Future<Void> chain = Future.succeededFuture();
-                    for (Object o : descriptor.getJsonArray("resources", new JsonArray())) {
-                        final JsonObject resource = (JsonObject) o;
+                    for (final JsonObject resource : PackReferences.installOrder(incoming)) {
                         chain = chain.compose(v -> installOne(packId, pack.getString("version"), resource,
-                                byGlobalId.get(resource.getString("globalId")), report));
+                                byGlobalId.get(resource.getString("globalId")),
+                                components.contains(resource.getString("globalId")), services, localIds, report));
                     }
                     return chain;
                 })
@@ -145,14 +157,23 @@ public class PackService {
         });
     }
 
-    private Future<Void> installOne(String packId, String version, JsonObject resource, JsonObject installed,
+    private Future<Void> installOne(String packId, String version, JsonObject cited, JsonObject installed,
+                                    boolean component, Map<String, String> services, Map<String, String> localIds,
                                     JsonObject report) {
-        final String globalId = resource.getString("globalId");
-        final PackResourceAdapter adapter = adapters.get(resource.getString("service"));
+        final String globalId = cited.getString("globalId");
+        final PackResourceAdapter adapter = adapters.get(cited.getString("service"));
         if (globalId == null || adapter == null) {
             report.getJsonArray("refused").add(new JsonObject().put("globalId", globalId)
-                    .put("service", resource.getString("service"))
+                    .put("service", cited.getString("service"))
                     .put("reason", adapter == null ? "service sans adaptateur de pack" : "identifiant global absent"));
+            return Future.succeededFuture();
+        }
+        final JsonObject resource;
+        try {
+            resource = PackReferences.resolve(cited, hrefs(PackReferences.targets(cited), services, localIds));
+        } catch (IllegalArgumentException e) {
+            report.getJsonArray("refused").add(new JsonObject().put("globalId", globalId)
+                    .put("service", adapter.serviceId()).put("reason", e.getMessage()));
             return Future.succeededFuture();
         }
         // Une ressource déjà là (réinstallation, ou reprise par l'application d'un contenu d'avant
@@ -165,6 +186,7 @@ public class PackService {
         return outcome.compose(result -> {
             final String id = result.getString("id");
             report.getJsonArray(result.getString("bucket")).add(globalId);
+            localIds.put(globalId, id);
             return store.saveResource(new JsonObject()
                     .put("_id", PackStore.key(packId, globalId))
                     .put("pack", packId)
@@ -173,6 +195,7 @@ public class PackService {
                     .put("title", resource.getString("title"))
                     .put("alignments", resource.getJsonArray("alignments", new JsonArray()))
                     .put("localId", id)
+                    .put("component", component)
                     .put("packVersion", version));
         }).otherwise(error -> {
             // Une ressource refusée ne doit pas faire perdre les autres : le rapport la nomme.
@@ -181,6 +204,21 @@ public class PackService {
                     .put("service", adapter.serviceId()).put("reason", String.valueOf(error.getMessage())));
             return null;
         });
+    }
+
+    /** Adresse de chaque ressource citée qui est déjà installée ; les autres restent absentes. */
+    private Map<String, String> hrefs(Set<String> targets, Map<String, String> services,
+                                      Map<String, String> localIds) {
+        final Map<String, String> hrefs = new LinkedHashMap<String, String>();
+        for (String target : targets) {
+            final PackResourceAdapter adapter = adapters.get(services.get(target));
+            final String localId = localIds.get(target);
+            final String href = adapter == null || localId == null ? null : adapter.href(localId);
+            if (href != null) {
+                hrefs.put(target, href);
+            }
+        }
+        return hrefs;
     }
 
     // ------------------------------------------------------------------ origine des ressources
@@ -309,6 +347,7 @@ public class PackService {
         for (final String service : adapters.keySet()) {
             final PackResourceAdapter adapter = adapters.get(service);
             final Set<String> shared = new LinkedHashSet<String>();
+            final Set<String> components = new LinkedHashSet<String>();
             final List<JsonObject> withVariants = new ArrayList<JsonObject>();
             for (Object o : resources) {
                 final JsonObject r = (JsonObject) o;
@@ -317,6 +356,8 @@ public class PackService {
                 }
                 if (variantStructures.containsKey(r.getString("globalId"))) {
                     withVariants.add(r);
+                } else if (r.getBoolean("component", false)) {
+                    components.add(r.getString("localId"));
                 } else {
                     shared.add(r.getString("localId"));
                 }
@@ -327,14 +368,21 @@ public class PackService {
                     forks.add((JsonObject) o);
                 }
             }
-            if (shared.isEmpty() && withVariants.isEmpty() && forks.isEmpty()) {
+            if (shared.isEmpty() && components.isEmpty() && withVariants.isEmpty() && forks.isEmpty()) {
                 continue;
             }
             chain = chain.compose(v -> rights(adapter.readRight()).compose(read -> rights(adapter.editRight())
                     .compose(edit -> {
                         final Set<String> touched = new LinkedHashSet<String>(shared);
+                        touched.addAll(components);
                         Future<Void> step = adapter.setAccess(shared, new PackAccess(
                                 share(subs.expanded, groups, read, null), subs.explicit, subs.everyone));
+                        // Un composant (l'enregistrement d'une dictée) s'atteint par la ressource
+                        // qui le cite, et celle-ci finit chez les élèves : il leur est ouvert dans
+                        // tout établissement abonné, quel que soit le public de l'abonnement.
+                        step = step.compose(w -> adapter.setAccess(components, new PackAccess(
+                                share(PackShares.withStudents(subs.expanded), groups, read, null),
+                                subs.explicit, subs.everyone)));
                         for (final JsonObject r : withVariants) {
                             final Set<String> excluded = variantStructures.get(r.getString("globalId"));
                             touched.add(r.getString("localId"));

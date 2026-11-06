@@ -16,6 +16,10 @@ Dossier source :
                           "body": {"mediaType": "text/html", "content": "…"},   (facultatif)
                           "document": {…document natif de l'application…},
                           "file": "fiches/x.pdf", "mediaType": "application/pdf"}  (binaire, facultatif)
+                         Un document peut citer une autre ressource du pack par « oeip-pack:<clé> »
+                         (l'enregistrement d'une dictée dans un sujet d'exercices) : écrit
+                         « oeip-ref:<globalId> » dans le paquet, l'installation le remplace par
+                         l'adresse de la ressource installée.
 
 L'identifiant global d'une ressource est dérivé du pack et de sa clé : une nouvelle version du pack
 désigne donc la MÊME ressource, et l'installer la met à jour au lieu de la dupliquer.
@@ -37,6 +41,8 @@ VERSION = "1.1"
 ICON_TYPES = {".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp"}
 ICON_MAX = 256 * 1024
 FIXED_ZIP_TIME = (2026, 1, 1, 0, 0, 0)
+# Dans un document natif, « oeip-pack:<clé> » désigne une autre ressource du même pack.
+REF = re.compile(r"oeip-pack:([A-Za-z0-9._~-]+)")
 
 
 def sha256(data):
@@ -69,14 +75,20 @@ def build(source, output):
         href = f"pack/icon{ext}"
         files[href] = data
         pack["icon"] = {"href": href, "mediaType": ICON_TYPES[ext], "sha256": sha256(data)}
+    resources = [json.load(open(os.path.join(source, "resources", name), encoding="utf-8"))
+                 for name in sorted(os.listdir(os.path.join(source, "resources"))) if name.endswith(".json")]
+    global_ids = {r["key"]: f"urn:oeip:{VERSION}:resource:{system}:{pack_slug}.{slug(r['key'])}" for r in resources}
+
+    def cite(match):
+        # Référence à une autre ressource du pack : l'installation la remplace par son adresse.
+        assert match.group(1) in global_ids, f"oeip-pack:{match.group(1)} : aucune ressource de cette clé"
+        return "oeip-ref:" + global_ids[match.group(1)]
+
     items_by_service = defaultdict(list)
-    for name in sorted(os.listdir(os.path.join(source, "resources"))):
-        if not name.endswith(".json"):
-            continue
-        r = json.load(open(os.path.join(source, "resources", name), encoding="utf-8"))
+    for r in resources:
         service = r["service"]
         item = {
-            "globalId": f"urn:oeip:{VERSION}:resource:{system}:{pack_slug}.{slug(r['key'])}",
+            "globalId": global_ids[r["key"]],
             "sourceSystem": system,
             "serviceId": service,
             "resourceType": f"urn:oeip:restype:{service}.{r.get('type', service)}",
@@ -98,7 +110,8 @@ def build(source, output):
             item["alignments"] = [{k: v for k, v in a.items() if k in ("framework", "item", "code")}
                                   for a in r["alignments"]]
         if r.get("document") is not None:
-            item["extensions"] = {service: r["document"]}
+            document = REF.sub(cite, json.dumps(r["document"], ensure_ascii=False))
+            item["extensions"] = {service: json.loads(document)}
         items_by_service[service].append(item)
 
     services = []
