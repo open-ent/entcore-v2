@@ -54,16 +54,20 @@ public class PimController extends BaseController {
         String filter = "";
         final Integer within = intParam(request, "expiringWithinDays");
         if (within != null) {
-            filter = "AND rf.validUntil IS NOT NULL AND rf.validUntil <= $horizon ";
+            filter = "WHERE rf.validUntil IS NOT NULL AND rf.validUntil <= $horizon ";
             params.put("horizon", System.currentTimeMillis() + within * 24L * 3600 * 1000);
         } else if ("true".equals(request.params().get("permanent"))) {
-            filter = "AND rf.validUntil IS NULL ";
+            filter = "WHERE rf.validUntil IS NULL ";
         }
+        // Ancrage sur Function (sept nœuds) : partir de (u:User) faisait parcourir les 514 000
+        // comptes pour n'en retenir qu'une douzaine. De même, une fonction accordée avant le PIM
+        // n'a pas de grantedBy, et un lookup sur null n'emprunte pas l'index — d'où le coalesce
+        // vers un identifiant impossible. Les deux ensemble : 8,1 s → 0,02 s (ArcadeDB).
         final String query =
-                "MATCH (u:User)-[rf:HAS_FUNCTION]->(f:Function) " +
-                "WHERE f.externalId IN $functions " + filter +
+                "MATCH (f:Function) WHERE f.externalId IN $functions " +
+                "MATCH (f)<-[rf:HAS_FUNCTION]-(u:User) " + filter +
                 "OPTIONAL MATCH (s:Structure) WHERE s.id IN coalesce(rf.scope, []) " +
-                "OPTIONAL MATCH (g:User {id: rf.grantedBy}) " +
+                "OPTIONAL MATCH (g:User {id: coalesce(rf.grantedBy, '')}) " +
                 // Agrégation dans un WITH : après un RETURN agrégé, ORDER BY ne voit plus u.
                 "WITH u, rf, f, g, collect(DISTINCT {id: s.id, name: s.name}) AS scope " +
                 "RETURN u.id AS userId, u.login AS login, u.displayName AS displayName, u.blocked AS blocked, " +
