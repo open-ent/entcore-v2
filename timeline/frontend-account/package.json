@@ -19,7 +19,7 @@
     "@open-ent/utilities": "2.5.30-patched",
     "@tanstack/react-query": "5.81.5",
     "i18next": "23.8.1",
-    "i18next-http-backend": "2.4.2",
+    "i18next-http-backend": "4.0.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-i18next": "14.1.0",
