@@ -1,7 +1,12 @@
 import {
   AppHeader,
+  Button,
+  Dropdown,
+  EmptyScreen,
   LoadingScreen,
+  SearchBar,
   SegmentedControl,
+  Select,
   ShareModal,
   useEdificeClient,
 } from "@open-ent/react";
@@ -31,13 +36,17 @@ import { NewFolderModal } from "../components/NewFolderModal";
 import { UploadPanel } from "../components/UploadPanel";
 import { ZipDialog } from "../components/ZipDialog";
 import { LoadMore, PAGE_SIZE } from "../components/LoadMore";
+import { QuotaAlert } from "../components/QuotaAlert";
 import { QuotaGauge } from "../components/QuotaGauge";
+import { TypeFilters } from "../components/TypeFilters";
+import { ViewerModal } from "../components/ViewerModal";
 import { TreeNav } from "../components/TreeNav";
 import { ActionId, availableActions, downloadUrl } from "../lib/actions";
-import { breadcrumb, isTreeName, sortElements, SortKey } from "../lib/elements";
+import { breadcrumb, formatSize, isTreeName, sortElements, SortKey } from "../lib/elements";
 import { emptyKeys } from "../lib/empty";
 import { Carousel } from "../components/Carousel";
-import { nextSort, SORT_FIELD, sortKeyOf, viewOf } from "../lib/preferences";
+import { nextSort, SORT_FIELD, SORT_OPTIONS, sortKeyOf, sortOf, sortOptionValue, viewOf } from "../lib/preferences";
+import { applyTypeFilter, typeFilterCounts, TypeFilterKey } from "../lib/typeFilter";
 import { isTypingTarget, rangeIds, shortcutOf } from "../lib/selection";
 import { readFlags } from "../lib/flags";
 import {
@@ -75,6 +84,7 @@ import {
   workspaceService,
 } from "../services/workspace.service";
 import {
+  useAllFiles,
   useContent,
   useFolders,
   useFolderStore,
@@ -112,8 +122,8 @@ export const Browser = () => {
     setView(v);
     if (v !== "carousel") void workspaceService.savePreference({ view: v });
   };
-  const changeSort = (key: SortKey, toggle = true) => {
-    const next = toggle ? nextSort(sort, key) : { key, desc: false };
+  const changeSort = (key: SortKey, toggle = true, desc?: boolean) => {
+    const next = toggle ? nextSort(sort, key) : { key, desc: desc ?? false };
     setSort(next);
     void workspaceService.savePreference({
       sortField: SORT_FIELD[next.key],
@@ -123,6 +133,12 @@ export const Browser = () => {
 
   const validTree = isTreeName(tree) ? tree : "owner";
   const content = useContent(validTree, folderId);
+  // Filtre par famille (puces au-dessus de la liste) et mode « fichiers les plus lourds » du bandeau de quota.
+  const [typeFilter, setTypeFilter] = useState<TypeFilterKey>("all");
+  const [heaviest, setHeaviest] = useState(false);
+  const allFiles = useAllFiles(validTree, heaviest);
+  // Document ouvert dans la visionneuse, avec les documents du même emplacement pour « précédent » / « suivant ».
+  const [viewing, setViewing] = useState<{ id: string; siblings: string[] } | null>(null);
   const folders = useFolders();
   const folderStore = useFolderStore();
   // Mode « lazy » : sous-dossiers chargés au dépliage (arbre, sélecteurs) et chaîne des parents remontée pour le fil d'Ariane
@@ -199,6 +215,8 @@ export const Browser = () => {
   useEffect(() => {
     setQuery(null);
     setCriteria("");
+    setTypeFilter("all");
+    setHeaviest(false);
   }, [tree, folderId]);
   const searchQs = query
     ? searchQuery({ ...query, tree: validTree, folderId })
@@ -207,15 +225,23 @@ export const Browser = () => {
   // Sans index texte (réglage serveur) ou si le serveur le refuse : filtre sur les noms des éléments déjà chargés.
   const searchDegraded =
     !!query && (flags.disableFullTextSearch || search.isError);
-  const baseElements = !query
-    ? (content.data ?? [])
-    : searchDegraded
-      ? clientFilter(content.data ?? [], query.criteria)
-      : (search.data ?? []);
+  const baseElements = heaviest
+    ? (allFiles.data ?? [])
+    : !query
+      ? (content.data ?? [])
+      : searchDegraded
+        ? clientFilter(content.data ?? [], query.criteria)
+        : (search.data ?? []);
+  // Les puces comptent ce que contient l'emplacement, pas ce qu'il en reste une fois filtré.
+  const typeCounts = useMemo(() => typeFilterCounts(baseElements), [baseElements]);
   const elements = useMemo(
-    () => sortElements(baseElements, sort.key, sort.desc),
-    [baseElements, sort],
+    () => sortElements(applyTypeFilter(baseElements, typeFilter), sort.key, sort.desc),
+    [baseElements, sort, typeFilter],
   );
+  // Une famille disparue (après un déplacement, une suppression) ne doit pas laisser la liste vide sans explication.
+  useEffect(() => {
+    if (typeFilter !== "all" && !typeCounts.some((c) => c.key === typeFilter)) setTypeFilter("all");
+  }, [typeCounts, typeFilter]);
 
   // Sélection et actions de gestion
   const qc = useQueryClient();
@@ -236,17 +262,50 @@ export const Browser = () => {
   const [commenting, setCommenting] = useState<WorkspaceElement | null>(null);
   const [loolCreate, setLoolCreate] = useState(false);
   const dragged = useRef<WorkspaceElement[]>([]);
+  // Un glisser interne est en cours : la liste cesse de s'allonger toute seule tant qu'il dure.
+  const [moving, setMoving] = useState(false);
+  useEffect(() => {
+    const end = () => setMoving(false);
+    document.addEventListener("dragend", end);
+    document.addEventListener("drop", end);
+    return () => {
+      document.removeEventListener("dragend", end);
+      document.removeEventListener("drop", end);
+    };
+  }, []);
   const [ncPicker, setNcPicker] = useState<"copy" | "move" | null>(null);
   useEffect(() => setSelected(new Set()), [tree, folderId]);
   // Liste affichée par tranches de 50 : on repart du début à chaque changement d'emplacement, de tri ou de recherche
   const [shown, setShown] = useState(PAGE_SIZE);
-  useEffect(() => setShown(PAGE_SIZE), [tree, folderId, sort, query]);
+  useEffect(() => setShown(PAGE_SIZE), [tree, folderId, sort, query, typeFilter, heaviest]);
   const visible = useMemo(() => elements.slice(0, shown), [elements, shown]);
 
   const selection = useMemo(
     () => elements.filter((e) => selected.has(e._id)),
     [elements, selected],
   );
+  /** Poids total de la sélection : seuls les fichiers en ont un, un dossier n'est pas pesé. */
+  const selectionSize = useMemo(
+    () => selection.reduce((total, e) => total + (e.eType === "file" ? (e.metadata?.size ?? 0) : 0), 0),
+    [selection],
+  );
+  /** Requête qui alimente la liste : le listing à plat en mode « fichiers les plus lourds », sinon le contenu du dossier. */
+  const listed = heaviest ? allFiles : content;
+  const sortOptions = useMemo(() => SORT_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) })), [t]);
+  const currentSortOption = useMemo(
+    () => sortOptions.find((o) => o.value === sortOptionValue(sort)) ?? sortOptions[0],
+    [sortOptions, sort],
+  );
+  const empty = emptyKeys(validTree, !folderId, !!query);
+  /** Bandeau de quota : tous les fichiers de l'espace, du plus lourd au plus léger, à la racine de l'emplacement. */
+  const showHeaviest = () => {
+    setQuery(null);
+    setCriteria("");
+    setTypeFilter("all");
+    setHeaviest(true);
+    setSort({ key: "size", desc: true });
+    if (validTree !== "owner" || folderId) navigate("/owner");
+  };
   const actions = availableActions(validTree, selection, {
     canManage:
       selection.length === 1 &&
@@ -330,6 +389,7 @@ export const Browser = () => {
   const onDragStart = (el: WorkspaceElement, ev: globalThis.DragEvent) => {
     const items = draggedElements(el, selection);
     dragged.current = items;
+    setMoving(true);
     ev.dataTransfer?.setData(DRAG_TYPE, encodeDrag(items));
     // depuis « Documents ajoutés dans les applis », lâcher sur un dossier COPIE (ces documents restent à leur place)
     if (ev.dataTransfer)
@@ -566,16 +626,56 @@ export const Browser = () => {
 
   return (
     <>
-      <AppHeader>
+      <AppHeader
+        render={() =>
+          canWrite && mayAddDocument ? (
+            <div className="d-flex flex-wrap gap-8" data-workspace-toolbar>
+              {(mayAddFolder || canCreateOnline) && (
+                <Dropdown>
+                  <Dropdown.Trigger label={t("workspace.react.new")} variant="secondary" data-toolbar-new />
+                  <Dropdown.Menu>
+                    {mayAddFolder && (
+                      <Dropdown.Item onClick={() => setNewFolderOpen(true)} data-toolbar-new-folder>
+                        {t("folder.new")}
+                      </Dropdown.Item>
+                    )}
+                    {canCreateOnline && (
+                      <Dropdown.Item onClick={() => setLoolCreate(true)} data-action="lool-create">
+                        {t("workspace.lool.create-document")}
+                      </Dropdown.Item>
+                    )}
+                    {driveAvailable && (
+                      <Dropdown.Item disabled={driveBusy} onClick={() => void importFromDrive()} data-action="drive-import">
+                        {t("workspace.cloud.drive.import.action")}
+                      </Dropdown.Item>
+                    )}
+                  </Dropdown.Menu>
+                </Dropdown>
+              )}
+              <Button type="button" color="primary" onClick={() => fileInput.current?.click()} data-action="import">
+                {t("import.file")}
+              </Button>
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                hidden
+                data-import-input
+                onChange={(e) => {
+                  importFiles([...(e.target.files ?? [])]);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          ) : null
+        }
+      >
         <h1 className="h2" data-workspace-title>
           {t("workspace.title")}
         </h1>
       </AppHeader>
       <div className="d-flex gap-24 flex-wrap">
-        <aside
-          className="ws-aside"
-          style={{ flex: "0 0 260px", maxWidth: "100%" }}
-        >
+        <aside className="ws-aside">
           <TreeNav
             tree={validTree}
             folderId={folderId}
@@ -613,12 +713,7 @@ export const Browser = () => {
           )}
         </aside>
         <main
-          className="ws-main"
-          style={{
-            flex: "1 1 320px",
-            minWidth: 0,
-            outline: dragging && canWrite ? "2px dashed #2a9cc8" : undefined,
-          }}
+          className={`ws-main${dragging && canWrite ? " ws-drop-target" : ""}`}
           data-workspace-dropzone
           onDragOver={(e) => {
             if (isInternalDrag([...e.dataTransfer.types])) return;
@@ -628,116 +723,85 @@ export const Browser = () => {
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
         >
-          <nav
-            aria-label={t("workspace.react.breadcrumb")}
-            data-workspace-breadcrumb
-            className="mb-12"
-          >
-            <Link to={`/${validTree}`}>{t(TREE_LABEL_KEY[validTree])}</Link>
-            {path.map((f) => (
-              <span key={f._id}>
-                {" / "}
-                <Link to={`/${validTree}/${f._id}`}>{f.name}</Link>
-              </span>
-            ))}
+          <nav aria-label={t("workspace.react.breadcrumb")} data-workspace-breadcrumb>
+            <ol className="breadcrumb mb-8">
+              <li className={`breadcrumb-item${path.length === 0 ? " active" : ""}`}>
+                <Link to={`/${validTree}`}>{t(TREE_LABEL_KEY[validTree])}</Link>
+              </li>
+              {path.map((f, i) => (
+                <li key={f._id} className={`breadcrumb-item${i === path.length - 1 ? " active" : ""}`}>
+                  <span className="ws-crumb-sep" aria-hidden="true">
+                    /
+                  </span>
+                  <Link to={`/${validTree}/${f._id}`}>{f.name}</Link>
+                </li>
+              ))}
+            </ol>
           </nav>
+          <h2 className="h3 mb-16" data-workspace-location>
+            {heaviest
+              ? t("workspace.react.quota.heaviest")
+              : path.length
+                ? path[path.length - 1].name
+                : t(TREE_LABEL_KEY[validTree])}
+          </h2>
+          <QuotaAlert quota={quota.data} onShowHeaviest={showHeaviest} onEmptyTrash={() => setConfirm("empty")} />
           <div
             className="d-flex flex-wrap gap-16 align-items-center justify-content-between mb-16"
             data-workspace-header
           >
-            {canWrite && mayAddDocument && (
-              <div className="d-flex flex-wrap gap-12" data-workspace-toolbar>
-                <button
-                  type="button"
-                  className="btn btn-outline-primary"
-                  onClick={() => fileInput.current?.click()}
-                  data-action="import"
-                >
-                  {t("import.file")}
-                </button>
-                {canWrite && driveAvailable && (
-                  <button
-                    type="button"
-                    className="btn btn-outline-primary"
-                    disabled={driveBusy}
-                    onClick={() => void importFromDrive()}
-                    data-action="drive-import"
-                  >
-                    {t("workspace.cloud.drive.import.action")}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-outline-primary"
-                  onClick={() => setNewFolderOpen(true)}
-                  data-toolbar-new-folder
-                >
-                  {t("folder.new")}
-                </button>
-                {canCreateOnline && (
-                  <button
-                    type="button"
-                    className="btn btn-outline-primary"
-                    onClick={() => setLoolCreate(true)}
-                    data-action="lool-create"
-                  >
-                    {t("workspace.lool.create-document")}
-                  </button>
-                )}
-                <input
-                  ref={fileInput}
-                  type="file"
-                  multiple
-                  hidden
-                  data-import-input
-                  onChange={(e) => {
-                    importFiles([...(e.target.files ?? [])]);
-                    e.target.value = "";
-                  }}
-                />
-              </div>
-            )}
             <form
-              className="d-flex gap-8 align-items-center"
+              className="flex-grow-1"
+              style={{ maxWidth: 420 }}
               role="search"
               data-workspace-search
               onSubmit={(e) => {
                 e.preventDefault();
-                if (criteria.trim())
-                  setQuery({ criteria: criteria.trim(), everywhere: false });
+                if (criteria.trim()) setQuery({ criteria: criteria.trim(), everywhere: false });
               }}
             >
-              <input
-                type="search"
-                className="form-control"
-                style={{ maxWidth: 360 }}
+              {/* Le bouton de recherche du socle est de type « submit » : il déclenche l'envoi du formulaire,
+                  tout comme la touche Entrée dans le champ. */}
+              <SearchBar
+                isVariant={false}
                 value={criteria}
                 placeholder={t("workspace.search.placeholder")}
                 aria-label={t("workspace.search.placeholder")}
                 onChange={(e) => setCriteria(e.target.value)}
+                onClick={() => {
+                  if (criteria.trim()) setQuery({ criteria: criteria.trim(), everywhere: false });
+                }}
                 data-search-input
               />
-              <button
-                type="submit"
-                className="btn btn-outline-primary"
-                data-search-submit
-              >
-                {t("workspace.react.search")}
-              </button>
-              {query && (
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary btn-sm"
-                  data-search-reset
-                  onClick={() => {
-                    setQuery(null);
-                    setCriteria("");
-                  }}
-                >
-                  {t("workspace.react.search.reset")}
-                </button>
-              )}
             </form>
+            <div className="d-flex flex-wrap gap-12 align-items-center">
+              <span className="text-gray-700">{t("workspace.react.sort")}</span>
+              <span data-workspace-sort>
+                <Select
+                  options={sortOptions}
+                  selectedValue={currentSortOption}
+                  placeholderOption={t("workspace.react.sort")}
+                  onValueChange={(option) => {
+                    const next = sortOf(typeof option === "string" ? option : option.value);
+                    // Le composant du socle annonce aussi la valeur courante au montage : on ignore ce qui ne
+                    // change rien, sinon on réécrirait la préférence de l'usager à chaque arrivée sur la page.
+                    if (next.key === sort.key && next.desc === sort.desc) return;
+                    changeSort(next.key, false, next.desc);
+                  }}
+                />
+              </span>
+              <SegmentedControl
+                options={[
+                  { label: t("workspace.react.view.icons"), value: "icons" },
+                  { label: t("workspace.react.view.list"), value: "list" },
+                  { label: t("workspace.react.view.carousel"), value: "carousel" },
+                ]}
+                value={view}
+                onChange={(v: string) =>
+                  changeView(v === "list" ? "list" : v === "carousel" ? "carousel" : "icons")
+                }
+              />
+            </div>
           </div>
           {query && (
             <div className="mb-16" data-search-banner>
@@ -749,83 +813,45 @@ export const Browser = () => {
               {!query.everywhere && (
                 <button
                   type="button"
-                  className="btn btn-outline-secondary btn-sm"
+                  className="btn btn-tertiary btn-sm ms-8"
                   data-search-everywhere
                   onClick={() => setQuery({ ...query, everywhere: true })}
                 >
                   {t("workspace.search.inworkspace")}
                 </button>
               )}
-              {search.isFetching && !searchDegraded && (
-                <span> — {t("workspace.search.inprogress")}</span>
-              )}
+              <button
+                type="button"
+                className="btn btn-tertiary btn-sm ms-8"
+                data-search-reset
+                onClick={() => {
+                  setQuery(null);
+                  setCriteria("");
+                }}
+              >
+                {t("workspace.react.search.reset")}
+              </button>
+              {search.isFetching && !searchDegraded && <span> — {t("workspace.search.inprogress")}</span>}
               {searchDegraded && !flags.disableFullTextSearch && (
-                <p
-                  className="text-warning mb-0"
-                  role="status"
-                  data-search-degraded
-                >
+                <p className="text-warning mb-0" role="status" data-search-degraded>
                   {t("workspace.react.search.degraded")}
                 </p>
               )}
             </div>
           )}
-          <div className="d-flex gap-16 align-items-center mb-16">
-            <SegmentedControl
-              options={[
-                { label: t("workspace.react.view.icons"), value: "icons" },
-                { label: t("workspace.react.view.list"), value: "list" },
-                {
-                  label: t("workspace.react.view.carousel"),
-                  value: "carousel",
-                },
-              ]}
-              value={view}
-              onChange={(v: string) =>
-                changeView(
-                  v === "list"
-                    ? "list"
-                    : v === "carousel"
-                      ? "carousel"
-                      : "icons",
-                )
-              }
-            />
-            <label>
-              {t("workspace.react.sort")}{" "}
-              <select
-                value={sort.key}
-                onChange={(e) => changeSort(e.target.value as SortKey, false)}
-                data-workspace-sort
-              >
-                <option value="name">{t("name")}</option>
-                <option value="owner">{t("owner")}</option>
-                <option value="modified">{t("modified")}</option>
-                <option value="size">{t("size")}</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              className="btn btn-outline-secondary btn-sm"
-              onClick={() => changeSort(sort.key)}
-              aria-label={t(
-                sort.desc
-                  ? "workspace.react.sort.desc"
-                  : "workspace.react.sort.asc",
-              )}
-              title={t(
-                sort.desc
-                  ? "workspace.react.sort.desc"
-                  : "workspace.react.sort.asc",
-              )}
-              data-workspace-sort-direction
-            >
-              {sort.desc ? "↓" : "↑"}
-            </button>
-          </div>
+          {heaviest && (
+            <div className="mb-16" data-heaviest-banner>
+              <strong>{t("workspace.react.quota.heaviest")}</strong>
+              <button type="button" className="btn btn-tertiary btn-sm ms-8" data-heaviest-reset onClick={() => setHeaviest(false)}>
+                {t("workspace.react.search.reset")}
+              </button>
+            </div>
+          )}
+          <TypeFilters counts={typeCounts} value={typeFilter} onChange={setTypeFilter} />
           <ActionBar
             actions={actions}
             count={selection.length}
+            sizeLabel={selectionSize > 0 ? formatSize(selectionSize) : undefined}
             onAction={onAction}
             onClear={() => setSelected(new Set())}
           />
@@ -833,7 +859,7 @@ export const Browser = () => {
             <div className="mb-16">
               <button
                 type="button"
-                className="btn btn-outline-danger"
+                className="btn btn-filled btn-danger"
                 data-action="empty-trash"
                 onClick={() => setConfirm("empty")}
               >
@@ -860,8 +886,8 @@ export const Browser = () => {
             </div>
           )}
           <UploadPanel items={uploads.items} onClear={uploads.clear} />
-          {content.isLoading && <LoadingScreen />}
-          {content.isError && (
+          {listed.isLoading && <LoadingScreen />}
+          {listed.isError && (
             <div
               className="alert alert-danger"
               role="alert"
@@ -870,32 +896,23 @@ export const Browser = () => {
               {t("workspace.react.error")}{" "}
               <button
                 type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={() => content.refetch()}
+                className="btn btn-tertiary btn-sm"
+                onClick={() => void listed.refetch()}
               >
                 {t("workspace.react.retry")}
               </button>
             </div>
           )}
-          {content.isSuccess && elements.length === 0 && (
-            <div className="text-center my-24" data-workspace-empty>
-              <h2 className="h4">
-                {t(emptyKeys(validTree, !folderId, !!query).title)}
-              </h2>
-              <img
-                src="/workspace/public/img/empty-workspace.svg"
-                alt=""
-                style={{ maxWidth: 160 }}
-                data-empty-image
+          {listed.isSuccess && elements.length === 0 && (
+            <div className="my-24" data-workspace-empty data-empty-image>
+              <EmptyScreen
+                imageSrc="/workspace/public/img/empty-workspace.svg"
+                title={t(empty.title)}
+                text={empty.text ? t(empty.text) : undefined}
               />
-              {emptyKeys(validTree, !folderId, !!query).text && (
-                <p className="text-muted">
-                  {t(emptyKeys(validTree, !folderId, !!query).text as string)}
-                </p>
-              )}
             </div>
           )}
-          {content.isSuccess && elements.length > 0 && (
+          {listed.isSuccess && elements.length > 0 && (
             <>
               {view === "carousel" ? (
                 <Carousel elements={elements} />
@@ -923,10 +940,12 @@ export const Browser = () => {
                       : undefined
                   }
                   canDropOn={(f, ev) => canDrop(f._id, ev)}
+                  onOpenFile={(el, siblings) => setViewing({ id: el._id, siblings })}
                 />
               )}
               <LoadMore
                 remaining={elements.length - visible.length}
+                paused={moving}
                 onMore={() => setShown((n) => n + PAGE_SIZE)}
               />
             </>
@@ -1167,6 +1186,12 @@ export const Browser = () => {
         parentId={folderId}
         isOpen={newFolderOpen}
         onClose={() => setNewFolderOpen(false)}
+      />
+      <ViewerModal
+        id={viewing?.id}
+        siblings={viewing?.siblings ?? []}
+        onClose={() => setViewing(null)}
+        onCurrentChange={(next) => setViewing((v) => (v ? { ...v, id: next } : v))}
       />
       <ZipDialog
         file={pendingZip}

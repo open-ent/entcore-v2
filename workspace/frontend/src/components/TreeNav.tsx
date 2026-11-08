@@ -1,4 +1,4 @@
-import { CSSProperties, DragEvent, useState, useEffect, useMemo } from "react";
+import { DragEvent, useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -16,23 +16,13 @@ import {
   WorkspaceElement,
 } from "../lib/types";
 
-const ROW: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  padding: "6px 10px",
-};
-const SELECTED: CSSProperties = { fontWeight: 700 };
-const ACTIVE_LINK: CSSProperties = { color: "#ffb400", fontWeight: 700 };
-const CHEVRON: CSSProperties = {
-  background: "none",
-  border: 0,
-  padding: 0,
-  marginRight: 6,
-  cursor: "pointer",
-  color: "inherit",
-  width: 16,
-  textAlign: "center",
-};
+/**
+ * Classes du socle : `.treeview` habille l'arbre (survol, emplacement courant, retrait des sous-niveaux) à partir des rôles
+ * ARIA déjà portés par le balisage. `.action-container` est la ligne cliquable que `.treeview` met en valeur.
+ */
+const ROW = "action-container d-flex align-items-center gap-4 px-8 py-4";
+/** Chevron de dépliage : le petit bouton de l'arbre du socle. */
+const CHEVRON = "tree-btn d-inline-flex align-items-center justify-content-center flex-shrink-0";
 
 /** Dépôt d'éléments (glisser-déposer interne) sur un dossier de l'arborescence ; `null` = racine de « Mes documents ». */
 export interface DropProps {
@@ -84,10 +74,6 @@ const dropHandlers = (
           }
         },
         "data-drop-target": over === (targetId ?? "root") ? "true" : undefined,
-        style:
-          over === (targetId ?? "root")
-            ? { outline: "2px dashed #2a9cc8" }
-            : undefined,
       }
     : {};
 
@@ -143,17 +129,12 @@ const FolderNodes = ({
           >
             <div
               {...dropHandlers(f._id, drop, over, setOver)}
-              style={{
-                ...ROW,
-                paddingLeft: 10 + depth * 18,
-                ...(selected ? SELECTED : {}),
-                ...(over === f._id ? { outline: "2px dashed #2a9cc8" } : {}),
-              }}
+              className={`${ROW}${over === f._id ? " ws-drop-target" : ""}`}
             >
               {hasChildren ? (
                 <button
                   type="button"
-                  style={CHEVRON}
+                  className={CHEVRON}
                   aria-label={open[f._id] ? "−" : "+"}
                   onClick={() => onToggle(f._id)}
                   data-tree-toggle
@@ -161,13 +142,9 @@ const FolderNodes = ({
                   {open[f._id] ? "▾" : "▸"}
                 </button>
               ) : (
-                <span style={{ ...CHEVRON, cursor: "default" }} />
+                <span className={CHEVRON} style={{ visibility: "hidden" }} aria-hidden="true" />
               )}
-              <Link
-                to={`/${tree}/${f._id}`}
-                data-tree-folder={f._id}
-                style={selected ? ACTIVE_LINK : undefined}
-              >
+              <Link className="text-truncate" to={`/${tree}/${f._id}`} data-tree-folder={f._id}>
                 {f.name}
               </Link>
             </div>
@@ -320,26 +297,27 @@ export const TreeNav = ({
         .querySelector<HTMLButtonElement>(":scope > div [data-tree-toggle]")
         ?.click();
   };
+  const roots = TREES.filter((n) => n !== "public" || publicVisible || n === tree);
   return (
     <nav
+      className="treeview"
       aria-label={t("workspace.title")}
       data-workspace-tree
       onKeyDown={onKeyDown}
     >
-      <ul
-        className="list-unstyled mb-0"
-        role="tree"
-        style={{ borderLeft: "4px solid #ffc800" }}
-      >
-        {TREES.filter((n) => n !== "public" || publicVisible || n === tree).map(
+      <ul className="list-unstyled mb-0" role="tree">
+        {roots.map(
           (name) => {
             const current = highlight && name === tree;
             const expandable = name === "owner" || name === "shared";
             const expanded =
               rootOpen[name] ?? (current || (keepOpen && name === tree));
+            // « Mes documents » et ses dossiers d'abord ; les autres emplacements forment un second groupe, détaché.
+            const startsGroup = name !== "owner" && roots.indexOf(name) > 0 && roots[roots.indexOf(name) - 1] === "owner";
             return (
               <li
                 key={name}
+                className={startsGroup ? "border-top pt-8 mt-8" : undefined}
                 role="treeitem"
                 aria-level={1}
                 aria-expanded={expandable ? expanded : undefined}
@@ -351,19 +329,16 @@ export const TreeNav = ({
                     : name === "trash"
                       ? trashHandlers(overRoot === "trash")
                       : {})}
-                  style={{
-                    ...ROW,
-                    ...(current && !folderId ? SELECTED : {}),
-                    ...((name === "owner" && overRoot === "root") ||
-                    (name === "trash" && overRoot === "trash")
-                      ? { outline: "2px dashed #2a9cc8" }
-                      : {}),
-                  }}
+                  className={`${ROW}${
+                    (name === "owner" && overRoot === "root") || (name === "trash" && overRoot === "trash")
+                      ? " ws-drop-target"
+                      : ""
+                  }`}
                 >
                   {expandable ? (
                     <button
                       type="button"
-                      style={{ ...CHEVRON, color: "#ffb400" }}
+                      className={CHEVRON}
                       aria-label={expanded ? "−" : "+"}
                       onClick={() =>
                         setRootOpen((r) => ({ ...r, [name]: !expanded }))
@@ -374,16 +349,9 @@ export const TreeNav = ({
                       {expanded ? "▼" : "▸"}
                     </button>
                   ) : (
-                    <span
-                      style={{ ...CHEVRON, cursor: "default" }}
-                      aria-hidden="true"
-                    />
+                    <span className={CHEVRON} style={{ visibility: "hidden" }} aria-hidden="true" />
                   )}
-                  <Link
-                    to={`/${name}`}
-                    data-tree-root={name}
-                    style={current && !folderId ? ACTIVE_LINK : undefined}
-                  >
+                  <Link className="text-truncate" to={`/${name}`} data-tree-root={name}>
                     {t(TREE_LABEL_KEY[name])}
                   </Link>
                 </div>
@@ -412,8 +380,7 @@ export const TreeNav = ({
       {onCreateFolder && (
         <button
           type="button"
-          className="btn w-100 mt-16"
-          style={{ background: "#e9ebef", color: "#243242" }}
+          className="btn btn-tertiary w-100 mt-16"
           onClick={onCreateFolder}
           data-action="new-folder"
         >

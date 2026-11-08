@@ -4,9 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { NextcloudBrowser } from "./NextcloudBrowser";
 import { SyncDocument } from "../lib/nextcloud";
 
-vi.mock("@open-ent/react", () => ({
-  AppHeader: ({ children }: { children: unknown }) => <div>{children as never}</div>,
-  LoadingScreen: () => <div data-loading />,
+vi.mock("@open-ent/react", async () => (await import("../test/socle")).socleMock({
   useEdificeClient: () => ({ user: { userId: "u1", username: "Lilit" } }),
   SegmentedControl: ({ options, value, onChange }: { options: Array<{ label: string; value: string }>; value: string; onChange: (v: string) => void }) => (
     <div>

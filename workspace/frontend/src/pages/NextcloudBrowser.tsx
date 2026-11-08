@@ -1,10 +1,11 @@
-import { AppHeader, LoadingScreen, SegmentedControl, ShareModal, useEdificeClient } from "@open-ent/react";
+import { AppHeader, Badge, Card, Checkbox, LoadingScreen, SegmentedControl, ShareModal, useEdificeClient } from "@open-ent/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { FolderPicker } from "../components/FolderPicker";
+import { FileIcon, KIND_LABEL_KEY } from "../components/FileIcon";
 import { NextcloudNav } from "../components/NextcloudNav";
 import { QuotaGauge } from "../components/QuotaGauge";
 import { SelectionBar } from "../components/SelectionBar";
@@ -35,7 +36,8 @@ import { nextcloudService } from "../services/nextcloud.service";
 import { elementActions, workspaceService } from "../services/workspace.service";
 import { useFolders, useFolderStore, useNextcloudList, useNextcloudQuota, useNextcloudUrl, useQuota, useWorkspacePreference } from "../services/queries";
 
-const ICON: Record<string, string> = { folder: "📁", image: "🖼️", pdf: "📕", doc: "📝", sheet: "📊", slides: "📽️", audio: "🎵", video: "🎞️", text: "📄", archive: "🗜️", other: "📎" };
+/** Type d'un élément NextCloud, dans le même vocabulaire que l'espace documentaire. */
+const kindOf = (d: SyncDocument) => (d.isFolder ? ("folder" as const) : fileKind(d.contentType));
 const LABEL: Record<NextcloudActionId, string> = {
   download: "workspace.react.action.download",
   share: "workspace.react.action.share",
@@ -393,45 +395,49 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
             </div>
           )}
           {list.isSuccess && docs.length > 0 && view === "icons" && (
-            <ul className="list-unstyled d-flex flex-wrap gap-16" data-nc-list="icons">
+            <ul className="ws-grid" data-nc-list="icons">
               {docs.map((d) => {
                 const isSelected = selected.has(d.path);
+                const kind = kindOf(d);
                 return (
                   <li
                     key={d.path}
                     data-nc-item={d.isFolder ? "folder" : "file"}
                     data-nc-path={d.path}
                     data-selected={isSelected}
-                    style={{ width: 132, cursor: "pointer" }}
                     onClick={(ev) => {
-                      if ((ev.target as HTMLElement).closest("a,input,button")) return;
+                      if ((ev.target as HTMLElement).closest("a,input,button,[role='button']")) return;
                       // un clic sur un dossier y entre ; Maj/Ctrl + clic le sélectionne (la case à cocher aussi) ; un document se sélectionne
                       if (d.isFolder && !trash && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) navigate(`/nextcloud?path=${encodeURIComponent(d.path)}`);
                       else toggle(d.path);
                     }}
                     {...dndProps(d)}
                   >
-                    <div
-                      style={{
-                        position: "relative",
-                        background: "#fff",
-                        borderRadius: 8,
-                        overflow: "hidden",
-                        boxShadow: "0 1px 4px rgba(0,0,0,.25)",
-                        outline: overFolder === d.path ? "2px dashed #2a9cc8" : isSelected ? "3px solid #2a9cc8" : "none",
-                      }}
-                    >
-                      <div style={{ position: "absolute", top: 6, left: 8 }}>
-                        <input type="checkbox" data-nc-select checked={isSelected} onChange={() => toggle(d.path)} aria-label={d.name} />
+                    <Card isSelectable={false} isClickable={false} isSelected={isSelected} className={`ws-card${overFolder === d.path ? " ws-drop-target" : ""}`}>
+                      <div className="ws-card-check">
+                        <Checkbox data-nc-select checked={isSelected} onChange={() => toggle(d.path)} aria-label={d.name} />
                       </div>
-                      <div style={{ height: 96, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46 }} aria-hidden="true">
-                        {ICON[d.isFolder ? "folder" : fileKind(d.contentType)]}
+                      {!d.isFolder && (
+                        <div className="ws-card-kind">
+                          <Badge variant={{ type: "chip" }}>{t(KIND_LABEL_KEY[kind])}</Badge>
+                        </div>
+                      )}
+                      <div className="card-image medium">
+                        <FileIcon kind={kind} />
                       </div>
-                      <div style={{ background: isSelected ? "#2a9cc8" : "#7a7a7a", color: "#fff", padding: "5px 8px", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {trash ? d.name : open(d)}
-                      </div>
-                    </div>
-                    <small className="d-block text-muted text-center mt-4">{d.isFolder ? "" : formatSize(d.size)}</small>
+                      <Card.Body flexDirection="column" space="8">
+                        <Card.Title>
+                          <span className="ws-card-name">{trash ? d.name : open(d)}</span>
+                        </Card.Title>
+                        {!d.isFolder && (
+                          <Card.Text>
+                            <span className="text-gray-700">
+                              {t(KIND_LABEL_KEY[kind])} · {formatSize(d.size)}
+                            </span>
+                          </Card.Text>
+                        )}
+                      </Card.Body>
+                    </Card>
                   </li>
                 );
               })}
@@ -444,7 +450,7 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
                   <th />
                   {(["name", "owner", "modified", "size"] as const).map((key) => (
                     <th key={key} className={key === "owner" ? "ws-col-owner" : key === "modified" ? "ws-col-date" : key === "size" ? "ws-col-size" : undefined} aria-sort={sort.key === key ? (sort.desc ? "descending" : "ascending") : undefined}>
-                      <button type="button" className="btn btn-link p-0" style={{ color: "inherit", font: "inherit", fontWeight: 600 }} onClick={() => changeSort(key)} data-nc-sort-column={key}>
+                      <button type="button" className="btn btn-tertiary btn-sm p-0 fw-bold" onClick={() => changeSort(key)} data-nc-sort-column={key}>
                         {t(key)} {sort.key === key ? (sort.desc ? "↓" : "↑") : ""}
                       </button>
                     </th>
@@ -458,13 +464,16 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
                     data-nc-item={d.isFolder ? "folder" : "file"}
                     data-nc-path={d.path}
                     {...dndProps(d)}
-                    style={overFolder === d.path ? { outline: "2px dashed #2a9cc8" } : undefined}
+                    className={overFolder === d.path ? "ws-drop-target" : undefined}
                   >
                     <td>
-                      <input type="checkbox" data-nc-select checked={selected.has(d.path)} onChange={() => toggle(d.path)} aria-label={d.name} />
+                      <Checkbox data-nc-select checked={selected.has(d.path)} onChange={() => toggle(d.path)} aria-label={d.name} />
                     </td>
                     <td>
-                      <span aria-hidden="true">{ICON[d.isFolder ? "folder" : fileKind(d.contentType)]}</span> {trash ? d.name : open(d)}
+                      <span className="d-inline-flex align-items-center gap-8">
+                        <FileIcon kind={kindOf(d)} small />
+                        {trash ? d.name : open(d)}
+                      </span>
                     </td>
                     <td className="ws-col-owner">{d.ownerName}</td>
                     <td className="ws-col-date">{parseDate(d.lastModified?.replace("T", " ").replace(/\.\d+Z?$/, "").replace(/(\d\d:\d\d):(\d\d)/, "$1.$2"))?.toLocaleDateString("fr-FR") ?? ""}</td>

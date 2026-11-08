@@ -55,7 +55,7 @@ export const LoolCreateModal = ({
       onClick={(e) => e.target === e.currentTarget && onClose()}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}
     >
-      <div style={{ background: "#fff", borderRadius: 8, width: "min(900px, 95vw)", height: "min(640px, 90vh)", position: "relative" }}>
+      <div className="bg-white rounded" style={{ width: "min(900px, 95vw)", height: "min(640px, 90vh)", position: "relative" }}>
         {!loaded && <p className="p-24" data-lool-loading>…</p>}
         <iframe
           title={t("workspace.lool.create-document")}

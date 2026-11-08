@@ -7,13 +7,10 @@ import { WorkspaceElement } from "../lib/types";
 const rights = vi.hoisted(() => ({
   value: [{ name: "org.entcore.workspace.controllers.WorkspaceController|addDocument" }, { name: "org.entcore.workspace.controllers.WorkspaceController|addFolder" }] as Array<{ name: string }>,
 }));
-vi.mock("@open-ent/react", () => ({
-  AppHeader: ({ children }: { children: unknown }) => <div>{children as never}</div>,
-  LoadingScreen: () => <div data-loading />,
-  SegmentedControl: ({ value }: { value: string }) => <div data-segmented={value} />,
-  ShareModal: () => null,
+vi.mock("@open-ent/react", async () => (await import("../test/socle")).socleMock({
   useEdificeClient: () => ({ user: { userId: "u1", authorizedActions: rights.value } }),
 }));
+vi.mock("../components/ViewerModal", () => ({ ViewerModal: () => null }));
 vi.mock("../components/NewFolderModal", () => ({ NewFolderModal: () => null }));
 vi.mock("../components/ZipDialog", () => ({ ZipDialog: () => null }));
 vi.mock("../components/VersionsModal", () => ({ VersionsModal: () => null }));
@@ -32,6 +29,7 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }
 
 const content = vi.hoisted(() => ({ value: {} as Record<string, unknown>, search: { isError: false, isFetching: false, data: undefined } as Record<string, unknown> }));
 vi.mock("../services/queries", () => ({
+  useAllFiles: () => ({ data: [], isLoading: false, isError: false, isSuccess: true, refetch: async () => undefined }),
   useContent: () => content.value,
   useSearch: () => content.search,
   useLoolContext: () => ({ data: undefined }),
@@ -69,7 +67,8 @@ describe("Browser", () => {
     renderAt("/owner");
     const ids = [...document.querySelectorAll("[data-element]")].map((n) => n.getAttribute("data-element-id"));
     expect(ids).toEqual(["f1", "d1"]);
-    expect(screen.getByText(/250 o/)).toBeInTheDocument();
+    expect(document.querySelector("[data-workspace-quota]")).toBeInTheDocument();
+    expect(document.querySelector("[data-quota-percent]")?.textContent).toContain("25");
   });
 
   it("signale une erreur de chargement au lieu d'un dossier vide", () => {
@@ -180,6 +179,23 @@ describe("Browser", () => {
     content.value = { isLoading: false, isError: false, isSuccess: true, data: [el({ _id: "a", name: "a.txt" }), el({ _id: "b", name: "b.txt" })] };
     renderAt("/owner");
     expect([...document.querySelectorAll("[data-element]")].map((n) => n.getAttribute("data-element-id"))).toEqual(["b", "a"]);
+    prefs.value = { view: "icons" };
+  });
+
+  it("montre le libellé du tri, pas sa valeur technique", () => {
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
+    renderAt("/owner");
+    expect(document.querySelector("[data-workspace-sort] select")?.getAttribute("data-select-label")).toBe(
+      "workspace.react.sort.name.asc",
+    );
+  });
+
+  it("arriver sur la page n'écrit pas de préférence : seul un choix de l'usager en enregistre une", () => {
+    prefs.save.mockClear();
+    prefs.value = { view: "list", sortField: "metadata.size", sortDesc: true };
+    content.value = { isLoading: false, isError: false, isSuccess: true, data: [] };
+    renderAt("/owner");
+    expect(prefs.save).not.toHaveBeenCalled();
     prefs.value = { view: "icons" };
   });
 

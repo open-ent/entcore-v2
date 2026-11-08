@@ -51,5 +51,8 @@ export default defineConfig({
     environment: "jsdom",
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     setupFiles: ["./src/test-setup.ts"],
+    // Les composants du socle importent leurs images (.png, .svg) : il faut les faire passer par Vite,
+    // sinon Node refuse l'extension.
+    server: { deps: { inline: [/@open-ent\/react/] } },
   },
 });

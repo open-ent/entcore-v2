@@ -252,7 +252,7 @@ export const TransferDialog = ({
         {step === "finished" && (
           <p
             role="status"
-            style={{ color: "#2a9d3d", fontWeight: 600 }}
+            className="text-success fw-bold"
             data-transfer-finished
           >
             {t(keys.finished)}

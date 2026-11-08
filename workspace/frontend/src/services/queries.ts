@@ -15,6 +15,14 @@ export const useContent = (tree: TreeName, parentId?: string) =>
     queryFn: () => workspaceService.listContent(tree, parentId),
   });
 
+/** Tous les documents d'un arbre, à plat (bandeau de quota : « Voir les fichiers les plus lourds »). */
+export const useAllFiles = (tree: TreeName, enabled: boolean) =>
+  useQuery({
+    queryKey: ["workspace", "content", "all", tree],
+    queryFn: () => workspaceService.listAllFiles(tree),
+    enabled,
+  });
+
 const FOLDERS_KEY = ["workspace", "folders"];
 
 /** Mode « lazy » de la plateforme : l'arbre ne charge que les racines, le reste au dépliage. */

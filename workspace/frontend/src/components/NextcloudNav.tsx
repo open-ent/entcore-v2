@@ -7,21 +7,9 @@ import { treeMove, TreeRow } from "../lib/treeKeys";
 import { NextcloudQuota } from "../services/nextcloud.service";
 import { useNextcloudList } from "../services/queries";
 
-const ROW = {
-  display: "flex",
-  alignItems: "center",
-  padding: "6px 10px",
-} as const;
-const CHEVRON = {
-  background: "none",
-  border: 0,
-  padding: 0,
-  marginRight: 6,
-  cursor: "pointer",
-  color: "inherit",
-  width: 16,
-  textAlign: "center",
-} as const;
+/** Mêmes classes du socle que l'arborescence de l'espace documentaire (voir `TreeNav`). */
+const ROW = "action-container d-flex align-items-center gap-4 px-8 py-4";
+const CHEVRON = "tree-btn d-inline-flex align-items-center justify-content-center flex-shrink-0";
 
 /** Chemins à déplier pour montrer un dossier : "Cours/6e" → ["Cours", "Cours/6e"]. */
 export const pathChain = (path: string): string[] => {
@@ -95,16 +83,10 @@ const Node = ({
       aria-expanded={!!open[folder.path]}
       aria-selected={selected}
     >
-      <div
-        style={{
-          ...ROW,
-          paddingLeft: 10 + depth * 18,
-          fontWeight: selected ? 700 : 400,
-        }}
-      >
+      <div className={ROW}>
         <button
           type="button"
-          style={CHEVRON}
+          className={CHEVRON}
           aria-label={open[folder.path] ? "−" : "+"}
           onClick={() => onToggle(folder.path)}
           data-tree-toggle
@@ -115,7 +97,7 @@ const Node = ({
         <Link
           to={`/nextcloud?path=${encodeURIComponent(folder.path)}`}
           data-nc-nav-folder={folder.path}
-          style={selected ? { color: "#ffb400", fontWeight: 700 } : undefined}
+          className="text-truncate"
         >
           {folder.name}
         </Link>
@@ -209,33 +191,24 @@ export const NextcloudNav = ({
           ),
         )
       : 0;
-  const row = {
-    display: "flex",
-    alignItems: "center",
-    padding: "6px 10px",
-  } as const;
   return (
     <nav
       aria-label={t("nextcloud.documents")}
       data-nc-nav
-      className="mt-24"
+      className="treeview mt-24"
       onKeyDown={onKeyDown}
     >
-      <ul
-        className="list-unstyled mb-0"
-        role="tree"
-        style={{ borderLeft: "4px solid #ffc800" }}
-      >
-        <li role="treeitem" aria-level={1} aria-expanded={rootOpen}>
-          <div
-            style={{
-              ...row,
-              fontWeight: active && !trash && !currentPath ? 700 : 400,
-            }}
-          >
+      <ul className="list-unstyled mb-0" role="tree">
+        <li
+          role="treeitem"
+          aria-level={1}
+          aria-expanded={rootOpen}
+          aria-selected={active && !trash && !currentPath}
+        >
+          <div className={ROW}>
             <button
               type="button"
-              style={{ ...CHEVRON, color: "#ffb400" }}
+              className={CHEVRON}
               aria-label={rootOpen ? "−" : "+"}
               onClick={() => setRootOpen((v) => !v)}
               data-tree-toggle
@@ -247,11 +220,7 @@ export const NextcloudNav = ({
               to="/nextcloud"
               data-tree-root="nextcloud"
               data-nc-root
-              style={
-                active && !trash && !currentPath
-                  ? { color: "#ffb400", fontWeight: 700 }
-                  : undefined
-              }
+              className="text-truncate"
             >
               {t("nextcloud.documents")}
             </Link>
@@ -273,21 +242,19 @@ export const NextcloudNav = ({
             </ul>
           )}
         </li>
-        <li
-          role="treeitem"
-          aria-level={2}
-          style={{ ...row, paddingLeft: 32, fontWeight: trash ? 700 : 400 }}
-        >
-          <Link to="/nextcloud-trash" data-nc-trash>
-            {t("nextcloud.static.trashbin")}
-          </Link>
+        <li role="treeitem" aria-level={1} aria-selected={trash} className="border-top pt-8 mt-8">
+          <div className={ROW}>
+            <span className={CHEVRON} style={{ visibility: "hidden" }} aria-hidden="true" />
+            <Link to="/nextcloud-trash" data-nc-trash className="text-truncate">
+              {t("nextcloud.static.trashbin")}
+            </Link>
+          </div>
         </li>
       </ul>
       {onCreateFolder && (
         <button
           type="button"
-          className="btn w-100 mt-16"
-          style={{ background: "#e9ebef", color: "#243242" }}
+          className="btn btn-tertiary w-100 mt-16"
           onClick={onCreateFolder}
           data-nc-action="new-folder"
         >
@@ -295,31 +262,16 @@ export const NextcloudNav = ({
         </button>
       )}
       {quota && quota.total > 0 && (
-        <div className="mt-16" data-nc-quota>
-          <strong className="d-block mb-4">{t("nextcloud.quota")}</strong>
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={percent}
-            style={{
-              height: 10,
-              background: "#fff",
-              border: "1px solid #ced4da",
-              borderRadius: 6,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                width: `${percent}%`,
-                height: "100%",
-                background: "#2a9d3d",
-              }}
-            />
+        <div className="card card-body gap-8 mt-16 p-16" data-nc-quota>
+          <div className="d-flex align-items-baseline justify-content-between gap-8">
+            <strong>{t("nextcloud.quota")}</strong>
+            <span className="fw-bold text-gray-700">{percent} %</span>
           </div>
-          <small className="d-block text-end mt-4">
-            {formatSize(quota.used)} / {formatSize(quota.total)}
+          <div className="progress w-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+            <div className={`progress-bar ${percent >= 90 ? "bg-danger" : "bg-success"}`} style={{ width: `${percent}%` }} />
+          </div>
+          <small className="text-gray-700">
+            {t("workspace.react.quota.used", { used: formatSize(quota.used), total: formatSize(quota.total) })}
           </small>
         </div>
       )}

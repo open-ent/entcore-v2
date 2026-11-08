@@ -6,10 +6,10 @@ import { WorkspaceElement } from "../lib/types";
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 const el = (p: Partial<WorkspaceElement>): WorkspaceElement => ({ _id: "x", name: "n.txt", eType: "file", eParent: null, owner: "u9", ownerName: "Marc", ...p });
-const show = (elements: WorkspaceElement[], props: Record<string, unknown> = {}, tree = "owner") =>
+const show = (elements: WorkspaceElement[], props: Record<string, unknown> = {}, tree = "owner", view: "list" | "icons" = "list") =>
   render(
     <MemoryRouter>
-      <ElementList tree={tree as never} elements={elements} view="list" {...props} />
+      <ElementList tree={tree as never} elements={elements} view={view} {...props} />
     </MemoryRouter>,
   );
 
@@ -77,6 +77,13 @@ describe("ElementList — vue en icônes", () => {
 const Ou = () => <p data-ou>{useLocation().pathname}</p>;
 
 describe("ElementList — vue icônes", () => {
+  it("la carte ne porte pas le bouton invisible du socle, qui avalerait les clics", () => {
+    const { container } = show([el({ _id: "f1", name: "a.txt" })], { onToggle: () => undefined }, "owner", "icons");
+    // « Ouvrir la resource » : le bouton plein format que `Card` pose quand `isClickable` n'est pas faux.
+    expect(container.querySelector('[data-element] button[aria-label="card.open.resource"]')).toBeNull();
+    expect(container.querySelector('[data-element] button[aria-label="card.open.menu"]')).toBeNull();
+  });
+
   const icones = (elements: WorkspaceElement[], onToggle = vi.fn()) =>
     render(
       <MemoryRouter initialEntries={["/owner"]}>

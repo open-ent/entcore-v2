@@ -86,7 +86,7 @@ export const NextcloudViewer = () => {
           {t("workspace.download")}
         </a>
       </div>
-      <div ref={box} style={{ background: "#fff" }}>
+      <div ref={box} className="bg-white">
         <Content element={element} source={downloadUrl(userId, doc, true)} />
       </div>
     </>

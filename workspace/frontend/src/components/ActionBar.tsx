@@ -36,6 +36,28 @@ export const LAYOUT: BarLayout<ActionId> = {
 };
 
 /** Barre d'actions de la sélection (les actions viennent de `availableActions`). */
-export const ActionBar = ({ actions, count, onAction, onClear }: { actions: ActionId[]; count: number; onAction: (a: ActionId) => void; onClear: () => void }) => (
-  <SelectionBar actions={actions} layout={LAYOUT} labels={LABEL} count={count} attr={{ bar: "data-action-bar", action: "data-action" }} onAction={onAction} onClear={onClear} />
+export const ActionBar = ({
+  actions,
+  count,
+  sizeLabel,
+  onAction,
+  onClear,
+}: {
+  actions: ActionId[];
+  count: number;
+  /** Poids total de la sélection, déjà mis en forme. */
+  sizeLabel?: string;
+  onAction: (a: ActionId) => void;
+  onClear: () => void;
+}) => (
+  <SelectionBar
+    actions={actions}
+    layout={LAYOUT}
+    labels={LABEL}
+    count={count}
+    sizeLabel={sizeLabel}
+    attr={{ bar: "data-action-bar", action: "data-action" }}
+    onAction={onAction}
+    onClear={onClear}
+  />
 );

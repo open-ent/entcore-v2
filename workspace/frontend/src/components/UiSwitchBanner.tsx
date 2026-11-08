@@ -66,7 +66,7 @@ export const UiSwitchBanner = ({ onVisibleChange }: { onVisibleChange?: (visible
           <label htmlFor="workspace-ui-feedback">{t("workspace.react.switch.question")}</label>
           <input id="workspace-ui-feedback" className="form-control" autoFocus placeholder={t("workspace.react.switch.placeholder")} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
           <div className="d-flex justify-content-end gap-8">
-            <button type="button" className="btn btn-link" style={{ color: "#243242" }} onClick={() => goBack(false)} data-ui-skip>
+            <button type="button" className="btn btn-tertiary btn-sm" onClick={() => goBack(false)} data-ui-skip>
               {t("workspace.react.switch.skip")}
             </button>
             <button type="submit" className="btn btn-primary" data-ui-send>
@@ -86,7 +86,6 @@ export const UiSwitchBanner = ({ onVisibleChange }: { onVisibleChange?: (visible
             <button
               type="button"
               className="btn btn-link"
-              style={{ color: "#243242" }}
               data-ui-dismiss
               onClick={() => {
                 setHidden(true);

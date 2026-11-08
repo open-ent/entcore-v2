@@ -44,7 +44,8 @@ export const Carousel = ({ elements }: { elements: WorkspaceElement[] }) => {
             aria-label={img.name}
             onClick={() => setIndex(i)}
             data-carousel-dot
-            style={{ width: 12, height: 12, borderRadius: "50%", border: 0, padding: 0, background: i === index ? "#2a9cc8" : "#c5c5c5" }}
+            className={`border-0 p-0 rounded-circle ${i === index ? "bg-primary" : "bg-gray-400"}`}
+            style={{ width: 12, height: 12 }}
           />
         ))}
       </div>

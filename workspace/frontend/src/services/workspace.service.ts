@@ -60,6 +60,15 @@ export const workspaceService = {
         `/workspace/documents?${query({ filter: tree, parentId, hierarchical: false, includeall: true, directShared: tree === "shared" && !parentId ? true : undefined })}`,
       ),
 
+  /**
+   * Tous les documents d'un arbre, à tous les niveaux et sans les dossiers : ce qu'il faut pour retrouver les fichiers
+   * les plus lourds depuis le bandeau de quota. Même endpoint que `listContent`, en remontant la hiérarchie.
+   */
+  listAllFiles: (tree: TreeName) =>
+    odeServices
+      .http()
+      .get<WorkspaceElement[]>(`/workspace/documents?${query({ filter: tree, hierarchical: true, includeall: false })}`),
+
   /** Tous les dossiers de l'usager (arborescence de gauche et fil d'Ariane). */
   listFolders: () => odeServices.http().get<WorkspaceElement[]>("/workspace/folders/list?filter=all"),
 

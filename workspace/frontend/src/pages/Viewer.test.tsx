@@ -5,10 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Viewer } from "./Viewer";
 import { WorkspaceElement } from "../lib/types";
 
-vi.mock("@open-ent/react", () => ({
-  AppHeader: ({ children }: { children: unknown }) => <div>{children as never}</div>,
-  LoadingScreen: () => <div data-loading />,
-  ImageEditor: () => <div data-image-editor />,
+vi.mock("@open-ent/react", async () => (await import("../test/socle")).socleMock({
   useEdificeClient: () => ({ user: { userId: "u", authorizedActions: [] } }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
