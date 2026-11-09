@@ -187,8 +187,10 @@ public class DefaultWidgetService implements WidgetService {
 			handler.handle(new Either.Left<String, JsonObject>("invalid.parameters"));
 		}
 
+		// Ancrée sur le widget désigné : ArcadeDB exécute le motif dans l'ordre écrit, et partir
+		// de (g:Group) lui faisait parcourir les 71 000 groupes (0,12 s contre 0,001 s ici).
 		String query =
-			"MATCH (g:Group)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"MATCH (w:Widget {id: $widgetId})<-[rel:AUTHORIZED]-(g:Group) " +
 			"WHERE g.id IN $groupIds " +
 			"AND COALESCE(w.locked ,false) = false " +
 			"DELETE rel";
@@ -206,7 +208,7 @@ public class DefaultWidgetService implements WidgetService {
 		}
 
 		String query =
-			"MATCH (g:Group)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"MATCH (w:Widget {id: $widgetId})<-[rel:AUTHORIZED]-(g:Group) " +
 			"WHERE g.id IN $groupIds " +
 			"AND COALESCE(w.locked ,false) = false " +
 			"SET rel.mandatory = true";
@@ -224,7 +226,7 @@ public class DefaultWidgetService implements WidgetService {
 		}
 
 		String query =
-			"MATCH (g:Group)-[rel:AUTHORIZED]->(w:Widget {id: $widgetId}) " +
+			"MATCH (w:Widget {id: $widgetId})<-[rel:AUTHORIZED]-(g:Group) " +
 			"WHERE g.id IN $groupIds " +
 			"REMOVE rel.mandatory";
 		JsonObject params = new JsonObject()
