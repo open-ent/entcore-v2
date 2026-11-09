@@ -787,10 +787,18 @@ public class DefaultCommunicationService implements CommunicationService {
 					.append(myGroupQuery).append(") as comGroups ");
 			//filter user and group with a distinction on the type to help neo4j to optimize
 			if (additionalParams.getJsonArray(EXPECTED_IDS_USERS_GROUPS) != null) {
-				query.append("OPTIONAL MATCH (u:User) WHERE u.id IN $" + EXPECTED_IDS_USERS_GROUPS + " ")
-						.append( itSelf ? "" : " and u.id <> $userId ");
+				// Lookup par identifiant indexé : sous ArcadeDB, un `IN` placé dans le WHERE
+				// n'emprunte pas l'index et fait parcourir le type entier — 0,50 s par OPTIONAL
+				// MATCH, sur le chemin le plus fréquenté du socle. La garde couvre la liste vide,
+				// où un UNWIND nu supprimerait toutes les lignes au lieu d'en rendre aucune.
+				final String attendus = "(CASE WHEN $" + EXPECTED_IDS_USERS_GROUPS + " IS NULL OR size($"
+						+ EXPECTED_IDS_USERS_GROUPS + ") = 0 THEN [''] ELSE $" + EXPECTED_IDS_USERS_GROUPS + " END)";
+				query.append("UNWIND ").append(attendus).append(" AS attenduId ");
+				query.append("OPTIONAL MATCH (u:User {id: attenduId}) ")
+						.append( itSelf ? "" : "WHERE u.id <> $userId ");
 				query.append("WITH comGroups, collect(u) as cu ");
-				query.append("OPTIONAL MATCH (g:Group) WHERE g.id IN $" + EXPECTED_IDS_USERS_GROUPS + " ");
+				query.append("UNWIND ").append(attendus).append(" AS attenduGroupeId ");
+				query.append("OPTIONAL MATCH (g:Group {id: attenduGroupeId}) ");
 				query.append("WITH comGroups, cu, collect(g) as cg with comGroups, cg+cu as cug unwind cug as m ");
 			}
 			query.append("MATCH p=(g:Group)<-[:DEPENDS*0..1]-(cg)-[:COMMUNIQUE*0..1]->(m) ");
