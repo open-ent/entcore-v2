@@ -15,11 +15,13 @@ Dossier source :
                           "alignments": [{"item": <CFItem>, "code": "C2.MAT…"}],
                           "body": {"mediaType": "text/html", "content": "…"},   (facultatif)
                           "document": {…document natif de l'application…},
-                          "file": "fiches/x.pdf", "mediaType": "application/pdf"}  (binaire, facultatif)
+                          "file": "fiches/x.pdf", "mediaType": "application/pdf"}  (binaire, facultatif ;
+                          mediaType déduit de l'extension s'il est omis)
                          Un document peut citer une autre ressource du pack par « oeip-pack:<clé> »
-                         (l'enregistrement d'une dictée dans un sujet d'exercices) : écrit
-                         « oeip-ref:<globalId> » dans le paquet, l'installation le remplace par
-                         l'adresse de la ressource installée.
+                         (l'enregistrement d'une dictée dans un sujet d'exercices, l'image d'une page
+                         de wiki : <img src="oeip-pack:carte">) : écrit « oeip-ref:<globalId> » dans le
+                         paquet, l'installation le remplace par l'adresse de la ressource installée.
+                         Seul un fichier de l'espace documentaire (service workspace) a une adresse.
 
 L'identifiant global d'une ressource est dérivé du pack et de sa clé : une nouvelle version du pack
 désigne donc la MÊME ressource, et l'installer la met à jour au lieu de la dupliquer.
@@ -29,6 +31,7 @@ relevé de sommes suit exactement celui d'OeipChecksums (lignes « <sha256>  <ch
 """
 import hashlib
 import json
+import mimetypes
 import os
 import re
 import sys
@@ -43,6 +46,21 @@ ICON_MAX = 256 * 1024
 FIXED_ZIP_TIME = (2026, 1, 1, 0, 0, 0)
 # Dans un document natif, « oeip-pack:<clé> » désigne une autre ressource du même pack.
 REF = re.compile(r"oeip-pack:([A-Za-z0-9._~-]+)")
+# Services dont l'adaptateur d'installation donne une adresse (PackResourceAdapter#href) : une
+# référence vers une autre ressource ferait refuser, à l'installation, la ressource qui la porte.
+CITABLE = {"workspace"}
+MEDIA_TYPES = {".mp3": "audio/mpeg", ".svg": "image/svg+xml", ".webp": "image/webp"}
+
+
+def media_type(resource):
+    """Type déclaré, sinon déduit de l'extension : une image déclarée PDF serait servie comme un PDF,
+    et le navigateur ne l'afficherait pas dans une page."""
+    if resource.get("mediaType"):
+        return resource["mediaType"]
+    ext = os.path.splitext(resource["file"])[1].lower()
+    guessed = MEDIA_TYPES.get(ext) or mimetypes.guess_type(resource["file"])[0]
+    assert guessed, f"{resource['key']} : type de {resource['file']} inconnu, déclarer « mediaType »"
+    return guessed
 
 
 def sha256(data):
@@ -78,11 +96,15 @@ def build(source, output):
     resources = [json.load(open(os.path.join(source, "resources", name), encoding="utf-8"))
                  for name in sorted(os.listdir(os.path.join(source, "resources"))) if name.endswith(".json")]
     global_ids = {r["key"]: f"urn:oeip:{VERSION}:resource:{system}:{pack_slug}.{slug(r['key'])}" for r in resources}
+    services_by_key = {r["key"]: r["service"] for r in resources}
 
     def cite(match):
         # Référence à une autre ressource du pack : l'installation la remplace par son adresse.
-        assert match.group(1) in global_ids, f"oeip-pack:{match.group(1)} : aucune ressource de cette clé"
-        return "oeip-ref:" + global_ids[match.group(1)]
+        key = match.group(1)
+        assert key in global_ids, f"oeip-pack:{key} : aucune ressource de cette clé"
+        assert services_by_key[key] in CITABLE, \
+            f"oeip-pack:{key} : une ressource {services_by_key[key]} n'a pas d'adresse, seul un fichier se cite"
+        return "oeip-ref:" + global_ids[key]
 
     items_by_service = defaultdict(list)
     for r in resources:
@@ -99,11 +121,12 @@ def build(source, output):
         item["language"] = pack.get("language", "fr")
         item["state"] = "published"
         if r.get("file"):
-            # Binaire (fiche PDF…) : copié dans le paquet, désigné par body.href et son empreinte.
+            # Binaire (fiche PDF, enregistrement, image…) : copié dans le paquet, désigné par body.href
+            # et son empreinte.
             data = open(os.path.join(source, r["file"]), "rb").read()
             href = f"resources/{service}/content/{slug(r['key'])}/{os.path.basename(r['file'])}"
             files[href] = data
-            item["body"] = {"mediaType": r.get("mediaType", "application/pdf"), "href": href, "sha256": sha256(data)}
+            item["body"] = {"mediaType": media_type(r), "href": href, "sha256": sha256(data)}
         elif r.get("body"):
             item["body"] = r["body"]
         if r.get("alignments"):
