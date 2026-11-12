@@ -833,7 +833,8 @@ public class DefaultUserService implements UserService {
 			List<String> scope = f.getScope();
 			if (scope != null && !scope.isEmpty()) {
 				if (isEmpty(groupId)) {
-					filterFunction += "MATCH (fs:Structure)<-[:DEPENDS]-(pg:ProfileGroup)<-[:IN]-(u) ";
+					// Ancré sur u : ArcadeDB parcourt le motif dans l'ordre écrit.
+					filterFunction += "MATCH (u)-[:IN]->(pg:ProfileGroup)-[:DEPENDS]->(fs:Structure) ";
 					conditionFunction += "AND (fs.id IN $scope) ";
 					params.put("scope", new JsonArray(scope));
 				}
@@ -854,7 +855,9 @@ public class DefaultUserService implements UserService {
 				"OPTIONAL MATCH (u)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(class:Class)-[:BELONGS]->(s) " +
 				"OPTIONAL MATCH (u)-[:RELATED]->(parent: User) " +
 				"OPTIONAL MATCH (child: User)-[:RELATED]->(u) " +
-				"OPTIONAL MATCH (childClass:Class)<-[:DEPENDS]-(:ProfileGroup)<-[:IN]-(child) " +
+				// Ancré sur child : écrit depuis (childClass:Class), ArcadeDB parcourt toutes les
+				// classes à chaque ligne (97 s pour un collège de 780 comptes, contre 0,02 s).
+				"OPTIONAL MATCH (child)-[:IN]->(:ProfileGroup)-[:DEPENDS]->(childClass:Class) " +
 				"OPTIONAL MATCH (u)-[rf:HAS_FUNCTION]->(f:Function) " +
 				"OPTIONAL MATCH (u)-[:TEACHES]->(sub:Subject) " +
 				"RETURN DISTINCT u.id as id, head(u.profiles) as type, u.externalId as externalId, " +
