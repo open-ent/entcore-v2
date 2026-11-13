@@ -1978,13 +1978,14 @@ public class AuthController extends BaseController {
 	/**
 	 * Tableau de bord des blocages temporaires : liste les comptes verrouillés après
 	 * trop de tentatives échouées (mécanisme « logban » stocké dans Redis avec TTL).
-	 * Réservé aux administrateurs (ADML / super-admin).
+	 * Réservé au super administrateur : la liste couvre toute la plateforme, sans
+	 * filtre par établissement.
 	 */
 	@Get("/admin/login-bans")
 	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
 	public void listLoginBans(final HttpServerRequest request) {
 		UserUtils.getUserInfos(eb, request, user -> {
-			if (user == null || (!user.isADMC() && !user.isADML())) {
+			if (user == null || !user.isADMC()) {
 				unauthorized(request);
 				return;
 			}
@@ -2168,13 +2169,13 @@ public class AuthController extends BaseController {
 
 	/**
 	 * Lève un blocage temporaire en supprimant les compteurs Redis associés au login.
-	 * Réservé aux administrateurs (ADML / super-admin).
+	 * Réservé au super administrateur, comme la liste.
 	 */
 	@Delete("/admin/login-bans/:login")
 	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)
 	public void deleteLoginBan(final HttpServerRequest request) {
 		UserUtils.getUserInfos(eb, request, user -> {
-			if (user == null || (!user.isADMC() && !user.isADML())) {
+			if (user == null || !user.isADMC()) {
 				unauthorized(request);
 				return;
 			}
