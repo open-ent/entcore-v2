@@ -10,19 +10,30 @@ import {
 import { canExpand } from "../lib/lazyFolders";
 import { treeMove, TreeRow } from "../lib/treeKeys";
 import {
+  IconApplications,
+  IconDelete,
+  IconFiles,
+  IconFolder,
+  IconFolderAdd,
+  IconGlobe,
+  IconUsers,
+} from "@open-ent/react/icons";
+import { Chevron, ROW, RowIcon } from "./TreeRowParts";
+import {
   TREES,
   TREE_LABEL_KEY,
   TreeName,
   WorkspaceElement,
 } from "../lib/types";
 
-/**
- * Classes du socle : `.treeview` habille l'arbre (survol, emplacement courant, retrait des sous-niveaux) à partir des rôles
- * ARIA déjà portés par le balisage. `.action-container` est la ligne cliquable que `.treeview` met en valeur.
- */
-const ROW = "action-container d-flex align-items-center gap-4 px-8 py-4";
-/** Chevron de dépliage : le petit bouton de l'arbre du socle. */
-const CHEVRON = "tree-btn d-inline-flex align-items-center justify-content-center flex-shrink-0";
+/** Icône de chaque emplacement racine, et sa couleur (utilitaires du thème : un skin d'établissement la suit). */
+const ROOT_ICON: Record<TreeName, { icon: JSX.Element; color: string }> = {
+  owner: { icon: <IconFiles />, color: "text-secondary" },
+  shared: { icon: <IconUsers />, color: "text-secondary" },
+  protected: { icon: <IconApplications />, color: "text-secondary" },
+  public: { icon: <IconGlobe />, color: "text-secondary" },
+  trash: { icon: <IconDelete />, color: "text-gray-700" },
+};
 
 /** Dépôt d'éléments (glisser-déposer interne) sur un dossier de l'arborescence ; `null` = racine de « Mes documents ». */
 export interface DropProps {
@@ -131,19 +142,13 @@ const FolderNodes = ({
               {...dropHandlers(f._id, drop, over, setOver)}
               className={`${ROW}${over === f._id ? " ws-drop-target" : ""}`}
             >
-              {hasChildren ? (
-                <button
-                  type="button"
-                  className={CHEVRON}
-                  aria-label={open[f._id] ? "−" : "+"}
-                  onClick={() => onToggle(f._id)}
-                  data-tree-toggle
-                >
-                  {open[f._id] ? "▾" : "▸"}
-                </button>
-              ) : (
-                <span className={CHEVRON} style={{ visibility: "hidden" }} aria-hidden="true" />
-              )}
+              <Chevron
+                expanded={!!open[f._id]}
+                onToggle={hasChildren ? () => onToggle(f._id) : undefined}
+              />
+              <RowIcon className="text-warning">
+                <IconFolder />
+              </RowIcon>
               <Link className="text-truncate" to={`/${tree}/${f._id}`} data-tree-folder={f._id}>
                 {f.name}
               </Link>
@@ -317,7 +322,7 @@ export const TreeNav = ({
             return (
               <li
                 key={name}
-                className={startsGroup ? "border-top pt-8 mt-8" : undefined}
+                className={startsGroup ? "ws-tree-group-start" : undefined}
                 role="treeitem"
                 aria-level={1}
                 aria-expanded={expandable ? expanded : undefined}
@@ -335,22 +340,18 @@ export const TreeNav = ({
                       : ""
                   }`}
                 >
-                  {expandable ? (
-                    <button
-                      type="button"
-                      className={CHEVRON}
-                      aria-label={expanded ? "−" : "+"}
-                      onClick={() =>
-                        setRootOpen((r) => ({ ...r, [name]: !expanded }))
-                      }
-                      data-tree-toggle
-                      data-tree-root-toggle={name}
-                    >
-                      {expanded ? "▼" : "▸"}
-                    </button>
-                  ) : (
-                    <span className={CHEVRON} style={{ visibility: "hidden" }} aria-hidden="true" />
-                  )}
+                  <Chevron
+                    expanded={expanded}
+                    onToggle={
+                      expandable
+                        ? () => setRootOpen((r) => ({ ...r, [name]: !expanded }))
+                        : undefined
+                    }
+                    data-tree-root-toggle={name}
+                  />
+                  <RowIcon className={ROOT_ICON[name].color}>
+                    {ROOT_ICON[name].icon}
+                  </RowIcon>
                   <Link className="text-truncate" to={`/${name}`} data-tree-root={name}>
                     {t(TREE_LABEL_KEY[name])}
                   </Link>
@@ -380,10 +381,11 @@ export const TreeNav = ({
       {onCreateFolder && (
         <button
           type="button"
-          className="btn btn-tertiary w-100 mt-16"
+          className="btn btn-outline-primary w-100 mt-16 d-inline-flex align-items-center justify-content-center gap-8"
           onClick={onCreateFolder}
           data-action="new-folder"
         >
+          <IconFolderAdd width={18} height={18} aria-hidden="true" />
           {t("folder.new")}
         </button>
       )}

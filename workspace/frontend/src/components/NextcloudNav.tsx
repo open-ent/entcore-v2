@@ -7,9 +7,8 @@ import { treeMove, TreeRow } from "../lib/treeKeys";
 import { NextcloudQuota } from "../services/nextcloud.service";
 import { useNextcloudList } from "../services/queries";
 
-/** Mêmes classes du socle que l'arborescence de l'espace documentaire (voir `TreeNav`). */
-const ROW = "action-container d-flex align-items-center gap-4 px-8 py-4";
-const CHEVRON = "tree-btn d-inline-flex align-items-center justify-content-center flex-shrink-0";
+import { IconDelete, IconFolder, IconFolderAdd, IconRefresh } from "@open-ent/react/icons";
+import { Chevron, ROW, RowIcon } from "./TreeRowParts";
 
 /** Chemins à déplier pour montrer un dossier : "Cours/6e" → ["Cours", "Cours/6e"]. */
 export const pathChain = (path: string): string[] => {
@@ -84,16 +83,14 @@ const Node = ({
       aria-selected={selected}
     >
       <div className={ROW}>
-        <button
-          type="button"
-          className={CHEVRON}
-          aria-label={open[folder.path] ? "−" : "+"}
-          onClick={() => onToggle(folder.path)}
-          data-tree-toggle
+        <Chevron
+          expanded={!!open[folder.path]}
+          onToggle={() => onToggle(folder.path)}
           data-nc-tree-toggle={folder.path}
-        >
-          {open[folder.path] ? "▾" : "▸"}
-        </button>
+        />
+        <RowIcon className="text-warning">
+          <IconFolder />
+        </RowIcon>
         <Link
           to={`/nextcloud?path=${encodeURIComponent(folder.path)}`}
           data-nc-nav-folder={folder.path}
@@ -206,16 +203,14 @@ export const NextcloudNav = ({
           aria-selected={active && !trash && !currentPath}
         >
           <div className={ROW}>
-            <button
-              type="button"
-              className={CHEVRON}
-              aria-label={rootOpen ? "−" : "+"}
-              onClick={() => setRootOpen((v) => !v)}
-              data-tree-toggle
+            <Chevron
+              expanded={rootOpen}
+              onToggle={() => setRootOpen((v) => !v)}
               data-nc-root-toggle
-            >
-              {rootOpen ? "▼" : "▸"}
-            </button>
+            />
+            <RowIcon className="text-secondary">
+              <IconRefresh />
+            </RowIcon>
             <Link
               to="/nextcloud"
               data-tree-root="nextcloud"
@@ -242,9 +237,12 @@ export const NextcloudNav = ({
             </ul>
           )}
         </li>
-        <li role="treeitem" aria-level={1} aria-selected={trash} className="border-top pt-8 mt-8">
+        <li role="treeitem" aria-level={1} aria-selected={trash} className="ws-tree-group-start">
           <div className={ROW}>
-            <span className={CHEVRON} style={{ visibility: "hidden" }} aria-hidden="true" />
+            <Chevron />
+            <RowIcon className="text-gray-700">
+              <IconDelete />
+            </RowIcon>
             <Link to="/nextcloud-trash" data-nc-trash className="text-truncate">
               {t("nextcloud.static.trashbin")}
             </Link>
@@ -254,10 +252,11 @@ export const NextcloudNav = ({
       {onCreateFolder && (
         <button
           type="button"
-          className="btn btn-tertiary w-100 mt-16"
+          className="btn btn-outline-primary w-100 mt-16 d-inline-flex align-items-center justify-content-center gap-8"
           onClick={onCreateFolder}
           data-nc-action="new-folder"
         >
+          <IconFolderAdd width={18} height={18} aria-hidden="true" />
           {t("folder.new")}
         </button>
       )}

@@ -11,6 +11,16 @@ import {
   useEdificeClient,
 } from "@open-ent/react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  IconAdd,
+  IconApplications,
+  IconDownload,
+  IconFolderAdd,
+  IconLandscape,
+  IconTextPage,
+  IconUpload,
+  IconViewList,
+} from "@open-ent/react/icons";
 import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -118,6 +128,16 @@ export const Browser = () => {
     const key = sortKeyOf(preference.data.sortField);
     if (key) setSort({ key, desc: preference.data.sortDesc === true });
   }, [preference.data]);
+  // Choix de vue en icônes seules : le libellé reste dans la page pour les lecteurs d'écran (masqué par
+  // `ws-view-controls`) et s'affiche en infobulle (`title`). Le contrôle du socle ne déclare que `label` et `value`
+  // mais transmet l'option entière à Ant Design, qui affiche `icon` et `title`.
+  const viewOptions = (
+    [
+      ["icons", t("workspace.react.view.icons"), <IconApplications width={20} height={20} />],
+      ["list", t("workspace.react.view.list"), <IconViewList width={20} height={20} />],
+      ["carousel", t("workspace.react.view.carousel"), <IconLandscape width={20} height={20} />],
+    ] as const
+  ).map(([value, label, icon]) => ({ value, label, title: label, icon }));
   const changeView = (v: ViewMode) => {
     setView(v);
     if (v !== "carousel") void workspaceService.savePreference({ view: v });
@@ -632,27 +652,39 @@ export const Browser = () => {
             <div className="d-flex flex-wrap gap-8" data-workspace-toolbar>
               {(mayAddFolder || canCreateOnline) && (
                 <Dropdown>
-                  <Dropdown.Trigger label={t("workspace.react.new")} variant="secondary" data-toolbar-new />
+                  {/* Mêmes icônes que l'ancienne interface : carré « + » pour Nouveau, nuage et flèche pour Importer. */}
+                  <Dropdown.Trigger
+                    label={t("workspace.react.new")}
+                    variant="secondary"
+                    icon={<IconAdd width={20} height={20} />}
+                    data-toolbar-new
+                  />
                   <Dropdown.Menu>
                     {mayAddFolder && (
-                      <Dropdown.Item onClick={() => setNewFolderOpen(true)} data-toolbar-new-folder>
+                      <Dropdown.Item icon={<IconFolderAdd />} onClick={() => setNewFolderOpen(true)} data-toolbar-new-folder>
                         {t("folder.new")}
                       </Dropdown.Item>
                     )}
                     {canCreateOnline && (
-                      <Dropdown.Item onClick={() => setLoolCreate(true)} data-action="lool-create">
+                      <Dropdown.Item icon={<IconTextPage />} onClick={() => setLoolCreate(true)} data-action="lool-create">
                         {t("workspace.lool.create-document")}
                       </Dropdown.Item>
                     )}
                     {driveAvailable && (
-                      <Dropdown.Item disabled={driveBusy} onClick={() => void importFromDrive()} data-action="drive-import">
+                      <Dropdown.Item icon={<IconUpload />} disabled={driveBusy} onClick={() => void importFromDrive()} data-action="drive-import">
                         {t("workspace.cloud.drive.import.action")}
                       </Dropdown.Item>
                     )}
                   </Dropdown.Menu>
                 </Dropdown>
               )}
-              <Button type="button" color="primary" onClick={() => fileInput.current?.click()} data-action="import">
+              <Button
+                type="button"
+                color="primary"
+                leftIcon={<IconDownload width={20} height={20} />}
+                onClick={() => fileInput.current?.click()}
+                data-action="import"
+              >
                 {t("import.file")}
               </Button>
               <input
@@ -774,7 +806,7 @@ export const Browser = () => {
                 data-search-input
               />
             </form>
-            <div className="d-flex flex-wrap gap-12 align-items-center">
+            <div className="ws-view-controls d-flex flex-wrap gap-12 align-items-center ms-auto">
               <span className="text-gray-700">{t("workspace.react.sort")}</span>
               <span data-workspace-sort>
                 <Select
@@ -791,11 +823,7 @@ export const Browser = () => {
                 />
               </span>
               <SegmentedControl
-                options={[
-                  { label: t("workspace.react.view.icons"), value: "icons" },
-                  { label: t("workspace.react.view.list"), value: "list" },
-                  { label: t("workspace.react.view.carousel"), value: "carousel" },
-                ]}
+                options={viewOptions}
                 value={view}
                 onChange={(v: string) =>
                   changeView(v === "list" ? "list" : v === "carousel" ? "carousel" : "icons")
