@@ -37,6 +37,8 @@ import org.entcore.common.http.BaseServer;
 import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.pdf.PdfFactory;
 import org.entcore.common.pdf.PdfGenerator;
+import org.entcore.workspace.controllers.DocumentTransformController;
+import org.entcore.workspace.service.DocumentToolsClient;
 import org.entcore.common.share.ShareService;
 import org.entcore.common.storage.Storage;
 import org.entcore.common.storage.StorageFactory;
@@ -138,6 +140,12 @@ public class Workspace extends BaseServer {
 			workspaceController.setDisableFullTextSearch(true);
 		}
 		addController(workspaceController);
+
+		// Transformations de documents (conversions, fusion, mot de passe, aplatissement…),
+		// faites par le service de documents (node-pdf-generator, routes /tools).
+		final DocumentToolsClient documentTools = new DocumentToolsClient(vertx, config);
+		addController(new DocumentTransformController(storage, workspaceService, documentTools, workspaceController,
+				config.getLong("transform-max-size", 50L * 1024 * 1024)));
 
 		QuotaController quotaController = new QuotaController();
 		quotaController.setQuotaService(quotaService);

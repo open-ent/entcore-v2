@@ -100,7 +100,7 @@ export const workspaceService = {
 
 };
 
-const xsrfToken = (): string => decodeURIComponent(document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)?.[1] ?? "");
+export const xsrfToken = (): string => decodeURIComponent(document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)?.[1] ?? "");
 
 /**
  * POST d'un formulaire, avec son type de contenu explicite. Le serveur lit ces routes comme un formulaire : sans en-tête de type

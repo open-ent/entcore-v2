@@ -42,6 +42,8 @@ import { PublishModal } from "../components/PublishModal";
 import { RenameModal } from "../components/RenameModal";
 import { ShareWarning } from "../components/ShareWarning";
 import { VersionsModal } from "../components/VersionsModal";
+import { TransformModal } from "../components/TransformModal";
+import { TRANSFORM_IDS, TransformId } from "../lib/transform";
 import { NewFolderModal } from "../components/NewFolderModal";
 import { UploadPanel } from "../components/UploadPanel";
 import { ZipDialog } from "../components/ZipDialog";
@@ -279,6 +281,8 @@ export const Browser = () => {
   const [copyingForShare, setCopyingForShare] = useState(false);
   const [publishing, setPublishing] = useState<WorkspaceElement | null>(null);
   const [versions, setVersions] = useState<WorkspaceElement | null>(null);
+  // transformation en cours (menu « Transformer ») et éléments concernés, figés à l'ouverture
+  const [transforming, setTransforming] = useState<{ id: TransformId; items: WorkspaceElement[] } | null>(null);
   const [commenting, setCommenting] = useState<WorkspaceElement | null>(null);
   const [loolCreate, setLoolCreate] = useState(false);
   const dragged = useRef<WorkspaceElement[]>([]);
@@ -447,7 +451,8 @@ export const Browser = () => {
   };
 
   const onAction = (a: ActionId) => {
-    if (a === "download") window.location.assign(downloadUrl(selection));
+    if ((TRANSFORM_IDS as string[]).includes(a)) setTransforming({ id: a as TransformId, items: selection });
+    else if (a === "download") window.location.assign(downloadUrl(selection));
     // dans « Documents partagés », mettre à la corbeille supprime aussi pour les autres personnes qui voient ces éléments : on confirme
     else if (a === "trash")
       validTree === "shared"
@@ -1086,6 +1091,29 @@ export const Browser = () => {
             ),
           )
         }
+      />
+      <TransformModal
+        transform={transforming?.id ?? null}
+        selection={transforming?.items ?? []}
+        // le résultat va dans le dossier courant de « Mes documents », sinon à sa racine
+        parentId={validTree === "owner" ? folderId : undefined}
+        canVersion={
+          !!transforming &&
+          transforming.items.length === 1 &&
+          (validTree === "owner" || rightsOn(transforming.items[0], user?.userId, groupIds).contrib)
+        }
+        onClose={() => setTransforming(null)}
+        onDone={(result) => {
+          setTransforming(null);
+          setNotice(null);
+          setSuccess(t(result.version ? "workspace.transform.done.version" : "workspace.transform.done"));
+          setSelected(new Set(result._id && !result.version && validTree === "owner" ? [result._id] : []));
+          void Promise.all(
+            ["content", "folders", "quota"].map((k) =>
+              qc.invalidateQueries({ queryKey: ["workspace", k] }),
+            ),
+          );
+        }}
       />
       <VersionsModal
         element={versions}

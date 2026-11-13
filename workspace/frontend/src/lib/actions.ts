@@ -1,7 +1,8 @@
 import { isEditableImage } from "./elements";
+import { availableTransforms, TransformId } from "./transform";
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove" | "driveExport" | "editImage";
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove" | "driveExport" | "editImage" | TransformId;
 
 /** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
 export interface ActionContext {
@@ -21,6 +22,8 @@ export interface ActionContext {
   nextcloud?: boolean;
   /** Lecteur externe Google Drive activé et configuré : propose d'y envoyer des documents. */
   cloudDrive?: boolean;
+  /** Droit d'ajouter des documents (les transformations créent un document) ; absent = oui. */
+  canTransform?: boolean;
 }
 
 /**
@@ -63,6 +66,8 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if (ctx.nextcloud && managed && filesOnly && manager) actions.push("ncMove");
   if (ctx.cloudDrive && managed && filesOnly) actions.push("driveExport");
   if (ctx.searching && single) actions.push("location");
+  // menu « Transformer » : sur des documents que l'on peut lire, hors corbeille (le résultat va dans Mes documents)
+  if (managed && ctx.canTransform !== false) actions.push(...availableTransforms(selection));
   return actions;
 };
 

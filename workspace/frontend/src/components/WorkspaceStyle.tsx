@@ -87,11 +87,15 @@ button.ws-tree-chevron:hover { background: var(--openent-gray-400); color: var(-
 .ws-viewer-body > img, .ws-viewer-body > video { max-width: 100%; max-height: 70vh; }
 .ws-viewer-body > iframe { width: 100%; height: 70vh; border: 0; }
 
+/* Barre de sélection : la carte du socle masque ce qui dépasse, ce qui rognait les menus déroulants
+   longs (« Transformer », 8 entrées). Sur mobile, la règle plus bas la fait défiler horizontalement. */
+[data-action-bar], [data-nc-action-bar] { overflow: visible !important; }
+
 @media (max-width: 767px) {
   .ws-col-owner, .ws-col-date, .ws-col-size { display: none; }
   .ws-aside { flex: 1 1 100% !important; }
   .ws-main { flex: 1 1 100% !important; }
-  [data-action-bar], [data-nc-action-bar] { flex-wrap: nowrap !important; overflow-x: auto; }
+  [data-action-bar], [data-nc-action-bar] { flex-wrap: nowrap !important; overflow-x: auto !important; }
   [data-workspace-header] { flex-direction: column; align-items: stretch !important; }
   [data-workspace-toolbar], [data-nc-toolbar] { flex-wrap: wrap; }
   .ws-grid { grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }

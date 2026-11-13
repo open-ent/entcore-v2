@@ -1,5 +1,6 @@
 import { ActionId } from "../lib/actions";
 import { BarLayout } from "../lib/actionGroups";
+import { TRANSFORM_IDS } from "../lib/transform";
 import { SelectionBar } from "./SelectionBar";
 
 const LABEL: Record<ActionId, string> = {
@@ -22,14 +23,26 @@ const LABEL: Record<ActionId, string> = {
   ncMove: "nextcloud.share.move.action",
   driveExport: "workspace.cloud.drive.export.action",
   editImage: "workspace.react.edit.image",
+  toPdf: "workspace.transform.toPdf",
+  convert: "workspace.transform.convert",
+  mergePdf: "workspace.transform.mergePdf",
+  pdfPages: "workspace.transform.pdfPages",
+  protectPdf: "workspace.transform.protectPdf",
+  unlockPdf: "workspace.transform.unlockPdf",
+  flattenPdf: "workspace.transform.flattenPdf",
+  rasterizePdf: "workspace.transform.rasterizePdf",
+  compressPdf: "workspace.transform.compressPdf",
+  pdfToImages: "workspace.transform.pdfToImages",
+  imagesToPdf: "workspace.transform.imagesToPdf",
 };
 
-/** Partager (partage, portail public, NextCloud) · Organiser (copier, déplacer, vers NextCloud ou Drive) · Plus (versions, commentaires). */
+/** Partager (partage, portail public, NextCloud) · Organiser (copier, déplacer, vers NextCloud ou Drive) · Transformer (conversions, PDF) · Plus (versions, commentaires). */
 export const LAYOUT: BarLayout<ActionId> = {
   direct: ["download", "rename", "editImage", "openLool", "openScratch", "openGeogebra", "location", "restore"],
   menus: [
     { key: "share", label: "workspace.react.menu.share", ids: ["share", "publish", "ncCopy"] },
     { key: "organise", label: "workspace.react.menu.organise", ids: ["copy", "move", "ncMove", "driveExport"] },
+    { key: "transform", label: "workspace.transform.menu", ids: TRANSFORM_IDS },
     { key: "more", label: "workspace.react.menu.more", ids: ["history", "comments"] },
   ],
   danger: ["trash", "delete"],

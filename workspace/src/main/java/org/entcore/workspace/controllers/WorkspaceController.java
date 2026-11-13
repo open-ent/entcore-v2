@@ -108,8 +108,9 @@ public class WorkspaceController extends BaseController {
 	 * Vérifie l'extension d'un fichier téléversé contre les extensions bloquées par
 	 * l'établissement de l'utilisateur (surcharge locale, collection "config" — même mécanisme
 	 * que l'écran /nextcloud/desktop), ou le national, ou la liste par défaut ci-dessus.
+	 * Aussi appelé par {@link DocumentTransformController} pour le fichier produit.
 	 */
-	private void checkExtensionAllowed(String filename, UserInfos userInfos, Handler<Boolean> handler) {
+	void checkExtensionAllowed(String filename, UserInfos userInfos, Handler<Boolean> handler) {
 		String extension = extensionOf(filename);
 		List<String> structures = userInfos.getStructures();
 		String structureId = (structures != null && !structures.isEmpty()) ? structures.get(0) : null;
