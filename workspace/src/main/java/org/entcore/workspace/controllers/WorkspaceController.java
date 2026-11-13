@@ -1975,17 +1975,14 @@ public class WorkspaceController extends BaseController {
 			@Override
 			public void handle(final UserInfos user) {
 				if (user != null) {
-					// Défaut plateforme : React (`frontend-ui: angular` pour revenir à AngularJS). Le choix de l'usager dans ses paramètres prime.
-					final String platformUi = platformUi(config);
-					withPreferredUi(request, user, platformUi, ui -> {
-						if ("react".equals(ui)) {
-							// Les drapeaux publics descendent en JSON dans la vue React (balise #workspace-flags).
-							renderView(request, new JsonObject().put("flagsJson", context.encode()), "workspace-react.html", null);
-						} else {
-							renderView(request, context);
-						}
-						eventHelper.onAccess(request);
-					});
+					// Nouvelle interface (React) pour tous : plus aucun choix n'est proposé à l'usager.
+					if ("react".equals(servedUi(request.getParam("ui"), platformUi(config)))) {
+						// Les drapeaux publics descendent en JSON dans la vue React (balise #workspace-flags).
+						renderView(request, new JsonObject().put("flagsJson", context.encode()), "workspace-react.html", null);
+					} else {
+						renderView(request, context);
+					}
+					eventHelper.onAccess(request);
 				} else {
 					unauthorized(request);
 				}
@@ -1994,7 +1991,7 @@ public class WorkspaceController extends BaseController {
 	}
 
 	/**
-	 * IHM servie par défaut, en l'absence de choix de l'usager : React, sauf si la plateforme demande {@code frontend-ui: angular}.
+	 * IHM de la plateforme : React, sauf si la plateforme demande {@code frontend-ui: angular}.
 	 * Le mode « lazy » (dossiers chargés à la demande, pour de très gros volumes) est repris par l'IHM React : il ne change plus l'IHM par défaut.
 	 * Ex. {} → react ; {frontend-ui: angular} → angular ; {publicConf: {lazy-mode: true}} → react.
 	 */
@@ -2002,56 +1999,13 @@ public class WorkspaceController extends BaseController {
 		return "angular".equals(config.getString("frontend-ui")) ? "angular" : "react";
 	}
 
-	/** Clé de préférence usager (« Paramètres du compte → Interfaces en cours de renouvellement ») portant le choix d'IHM. */
-	private static final String UI_PREFERENCE = "workspaceUi";
-
 	/**
-	 * IHM à servir, par ordre de priorité : la dérogation d'URL {@code ?ui=react|angular} (non mémorisée), la préférence
-	 * de l'usager (clé {@code workspaceUi}, lue dans le nœud {@code UserAppConf}), puis celle de la plateforme.
-	 * Aucune panne de cette lecture n'empêche l'espace documentaire de s'afficher.
+	 * IHM servie : celle de la plateforme, sauf dérogation d'adresse {@code ?ui=react|angular} (non mémorisée, réservée au
+	 * dépannage : aucun écran ne la propose). L'ancien choix « workspaceUi » des paramètres du compte n'est plus lu.
+	 * Ex. (null, react) → react ; (angular, react) → angular ; (n'importe quoi, react) → react.
 	 */
-	private void withPreferredUi(final HttpServerRequest request, final UserInfos user, final String platformUi, final Handler<String> handler) {
-		final String forced = request.getParam("ui");
-		if ("react".equals(forced) || "angular".equals(forced)) {
-			handler.handle(forced);
-			return;
-		}
-		// Syntaxe OpenCypher (`$userId`, ArcadeDB) d'abord ; un Neo4j épinglé en Cypher 2.3 la refuse : on retente avec l'ancienne (`{userId}`).
-		final String tail = "-[:PREFERS]->(uac:UserAppConf) RETURN uac." + UI_PREFERENCE + " AS preference";
-		final String query = "MATCH (:User {id:$userId})" + tail;
-		final String legacyQuery = "MATCH (:User {id:{userId}})" + tail;
-		final JsonObject params = new JsonObject().put("userId", user.getUserId());
-		try {
-			final org.entcore.common.neo4j.Neo4j neo4j = org.entcore.common.neo4j.Neo4j.getInstance();
-			neo4j.execute(query, params, message -> {
-				if (isOk(message.body())) {
-					handler.handle(readUi(message.body(), platformUi));
-				} else {
-					neo4j.execute(legacyQuery, params, legacy -> handler.handle(readUi(legacy.body(), platformUi)));
-				}
-			});
-		} catch (Exception e) {
-			handler.handle(platformUi);
-		}
-	}
-
-	/** Une réponse Neo4j réussie porte « status: ok ». */
-	static boolean isOk(JsonObject body) {
-		return body != null && "ok".equals(body.getString("status"));
-	}
-
-	/** Extrait le choix d'IHM du résultat Neo4j — la préférence y est rangée en CHAÎNE JSON, ex. {"ui":"react"}. */
-	static String readUi(JsonObject body, String platformUi) {
-		try {
-			final io.vertx.core.json.JsonArray rows = body.getJsonArray("result", new io.vertx.core.json.JsonArray());
-			if (rows.isEmpty()) return platformUi;
-			final String raw = rows.getJsonObject(0).getString("preference");
-			if (raw == null || raw.trim().isEmpty()) return platformUi;
-			final String ui = new JsonObject(raw).getString("ui");
-			return ("react".equals(ui) || "angular".equals(ui)) ? ui : platformUi;
-		} catch (Exception e) {
-			return platformUi;
-		}
+	static String servedUi(final String forced, final String platformUi) {
+		return "react".equals(forced) || "angular".equals(forced) ? forced : platformUi;
 	}
 
 	@Get("/document/base64/:id")

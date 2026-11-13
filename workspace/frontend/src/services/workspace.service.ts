@@ -3,7 +3,7 @@ import { WorkspacePreference } from "../lib/preferences";
 import { ParentInfo } from "../lib/properties";
 import { ShareJson, shareForm, sharePairs } from "../lib/share";
 import { mergeFolders } from "../lib/lazyFolders";
-import { Quota, Revision, TreeName, UiPreference, WorkspaceElement } from "../lib/types";
+import { Quota, Revision, TreeName, WorkspaceElement } from "../lib/types";
 
 const query = (params: Record<string, string | boolean | undefined>): string => {
   const sp = new URLSearchParams();
@@ -98,24 +98,6 @@ export const workspaceService = {
     return merged;
   },
 
-  /** Préférence « workspaceUi » (paramètres du compte → interfaces en cours de renouvellement) : choix, compteurs et retour. */
-  async getUiPreference(): Promise<UiPreference> {
-    const res = await odeServices.http().get<{ preference?: string }>("/userbook/preference/workspaceUi");
-    try {
-      return (JSON.parse(res?.preference ?? "{}") as UiPreference) ?? {};
-    } catch {
-      return {};
-    }
-  },
-  /** La préférence est réécrite ENTIÈRE : on repart toujours de la dernière version connue. */
-  async saveUiPreference(preference: UiPreference): Promise<void> {
-    await fetch("/userbook/preference/workspaceUi", {
-      method: "PUT",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json", "X-XSRF-TOKEN": xsrfToken() },
-      body: JSON.stringify(preference),
-    });
-  },
 };
 
 const xsrfToken = (): string => decodeURIComponent(document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)?.[1] ?? "");
