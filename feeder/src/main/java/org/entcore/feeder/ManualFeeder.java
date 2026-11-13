@@ -350,7 +350,11 @@ public class ManualFeeder extends BusModBase {
 		String query =
 				"MATCH (s:Structure { id : $structureId})<-[:DEPENDS]-" +
 				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : $profile}) " +
-				"CREATE UNIQUE (pg)<-[:IN]-(u:User $props) " +
+				// ArcadeDB refuse CREATE UNIQUE avec une map de proprietes en parametre
+				// (\"missing '=' at '('\"), et refusait donc la creation manuelle d'usager en 400.
+				// CREATE simple est equivalent ici : $props porte un id fraichement genere, aucun
+				// noeud existant ne pouvait satisfaire le motif, CREATE UNIQUE creait toujours.
+				"CREATE (pg)<-[:IN]-(u:User $props) " +
 				"SET u.structures = [s.externalId] " +
 				related +
 				"RETURN DISTINCT u.id as id, u.login AS login";
@@ -668,7 +672,9 @@ public class ManualFeeder extends BusModBase {
 		String query =
 				"MATCH (s:Class { id : $classId})<-[:DEPENDS]-(cpg:ProfileGroup)-[:DEPENDS]->" +
 				"(pg:ProfileGroup)-[:HAS_PROFILE]->(p:Profile { name : $profile}), (s)-[:BELONGS]->(struct:Structure) " +
-				"CREATE UNIQUE (pg)<-[:IN]-(u:User $props), (cpg)<-[:IN]-(u) " +
+				// Meme correction que dans createUserInStructure : ArcadeDB refuse CREATE UNIQUE
+				// avec $props, et l'id genere rend la creation inconditionnelle de toute facon.
+				"CREATE (pg)<-[:IN]-(u:User $props), (cpg)<-[:IN]-(u) " +
 				"SET u.classes = [s.externalId], u.structures = [struct.externalId] " +
 				related +
 				"RETURN DISTINCT u.id as id, u.login AS login";
