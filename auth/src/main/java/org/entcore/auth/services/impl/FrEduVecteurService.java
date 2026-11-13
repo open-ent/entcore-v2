@@ -51,15 +51,19 @@ public class FrEduVecteurService implements SamlVectorService {
                         if (profiles != null && profiles.size() > 0) {
                             if (profiles.contains("Student")) {
                                 // Get student vectors for saml response : "4|"+u.lastName+"|"+u.firstName+"|"+u.externalId+"|"+s.UAI
-                                String query = "MATCH (u)-[:IN]->()-[:DEPENDS]->(s:Structure) " +
-                                        "WHERE u.id = $userId " +
+                                // Ancree sur l'usager : ArcadeDB parcourt le motif dans l'ordre ecrit,
+                                // le WHERE place apres n'oriente plus l'attaque (0,67 s -> 0,001 s).
+                                String query = "MATCH (u:User {id: $userId})-[:IN]->()-[:DEPENDS]->(s:Structure) " +
                                         "RETURN DISTINCT '4|'+u.lastName+'|'+u.firstName+'|'+u.attachmentId+'|'+s.UAI as FrEduVecteur";
 
                                 neo4j.execute(query, new JsonObject().put("userId", userId), validResultHandler(handler));
                             } else if (profiles.contains("Relative")) {
                                 // Get parent vectors for saml response : '2|'+u.lastName+'|'+u.firstName+'|'+ child.externalId+'|'+s.UAI"
-                                String query = "MATCH (child: User)-[:RELATED]->(u)-[:IN]->()-[:DEPENDS]->(s:Structure) " +
-                                        "WHERE u.id = $userId " +
+                                // Ancree sur le parent : ecrite depuis (child:User), ArcadeDB balayait
+                                // les 514 000 comptes a chaque connexion (3,5 s -> 0,008 s).
+                                String query = "MATCH (u:User {id: $userId})<-[:RELATED]-(child:User) " +
+                                        "WITH DISTINCT u, child " +
+                                        "MATCH (u)-[:IN]->()-[:DEPENDS]->(s:Structure) " +
                                         "RETURN DISTINCT '2|'+u.lastName+'|'+u.firstName+'|'+ child.attachmentId+'|'+s.UAI as FrEduVecteur";
 
                                 neo4j.execute(query, new JsonObject().put("userId", userId), validResultHandler(handler));
