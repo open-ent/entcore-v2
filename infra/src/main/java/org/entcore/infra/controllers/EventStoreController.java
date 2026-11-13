@@ -29,6 +29,8 @@ import fr.wseduc.webutils.Either;
 import fr.wseduc.webutils.http.BaseController;
 import fr.wseduc.webutils.http.Renders;
 import fr.wseduc.webutils.request.RequestUtils;
+import org.entcore.common.user.DefaultFunctions;
+import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.common.utils.StringUtils;
 import org.entcore.infra.services.EventStoreService;
@@ -42,8 +44,11 @@ import static org.entcore.common.http.response.DefaultResponseHandler.asyncArray
 import static org.entcore.common.http.response.DefaultResponseHandler.asyncDefaultResponseHandler;
 import static org.entcore.common.http.response.DefaultResponseHandler.voidResponseHandler;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
+import org.entcore.common.http.filter.AdminFilter;
 import org.entcore.common.http.filter.ResourceFilter;
 import org.entcore.common.http.filter.SuperAdminFilter;
 import org.entcore.infra.services.PartialResults;
@@ -224,9 +229,14 @@ public class EventStoreController extends BaseController {
 		}
 	}
 
+  /**
+   * Journal d'audit de l'administration. Le super administrateur voit tous les événements ;
+   * l'administrateur local, ceux des utilisateurs des établissements sur lesquels porte sa
+   * fonction ADMIN_LOCAL.
+   */
   @Get("/v2/event/list/:type/:epoch")
   @SecuredAction(value = "", type = ActionType.RESOURCE)
-  @ResourceFilter(SuperAdminFilter.class)
+  @ResourceFilter(AdminFilter.class)
   public void listEventsPartial(final HttpServerRequest request) {
     final String type = request.params().get("type");
     if (!EventStoreService.EVENT_STORE_TYPES.contains(type)) {
@@ -241,20 +251,41 @@ public class EventStoreController extends BaseController {
         ("true".equals(request.params().get("skip-synced")) || !request.params().contains("skip-synced"));
       final List<String> eventTypes = request.params().getAll("event-types");
       final boolean sorted = "true".equals(request.params().get("sorted"));
-      eventStoreService.listEventsPartial(type, epoch, duration, skipSynced, eventTypes, sorted, partialResult -> {
-        if (partialResult.succeeded()) {
-          final PartialResults events = partialResult.result();
-          request.response().putHeader("X-HAS-MORE", Boolean.toString(events.isPartial()));
-          Renders.renderJson(request, events.getResults());
-        } else {
-          JsonObject error = new JsonObject().put("error", partialResult.cause().getMessage());
-          Renders.renderJson(request, error, 400);
+      UserUtils.getUserInfos(eb, request, user -> {
+        if (user == null) {
+          Renders.unauthorized(request);
+          return;
         }
+        final List<String> scope = adminLocalScope(user);
+        eventStoreService.listEventsPartial(type, epoch, duration, skipSynced, eventTypes, scope, sorted, partialResult -> {
+          if (partialResult.succeeded()) {
+            final PartialResults events = partialResult.result();
+            request.response().putHeader("X-HAS-MORE", Boolean.toString(events.isPartial()));
+            request.response().putHeader("X-SCOPED", Boolean.toString(scope != null));
+            Renders.renderJson(request, events.getResults());
+          } else {
+            JsonObject error = new JsonObject().put("error", partialResult.cause().getMessage());
+            Renders.renderJson(request, error, 400);
+          }
+        });
       });
     } catch (RuntimeException e) {
       badRequest(request, "invalid.input.format");
     }
   }
+
+	/**
+	 * Établissements visibles par l'administrateur : {@code null} pour le super administrateur (aucune
+	 * restriction), sinon ceux sur lesquels porte sa fonction ADMIN_LOCAL (liste vide s'il n'en a aucun).
+	 */
+	private static List<String> adminLocalScope(final UserInfos user) {
+		final Map<String, UserInfos.Function> functions = user.getFunctions();
+		if (functions != null && functions.containsKey(DefaultFunctions.SUPER_ADMIN)) {
+			return null;
+		}
+		final UserInfos.Function adminLocal = functions != null ? functions.get(DefaultFunctions.ADMIN_LOCAL) : null;
+		return adminLocal != null && adminLocal.getScope() != null ? adminLocal.getScope() : Collections.emptyList();
+	}
 
 	@Get("/event/mine/:type/:epoch")
 	@SecuredAction(value = "", type = ActionType.AUTHENTICATED)

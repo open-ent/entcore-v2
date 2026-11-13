@@ -104,7 +104,10 @@ public class MongoDbEventStore implements EventStoreService {
 			.add(new JsonObject().put("name", "new-user_date").put("sparse", true)
 				.put("key", new JsonObject().put("new-user", 1).put("date", -1)))
 			.add(new JsonObject().put("name", "old-users.id_date").put("sparse", true)
-				.put("key", new JsonObject().put("old-users.id", 1).put("date", -1)));
+				.put("key", new JsonObject().put("old-users.id", 1).put("date", -1)))
+			// Journal d'audit d'un administrateur local, filtré sur ses établissements.
+			.add(new JsonObject().put("name", "structures_date").put("sparse", true)
+				.put("key", new JsonObject().put("structures", 1).put("date", -1)));
 		final JsonObject command = new JsonObject().put("createIndexes", COLLECTION).put("indexes", indexes);
 		mongoDb.command(command.encode(), new DeliveryOptions().setSendTimeout(QUERY_TIMEOUT), res -> {
 			if (!"ok".equals(res.body().getString("status"))) {
@@ -255,8 +258,13 @@ public class MongoDbEventStore implements EventStoreService {
 				new DeliveryOptions().setSendTimeout(QUERY_TIMEOUT), validAsyncResultsHandler(handler));
 	}
 
-  @Override
-  public void listEventsPartial(String eventStoreType, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<PartialResults>> handler) {
+  /**
+   * Requête de la liste paginée des événements (journal d'audit de l'administration). Avec
+   * {@code structures} non nul, seuls les événements d'utilisateurs rattachés à l'un de ces
+   * établissements sont retenus : c'est le périmètre d'un administrateur local. Une liste vide
+   * ne retient donc aucun événement.
+   */
+  static JsonObject buildPartialEventsQuery(long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, List<String> structures) {
     final JsonObject query = new JsonObject().put("date", new JsonObject()
       .put("$gte", startEpoch).put("$lt", (startEpoch + duration)));
     if (skipSynced) {
@@ -265,6 +273,15 @@ public class MongoDbEventStore implements EventStoreService {
     if (eventTypes != null && !eventTypes.isEmpty()) {
       query.put("event-type", new JsonObject().put("$in", new JsonArray(eventTypes)));
     }
+    if (structures != null) {
+      query.put("structures", new JsonObject().put("$in", new JsonArray(new ArrayList<>(structures))));
+    }
+    return query;
+  }
+
+  @Override
+  public void listEventsPartial(String eventStoreType, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, List<String> structures, boolean sorted, Handler<AsyncResult<PartialResults>> handler) {
+    final JsonObject query = buildPartialEventsQuery(startEpoch, duration, skipSynced, eventTypes, structures);
     JsonObject sort = null;
     if (sorted) {
       sort = new JsonObject().put("date", 1);

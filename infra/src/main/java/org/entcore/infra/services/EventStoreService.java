@@ -70,7 +70,11 @@ public interface EventStoreService {
   @Deprecated
 	void listEvents(String eventStoreType, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<JsonArray>> handler);
 
-  void listEventsPartial(String eventStoreType, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<PartialResults>> handler);
+  /**
+   * @param structures établissements auxquels restreindre les événements (périmètre d'un administrateur
+   *                   local), {@code null} pour tous
+   */
+  void listEventsPartial(String eventStoreType, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, List<String> structures, boolean sorted, Handler<AsyncResult<PartialResults>> handler);
 
   void listEventsForUser(String eventStoreType, String userId, long startEpoch, long duration, boolean skipSynced, List<String> eventTypes, boolean sorted, Handler<AsyncResult<JsonArray>> handler);
 

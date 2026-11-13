@@ -1218,4 +1218,28 @@ public class MongoDbEventStoreTest {
         Assert.assertEquals(new JsonArray(java.util.Collections.singletonList("LOGIN")), query.getJsonObject("event-type").getJsonArray("$in"));
         Assert.assertEquals("user-42", query.getString("userId"));
     }
+
+    // ==================== buildPartialEventsQuery TESTS (journal d'audit, périmètre ADML) ====================
+
+    @Test
+    public void buildPartialEventsQuery_withoutStructures_doesNotFilterByStructure() {
+        final JsonObject query = MongoDbEventStore.buildPartialEventsQuery(1000L, 500L, false, null, null);
+        Assert.assertFalse(query.containsKey("structures"));
+    }
+
+    @Test
+    public void buildPartialEventsQuery_withStructures_restrictsToAdminScope() {
+        final JsonObject query = MongoDbEventStore.buildPartialEventsQuery(1000L, 500L, false,
+                java.util.Collections.singletonList("LOGIN"), java.util.Arrays.asList("s1", "s2"));
+        Assert.assertEquals(new JsonArray().add("s1").add("s2"), query.getJsonObject("structures").getJsonArray("$in"));
+        Assert.assertEquals(new JsonArray().add("LOGIN"), query.getJsonObject("event-type").getJsonArray("$in"));
+        Assert.assertEquals(1500L, (long) query.getJsonObject("date").getLong("$lt"));
+    }
+
+    @Test
+    public void buildPartialEventsQuery_withEmptyScope_matchesNothing() {
+        final JsonObject query = MongoDbEventStore.buildPartialEventsQuery(1000L, 500L, false, null,
+                java.util.Collections.emptyList());
+        Assert.assertEquals(new JsonArray(), query.getJsonObject("structures").getJsonArray("$in"));
+    }
 }
