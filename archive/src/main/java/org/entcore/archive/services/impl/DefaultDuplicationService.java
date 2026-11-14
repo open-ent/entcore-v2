@@ -53,8 +53,14 @@ public class DefaultDuplicationService implements DuplicationService
       this.fs = vertx.fileSystem();
 
       String tmpDir = System.getProperty("java.io.tmpdir");
+      // local-state comme l'export personnel et l'import : avec `false` codé en dur, l'état de la
+      // duplication allait dans la map Hazelcast DISTRIBUÉE « userExportInProgress », que ni le
+      // redémarrage du pod (les autres membres du cluster la conservent) ni periodicUserClear
+      // (qui balaie la map locale) ne purgent — une duplication restée en suspens renvoyait alors
+      // « export.exists » à toutes les suivantes du même compte, indéfiniment.
       this.exportService = new FileSystemExportService(vertx, vertx.fileSystem(), vertx.eventBus(), tmpDir, "duplicate:export", null,
-              storage, null, signKey, forceEncryption, new JsonObject(), false);
+              storage, null, signKey, forceEncryption, new JsonObject(),
+              config != null && config.getBoolean("local-state", false));
       this.importService = new DefaultImportService(vertx, config, storage, importPath, "duplicate:import", verifyKey, forceEncryption);
       try {
         ExplorerPluginFactory.getCommunication()
