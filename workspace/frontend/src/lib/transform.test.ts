@@ -19,6 +19,14 @@ describe("availableTransforms", () => {
     expect(availableTransforms([{ ...file("d"), eType: "folder" }])).toEqual([]);
     expect(availableTransforms([file("a.zip")])).toEqual([]);
   });
+  it("modifier le PDF : un seul PDF, avec droit de contribution", () => {
+    expect(availableActions("owner", [file("a.pdf")])).toContain("editPdf");
+    expect(availableActions("owner", [file("a.pdf"), file("b.pdf")])).not.toContain("editPdf");
+    expect(availableActions("owner", [file("a.docx")])).not.toContain("editPdf");
+    expect(availableActions("shared", [file("a.pdf")])).not.toContain("editPdf");
+    expect(availableActions("shared", [file("a.pdf")], { contribOnAll: true })).toContain("editPdf");
+    expect(availableActions("trash", [file("a.pdf")])).not.toContain("editPdf");
+  });
   it("dans la barre : hors corbeille et seulement avec le droit d'ajouter", () => {
     expect(availableActions("owner", [file("a.pdf")])).toContain("protectPdf");
     expect(availableActions("trash", [file("a.pdf")])).not.toContain("protectPdf");

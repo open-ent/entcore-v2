@@ -1,8 +1,8 @@
 import { isEditableImage } from "./elements";
-import { availableTransforms, TransformId } from "./transform";
+import { availableTransforms, extensionOf, TransformId } from "./transform";
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove" | "driveExport" | "editImage" | TransformId;
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove" | "driveExport" | "editImage" | "editPdf" | TransformId;
 
 /** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
 export interface ActionContext {
@@ -67,6 +67,9 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if (ctx.cloudDrive && managed && filesOnly) actions.push("driveExport");
   if (ctx.searching && single) actions.push("location");
   // menu « Transformer » : sur des documents que l'on peut lire, hors corbeille (le résultat va dans Mes documents)
+  // éditeur PDF : enregistre une nouvelle version, donc droit de contribution sur le document
+  if (managed && single && selection[0].eType === "file" && extensionOf(selection[0]) === "pdf" && (tree === "owner" || ctx.contribOnAll === true))
+    actions.push("editPdf");
   if (managed && ctx.canTransform !== false) actions.push(...availableTransforms(selection));
   return actions;
 };

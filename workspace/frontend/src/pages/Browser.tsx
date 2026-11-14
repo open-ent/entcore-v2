@@ -337,6 +337,9 @@ export const Browser = () => {
     managerOnAll: selection.every(
       (e) => rightsOn(e, user?.userId, groupIds).manager,
     ),
+    contribOnAll: selection.every(
+      (e) => rightsOn(e, user?.userId, groupIds).contrib,
+    ),
     canPublish: canPublishToPortal,
     searching: !!query,
     nextcloud: ncAvailable,
@@ -390,6 +393,14 @@ export const Browser = () => {
     const timer = window.setTimeout(() => setSuccess(null), 5000);
     return () => window.clearTimeout(timer);
   }, [success]);
+  // message rapporté par une autre page (l'éditeur PDF après enregistrement), affiché une fois
+  const returnedNotice = (location.state as { notice?: string } | null)?.notice;
+  useEffect(() => {
+    if (!returnedNotice) return;
+    setSuccess(t(returnedNotice));
+    void qc.invalidateQueries({ queryKey: ["workspace", "content"] });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [returnedNotice]); // eslint-disable-line react-hooks/exhaustive-deps
   const run = async (fn: () => Promise<unknown>, successKey?: string) => {
     setNotice(null);
     setSuccess(null);
@@ -481,6 +492,8 @@ export const Browser = () => {
       navigate(`/view/${selection[0]._id}?edit=image`, {
         state: { ids: [selection[0]._id], from: location.pathname },
       });
+    else if (a === "editPdf")
+      navigate(`/edit/pdf/${selection[0]._id}`, { state: { from: location.pathname } });
     else if (a === "openLool") window.open(loolUrl(selection[0]._id));
     else if (a === "openScratch") window.open(scratchUrl(selection[0]._id));
     else if (a === "openGeogebra") window.open(geogebraUrl(selection[0]));

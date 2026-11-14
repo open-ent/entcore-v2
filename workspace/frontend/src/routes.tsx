@@ -4,6 +4,7 @@ import { NextcloudBrowser } from "./pages/NextcloudBrowser";
 import { NextcloudViewer } from "./pages/NextcloudViewer";
 import { Root } from "./pages/Root";
 import { Viewer } from "./pages/Viewer";
+import { PdfEditor } from "./pages/PdfEditor";
 
 export const routes: RouteObject[] = [
   {
@@ -12,6 +13,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="/owner" replace /> },
       { path: "view/:id", element: <Viewer /> },
+      { path: "edit/pdf/:id", element: <PdfEditor /> },
       { path: "nextcloud", element: <NextcloudBrowser /> },
       { path: "nextcloud-view", element: <NextcloudViewer /> },
       { path: "nextcloud-trash", element: <NextcloudBrowser trash /> },
