@@ -43,6 +43,7 @@ import { RenameModal } from "../components/RenameModal";
 import { ShareWarning } from "../components/ShareWarning";
 import { VersionsModal } from "../components/VersionsModal";
 import { TransformModal } from "../components/TransformModal";
+import { SignatureCheckModal } from "../components/SignatureCheckModal";
 import { TRANSFORM_IDS, TransformId } from "../lib/transform";
 import { NewFolderModal } from "../components/NewFolderModal";
 import { UploadPanel } from "../components/UploadPanel";
@@ -282,6 +283,7 @@ export const Browser = () => {
   const [publishing, setPublishing] = useState<WorkspaceElement | null>(null);
   const [versions, setVersions] = useState<WorkspaceElement | null>(null);
   // transformation en cours (menu « Transformer ») et éléments concernés, figés à l'ouverture
+  const [checkingSignature, setCheckingSignature] = useState<WorkspaceElement | null>(null);
   const [transforming, setTransforming] = useState<{ id: TransformId; items: WorkspaceElement[] } | null>(null);
   const [commenting, setCommenting] = useState<WorkspaceElement | null>(null);
   const [loolCreate, setLoolCreate] = useState(false);
@@ -492,6 +494,7 @@ export const Browser = () => {
       navigate(`/view/${selection[0]._id}?edit=image`, {
         state: { ids: [selection[0]._id], from: location.pathname },
       });
+    else if (a === "verifySignature") setCheckingSignature(selection[0]);
     else if (a === "editPdf")
       navigate(`/edit/pdf/${selection[0]._id}`, { state: { from: location.pathname } });
     else if (a === "openLool") window.open(loolUrl(selection[0]._id));
@@ -1105,6 +1108,7 @@ export const Browser = () => {
           )
         }
       />
+      <SignatureCheckModal element={checkingSignature} onClose={() => setCheckingSignature(null)} />
       <TransformModal
         transform={transforming?.id ?? null}
         selection={transforming?.items ?? []}

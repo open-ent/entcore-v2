@@ -24,6 +24,7 @@ const LABEL: Record<ActionId, string> = {
   driveExport: "workspace.cloud.drive.export.action",
   editImage: "workspace.react.edit.image",
   editPdf: "workspace.pdfeditor.action",
+  verifySignature: "workspace.signature.action",
   toPdf: "workspace.transform.toPdf",
   convert: "workspace.transform.convert",
   mergePdf: "workspace.transform.mergePdf",
@@ -43,7 +44,7 @@ export const LAYOUT: BarLayout<ActionId> = {
   menus: [
     { key: "share", label: "workspace.react.menu.share", ids: ["share", "publish", "ncCopy"] },
     { key: "organise", label: "workspace.react.menu.organise", ids: ["copy", "move", "ncMove", "driveExport"] },
-    { key: "transform", label: "workspace.transform.menu", ids: ["editPdf", ...TRANSFORM_IDS] },
+    { key: "transform", label: "workspace.transform.menu", ids: ["editPdf", ...TRANSFORM_IDS, "verifySignature"] },
     { key: "more", label: "workspace.react.menu.more", ids: ["history", "comments"] },
   ],
   danger: ["trash", "delete"],

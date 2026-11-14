@@ -2,7 +2,7 @@ import { isEditableImage } from "./elements";
 import { availableTransforms, extensionOf, TransformId } from "./transform";
 import { TreeName, WorkspaceElement } from "./types";
 
-export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove" | "driveExport" | "editImage" | "editPdf" | TransformId;
+export type ActionId = "rename" | "copy" | "move" | "trash" | "restore" | "delete" | "download" | "share" | "publish" | "history" | "comments" | "location" | "openLool" | "openScratch" | "openGeogebra" | "ncCopy" | "ncMove" | "driveExport" | "editImage" | "editPdf" | "verifySignature" | TransformId;
 
 /** Ce qui conditionne certaines actions : droit de gestion sur la sélection, profil habilité à publier au portail. */
 export interface ActionContext {
@@ -71,6 +71,8 @@ export const availableActions = (tree: TreeName, selection: WorkspaceElement[], 
   if (managed && single && selection[0].eType === "file" && extensionOf(selection[0]) === "pdf" && (tree === "owner" || ctx.contribOnAll === true))
     actions.push("editPdf");
   if (managed && ctx.canTransform !== false) actions.push(...availableTransforms(selection));
+  // vérification de la signature électronique (module esign) : lecture seule, tout PDF lisible
+  if (single && selection[0].eType === "file" && extensionOf(selection[0]) === "pdf") actions.push("verifySignature");
   return actions;
 };
 
