@@ -1,3 +1,8 @@
+<style>
+	.auth-login .register-link { width: 100%; margin: 20px 0 0; padding-top: 16px; border-top: 1px solid rgba(0, 0, 0, 0.08); text-align: center; font-size: 15px; }
+	.auth-login .register-link a { margin-left: 4px; font-weight: 700; }
+	.auth-login .platform-version { margin: 0; padding-top: 20px; text-align: center; font-size: 12px; color: rgba(255, 255, 255, 0.75); }
+</style>
 <div class="centered container row">
 	<section class="main">
 		<div class="login panel" ng-class="{'browser-container': !browser || (browser && browser.outdated) || !cookieEnabled}">
@@ -85,7 +90,14 @@
 								</div>
                         <button type="submit" ng-disabled="connecting" tabindex="3" class="flex-magnet-bottom-right"><i18n>auth.login</i18n></button>
                     </div>
+                    <p class="register-link" ng-if="registerUrl">
+                    <span><i18n>auth.register.question</i18n></span>
+                    <a href="[[registerUrl]]"><i18n>auth.register.link</i18n></a>
+                </p>
                 </form>
             </div>
+            <p class="platform-version" ng-if="platform">
+                [[platform.name]] [[platform.version]]<span ng-if="platform.built"> · <i18n>auth.platform.updated</i18n> [[platform.built]]</span><span ng-if="platform.commit" title="Commit [[platform.commit]]"> · [[platform.commit]]</span>
+            </p>
 	</section>
 </div>

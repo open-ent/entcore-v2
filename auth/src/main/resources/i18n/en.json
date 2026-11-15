@@ -274,5 +274,8 @@
     "validate-mfa.step2.totp.fallback.btn": "Get a code by email",
     "validate-mfa.error.channel.unavailable": "No email address is set on your account.",
     "mfa.totp.enrolled.device": "Device:",
-    "validate-mfa.error.send.failed": "The code could not be sent by email. Try again in a few minutes, or contact your school."
+    "validate-mfa.error.send.failed": "The code could not be sent by email. Try again in a few minutes, or contact your school.",
+    "auth.register.question": "No account yet?",
+    "auth.register.link": "Create an account",
+    "auth.platform.updated": "updated on"
 }

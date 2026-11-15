@@ -312,5 +312,8 @@
   "validate-mfa.step2.totp.fallback.btn": "Recevoir un code par e-mail",
   "validate-mfa.error.channel.unavailable": "Aucune adresse e-mail n'est renseignée sur votre compte.",
   "mfa.totp.enrolled.device": "Appareil :",
-  "validate-mfa.error.send.failed": "Le code n'a pas pu être envoyé par e-mail. Réessayez dans quelques minutes, ou contactez votre établissement."
+  "validate-mfa.error.send.failed": "Le code n'a pas pu être envoyé par e-mail. Réessayez dans quelques minutes, ou contactez votre établissement.",
+  "auth.register.question": "Pas encore de compte ?",
+  "auth.register.link": "Créer un compte",
+  "auth.platform.updated": "mis à jour le"
 }

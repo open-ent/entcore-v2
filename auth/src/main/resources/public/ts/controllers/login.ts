@@ -133,6 +133,8 @@ export let loginController = ng.controller('LoginController', ['$scope', ($scope
 	http().get('/auth/context').done(function (data) {
 		//$scope.callBack = data.callBack;
 		$scope.cgu = data.cgu;
+		$scope.registerUrl = data.registerUrl;
+		$scope.platform = data.platform;
 		if (!$scope.$$phase) {
 			$scope.$apply();
 		}

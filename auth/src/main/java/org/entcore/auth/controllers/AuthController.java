@@ -669,6 +669,12 @@ public class AuthController extends BaseController {
 		context.put("cgu", config.getBoolean("cgu", true));
 		context.put("passwordRegex", passwordPolicy.regexFor(request));
 		context.put("mandatory", config.getJsonObject("mandatory", new JsonObject()));
+		// Lien « Créer un compte » de la page de connexion : seulement si une inscription est proposée.
+		final String registerUrl = config.getString("register-url", "");
+		if (!registerUrl.isEmpty()) context.put("registerUrl", registerUrl);
+		// Version de la plateforme, au pied de la page de connexion.
+		final JsonObject platform = org.entcore.auth.utils.PlatformVersion.get(config.getString("platform-name", "Open ENT"));
+		if (platform != null) context.put("platform", platform);
 		// Human-readable password format :
 		final I18n i18n = I18n.getInstance();
 		final JsonObject pwdResetFormatByLang = new JsonObject();
