@@ -168,9 +168,15 @@ export let loginController = ng.controller('LoginController', ['$scope', ($scope
 		$scope.connecting = true;
 	};
 
-	for (var i = 0; i < 10; i++) {
-		if (history.pushState) {
-			history.pushState('', '');
+	// Le piège à « retour » (10 entrées d'historique) empêche, sur un poste partagé, de revenir sur une
+	// page de l'ENT restée en cache. Il ne sert que pour la page de connexion ouverte telle quelle : un
+	// visiteur envoyé ici par un lien « Se connecter » (callback=…, site public, session expirée) doit
+	// pouvoir revenir à la page qu'il quittait.
+	if (!_callback) {
+		for (var i = 0; i < 10; i++) {
+			if (history.pushState) {
+				history.pushState('', '');
+			}
 		}
 	}
 
