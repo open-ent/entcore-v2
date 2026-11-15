@@ -1,0 +1,18 @@
+{
+  "name": "org.entcore~probes",
+  "config": {
+    "main": "org.entcore.probes.Probes",
+    "port": 8777,
+    "isolate-mobile": {{ timelineIsolateMobile | default('false') }},
+    "cache": {{ timelineCache | default('false') }},
+    "instances": {{ probesInstance | default('1') }},
+    "app-name": "Probes",
+    "app-address": "/probes",
+    "app-type" : "SYSTEM",
+    "auto-redeploy": true,
+    "ssl": true,
+    "probes": [
+    ],
+    "mode": "prod"
+  }
+}

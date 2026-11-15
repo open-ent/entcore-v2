@@ -35,6 +35,7 @@
     </scm>
 
     <modules>
+        <module>libs</module>
         <module>admin</module>
         <module>app-registry</module>
         <module>archive</module>
@@ -55,11 +56,9 @@
 
     <properties>
         <revision>6.16.14-patched</revision>
-        <!-- Fork patché des libs extraites d'entcore en 6.16 (open-ent/edifice-entcore-libs) :
-             il porte nos correctifs de common/, session/ et broker-parent/ (antivirus à
-             l'upload, seuil d'alerte de quota, horaires d'utilisation, suivi des sessions),
-             que la version amont 6.16.8 ne contient pas. -->
-        <entCoreLibsVersion>6.16.8-patched</entCoreLibsVersion>
+        <!-- Bibliothèques partagées (common, session, broker-*…), réintégrées dans libs/ : elles
+             se versionnent avec le socle. La propriété reste pour les poms des modules du socle. -->
+        <entCoreLibsVersion>${revision}</entCoreLibsVersion>
         <!--
           Bibliothèque d'interopérabilité des cours (open-ent/interoperability) : lecture et
           écriture de SCORM 1.2/2004, cmi5, xAPI, QTI 3.0, Common Cartridge 1.3, des sauvegardes

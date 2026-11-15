@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>fr.openent</groupId>
+        <artifactId>app-parent</artifactId>
+        <version>1.2.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>org.entcore</groupId>
+    <artifactId>ent-core-libs</artifactId>
+    <version>${revision}</version>
+    <packaging>pom</packaging>
+    <!--
+      Bibliothèques partagées du socle (common, session, test, broker-*, probes), réintégrées ici
+      depuis open-ent/edifice-entcore-libs (dernier commit 8f8bf94b) : le socle et les modules ne
+      dépendent plus d'un dépôt à part, ni d'artefacts d'Edifice qui peuvent disparaître de leur
+      Nexus (io.edifice:edifice-quarkus-contract-utils a cassé tous les builds le 15/11/2026).
+
+      Ce pom reste un parent À PART du pom racine du socle : les dépendances déclarées pour tous
+      les modules du socle (mod-zip, mod-pdf-generator… en runtime fat) ne doivent pas entrer
+      dans common, que chaque module de l'ENT embarque.
+
+      La version suit celle du socle : garder revision identique à celle de ../pom.xml.
+    -->
+
+    <repositories>
+        <repository>
+            <id>ode</id>
+            <name>ODE Repository</name>
+            <url>https://maven.opendigitaleducation.com/nexus/content/groups/public</url>
+        </repository>
+        <repository>
+            <id>m2</id>
+            <name>m2 Repository</name>
+            <url>https://plugins.gradle.org/m2/</url>
+        </repository>
+    </repositories>
+
+    <scm>
+        <connection>scm:git:https://github.com/open-ent/entcore-v2.git</connection>
+        <developerConnection>scm:git:https://github.com/open-ent/entcore-v2.git</developerConnection>
+        <url>https://github.com/open-ent/entcore-v2</url>
+    </scm>
+
+    <modules>
+        <module>common</module>
+        <module>session</module>
+        <module>test</module>
+        <module>broker-parent</module>
+        <module>probes</module>
+    </modules>
+
+    <properties>
+        <revision>6.16.14-patched</revision>
+        <junitVersion>4.13.2</junitVersion>
+        <testContainerVersion>1.19.3</testContainerVersion>
+        <modPostgresVersion>2.2.1</modPostgresVersion>
+        <modMongoVersion>4.2.0</modMongoVersion>
+        <modJsonSchemaValidatorVersion>2.2.0</modJsonSchemaValidatorVersion>
+        <webUtilsVersion>3.4.4</webUtilsVersion>
+        <mongodbHelperVersion>3.1.1</mongodbHelperVersion>
+        <zipVersion>3.3.1</zipVersion>
+        <jodaTimeVersion>2.9.4</jodaTimeVersion>
+        <scramVersion>2.1</scramVersion>
+        <micrometerPrometheusVersion>1.11.4</micrometerPrometheusVersion>
+        <owaspVersion>20220608.1</owaspVersion>
+        <jacksonVersion>2.22.4</jacksonVersion>
+        <casVersion>0.3.1</casVersion>
+        <vertxCronTimerVersion>3.0.0</vertxCronTimerVersion>
+        <jnaVersion>3.0.2</jnaVersion>
+        <lamejbVersion>0.2.0</lamejbVersion>
+        <opencsvVersion>3.9</opencsvVersion>
+        <juniversalchardetVersion>1.0.3</juniversalchardetVersion>
+        <commonsLangVersion>3.13.0</commonsLangVersion>
+        <gatlingHighchartsVersion>2.3.1</gatlingHighchartsVersion>
+        <postgres-driver.version>42.2.26</postgres-driver.version>
+        <hikari.version>2.4.2</hikari.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>fr.wseduc</groupId>
+            <artifactId>web-utils</artifactId>
+            <version>${webUtilsVersion}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jacksonVersion}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-core</artifactId>
+            <version>${vertxVersion}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-unit</artifactId>
+            <version>${vertxVersion}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>${junitVersion}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testContainerVersion}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mongodb</artifactId>
+            <version>${testContainerVersion}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${testContainerVersion}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${testContainerVersion}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>neo4j</artifactId>
+            <version>${testContainerVersion}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>fr.wseduc</groupId>
+            <artifactId>mod-postgresql</artifactId>
+            <version>${modPostgresVersion}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgres-driver.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikari.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>mod-mongo-persistor</artifactId>
+            <version>${modMongoVersion}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.mongodb</groupId>
+                    <artifactId>mongodb-driver-async</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.opendigitaleducation</groupId>
+            <artifactId>mod-json-schema-validator</artifactId>
+            <version>${modJsonSchemaValidatorVersion}</version>
+            <scope>runtime</scope>
+            <classifier>fat</classifier>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin> <!-- Plugin enabling parent pom version to be resolved when building any submodule alone -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.6.0</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.scala-tools</groupId>
+                <artifactId>maven-scala-plugin</artifactId>
+                <version>2.15.2</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>compile</goal>
+                            <goal>testCompile</goal>
+                        </goals>
+                        <configuration>
+                            <jvmArgs>
+                                <jvmArg>-Xss4m</jvmArg>
+                                <jvmArg>-Xms512m</jvmArg>
+                                <jvmArg>-Xmx4096m</jvmArg>
+                            </jvmArgs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Depuis le JDK 23, javac n'exécute plus les processeurs d'annotations trouvés sur le
+                 classpath : -proc:full rétablit le comportement du JDK 21 pour tout le réacteur.
+                 common garde son -proc:none (sa liste compilerArgs remplace celle-ci). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <compilerArgs>
+                        <arg>-proc:full</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
