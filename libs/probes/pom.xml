@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.entcore</groupId>
+        <artifactId>ent-core-libs</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>probes</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.entcore</groupId>
+            <artifactId>common</artifactId>
+            <version>${revision}</version>
+            <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                        <groupId>com.opendigitaleducation</groupId>
+                        <artifactId>mod-json-schema-validator</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>fr.wseduc</groupId>
+                    <artifactId>mod-zip</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+</project>

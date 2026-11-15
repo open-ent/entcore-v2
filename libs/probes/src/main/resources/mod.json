@@ -1,0 +1,7 @@
+{
+	"main":"org.entcore.probes.Probes",
+	"auto-redeploy": false,
+	"port": 8777,
+	"mode": "dev",
+	"address" : "wse.timeline"
+}
