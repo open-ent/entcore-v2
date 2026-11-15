@@ -100,8 +100,9 @@ public class ForeignCourseAnalyzerTest {
     @Test
     public void le_catalogue_annonce_ce_qui_est_reellement_gree() {
         JsonArray formats = ForeignFormats.toJson();
-        // SCORM 1.2 et 2004, Moodle (.mbz et XML), LearnHouse, cmi5, xAPI (Tin Can).
-        assertEquals(7, formats.size());
+        // SCORM 1.2 et 2004, Moodle (.mbz et XML), LearnHouse, cmi5, xAPI (Tin Can), QTI et
+        // Common Cartridge (bibliothèque 1.3.0 et suivantes).
+        assertEquals(9, formats.size());
 
         // Le catalogue est bâti depuis les lecteurs et écrivains réellement enregistrés : il
         // suit donc l'état du code, et ce test échoue le jour où un format gagne ou perd une

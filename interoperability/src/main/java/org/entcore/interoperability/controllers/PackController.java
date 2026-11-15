@@ -21,6 +21,11 @@ import org.entcore.common.user.UserUtils;
 import io.vertx.core.file.OpenOptions;
 import org.entcore.interoperability.OeipFormat;
 import org.entcore.interoperability.packaging.OeipPackageReader;
+import fr.tech.openent.interoperability.CourseFormat;
+import fr.tech.openent.interoperability.WriteOptions;
+import fr.tech.openent.interoperability.model.ConversionReport;
+import fr.tech.openent.interoperability.model.Notice;
+import org.entcore.interoperability.packs.PackExport;
 import org.entcore.interoperability.packs.PackPackage;
 import org.entcore.interoperability.packs.PackService;
 import org.entcore.interoperability.schema.OeipValidator;
@@ -154,6 +159,105 @@ public class PackController extends BaseController {
     }
 
     /**
+     * Exporte le pack dans un format d'échange du marché ({@code :format} = identifiant stable de
+     * la bibliothèque : {@code imscc}, {@code scorm12}, {@code scorm2004}, {@code moodle},
+     * {@code moodle-xml}, {@code qti}, {@code cmi5}, {@code xapi}, {@code learnhouse}). Le corps
+     * est le fichier ; la fidélité de la conversion voyage dans les en-têtes
+     * {@code X-Conversion-Fidelity} et {@code X-Conversion-Notices} (remarques, encodées en URL).
+     */
+    @Get("/packs/:packId/export/:format")
+    @SecuredAction(value = "", type = ActionType.RESOURCE)
+    @ResourceFilter(SuperAdminFilter.class)
+    public void export(final HttpServerRequest request) {
+        final String packId = param(request, "packId");
+        final CourseFormat format = CourseFormat.byId(request.params().get("format"));
+        if (format == null) {
+            badRequest(request, "format d'export inconnu : " + request.params().get("format"));
+            return;
+        }
+        packs.store().pack(packId).onComplete(found -> {
+            if (found.failed()) {
+                renderError(request, new JsonObject().put("error", found.cause().getMessage()));
+                return;
+            }
+            final JsonObject pack = found.result();
+            final JsonObject kept = pack == null ? null : pack.getJsonObject("package");
+            if (kept == null || kept.getString("file") == null) {
+                notFound(request, pack == null ? "pack inconnu"
+                        : "paquet d'origine non conservé : réinstaller le pack pour pouvoir l'exporter");
+                return;
+            }
+            final Path dir = workDir.resolve("packs").resolve(java.util.UUID.randomUUID().toString());
+            final Path file = dir.resolve("pack" + OeipFormat.EXTENSION);
+            final Runnable cleanup = () -> vertx.fileSystem().deleteRecursive(dir.toString(), true, cleaned -> {});
+            vertx.fileSystem().mkdirs(dir.toString(), mk -> {
+                if (mk.failed()) {
+                    renderError(request, new JsonObject().put("error", String.valueOf(mk.cause())));
+                    return;
+                }
+                storage.writeToFileSystem(new String[]{kept.getString("file")}, dir.toString(),
+                        new JsonObject().put(kept.getString("file"), file.getFileName().toString()), written -> {
+                    if (!"ok".equals(written.getString("status"))) {
+                        cleanup.run();
+                        renderError(request, new JsonObject().put("error",
+                                "paquet du pack illisible : " + written.getString("message")));
+                        return;
+                    }
+                    vertx.<PackExport.Exported>executeBlocking(blocking -> {
+                        try {
+                            blocking.complete(PackExport.export(file, dir, validator, format,
+                                    WriteOptions.DEFAULT.copy(), MAX_UNCOMPRESSED));
+                        } catch (Exception e) {
+                            blocking.fail(e);
+                        }
+                    }, false, done -> {
+                        if (done.failed()) {
+                            cleanup.run();
+                            badRequest(request, "export impossible : " + done.cause().getMessage());
+                            return;
+                        }
+                        final PackExport.Exported exported = done.result();
+                        request.response()
+                                .putHeader("Content-Type", format.mediaType())
+                                .putHeader("Content-Disposition", "attachment; filename=\"" + exported.fileName + "\"")
+                                .putHeader("X-Conversion-Fidelity", exported.report.fidelity())
+                                .putHeader("X-Conversion-Notices", notices(exported.report))
+                                .sendFile(exported.file.toString(), sent -> cleanup.run());
+                    });
+                });
+            });
+        });
+    }
+
+    /**
+     * Remarques de conversion à montrer à l'administrateur, regroupées par nature (une limite du
+     * format touche souvent des dizaines de questions : la première sert d'exemple, avec le
+     * nombre), au plus quelques groupes, en URL-encodé : un en-tête HTTP n'admet que l'ASCII.
+     */
+    private static String notices(ConversionReport report) {
+        final java.util.Map<String, JsonObject> groups = new java.util.LinkedHashMap<String, JsonObject>();
+        for (Notice notice : report.notices()) {
+            final JsonObject group = groups.get(notice.code());
+            if (group != null) {
+                group.put("count", group.getInteger("count") + 1);
+            } else if (groups.size() < MAX_NOTICES) {
+                groups.put(notice.code(), new JsonObject().put("level", notice.level().name().toLowerCase())
+                        .put("message", notice.message()).put("count", 1));
+            }
+        }
+        final JsonObject summary = new JsonObject().put("total", report.notices().size())
+                .put("notices", new JsonArray(new java.util.ArrayList<Object>(groups.values())));
+        try {
+            return java.net.URLEncoder.encode(summary.encode(), "UTF-8");
+        } catch (java.io.UnsupportedEncodingException e) {
+            return "";
+        }
+    }
+
+    /** Assez pour comprendre ce qui manque, sans faire grossir l'en-tête au-delà du raisonnable. */
+    private static final int MAX_NOTICES = 12;
+
+    /**
      * Icône du pack, pour toute personne connectée : les applications la montrent à côté des
      * ressources qui viennent du pack. Un SVG est servi sans pouvoir rien exécuter (CSP en bac à
      * sable), même ouvert directement ; l'empreinte sert d'ETag, et de paramètre {@code v} aux
@@ -255,7 +359,9 @@ public class PackController extends BaseController {
     @ResourceFilter(SuperAdminFilter.class)
     public void list(final HttpServerRequest request) {
         packs.store().packs()
-                .onSuccess(result -> renderJson(request, new JsonObject().put("packs", result)))
+                // Formats d'export : ceux que la bibliothèque sait écrire, jamais une liste à la main.
+                .onSuccess(result -> renderJson(request, new JsonObject().put("packs", result)
+                        .put("exportFormats", PackExport.formats())))
                 .onFailure(error -> renderError(request, new JsonObject().put("error", error.getMessage())));
     }
 
