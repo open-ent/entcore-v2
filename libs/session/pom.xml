@@ -6,7 +6,7 @@
 
     <parent>
         <groupId>org.entcore</groupId>
-        <artifactId>ent-core-libs</artifactId>
+        <artifactId>entcore-libs</artifactId>
         <version>${revision}</version>
     </parent>
 

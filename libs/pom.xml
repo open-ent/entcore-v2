@@ -12,7 +12,7 @@
     </parent>
 
     <groupId>org.entcore</groupId>
-    <artifactId>ent-core-libs</artifactId>
+    <artifactId>entcore-libs</artifactId>
     <version>${revision}</version>
     <packaging>pom</packaging>
     <!--
@@ -26,6 +26,8 @@
       dans common, que chaque module de l'ENT embarque.
 
       La version suit celle du socle : garder revision identique à celle de ../pom.xml.
+      Nommé entcore-libs (et non ent-core-libs) : sur GitHub Packages, le paquet ent-core-libs
+      reste attaché au dépôt edifice-entcore-libs, et un autre dépôt ne peut y publier (422).
     -->
 
     <repositories>
