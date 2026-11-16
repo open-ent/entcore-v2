@@ -324,19 +324,15 @@ jobs:
       # GitHub Packages exige une authentification que n'ont ni les postes de dev ni le launcher,
       # et c'est ce que faisait la CI d'edifice-entcore-libs avant leur retour dans le socle.
       # rct-nexus accepte le redéploiement d'une version -patched.
+      # Identifiants : serveur pt-releases du ~/.m2/settings.xml écrit plus haut (un -s à part
+      # perdrait les dépôts qui résolvent fr.openent:app-parent).
       - name: Publish shared libs (poms + jars) to rct-nexus
-        env:
-          NEXUS_USER: ${{ secrets.NEXUS_USER }}
-          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
         run: |
-          cat > /tmp/nx-libs-settings.xml <<EOF
-          <settings><servers><server><id>pt-releases</id><username>${NEXUS_USER}</username><password>${NEXUS_PASSWORD}</password></server></servers></settings>
-          EOF
           REVISION_OPT=""
           if [ -n "${{ github.event.inputs.entcore_version }}" ]; then
             REVISION_OPT="-Drevision=${{ github.event.inputs.entcore_version }}"
           fi
-          mvn deploy -DskipTests -DskipITs -B -s /tmp/nx-libs-settings.xml \
+          mvn deploy -DskipTests -DskipITs -B \
             -pl libs,libs/common,libs/session,libs/test,libs/probes,libs/broker-parent,libs/broker-parent/broker-api,libs/broker-parent/broker-nats,libs/broker-parent/broker-proxy,libs/broker-parent/broker \
             ${REVISION_OPT} \
             -DbuildNumber="${GITHUB_SHA::8}" -DscmBranch="${GITHUB_REF_NAME}" \
