@@ -13,7 +13,7 @@
     <artifactId>directory</artifactId>
 
     <properties>
-        <modPdfGeneratorVersion>2.1-SNAPSHOT</modPdfGeneratorVersion>
+        <modPdfGeneratorVersion>2.1.1-patched</modPdfGeneratorVersion>
     </properties>
     <dependencies>
         <dependency>
