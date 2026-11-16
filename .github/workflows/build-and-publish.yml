@@ -382,3 +382,7 @@ jobs:
             ${REVISION_OPT} \
             -DbuildNumber="${GITHUB_SHA::8}" -DscmBranch="${GITHUB_REF_NAME}" \
             -DaltDeploymentRepository=pt-releases::default::https://rct-nexus.tech.fr/repository/maven-releases/
+          # Le pom racine (org.entcore:ent-core) aussi : parent des poms des modules du socle
+          # (workspace, directory…) dont dépendent des modules de l'ENT.
+          mvn deploy -N -DskipTests -B ${REVISION_OPT} \
+            -DaltDeploymentRepository=pt-releases::default::https://rct-nexus.tech.fr/repository/maven-releases/
