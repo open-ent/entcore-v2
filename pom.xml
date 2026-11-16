@@ -17,11 +17,6 @@
 
     <repositories>
         <repository>
-            <id>ode</id>
-            <name>ODE Repository</name>
-            <url>https://maven.opendigitaleducation.com/nexus/content/groups/public</url>
-        </repository>
-        <repository>
             <id>m2</id>
             <name>m2 Repository</name>
             <url>https://plugins.gradle.org/m2/</url>
