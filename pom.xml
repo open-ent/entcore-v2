@@ -60,7 +60,7 @@
           Moodle, des banques Moodle XML et des exports LearnHouse. Elle ne
           dépend ni de Vert.x ni d'entcore, et cible le bytecode Java 8 comme le reste.
         -->
-        <openentInteroperabilityVersion>1.5.0</openentInteroperabilityVersion>
+        <openentInteroperabilityVersion>1.6.0</openentInteroperabilityVersion>
         <junitVersion>4.13.2</junitVersion>
         <testContainerVersion>1.19.3</testContainerVersion>
         <modPostgresVersion>2.2.1</modPostgresVersion>
