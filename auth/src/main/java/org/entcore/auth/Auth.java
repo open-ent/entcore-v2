@@ -134,6 +134,12 @@ public class Auth extends BaseServer {
 		authController.setNewDeviceNotifier(newDeviceNotifier);
 		addController(authController);
 
+		// Mode assistance : ouverture, fermeture et état d'une session d'assistance.
+		final ImpersonationController impersonationController = new ImpersonationController();
+		impersonationController.setEventStore(eventStore);
+		impersonationController.setImpersonationService(new DefaultImpersonationService());
+		addController(impersonationController);
+
 		final ConfigurationController configurationController = new ConfigurationController();
 		configurationController.setConfigurationService(new DefaultConfigurationService());
 		addController(configurationController);

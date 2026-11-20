@@ -315,5 +315,8 @@
   "validate-mfa.error.send.failed": "Le code n'a pas pu être envoyé par e-mail. Réessayez dans quelques minutes, ou contactez votre établissement.",
   "auth.register.question": "Pas encore de compte ?",
   "auth.register.link": "Créer un compte",
-  "auth.platform.updated": "mis à jour le"
+  "auth.platform.updated": "mis à jour le",
+  "impersonation.readonly": "L'assistance se fait en lecture seule : aucune modification n'est possible sur le compte de l'usager.",
+  "impersonation.expired": "La session d'assistance est échue. Quittez l'assistance pour retrouver votre propre session.",
+  "impersonation.forbidden.route": "Cette page n'est pas accessible en assistance : elle délivrerait une identité utilisable hors de l'ENT au nom de l'usager."
 }
