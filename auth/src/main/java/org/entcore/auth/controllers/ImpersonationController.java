@@ -15,6 +15,9 @@ import fr.wseduc.security.SecuredAction;
 import fr.wseduc.webutils.http.BaseController;
 import fr.wseduc.webutils.request.CookieHelper;
 import fr.wseduc.webutils.request.RequestUtils;
+import fr.wseduc.mongodb.MongoDb;
+import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonObject;
@@ -204,13 +207,13 @@ public class ImpersonationController extends BaseController {
 		final String sessionId = Impersonation.newSessionId(expiresAt);
 		final String adminSessionId = CookieHelper.getInstance().getSigned("oneSessionId", request);
 
-		UserUtils.createSessionWithId(eb, target.getString("id"), sessionId, false, ClientDevice.infos(request))
+		final JsonObject device = ClientDevice.infos(request);
+		UserUtils.createSessionWithId(eb, target.getString("id"), sessionId, false, device)
+			.compose(created -> created == null
+					? Future.<String>failedFuture("impersonation.session.not.created")
+					: persistSession(sessionId, target.getString("id"), device))
 			.onFailure(th -> renderError(request))
 			.onSuccess(created -> {
-				if (created == null) {
-					renderError(request);
-					return;
-				}
 				final JsonObject infos = new JsonObject()
 						.put("impersonatorId", admin.getUserId())
 						.put("impersonatorName", admin.getUsername())
@@ -267,6 +270,47 @@ public class ImpersonationController extends BaseController {
 					renderJson(request, answer);
 				});
 			});
+	}
+
+	/**
+	 * Inscrit la session d'assistance dans la collection {@code sessions}, comme le module
+	 * {@code session} le fait pour une connexion ordinaire.
+	 *
+	 * <p>Le module {@code session} traite un identifiant imposé comme le rafraîchissement d'une
+	 * session existante : il range la session en mémoire, mais dans Mongo il met à jour un
+	 * document qu'il ne crée pas. Or quand une session sort de la mémoire partagée (éviction,
+	 * redémarrage de la grille), le socle la reconstruit depuis ce document. Sans lui, la séance
+	 * d'assistance mourait à la première éviction : le portail ne trouvait plus d'usager et
+	 * affichait la vitrine publique. Constaté en production le 20/11/2026, reproduit en local en
+	 * redémarrant le module {@code session}.</p>
+	 *
+	 * <p>Le document porte ce que la reconstruction relit : l'usager, et la description de
+	 * l'appareil. La fermeture de la séance le supprime avec la session.</p>
+	 */
+	private Future<String> persistSession(final String sessionId, final String userId,
+			final JsonObject device) {
+		final Promise<String> promise = Promise.promise();
+		final JsonObject now = MongoDb.now();
+		final JsonObject doc = new JsonObject()
+				.put("_id", sessionId)
+				.put("userId", userId)
+				.put("created", now)
+				.put("lastUsed", now);
+		if (device != null) {
+			for (final String key : new String[] { "ip", "ua", "deviceId" }) {
+				if (device.getValue(key) != null) {
+					doc.put(key, device.getValue(key));
+				}
+			}
+		}
+		MongoDb.getInstance().save("sessions", doc, res -> {
+			if ("ok".equals(res.body().getString("status"))) {
+				promise.complete(sessionId);
+			} else {
+				promise.fail("impersonation.session.not.persisted: " + res.body().getString("message"));
+			}
+		});
+		return promise.future();
 	}
 
 	/**
@@ -370,6 +414,10 @@ public class ImpersonationController extends BaseController {
 							.put("startedAt", infos != null ? infos.getLong("startedAt") : null)
 							.put("endedAt", System.currentTimeMillis()));
 
+			// Le document inscrit à l'ouverture (persistSession) n'est pas toujours retiré par le
+			// module session : on le retire ici, sans quoi la séance resterait reconstructible
+			// jusqu'à ce que son cookie disparaisse.
+			MongoDb.getInstance().delete("sessions", new JsonObject().put("_id", sessionId));
 			UserUtils.deleteSession(eb, sessionId, deleted -> {
 				if (adminSessionId != null && !adminSessionId.trim().isEmpty()) {
 					// On rend à l'administrateur la session qu'il avait avant l'assistance : elle
