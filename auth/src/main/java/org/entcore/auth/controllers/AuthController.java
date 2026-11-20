@@ -83,6 +83,7 @@ import org.entcore.common.datavalidation.UserValidation;
 import org.entcore.common.events.EventStore;
 import org.entcore.common.events.impl.GenericEventStore;
 import org.entcore.common.http.filter.*;
+import org.entcore.common.impersonation.Impersonation;
 import org.entcore.common.notification.TimelineHelper;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.redis.Redis;
@@ -283,6 +284,15 @@ public class AuthController extends BaseController {
 		final String state = request.params().get("state");
 		final String nonce = request.params().get("nonce");
 		final String sessionId = CookieHelper.getInstance().getSigned("oneSessionId", request);
+		// Une session d'assistance ne délivre pas d'identité au-dehors : sans ce garde-fou, un
+		// administrateur en assistance obtiendrait un code OAuth2 au nom de l'usager et
+		// rebondirait vers un service tiers (GAR, connecteurs) hors de tout contrôle. La route
+		// n'est pas @SecuredAction : le filtre d'action commun ne la voit pas, le contrôle est
+		// donc posé ici.
+		if (Impersonation.isImpersonationSessionId(sessionId)) {
+			forbidden(request, "impersonation.forbidden.route");
+			return;
+		}
 		if ("code".equals(responseType) && clientId != null && !clientId.trim().isEmpty()) {
 			if (isNotEmpty(scope)) {
 				log.info(getIp(request) + " - Initialisation de connexion OAuth2 - Client " + clientId + " - Service " + redirectUri);
@@ -1050,6 +1060,14 @@ public class AuthController extends BaseController {
 
 	@Get("/logout")
 	public void logout(final HttpServerRequest request) {
+		// En assistance, se déconnecter reviendrait à fermer la session de l'usager en laissant
+		// l'administrateur avec une session mise de côté qu'il ne pourrait plus reprendre : on
+		// l'envoie à la sortie prévue, qui lui rend la sienne.
+		if (Impersonation.isImpersonationSessionId(
+				CookieHelper.getInstance().getSigned("oneSessionId", request))) {
+			redirectionService.redirect(request, "/auth/impersonate/stop", "");
+			return;
+		}
 		final String c = request.params().get("callback");
 		if (slo) {
 			UserUtils.getUserInfos(eb, request, new io.vertx.core.Handler<UserInfos>() {

@@ -27,6 +27,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import org.entcore.common.impersonation.Impersonation;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.common.utils.StringUtils;
@@ -57,6 +58,11 @@ public abstract class AbstractActionFilter implements Filter {
 	protected void userIsAuthorized(HttpServerRequest request, JsonObject session,
 								  Handler<Boolean> handler) {
 		if (checkForceChangePassword(request, session)) return;
+		// Mode assistance : une session ouverte par un administrateur sur le compte d'un
+		// utilisateur est en lecture seule. Le refus est prononcé ici, avant toute résolution
+		// de droits, pour qu'il couvre d'un coup toutes les routes @SecuredAction de tous les
+		// modules — ce sont elles qui portent les écritures.
+		if (Impersonation.checkAndDeny(request, session)) return;
 
 		Binding binding = requestBinding(request);
 		switch (binding.getActionType()) {
