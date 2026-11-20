@@ -55,6 +55,18 @@ public final class Impersonation {
 	/** Posé sur chaque réponse servie à une session d'assistance. */
 	public static final String HEADER = "X-ENT-Impersonation";
 
+	/**
+	 * Marqueur lisible par le navigateur, à la seule fin que les interfaces sachent
+	 * <em>sans rien demander au serveur</em> qu'une assistance est en cours.
+	 *
+	 * <p>Les cookies de session sont httpOnly, donc invisibles au JavaScript : sans ce marqueur,
+	 * chaque page de chaque module devrait interroger {@code /auth/impersonate/status} au
+	 * chargement pour découvrir que, neuf cent quatre-vingt-dix-neuf fois sur mille, il n'y a
+	 * rien à afficher. Il ne porte aucun secret et n'autorise rien : il dit seulement « regarde
+	 * du côté du statut ».</p>
+	 */
+	public static final String MARKER_COOKIE = "entImpersonation";
+
 	/** Durée par défaut d'une session d'assistance. */
 	public static final long DEFAULT_DURATION_MS = 30 * 60 * 1000L;
 

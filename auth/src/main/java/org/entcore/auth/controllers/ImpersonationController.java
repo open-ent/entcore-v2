@@ -123,6 +123,9 @@ public class ImpersonationController extends BaseController {
 							adminSessionId, timeout, request);
 					CookieHelper.getInstance().setSigned("oneSessionId", sessionId, timeout, request);
 					CookieHelper.set("authenticated", "true", timeout, request);
+					// Lisible par le navigateur : c'est ce qui permet aux interfaces d'afficher le
+					// bandeau sans interroger le serveur à chaque page.
+					CookieHelper.set(Impersonation.MARKER_COOKIE, "1", timeout, request);
 
 					eventStore.createAndStoreEvent(ImpersonationEvent.IMPERSONATION_START.name(), admin,
 							new JsonObject()
@@ -174,6 +177,7 @@ public class ImpersonationController extends BaseController {
 					CookieHelper.set("authenticated", "", 0L, request);
 				}
 				CookieHelper.set(Impersonation.IMPERSONATOR_COOKIE, "", 0L, request);
+				CookieHelper.set(Impersonation.MARKER_COOKIE, "", 0L, request);
 				renderJson(request, new JsonObject().put("stopped", Boolean.TRUE.equals(deleted)));
 			});
 		});
