@@ -289,8 +289,7 @@ public class AuthController extends BaseController {
 		// rebondirait vers un service tiers (GAR, connecteurs) hors de tout contrôle. La route
 		// n'est pas @SecuredAction : le filtre d'action commun ne la voit pas, le contrôle est
 		// donc posé ici.
-		if (Impersonation.isImpersonationSessionId(sessionId)) {
-			forbidden(request, "impersonation.forbidden.route");
+		if (Impersonation.denyIfImpersonated(request)) {
 			return;
 		}
 		if ("code".equals(responseType) && clientId != null && !clientId.trim().isEmpty()) {

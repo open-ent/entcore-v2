@@ -37,6 +37,7 @@ import org.entcore.auth.services.FederationService;
 import org.entcore.auth.services.SafeRedirectionService;
 import org.entcore.auth.services.impl.FederationServiceImpl;
 import org.entcore.common.events.impl.GenericEventStore;
+import org.entcore.common.impersonation.Impersonation;
 import org.entcore.common.http.response.DefaultPages;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
@@ -416,6 +417,13 @@ public class SamlController extends AbstractFederateController {
 
 	@Get("/saml/redirect/sso/")
 	public void ssoredirectGet ( final HttpServerRequest request){
+		// L'ENT agit ici en fournisseur d'identité : il produirait une assertion au nom de
+		// l'usager assisté, qui vaudrait connexion chez le service tiers. Une session
+		// d'assistance ne délivre pas d'identité au-dehors. Route sans @SecuredAction : le
+		// filtre d'action ne la voit pas, le contrôle est posé ici.
+		if (Impersonation.denyIfImpersonated(request)) {
+			return;
+		}
 		log.info("ssoredirect GET called");
 		try{
             String SAMLrequestEnflatedEncoded = request.params().get("SAMLRequest");
@@ -462,6 +470,13 @@ public class SamlController extends AbstractFederateController {
 
 	@Post("/saml/post/sso/")
 	public void ssoredirectPost(final HttpServerRequest request) {
+		// L'ENT agit ici en fournisseur d'identité : il produirait une assertion au nom de
+		// l'usager assisté, qui vaudrait connexion chez le service tiers. Une session
+		// d'assistance ne délivre pas d'identité au-dehors. Route sans @SecuredAction : le
+		// filtre d'action ne la voit pas, le contrôle est posé ici.
+		if (Impersonation.denyIfImpersonated(request)) {
+			return;
+		}
 		log.info("ssoredirect POST called");
 		request.setExpectMultipart(true);
 		request.pause();
@@ -792,6 +807,12 @@ public class SamlController extends AbstractFederateController {
 
 	@Get("/saml/slo")
 	public void slo(final HttpServerRequest request) {
+		// Une déconnexion fédérée fermerait la session de l'usager en laissant l'administrateur
+		// avec une session mise de côté qu'il ne pourrait plus reprendre : la sortie du mode
+		// assistance passe par /auth/impersonate/stop.
+		if (Impersonation.denyIfImpersonated(request)) {
+			return;
+		}
 		sloUser(request);
 	}
 

@@ -277,5 +277,8 @@
     "validate-mfa.error.send.failed": "The code could not be sent by email. Try again in a few minutes, or contact your school.",
     "auth.register.question": "No account yet?",
     "auth.register.link": "Create an account",
-    "auth.platform.updated": "updated on"
+    "auth.platform.updated": "updated on",
+    "impersonation.readonly": "Assistance is read-only: no change can be made to the user's account.",
+    "impersonation.expired": "The assistance session has expired. Leave assistance to get your own session back.",
+    "impersonation.forbidden.route": "This page is not available during assistance: it would issue an identity usable outside the ENT on the user's behalf."
 }

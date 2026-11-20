@@ -7,6 +7,7 @@
 
 package org.entcore.common.impersonation;
 
+import fr.wseduc.webutils.I18n;
 import fr.wseduc.webutils.http.Renders;
 import fr.wseduc.webutils.request.CookieHelper;
 import io.vertx.core.http.HttpMethod;
@@ -46,6 +47,10 @@ public final class Impersonation {
 
 	/** Cookie signé où l'on met de côté la session de l'administrateur pendant l'assistance. */
 	public static final String IMPERSONATOR_COOKIE = "oneImpersonatorSessionId";
+
+	private static final String FORBIDDEN_ROUTE_FALLBACK =
+			"Cette page n'est pas accessible en assistance : elle délivrerait une identité "
+			+ "utilisable hors de l'ENT au nom de l'usager.";
 
 	/** Posé sur chaque réponse servie à une session d'assistance. */
 	public static final String HEADER = "X-ENT-Impersonation";
@@ -95,6 +100,40 @@ public final class Impersonation {
 	 */
 	public static String newSessionId(final long expiresAt) {
 		return SESSION_ID_PREFIX + expiresAt + "-" + UUID.randomUUID().toString();
+	}
+
+	/**
+	 * Refus d'une requête faite en assistance.
+	 *
+	 * <p>Le code part toujours dans {@code error}, pour les clients qui s'en servent. Le libellé
+	 * est traduit quand le module appelant a la clé dans son catalogue, sinon on retombe sur le
+	 * texte fourni : le filtre vit dans le socle, pas tous les modules n'ont les clés, et un
+	 * opérateur a plus besoin d'une phrase que d'un identifiant. Une page est rendue quand le
+	 * navigateur demande du HTML — c'est le cas courant : quelqu'un clique dans l'ENT.</p>
+	 */
+	private static void deny(final HttpServerRequest request, final String code, final String fallback) {
+		String label;
+		try {
+			label = I18n.getInstance().translate(code, Renders.getHost(request), I18n.acceptLanguage(request));
+		} catch (RuntimeException e) {
+			label = code;
+		}
+		if (label == null || label.equals(code)) {
+			label = fallback;
+		}
+		final String accept = request.headers().get("Accept");
+		if (accept != null && accept.contains("text/html")) {
+			request.response().setStatusCode(403).setStatusMessage("Forbidden")
+					.putHeader("content-type", "text/html; charset=utf-8")
+					.end("<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\">"
+							+ "<title>Mode assistance</title></head><body style=\"font-family:sans-serif;"
+							+ "max-width:34rem;margin:4rem auto;line-height:1.5\"><h1>Mode assistance</h1>"
+							+ "<p>" + label + "</p>"
+							+ "<p><a href=\"/auth/impersonate/stop\">Quitter l'assistance</a></p>"
+							+ "</body></html>");
+		} else {
+			Renders.renderJson(request, new JsonObject().put("error", code).put("message", label), 403);
+		}
 	}
 
 	public static boolean isImpersonationSessionId(final String sessionId) {
@@ -169,6 +208,27 @@ public final class Impersonation {
 		return null;
 	}
 
+	/**
+	 * Refuse la requête si elle vient d'une session d'assistance, et répond elle-même.
+	 *
+	 * <p>À poser en tête des routes qui délivrent une identité au-dehors — ticket CAS, réponse
+	 * SAML, code OAuth2 — et que la chaîne de filtres ne voit pas parce qu'elles ne portent pas
+	 * d'annotation {@code @SecuredAction}. Sans cela, un administrateur en assistance ferait
+	 * reconnaître l'usager par un service tiers (GAR, Pronote, connecteurs), hors de portée de
+	 * la lecture seule et de la trace.</p>
+	 *
+	 * @return {@code true} si la requête a été refusée et la réponse déjà écrite.
+	 */
+	public static boolean denyIfImpersonated(final HttpServerRequest request) {
+		final String sessionId = sessionId(request, null);
+		if (!isImpersonationSessionId(sessionId)) {
+			return false;
+		}
+		request.response().putHeader(HEADER, sessionId);
+		deny(request, "impersonation.forbidden.route", FORBIDDEN_ROUTE_FALLBACK);
+		return true;
+	}
+
 	public static boolean isImpersonated(final HttpServerRequest request, final JsonObject session) {
 		return isImpersonationSessionId(sessionId(request, session)) || infos(session) != null;
 	}
@@ -197,20 +257,20 @@ public final class Impersonation {
 		// le doute profite à l'utilisateur assisté, pas à l'administrateur.
 		final long expiresAt = marked ? expiresAt(sessionId) : -1L;
 		if (expiresAt < 0L || System.currentTimeMillis() > expiresAt) {
-			Renders.forbidden(request, "impersonation.expired");
+			deny(request, "impersonation.expired", "La session d'assistance est échue. Quittez l'assistance pour retrouver votre propre session.");
 			return true;
 		}
 
 		final HttpMethod method = request.method();
 		if (!HttpMethod.GET.equals(method) && !HttpMethod.HEAD.equals(method)
 				&& !HttpMethod.OPTIONS.equals(method)) {
-			Renders.forbidden(request, "impersonation.readonly");
+			deny(request, "impersonation.readonly", "L'assistance se fait en lecture seule : aucune modification n'est possible sur le compte de l'usager.");
 			return true;
 		}
 
 		for (final Pattern forbidden : FORBIDDEN_PATHS) {
 			if (forbidden.matcher(path).matches()) {
-				Renders.forbidden(request, "impersonation.forbidden.route");
+				deny(request, "impersonation.forbidden.route", FORBIDDEN_ROUTE_FALLBACK);
 				return true;
 			}
 		}

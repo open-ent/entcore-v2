@@ -19,6 +19,7 @@
 
 package org.entcore.cas.controllers;
 
+import org.entcore.common.impersonation.Impersonation;
 import fr.wseduc.bus.BusAddress;
 import fr.wseduc.cas.endpoint.Credential;
 import fr.wseduc.rs.Get;
@@ -37,6 +38,13 @@ public class CredentialController extends BaseController {
 
 	@Get("/login")
 	public void login(HttpServerRequest request) {
+		// Point d'entrée CAS : il délivre un ticket de service à partir de la session ENT, donc
+		// une identité utilisable par un service tiers. Une session d'assistance n'en délivre
+		// pas. Route sans @SecuredAction : le filtre d'action ne la voit pas, le contrôle est
+		// posé ici.
+		if (Impersonation.denyIfImpersonated(request)) {
+			return;
+		}
 		credential.loginRequestor(new WrappedRequest(request));
 	}
 
