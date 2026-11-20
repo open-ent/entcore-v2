@@ -168,6 +168,17 @@ public class ImpersonationController extends BaseController {
 					return;
 				}
 
+				// Sans hôte dédié, la lecture seule ne repose que sur le filtre d'action, chargé
+				// par chaque module depuis son propre fat-jar : elle ne tient que dans les modules
+				// reconstruits avec ce socle. Constaté en local — une écriture dans la messagerie
+				// allait jusqu'à la base. Sur l'hôte dédié, c'est l'ingress qui refuse toute
+				// écriture, pour tous les modules. Le mode sans hôte dédié reste possible, mais
+				// seulement si on le demande, en connaissance de cause.
+				if (assistanceHost(request) == null && !config.getBoolean("impersonation-same-host", false)) {
+					forbidden(request, "impersonation.error.no.dedicated.host");
+					return;
+				}
+
 				final String reason = body.getString("reason", "").trim();
 				if (reason.length() < MIN_REASON_LENGTH) {
 					badRequest(request, "impersonation.error.reason.required");
