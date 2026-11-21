@@ -148,6 +148,10 @@ public class Auth extends BaseServer {
 		final DeviceAuthController deviceAuthController = new DeviceAuthController();
 		deviceAuthController.setCredentialService(deviceCredentialService);
 		deviceAuthController.setTicketService(new MongoDbDeviceTicketService());
+		deviceAuthController.setApprovalService(new MongoDbDeviceApprovalService());
+		// Facultatif : null si aucune configuration de notification n'est présente, auquel cas
+		// l'approbation passe par le code affiché sur l'écran de connexion.
+		deviceAuthController.setApprovalPusher(FcmDeviceApprovalPusher.create(vertx, config));
 		deviceAuthController.setChallengeStore(deviceChallengeStore);
 		deviceAuthController.setNewDeviceNotifier(newDeviceNotifier);
 		deviceAuthController.setEventStore(eventStore);

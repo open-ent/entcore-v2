@@ -13,3 +13,7 @@ db.authdevicechallenges.createIndex({"expireAt": 1}, {expireAfterSeconds: 0});
 // Même principe pour les tickets d'enrôlement remis par un administrateur : leur échéance est
 // contrôlée à la consommation, l'index ne fait que le ménage.
 db.authdevicetickets.createIndex({"expireAt": 1}, {expireAfterSeconds: 0});
+
+// Approbations de connexion. Le code est cherché par (compte, code, état) depuis le téléphone.
+db.authdeviceapprovals.createIndex({"expireAt": 1}, {expireAfterSeconds: 0});
+db.authdeviceapprovals.createIndex({"userId": 1, "code": 1, "state": 1});

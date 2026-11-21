@@ -21,7 +21,45 @@
         </div>
     </div>
 
-    <div class="my-12">
+    <!--
+        Second facteur par appareil enrôlé : rien n'est envoyé, rien n'est saisi ici. On AFFICHE
+        un code, que la personne recopie dans son application, puis elle désigne sur son
+        téléphone le nombre montré ci-dessous. Ce nombre à retrouver est ce qui empêche
+        d'approuver par réflexe une demande qu'on n'a pas provoquée.
+    -->
+    <div class="my-12" ng-if="ctrl.isDevice && ctrl.status!=='ok' && ctrl.status!=='ko'">
+        <div class="row justify-content-center">
+            <div class="col-md-9 col-sm-12 text-center">
+                <div ng-if="ctrl.approval">
+                    <div class="mb-12">
+                        <i18n>validate-mfa.device.hint</i18n>
+                    </div>
+                    <div class="fw-bold mb-16" style="font-size:2rem; letter-spacing:.5rem;">
+                        [[ctrl.approval.code]]
+                    </div>
+                    <div class="mb-8">
+                        <i18n>validate-mfa.device.pick</i18n>
+                    </div>
+                    <div class="d-flex justify-content-center gap-8 mb-16">
+                        <span ng-repeat="n in ctrl.approval.numbers"
+                              class="border rounded-3 px-16 py-8 fw-bold"
+                              style="font-size:1.5rem;">[[n]]</span>
+                    </div>
+                    <div class="small text-muted">
+                        <i18n>validate-mfa.device.waiting</i18n>
+                    </div>
+                </div>
+                <div ng-if="ctrl.approvalExpired">
+                    <div class="mb-12"><i18n>validate-mfa.device.expired</i18n></div>
+                    <button type="button" class="btn btn-primary" ng-click="ctrl.startApproval()">
+                        <i18n>validate-mfa.device.retry</i18n>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="my-12" ng-if="!ctrl.isDevice">
         <div class="row justify-content-center">
             <div class="col-md-9 col-sm-12">
                 <div class="mb-16 text-center">

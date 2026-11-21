@@ -199,6 +199,87 @@ export class ValidateMfaController implements IController {
 			this.koStatusCause = "";
 		});
 	}
+
+	//
+	// Approbation depuis le téléphone enrôlé
+	//
+	// Aucun code n'est envoyé : l'écran en AFFICHE un, que la personne recopie dans son
+	// application — ou qu'une notification lui évite de saisir. Puis elle doit désigner, sur son
+	// téléphone, le nombre montré ici. Sans ce choix, approuver se réduirait à appuyer sur
+	// « oui », et il suffirait d'insister pour qu'une personne lassée finisse par accepter.
+	//
+
+	/** Second facteur apporté par un appareil enrôlé. */
+	public get isDevice(): boolean {
+		return this.infos?.type === 'device' as any;
+	}
+
+	/** Demande en cours : code à recopier et nombres à montrer. */
+	public approval?: { approvalId:string; code:string; numbers:number[] };
+	public approvalExpired = false;
+	private approvalTimer?: any;
+
+	/** Ouvre la demande et commence à attendre la réponse du téléphone. */
+	public async startApproval(): Promise<void> {
+		this.stopWatchingApproval();
+		this.approvalExpired = false;
+		try {
+			const opened = await http().post<any>('/auth/user/mfa/device/approval', {});
+			if( http().latestResponse.status>=400 || !opened?.approvalId ) {
+				throw ('validate-mfa.error.network');
+			}
+			this.approval = {
+				approvalId: opened.approvalId,
+				code: opened.code,
+				numbers: opened.numbers || []
+			};
+			this.watchApproval();
+		} catch( e ) {
+			const msg = (typeof e !== "string") ? 'validate-mfa.error.network' : e;
+			notify.error(msg);
+		}
+	}
+
+	/**
+	 * Interroge l'état de la demande. Une interrogation régulière plutôt qu'une connexion
+	 * maintenue : il s'agit d'attendre quelques dizaines de secondes, pas de tenir un canal
+	 * ouvert, et la page doit fonctionner derrière n'importe quel relais.
+	 */
+	private watchApproval(): void {
+		this.approvalTimer = setInterval( async () => {
+			if( !this.approval ) return;
+			try {
+				const state = await http().get<any>(
+					'/auth/user/mfa/device/approval/' + encodeURIComponent(this.approval.approvalId));
+				if( state?.state === 'approved' ) {
+					this.stopWatchingApproval();
+					this.status = "ok";
+					// Le serveur a marqué CETTE session : il n'y a plus qu'à poursuivre.
+					this.onApproved();
+				} else if( state?.state === 'denied' ) {
+					this.stopWatchingApproval();
+					this.status = "ko";
+					this.koStatusCause = 'validate-mfa.error.denied';
+				} else if( state?.state === 'expired' ) {
+					this.stopWatchingApproval();
+					this.approvalExpired = true;
+					this.approval = undefined;
+				}
+			} catch {
+				// Coupure passagère : on retentera au prochain tour plutôt que d'abandonner.
+			}
+		}, 2000);
+	}
+
+	public stopWatchingApproval(): void {
+		if( this.approvalTimer ) {
+			clearInterval(this.approvalTimer);
+			this.approvalTimer = undefined;
+		}
+	}
+
+	/** Renseigné par la directive, pour poursuivre comme après un code validé. */
+	public onApproved: () => void = () => {};
 };
 
 interface ValidateMfaScope extends IScope {
@@ -386,10 +467,34 @@ class Directive implements IDirective<ValidateMfaScope,JQLite,IAttributes,IContr
 			}
 		});
 
+		// Approbation accordée depuis le téléphone : on poursuit exactement comme après un code
+		// saisi avec succès, redirection comprise.
+		ctrl.onApproved = () => {
+			safeApply();
+			if( ctrl.redirect ) {
+				setTimeout( () => {
+					try {
+						window.location.href = new URL(ctrl.redirect).toString();
+					} catch {
+						// silent fail
+					}
+				}, 2000);
+			}
+		};
+
+		// La surveillance s'arrête avec la page : un intervalle laissé derrière soi continuerait
+		// d'interroger le serveur pour une demande que plus personne n'attend.
+		scope.$on('$destroy', () => ctrl.stopWatchingApproval());
+
 		ctrl.initialize()
 		.then( () => {
 			scope.canRenderUi = true;
 			safeApply();
+			if( ctrl.isDevice ) {
+				// Rien à saisir ici : on ouvre la demande et on attend le téléphone.
+				ctrl.startApproval().then( () => safeApply() );
+				return;
+			}
 			setTimeout( ()=>{ const el = document.getElementById("otp-digit-0"); if(el) (el as HTMLInputElement).focus(); }, 10 );
 			setTimeout( ()=>angular.element(document.getElementById('btnRenew')).prop("disabled", false), 15000);
 		});

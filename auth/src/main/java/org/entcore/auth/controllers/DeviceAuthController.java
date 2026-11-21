@@ -38,9 +38,11 @@ import org.entcore.auth.security.DeviceAssertion;
 import org.entcore.auth.security.DeviceChallengeStore;
 import org.entcore.auth.security.DevicePublicKeys;
 import org.entcore.auth.security.SessionCookies;
+import org.entcore.auth.services.DeviceApprovalService;
 import org.entcore.auth.services.DeviceCredentialService;
 import org.entcore.auth.services.DeviceTicketService;
 import org.entcore.auth.services.NewDeviceNotifier;
+import org.entcore.auth.services.impl.FcmDeviceApprovalPusher;
 import org.entcore.common.events.EventStore;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.user.UserInfos;
@@ -82,6 +84,12 @@ public class DeviceAuthController extends BaseController {
     /** Usage porté par les assertions qui apportent le second facteur. */
     private static final String PURPOSE_MFA = "mfa";
 
+    /** Usage porté par les assertions qui cherchent une demande d'approbation par son code. */
+    private static final String PURPOSE_POLL = "poll";
+
+    /** Usage porté par les assertions qui tranchent une demande d'approbation. */
+    private static final String PURPOSE_APPROVE = "approve";
+
     /**
      * Même type d'événement que les connexions par mot de passe : une connexion par appareil
      * reste une connexion, et doit se voir dans les mêmes statistiques.
@@ -95,7 +103,10 @@ public class DeviceAuthController extends BaseController {
 
     private DeviceCredentialService credentialService;
     private DeviceTicketService ticketService;
+    private DeviceApprovalService approvalService;
     private DeviceChallengeStore challengeStore;
+    /** Facultatif : sans lui, l'approbation passe par le code affiché à l'écran. */
+    private FcmDeviceApprovalPusher approvalPusher;
     private NewDeviceNotifier newDeviceNotifier;
     private EventStore eventStore;
 
@@ -339,7 +350,8 @@ public class DeviceAuthController extends BaseController {
         RequestUtils.bodyToJson(request, body -> {
             final String credentialId = body.getString("credentialId");
             final String purpose = body.getString("purpose", PURPOSE_LOGIN);
-            if (!PURPOSE_LOGIN.equals(purpose) && !PURPOSE_MFA.equals(purpose)) {
+            if (!PURPOSE_LOGIN.equals(purpose) && !PURPOSE_MFA.equals(purpose)
+                    && !PURPOSE_POLL.equals(purpose) && !PURPOSE_APPROVE.equals(purpose)) {
                 badRequest(request, "device.purpose.unsupported");
                 return;
             }
@@ -478,6 +490,157 @@ public class DeviceAuthController extends BaseController {
                     })
                     .onFailure(e -> rejectAssertion(request, credentialId));
         }));
+    }
+
+    /**
+     * Ouvre une demande d'approbation pour la session web courante : l'écran affichera un code
+     * et trois nombres, et attendra que le téléphone tranche.
+     */
+    @Post("/user/mfa/device/approval")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void openApproval(final HttpServerRequest request) {
+        withSession(request, (session, userInfos) -> {
+            final String sessionId = UserUtils.getSessionIdOrTokenId(request).orElse(null);
+            if (isEmpty(sessionId)) {
+                unauthorized(request);
+                return;
+            }
+            approvalService.open(userInfos.getUserId(), sessionId,
+                            Renders.getIp(request), request.headers().get("User-Agent"))
+                    .onSuccess(approval -> {
+                        // La notification ne fait que raccourcir le chemin : si elle n'arrive
+                        // pas, ou si rien n'est configuré, le code affiché suffit.
+                        if (approvalPusher != null) {
+                            approvalPusher.notifyPendingApproval(userInfos.getUserId(),
+                                    approval.getString("approvalId"), Renders.getHost(request));
+                        }
+                        renderJson(request, approval);
+                    })
+                    .onFailure(e -> {
+                        log.error("Error opening device approval for " + userInfos.getUserId(), e);
+                        renderError(request);
+                    });
+        });
+    }
+
+    /** État d'une demande, interrogé par l'écran web le temps que le téléphone réponde. */
+    @Get("/user/mfa/device/approval/:approvalId")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void approvalState(final HttpServerRequest request) {
+        withSession(request, (session, userInfos) ->
+                approvalService.state(request.params().get("approvalId"))
+                        .onSuccess(state -> renderJson(request, state))
+                        .onFailure(e -> renderJson(request,
+                                new JsonObject().put("state", "expired"))));
+    }
+
+    /**
+     * Retrouve, depuis le téléphone, la demande ouverte sur le web à partir du code affiché.
+     *
+     * <p>Rend ce qu'il faut montrer avant d'approuver — d'où vient la connexion, et les trois
+     * nombres parmi lesquels choisir. Exige déjà une assertion : connaître le code ne suffit
+     * pas, il faut aussi détenir la clé de l'appareil.</p>
+     */
+    @Post("/device/approvals")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void findApproval(final HttpServerRequest request) {
+        withSession(request, (session, userInfos) -> RequestUtils.bodyToJson(request, body -> {
+            final String code = body.getString("code");
+            withVerifiedAssertion(request, userInfos, body.getString("assertion"), PURPOSE_POLL, code,
+                    credential -> approvalService.findPendingByCode(userInfos.getUserId(), code)
+                            .onSuccess(approval -> {
+                                if (approval == null) {
+                                    notFound(request);
+                                    return;
+                                }
+                                renderJson(request, new JsonObject()
+                                        .put("approvalId", approval.getString("_id"))
+                                        .put("numbers", approval.getJsonArray("numbers"))
+                                        .put("ip", approval.getString("ip"))
+                                        .put("ua", approval.getString("ua"))
+                                        .put("createdAt", approval.getLong("createdAt"))
+                                        .put("expiresAt", approval.getLong("expiresAt")));
+                            })
+                            .onFailure(e -> {
+                                log.error("Error looking up device approval", e);
+                                renderError(request);
+                            }));
+        }));
+    }
+
+    /**
+     * Approuve ou refuse la connexion, selon le nombre choisi.
+     *
+     * <p>Le nombre fait partie de ce qui est signé : la personne signe ce qu'elle voit, et non
+     * un « j'approuve quelque chose ». Un mauvais nombre refuse la demande sans second essai.</p>
+     */
+    @Post("/device/approve")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void decideApproval(final HttpServerRequest request) {
+        withSession(request, (session, userInfos) -> RequestUtils.bodyToJson(request, body -> {
+            final String approvalId = body.getString("approvalId");
+            final Integer chosen = body.getInteger("number");
+            if (isEmpty(approvalId) || chosen == null) {
+                badRequest(request);
+                return;
+            }
+            withVerifiedAssertion(request, userInfos, body.getString("assertion"), PURPOSE_APPROVE,
+                    approvalId + "|" + chosen,
+                    credential -> approvalService.decide(approvalId, userInfos.getUserId(), chosen)
+                            .compose(approval -> {
+                                if (!DeviceApprovalService.STATE_APPROVED.equals(approval.getString("state"))) {
+                                    return Future.succeededFuture(approval);
+                                }
+                                // Seule la session affichée à l'écran est marquée, jamais celle
+                                // du téléphone ni une autre session du compte.
+                                return UserValidation
+                                        .setIsMFA(eb, approval.getString("sessionId"), true)
+                                        .map(set -> approval);
+                            })
+                            .onSuccess(approval -> {
+                                credentialService.markUsed(credential.getString("_id"));
+                                renderJson(request, new JsonObject()
+                                        .put("state", approval.getString("state")));
+                            })
+                            .onFailure(e -> {
+                                log.error("Error deciding device approval " + approvalId, e);
+                                renderJson(request, new JsonObject()
+                                        .put("error", "device.approval.unknown"), 404);
+                            }));
+        }));
+    }
+
+    /**
+     * Vérifie une assertion liée à un contexte précis, pour le compte de la session courante.
+     *
+     * <p>Le contexte voyage en clair dans la revendication {@code ctx} : ce n'est pas un secret,
+     * et le hacher n'ajouterait rien puisque la signature couvre déjà l'ensemble des
+     * revendications. En clair, il reste lisible dans les journaux d'une demande contestée.</p>
+     */
+    private void withVerifiedAssertion(final HttpServerRequest request, final UserInfos userInfos,
+                                       final String assertion, final String purpose, final String context,
+                                       final java.util.function.Consumer<JsonObject> handler) {
+        final String credentialId = DeviceAssertion.unverifiedKeyId(assertion);
+        if (isEmpty(assertion) || isEmpty(credentialId) || isEmpty(context)) {
+            rejectAssertion(request, null);
+            return;
+        }
+        credentialService.activeById(credentialId)
+                .compose(credential -> {
+                    if (credential == null || DeviceCredentialService.isLocked(credential)
+                            || !userInfos.getUserId().equals(credential.getString("userId"))) {
+                        return Future.<JsonObject>failedFuture(DeviceAssertion.REJECTED);
+                    }
+                    return DeviceAssertion
+                            .verify(assertion, credential, purpose, audienceOf(request), challengeStore)
+                            .compose(claims -> context.equals(claims.getString("ctx"))
+                                    ? Future.succeededFuture(credential)
+                                    // Signature valable, mais portant sur autre chose que ce qui
+                                    // est demandé ici : refusée comme une signature invalide.
+                                    : Future.<JsonObject>failedFuture(DeviceAssertion.REJECTED));
+                })
+                .onSuccess(handler::accept)
+                .onFailure(e -> rejectAssertion(request, credentialId));
     }
 
     /** Refus d'une assertion : même réponse pour toutes les causes, et l'échec est compté. */
@@ -686,6 +849,14 @@ public class DeviceAuthController extends BaseController {
 
     public void setTicketService(final DeviceTicketService ticketService) {
         this.ticketService = ticketService;
+    }
+
+    public void setApprovalService(final DeviceApprovalService approvalService) {
+        this.approvalService = approvalService;
+    }
+
+    public void setApprovalPusher(final FcmDeviceApprovalPusher approvalPusher) {
+        this.approvalPusher = approvalPusher;
     }
 
     public void setChallengeStore(final DeviceChallengeStore challengeStore) {
