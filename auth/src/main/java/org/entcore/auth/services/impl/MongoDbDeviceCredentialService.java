@@ -152,6 +152,49 @@ public class MongoDbDeviceCredentialService implements DeviceCredentialService {
     }
 
     @Override
+    public Future<Integer> revokeAllFor(final String userId, final String revokedBy) {
+        if (isEmpty(userId)) {
+            return Future.succeededFuture(0);
+        }
+        return revokeMatching(activeMatcher(new JsonObject().put("userId", userId)), revokedBy);
+    }
+
+    @Override
+    public Future<JsonArray> revokeDormant(final long idleSinceMs, final String revokedBy) {
+        // Une clé jamais utilisée depuis son enrôlement n'a pas de lastUsedAt : on retombe alors
+        // sur sa date de création, sans quoi elle échapperait indéfiniment à la purge.
+        final JsonObject idle = new JsonObject()
+                .put("$or", new JsonArray()
+                        .add(new JsonObject().put("lastUsedAt", new JsonObject().put("$lt", idleSinceMs)))
+                        .add(new JsonObject()
+                                .put("lastUsedAt", (Object) null)
+                                .put("createdAt", new JsonObject().put("$lt", idleSinceMs))));
+        final JsonObject matcher = activeMatcher(idle)
+                // Seules les clés « prouvées » sont purgées : ce sont les seules qui comptent
+                // comme facteur, donc les seules dont l'absence silencieuse enferme dehors.
+                .put("assurance", ASSURANCE_PROVEN);
+
+        final Promise<JsonArray> promise = Promise.promise();
+        mongo.find(CREDENTIALS_COLLECTION, matcher, null,
+                new JsonObject().put("_id", 1).put("userId", 1).put("deviceId", 1), res -> {
+            final JsonArray dormant = res.body().getJsonArray("results");
+            if (!"ok".equals(res.body().getString("status")) || dormant == null) {
+                log.error("Error listing dormant device keys : " + res.body().getString("message"));
+                promise.fail("device.keys.dormant.error");
+                return;
+            }
+            if (dormant.isEmpty()) {
+                promise.complete(dormant);
+                return;
+            }
+            revokeMatching(matcher, revokedBy)
+                    .onSuccess(count -> promise.complete(dormant))
+                    .onFailure(promise::fail);
+        });
+        return promise.future();
+    }
+
+    @Override
     public Future<Integer> revokeForDevice(final String userId, final String deviceId, final String revokedBy) {
         if (isEmpty(userId) || isEmpty(deviceId)) {
             return Future.succeededFuture(0);

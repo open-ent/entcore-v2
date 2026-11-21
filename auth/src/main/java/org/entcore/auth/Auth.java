@@ -152,6 +152,20 @@ public class Auth extends BaseServer {
 		// Facultatif : null si aucune configuration de notification n'est présente, auquel cas
 		// l'approbation passe par le code affiché sur l'écran de connexion.
 		deviceAuthController.setApprovalPusher(FcmDeviceApprovalPusher.create(vertx, config));
+
+		// Filet contre les clés devenues inutilisables sans que personne ne l'ait signalé
+		// (biométrie modifiée, téléphone perdu) : laissées actives, elles comptent comme second
+		// facteur et enferment le compte dehors. Par défaut chaque nuit ; `device-keys-purge-cron`
+		// et `device-keys-idle-days` permettent de régler ou de désactiver.
+		final String deviceKeysCron = config.getString("device-keys-purge-cron", "0 30 3 * * ?");
+		if (deviceKeysCron != null && !deviceKeysCron.trim().isEmpty()) {
+			try {
+				new CronTrigger(vertx, deviceKeysCron).schedule(new DormantDeviceKeysTask(
+						deviceCredentialService, config.getLong("device-keys-idle-days")));
+			} catch (ParseException e) {
+				return Future.failedFuture(e);
+			}
+		}
 		deviceAuthController.setChallengeStore(deviceChallengeStore);
 		deviceAuthController.setNewDeviceNotifier(newDeviceNotifier);
 		deviceAuthController.setEventStore(eventStore);

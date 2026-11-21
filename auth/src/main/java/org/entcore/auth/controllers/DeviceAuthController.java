@@ -280,6 +280,85 @@ public class DeviceAuthController extends BaseController {
                         }));
     }
 
+    /** Appareils enrôlés d'un compte, vus de l'administration. */
+    @Get("/admin/user/:userId/device/credentials")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void listUserCredentials(final HttpServerRequest request) {
+        final String targetUserId = request.params().get("userId");
+        if (isEmpty(targetUserId)) {
+            badRequest(request);
+            return;
+        }
+        withAdminOnUser(request, targetUserId, admin ->
+                credentialService.listActiveFor(targetUserId)
+                        .onSuccess(credentials -> {
+                            final JsonArray rendered = new JsonArray();
+                            for (Object o : credentials) {
+                                if (o instanceof JsonObject) {
+                                    rendered.add(publicView((JsonObject) o));
+                                }
+                            }
+                            renderJson(request, new JsonObject()
+                                    .put("credentials", rendered)
+                                    .put("count", rendered.size()));
+                        })
+                        .onFailure(e -> {
+                            log.error("Error listing device credentials of " + targetUserId, e);
+                            renderError(request);
+                        }));
+    }
+
+    /**
+     * Révoque toutes les clés d'un compte : le geste du téléphone perdu.
+     *
+     * <p>Si l'appareil était le second facteur choisi par la personne, le retirer sans rien
+     * faire d'autre la laisserait devant une exigence qu'elle ne peut plus satisfaire. Le choix
+     * est donc effacé en même temps, et la résolution du canal repart sur ce dont le compte
+     * dispose encore — ou sur rien, auquel cas le second facteur cesse de s'appliquer, ce qui
+     * vaut toujours mieux qu'un compte enfermé dehors.</p>
+     */
+    @Delete("/admin/user/:userId/device/credentials")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void revokeUserCredentials(final HttpServerRequest request) {
+        final String targetUserId = request.params().get("userId");
+        if (isEmpty(targetUserId)) {
+            badRequest(request);
+            return;
+        }
+        withAdminOnUser(request, targetUserId, admin ->
+                credentialService.revokeAllFor(targetUserId, admin.getUserId())
+                        .compose(count -> clearDeviceMfaPreference(targetUserId).map(u -> count))
+                        .compose(count -> projectDeviceMfaFlag(targetUserId).map(u -> count))
+                        .onSuccess(count -> {
+                            trace.info(Renders.getIp(request) + " - Révocation de " + count
+                                    + " clé(s) d'appareil de " + targetUserId + " par " + admin.getUserId());
+                            renderJson(request, new JsonObject().put("revoked", count));
+                        })
+                        .onFailure(e -> {
+                            log.error("Error revoking device credentials of " + targetUserId, e);
+                            renderError(request);
+                        }));
+    }
+
+    /**
+     * Efface le choix « appareil » comme second facteur, lorsqu'il ne peut plus être honoré.
+     * Ne touche pas aux autres modes : seul le choix devenu impossible est retiré.
+     */
+    private Future<Void> clearDeviceMfaPreference(final String userId) {
+        final Promise<Void> promise = Promise.promise();
+        Neo4j.getInstance().execute(
+                "MATCH (u:User {id: {id}}) WHERE u.mfaType = 'device' REMOVE u.mfaType",
+                new JsonObject().put("id", userId),
+                res -> {
+                    if (!"ok".equals(res.body().getString("status"))) {
+                        log.error("Unable to clear device MFA preference of " + userId + " : "
+                                + res.body().getString("message"));
+                    }
+                    promise.complete();
+                });
+        return promise.future();
+    }
+
     /**
      * Résout l'appelant et vérifie qu'il administre bien le compte visé. Le périmètre vient de
      * {@link AuthController#adminLocalScope(UserInfos)} : une seconde règle de périmètre finirait
@@ -652,6 +731,48 @@ public class DeviceAuthController extends BaseController {
     }
 
     /**
+     * Ferme les sessions ouvertes depuis un appareil donné.
+     *
+     * <p>Appelé à la révocation d'une clé : le compte doit se retrouver déconnecté de cet
+     * appareil, et pas seulement incapable de s'y reconnecter.</p>
+     *
+     * <p>Les échecs sont absorbés : une session qu'on n'arrive pas à fermer ne doit pas faire
+     * échouer la révocation, qui est le geste important — une clé révoquée ne rouvrira plus
+     * rien, et les sessions en cours expireront d'elles-mêmes.</p>
+     *
+     * @return le nombre de sessions fermées
+     */
+    private Future<Integer> closeSessionsOfDevice(final String userId, final String deviceId) {
+        if (isEmpty(userId) || isEmpty(deviceId)) {
+            return Future.succeededFuture(0);
+        }
+        final Promise<Integer> promise = Promise.promise();
+        UserUtils.listSessionsByUserId(eb, userId, ar -> {
+            if (ar.failed()) {
+                log.warn("Unable to list sessions while revoking a device key", ar.cause());
+                promise.complete(0);
+                return;
+            }
+            final JsonArray sessions = ar.result().getJsonArray("sessions", new JsonArray());
+            int closed = 0;
+            for (Object o : sessions) {
+                if (!(o instanceof JsonObject)) continue;
+                final JsonObject sessionInfos = (JsonObject) o;
+                if (!deviceId.equals(sessionInfos.getString("deviceId"))) continue;
+                final String sessionId = sessionInfos.getString("sessionId");
+                if (isEmpty(sessionId)) continue;
+                // Définitive : une fermeture ordinaire laisserait le document Mongo, à partir
+                // duquel la session se recréerait au premier appel du client.
+                UserUtils.deleteSessionPermanently(eb, sessionId, done -> {
+                });
+                closed++;
+            }
+            promise.complete(closed);
+        });
+        return promise.future();
+    }
+
+    /**
      * Reporte dans l'annuaire l'existence d'au moins une clé enrôlée sous preuve.
      *
      * <p>Les clés vivent dans MongoDB, mais la session et la résolution du canal de second
@@ -717,7 +838,20 @@ public class DeviceAuthController extends BaseController {
     public void revokeMyCredential(final HttpServerRequest request) {
         final String credentialId = request.params().get("credentialId");
         withMfaSession(request, (session, userInfos) ->
-                credentialService.revoke(userInfos.getUserId(), credentialId, userInfos.getUserId())
+                credentialService.activeById(credentialId)
+                        .compose(credential -> credentialService
+                                .revoke(userInfos.getUserId(), credentialId, userInfos.getUserId())
+                                .compose(revoked -> {
+                                    if (!Boolean.TRUE.equals(revoked)) {
+                                        return Future.succeededFuture(false);
+                                    }
+                                    // Retirer la clé sans fermer ce qu'elle a ouvert laisserait
+                                    // l'accès en place : « j'ai retiré cet appareil » doit vouloir
+                                    // dire qu'il n'est plus connecté.
+                                    return closeSessionsOfDevice(userInfos.getUserId(),
+                                            credential != null ? credential.getString("deviceId") : null)
+                                            .map(closed -> true);
+                                }))
                         // Retirer la dernière clé prouvée retire aussi un facteur : l'annuaire doit
                         // le savoir, sinon le compte resterait soumis à un second facteur devenu
                         // inatteignable.

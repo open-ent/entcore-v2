@@ -22,6 +22,7 @@ import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+
 /**
  * Clés d'appareil enrôlées sur un compte : la partie publique d'une paire dont la privée ne
  * quitte jamais le coffre matériel du téléphone.
@@ -82,6 +83,27 @@ public interface DeviceCredentialService {
      * @return {@code true} si une clé active a bien été révoquée
      */
     Future<Boolean> revoke(String userId, String credentialId, String revokedBy);
+
+    /**
+     * Révoque toutes les clés actives d'un compte, quel que soit l'appareil. Geste réservé à
+     * l'administration, pour un téléphone perdu ou un compte compromis.
+     *
+     * @return le nombre de clés révoquées
+     */
+    Future<Integer> revokeAllFor(String userId, String revokedBy);
+
+    /**
+     * Révoque les clés enrôlées sous preuve qui n'ont plus servi depuis longtemps.
+     *
+     * <p>Une clé détruite par l'OS — biométrie modifiée sur Android — reste comptée comme
+     * facteur de possession alors qu'elle ne peut plus rien signer. Le compte serait alors
+     * soumis à un second facteur qu'il n'a aucun moyen d'apporter. Cette purge est le filet qui
+     * rattrape les appareils dont on n'a jamais eu de nouvelles.</p>
+     *
+     * @param idleSinceMs instant avant lequel une clé est considérée dormante
+     * @return les clés révoquées, pour que l'appelant mette à jour leur projection
+     */
+    Future<JsonArray> revokeDormant(long idleSinceMs, String revokedBy);
 
     /**
      * Révoque toutes les clés actives d'un compte sur un appareil donné. Appelé au moment
