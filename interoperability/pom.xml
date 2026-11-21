@@ -19,7 +19,7 @@
           Java 17 et réécrit l'API. On dépend directement de la bibliothèque plutôt que du
           verticle, qui est figé sur draft-04 et ne rend qu'un Set.toString() inexploitable.
         -->
-        <jsonSchemaValidatorVersion>1.0.87</jsonSchemaValidatorVersion>
+        <jsonSchemaValidatorVersion>1.5.9</jsonSchemaValidatorVersion>
     </properties>
 
     <dependencies>
