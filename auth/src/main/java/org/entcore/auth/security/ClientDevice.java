@@ -91,6 +91,29 @@ public final class ClientDevice {
     }
 
     /**
+     * Description d'un appareil dont l'identité est établie autrement que par un cookie :
+     * l'appelant a vérifié une signature produite par la clé que cet appareil garde dans son
+     * coffre matériel, et fournit ici le {@code deviceId} rattaché à cette clé.
+     *
+     * <p>C'est ce qui rend les connexions mobiles visibles depuis « mes appareils » :
+     * {@link #infosWithoutCookie(HttpServerRequest)} les laissait sans identifiant, donc
+     * impossibles à regrouper, à reconnaître ou à alerter.</p>
+     *
+     * <p>L'identifiant vient toujours de l'appelant, jamais d'un en-tête ou d'un paramètre de
+     * la requête : s'il était lu dans la requête, n'importe qui pourrait se présenter comme un
+     * appareil déjà connu.</p>
+     *
+     * @param deviceId identifiant issu d'une preuve vérifiée ; ignoré s'il est vide
+     */
+    public static JsonObject infosForDevice(final HttpServerRequest request, final String deviceId) {
+        final JsonObject infos = infosWithoutCookie(request);
+        if (isNotEmpty(deviceId)) {
+            infos.put("deviceId", deviceId);
+        }
+        return infos;
+    }
+
+    /**
      * Identifiant d'appareil déjà connu, sans en créer ni poser de cookie. Sert à reconnaître
      * « cet appareil » sur une requête qui n'ouvre pas de session.
      *

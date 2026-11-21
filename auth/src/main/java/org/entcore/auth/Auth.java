@@ -39,6 +39,8 @@ import org.entcore.auth.security.AuthResourcesProvider;
 import org.entcore.auth.security.CustomTokenHelper;
 import org.entcore.auth.security.SamlHelper;
 import org.entcore.auth.security.SamlValidator;
+import org.entcore.auth.security.DeviceChallengeStore;
+import org.entcore.auth.services.DeviceCredentialService;
 import org.entcore.auth.services.DeviceService;
 import org.entcore.auth.services.MfaService;
 import org.entcore.auth.services.NewDeviceNotifier;
@@ -122,6 +124,11 @@ public class Auth extends BaseServer {
 		// appareils de confiance, et à l'alerte de connexion depuis un appareil inconnu.
 		final DeviceService deviceService = new MongoDbDeviceService();
 		final NewDeviceNotifier newDeviceNotifier = new NewDeviceNotifier(deviceService, timelineHelper, config);
+		// Clés d'appareil : magasin distinct de la mémoire des passages ci-dessus, qui est
+		// écrite à chaque connexion. Une clé d'authentification ne s'écrit qu'à l'enrôlement
+		// et à la révocation.
+		final DeviceCredentialService deviceCredentialService = new MongoDbDeviceCredentialService();
+		final DeviceChallengeStore deviceChallengeStore = new DeviceChallengeStore();
 
 		AuthController authController = new AuthController(authMap);
 		authController.setEventStore(eventStore);
@@ -132,7 +139,16 @@ public class Auth extends BaseServer {
 		authController.setNotification(timelineHelper);
 		authController.setDeviceService(deviceService);
 		authController.setNewDeviceNotifier(newDeviceNotifier);
+		authController.setDeviceCredentialService(deviceCredentialService);
 		addController(authController);
+
+		// Clés d'appareil : enrôlement, liste et révocation. Permet d'authentifier le téléphone
+		// d'une personne sans détenir son numéro, par une signature que seul le coffre matériel
+		// de cet appareil peut produire.
+		final DeviceAuthController deviceAuthController = new DeviceAuthController();
+		deviceAuthController.setCredentialService(deviceCredentialService);
+		deviceAuthController.setChallengeStore(deviceChallengeStore);
+		addController(deviceAuthController);
 
 		// Mode assistance : ouverture, fermeture et état d'une session d'assistance.
 		final ImpersonationController impersonationController = new ImpersonationController();

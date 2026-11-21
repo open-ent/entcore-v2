@@ -73,6 +73,7 @@ import org.entcore.auth.oauth.OAuthDataHandler;
 import org.entcore.auth.pojo.SendPasswordDestination;
 import org.entcore.auth.security.ClientDevice;
 import org.entcore.auth.security.PasswordPolicy;
+import org.entcore.auth.services.DeviceCredentialService;
 import org.entcore.auth.services.DeviceService;
 import org.entcore.auth.services.MfaService;
 import org.entcore.auth.services.NewDeviceNotifier;
@@ -157,6 +158,7 @@ public class AuthController extends BaseController {
 	private TimelineHelper notification;
 	private DeviceService deviceService;
 	private NewDeviceNotifier newDeviceNotifier;
+	private DeviceCredentialService deviceCredentialService;
 	private RedisClient loginBanRedisClient;
 	private int pwMaxRetry;
 	private long pwBanDelay;
@@ -2430,7 +2432,9 @@ public class AuthController extends BaseController {
 				}
 				final JsonObject body = ar.result();
 				final JsonArray sessions = body.getJsonArray("sessions", new JsonArray());
-				devicesById(userId).onSuccess(devices -> {
+				CompositeFuture.all(devicesById(userId), deviceKeysByDeviceId(userId)).onSuccess(loaded -> {
+					final JsonObject devices = loaded.resultAt(0);
+					final JsonObject deviceKeys = loaded.resultAt(1);
 					for (Object o : sessions) {
 						if (!(o instanceof JsonObject)) continue;
 						final JsonObject session = (JsonObject) o;
@@ -2440,6 +2444,13 @@ public class AuthController extends BaseController {
 						session.put("trusted", device != null && Boolean.TRUE.equals(device.getBoolean("trusted")));
 						if (device != null && device.getLong("firstSeen") != null) {
 							session.put("deviceFirstSeen", device.getLong("firstSeen"));
+						}
+						// Clé enrôlée sur cet appareil : ce qu'il faut révoquer si on le perd.
+						final JsonObject key = deviceKeys.getJsonObject(session.getString("deviceId", ""));
+						session.put("hasDeviceKey", key != null);
+						if (key != null) {
+							session.put("deviceCredentialId", key.getString("credentialId"));
+							session.put("deviceKeyAssurance", key.getString("assurance"));
 						}
 						// L'identité est déjà connue de l'appelant, c'est son propre compte :
 						// ne pas la renvoyer évite d'exposer plus que nécessaire.
@@ -2622,6 +2633,34 @@ public class AuthController extends BaseController {
 			return Future.succeededFuture(new JsonObject());
 		}
 		return deviceService.devicesByIdFor(userId);
+	}
+
+	/**
+	 * Appareils du compte portant une clé enrôlée, indexés par {@code deviceId}. Permet
+	 * d'indiquer dans la liste des sessions lesquels peuvent prouver leur identité par leur
+	 * coffre matériel, et donc lesquels il faut penser à révoquer en cas de perte.
+	 *
+	 * <p>Comme pour les appareils, l'absence du service ne doit pas priver l'utilisateur de la
+	 * liste de ses sessions.</p>
+	 */
+	private Future<JsonObject> deviceKeysByDeviceId(final String userId) {
+		if (deviceCredentialService == null) {
+			return Future.succeededFuture(new JsonObject());
+		}
+		return deviceCredentialService.listActiveFor(userId).map(credentials -> {
+			final JsonObject byDeviceId = new JsonObject();
+			for (Object o : credentials) {
+				if (!(o instanceof JsonObject)) continue;
+				final JsonObject credential = (JsonObject) o;
+				final String deviceId = credential.getString("deviceId");
+				if (isNotEmpty(deviceId)) {
+					byDeviceId.put(deviceId, new JsonObject()
+							.put("credentialId", credential.getString("_id"))
+							.put("assurance", credential.getString("assurance")));
+				}
+			}
+			return byDeviceId;
+		});
 	}
 
 	private boolean ownsSession(final JsonObject body, final String sessionId) {
@@ -3118,6 +3157,10 @@ public class AuthController extends BaseController {
 
 	public void setNewDeviceNotifier(final NewDeviceNotifier newDeviceNotifier) {
 		this.newDeviceNotifier = newDeviceNotifier;
+	}
+
+	public void setDeviceCredentialService(final DeviceCredentialService deviceCredentialService) {
+		this.deviceCredentialService = deviceCredentialService;
 	}
 
 
