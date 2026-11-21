@@ -85,7 +85,32 @@ public interface DeviceCredentialService {
      */
     Future<Integer> revokeForDevice(String userId, String deviceId, String revokedBy);
 
-    /** Note qu'une clé vient de servir, pour afficher sa dernière utilisation et repérer les dormantes. */
+    /**
+     * Note qu'une clé vient de servir, pour afficher sa dernière utilisation et repérer les
+     * dormantes. Remet aussi le compteur d'échecs à zéro : un verrou ne doit pas s'accumuler
+     * sur des échecs anciens séparés par des usages normaux.
+     */
     Future<Void> markUsed(String credentialId);
+
+    /**
+     * Note un échec de présentation et verrouille la clé quand ils s'enchaînent.
+     *
+     * <p>Le défi à usage unique interdit déjà le rejeu, mais pas l'acharnement : sans compteur,
+     * une clé volée mais inutilisable servirait de cible à des tentatives sans fin. Le verrou
+     * est temporaire, et porte sur la clé — pas sur le compte, qu'un tiers pourrait sinon
+     * bloquer en présentant n'importe quoi.</p>
+     *
+     * @return l'instant jusqu'auquel la clé est verrouillée, ou {@code null} si elle ne l'est pas
+     */
+    Future<Long> recordFailure(String credentialId);
+
+    /** Vrai si la clé est actuellement verrouillée à la suite d'échecs répétés. */
+    static boolean isLocked(JsonObject credential) {
+        if (credential == null) {
+            return false;
+        }
+        final Long lockedUntil = credential.getLong("lockedUntil");
+        return lockedUntil != null && lockedUntil > System.currentTimeMillis();
+    }
 
 }

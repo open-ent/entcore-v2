@@ -148,6 +148,8 @@ public class Auth extends BaseServer {
 		final DeviceAuthController deviceAuthController = new DeviceAuthController();
 		deviceAuthController.setCredentialService(deviceCredentialService);
 		deviceAuthController.setChallengeStore(deviceChallengeStore);
+		deviceAuthController.setNewDeviceNotifier(newDeviceNotifier);
+		deviceAuthController.setEventStore(eventStore);
 		addController(deviceAuthController);
 
 		// Mode assistance : ouverture, fermeture et état d'une session d'assistance.

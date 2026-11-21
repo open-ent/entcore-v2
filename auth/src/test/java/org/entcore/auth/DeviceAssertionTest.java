@@ -24,6 +24,7 @@ import io.vertx.core.json.JsonObject;
 import org.entcore.auth.security.DeviceAssertion;
 import org.entcore.auth.security.DeviceChallengeStore;
 import org.entcore.auth.security.DevicePublicKeys;
+import org.entcore.auth.services.DeviceCredentialService;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -40,6 +41,7 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -265,7 +267,52 @@ public class DeviceAssertionTest {
         assertTrue(DevicePublicKeys.parse(encoded, DevicePublicKeys.ALG_ES256) != null);
     }
 
+    // --- Lecture de la clé annoncée (connexion sans mot de passe) ---------------------
+
+    @Test
+    public void readsTheAnnouncedKeyIdWithoutVerifyingAnything() throws Exception {
+        final String assertion = assertion(claims('x' + credential.getString("_id")));
+        // La connexion par appareil doit retrouver la clé AVANT de pouvoir vérifier quoi que ce
+        // soit : cette lecture est une donnée du client, pas une preuve.
+        assertEquals(credential.getString("_id"), DeviceAssertion.unverifiedKeyId(assertion));
+    }
+
+    @Test
+    public void readsNoKeyIdFromAMalformedAssertion() {
+        assertNull(DeviceAssertion.unverifiedKeyId(null));
+        assertNull(DeviceAssertion.unverifiedKeyId(""));
+        assertNull(DeviceAssertion.unverifiedKeyId("pas-un-jws"));
+        assertNull(DeviceAssertion.unverifiedKeyId("@@@.@@@.@@@"));
+    }
+
+    @Test
+    public void readsNoKeyIdWhenTheAssertionCarriesNone() throws Exception {
+        // C'est le cas à l'enrôlement : la clé n'a pas encore d'identité connue du téléphone.
+        final String assertion = assertion(buildHeaderWithoutKid(), claims('y' + credential.getString("_id")));
+        assertNull(DeviceAssertion.unverifiedKeyId(assertion));
+    }
+
+    // --- Verrouillage après échecs répétés --------------------------------------------
+
+    @Test
+    public void credentialIsLockedOnlyWhileTheLockLasts() {
+        final long now = System.currentTimeMillis();
+        assertFalse("pas de document, pas de verrou", DeviceCredentialService.isLocked(null));
+        assertFalse("sans champ, la clé est utilisable",
+                DeviceCredentialService.isLocked(new JsonObject()));
+        assertFalse("un verrou échu ne bloque plus",
+                DeviceCredentialService.isLocked(new JsonObject().put("lockedUntil", now - 1000)));
+        assertTrue("un verrou en cours bloque",
+                DeviceCredentialService.isLocked(new JsonObject().put("lockedUntil", now + 60_000)));
+    }
+
     // --- Outillage --------------------------------------------------------------------
+
+    private JsonObject buildHeaderWithoutKid() {
+        final JsonObject header = header();
+        header.remove("kid");
+        return header;
+    }
 
     private Future<JsonObject> verify(final String assertion) {
         return DeviceAssertion.verify(assertion, credential, PURPOSE, AUDIENCE, challenges);

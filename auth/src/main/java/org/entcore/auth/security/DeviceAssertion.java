@@ -81,6 +81,31 @@ public final class DeviceAssertion {
     }
 
     /**
+     * Identité de la clé annoncée par l'assertion, lue <b>sans rien vérifier</b>.
+     *
+     * <p>Sert uniquement à retrouver en base la clé à laquelle confronter l'assertion, lorsque
+     * l'appelant ne sait pas encore de quel compte il s'agit — cas de la connexion par appareil.
+     * La valeur rendue est donc une donnée fournie par le client, et n'établit rien : c'est
+     * {@link #verify} qui tranche ensuite, en confrontant cette clé à la signature.</p>
+     *
+     * @return le {@code kid}, ou {@code null} si l'assertion est illisible ou n'en porte pas
+     */
+    public static String unverifiedKeyId(final String assertion) {
+        if (isEmpty(assertion)) {
+            return null;
+        }
+        final String[] parts = assertion.split("\\.");
+        if (parts.length != 3) {
+            return null;
+        }
+        try {
+            return new JsonObject(decode(parts[0])).getString("kid");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * Vérifie une assertion de bout en bout et consomme son défi.
      *
      * <p>L'ordre des contrôles est délibéré : tout ce qui peut être tranché sans la base l'est

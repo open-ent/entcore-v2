@@ -47,6 +47,13 @@ public class MongoDbDeviceCredentialService implements DeviceCredentialService {
 
     public static final String CREDENTIALS_COLLECTION = "authdevicekeys";
 
+    /** Échecs consécutifs tolérés avant verrouillage. Une invite biométrique ratée est banale. */
+    private static final int FAILURES_BEFORE_LOCK = 5;
+
+    private static final long BASE_LOCK_MS = 30_000L;
+
+    private static final long MAX_LOCK_MS = 15 * 60_000L;
+
     private final MongoDb mongo = MongoDb.getInstance();
 
     @Override
@@ -141,7 +148,12 @@ public class MongoDbDeviceCredentialService implements DeviceCredentialService {
         }
         final Promise<Void> promise = Promise.promise();
         final JsonObject update = new JsonObject()
-                .put("$set", new JsonObject().put("lastUsedAt", System.currentTimeMillis()))
+                .put("$set", new JsonObject()
+                        .put("lastUsedAt", System.currentTimeMillis())
+                        // Un usage réussi efface les échecs : le verrou vise une rafale de
+                        // tentatives, pas la somme des maladresses d'une année.
+                        .put("failures", 0)
+                        .put("lockedUntil", (Object) null))
                 .put("$inc", new JsonObject().put("usageCount", 1));
         mongo.update(CREDENTIALS_COLLECTION, new JsonObject().put("_id", credentialId), update, res -> {
             if (!"ok".equals(res.body().getString("status"))) {
@@ -152,6 +164,55 @@ public class MongoDbDeviceCredentialService implements DeviceCredentialService {
             promise.complete();
         });
         return promise.future();
+    }
+
+    @Override
+    public Future<Long> recordFailure(final String credentialId) {
+        if (isEmpty(credentialId)) {
+            return Future.succeededFuture(null);
+        }
+        final Promise<Long> promise = Promise.promise();
+        // Incrémenter et relire en une seule opération : deux tentatives simultanées doivent
+        // compter pour deux, et la seconde doit voir le compteur de la première.
+        mongo.findAndModify(CREDENTIALS_COLLECTION, new JsonObject().put("_id", credentialId),
+                new JsonObject().put("$inc", new JsonObject().put("failures", 1)),
+                null, null, false, true, false, res -> {
+            if (!"ok".equals(res.body().getString("status"))) {
+                log.warn("Unable to record device credential failure : " + res.body().getString("message"));
+                promise.complete(null);
+                return;
+            }
+            final JsonObject updated = res.body().getJsonObject("result");
+            if (updated == null) {
+                promise.complete(null);
+                return;
+            }
+            final int failures = updated.getInteger("failures", 0);
+            if (failures < FAILURES_BEFORE_LOCK) {
+                promise.complete(null);
+                return;
+            }
+            final long until = System.currentTimeMillis() + lockDurationMs(failures);
+            mongo.update(CREDENTIALS_COLLECTION, new JsonObject().put("_id", credentialId),
+                    new JsonObject().put("$set", new JsonObject().put("lockedUntil", until)), lockRes -> {
+                if (!"ok".equals(lockRes.body().getString("status"))) {
+                    log.error("Unable to lock device credential " + credentialId + " : "
+                            + lockRes.body().getString("message"));
+                }
+                promise.complete(until);
+            });
+        });
+        return promise.future();
+    }
+
+    /**
+     * Durée du verrou, doublée à chaque échec supplémentaire et plafonnée. Progressive plutôt
+     * que fixe : une erreur isolée ne doit pas coûter un quart d'heure à son auteur, tandis
+     * qu'un acharnement devient rapidement inintéressant.
+     */
+    private static long lockDurationMs(final int failures) {
+        final int steps = Math.min(failures - FAILURES_BEFORE_LOCK, 6);
+        return Math.min(BASE_LOCK_MS * (1L << steps), MAX_LOCK_MS);
     }
 
     /**

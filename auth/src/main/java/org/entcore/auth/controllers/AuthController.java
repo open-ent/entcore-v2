@@ -72,6 +72,7 @@ import org.entcore.auth.oauth.JsonRequestAdapter;
 import org.entcore.auth.oauth.OAuthDataHandler;
 import org.entcore.auth.pojo.SendPasswordDestination;
 import org.entcore.auth.security.ClientDevice;
+import org.entcore.auth.security.SessionCookies;
 import org.entcore.auth.security.PasswordPolicy;
 import org.entcore.auth.services.DeviceCredentialService;
 import org.entcore.auth.services.DeviceService;
@@ -1041,13 +1042,7 @@ public class AuthController extends BaseController {
 							newDeviceNotifier.onSessionCreated(userId, request, clientInfos);
 						}
 						boolean rememberMe = "true".equals(request.formAttributes().get("rememberMe"));
-						long timeout = rememberMe ? 3600l * 24 * 365 : config.getLong("cookie_timeout", Long.MIN_VALUE);
-						CookieHelper.getInstance().setSigned("oneSessionId", sessionId, timeout, request);
-						CookieHelper.set("authenticated", "true", timeout, request);
-						//create xsrf token on create session to avoid cache issue
-						if(config.getBoolean("xsrfOnAuth", true)){
-							CookieHelper.set("XSRF-TOKEN", UUID.randomUUID().toString(), timeout, request);
-						}
+						SessionCookies.open(request, sessionId, rememberMe, config);
 						redirectionService.redirect(request,
 								callBack.matches("https?://[0-9a-zA-Z\\.\\-_]+/auth/login/?(\\?.*)?")
 										? callBack.replaceFirst("/auth/login", "")

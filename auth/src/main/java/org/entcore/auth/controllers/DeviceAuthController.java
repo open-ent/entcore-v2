@@ -30,10 +30,14 @@ import io.vertx.core.Future;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import org.entcore.auth.security.ClientDevice;
 import org.entcore.auth.security.DeviceAssertion;
 import org.entcore.auth.security.DeviceChallengeStore;
 import org.entcore.auth.security.DevicePublicKeys;
+import org.entcore.auth.security.SessionCookies;
 import org.entcore.auth.services.DeviceCredentialService;
+import org.entcore.auth.services.NewDeviceNotifier;
+import org.entcore.common.events.EventStore;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.common.utils.Mfa;
@@ -66,11 +70,22 @@ public class DeviceAuthController extends BaseController {
     /** Usage porté par les assertions d'enrôlement. */
     private static final String PURPOSE_ENROL = "enrol";
 
+    /** Usage porté par les assertions qui ouvrent une session. */
+    private static final String PURPOSE_LOGIN = "login";
+
+    /**
+     * Même type d'événement que les connexions par mot de passe : une connexion par appareil
+     * reste une connexion, et doit se voir dans les mêmes statistiques.
+     */
+    private static final String LOGIN_EVENT = "LOGIN";
+
     /** Longueur maximale d'un nom d'appareil affichable, saisi par l'utilisateur. */
     private static final int DEVICE_NAME_MAX = 64;
 
     private DeviceCredentialService credentialService;
     private DeviceChallengeStore challengeStore;
+    private NewDeviceNotifier newDeviceNotifier;
+    private EventStore eventStore;
 
     /**
      * Ouvre un enrôlement : le serveur désigne l'appareil et remet un défi que le téléphone
@@ -176,6 +191,114 @@ public class DeviceAuthController extends BaseController {
                             .put("createdAt", credential.getLong("createdAt"))))
                     .onFailure(e -> failEnrolment(request, userId, e));
         }));
+    }
+
+    /**
+     * Remet un défi à signer pour se connecter. Route publique : l'appelant n'a pas encore de
+     * session, c'est précisément ce qu'il cherche à obtenir.
+     *
+     * <p>Un défi est émis <b>même pour une clé inconnue</b>. Répondre « clé inconnue » ferait de
+     * cette route un moyen de vérifier qu'une clé donnée existe sur l'instance ; l'échec vient
+     * plus tard, au même titre qu'une signature invalide et avec le même message.</p>
+     */
+    @Post("/device/challenge")
+    public void challenge(final HttpServerRequest request) {
+        RequestUtils.bodyToJson(request, body -> {
+            final String credentialId = body.getString("credentialId");
+            final String purpose = body.getString("purpose", PURPOSE_LOGIN);
+            if (!PURPOSE_LOGIN.equals(purpose)) {
+                badRequest(request, "device.purpose.unsupported");
+                return;
+            }
+            challengeStore.issue(purpose, null, credentialId)
+                    .onSuccess(challenge -> renderJson(request, new JsonObject()
+                            .put("challenge", challenge)
+                            .put("audience", audienceOf(request))
+                            .put("purpose", purpose)))
+                    .onFailure(e -> {
+                        log.error("Error issuing device login challenge", e);
+                        renderError(request);
+                    });
+        });
+    }
+
+    /**
+     * Ouvre une session sur preuve de possession de l'appareil, sans mot de passe.
+     *
+     * <p>Remplace le fait de rejouer un mot de passe mémorisé : celui-ci reste un secret
+     * <i>rejouable</i>, qui une fois extrait ouvre le compte depuis n'importe où et pour
+     * toujours. Une clé non extractible ne peut pas être volée — au mieux obtient-on d'elle des
+     * signatures, sur ce téléphone, après déverrouillage biométrique.</p>
+     *
+     * <p>La session créée est <b>identique</b> à celle d'une connexion par mot de passe : même
+     * cookie signé, même durée, même suivi d'appareil. Rien à déconnecter ni à expirer
+     * différemment.</p>
+     */
+    @Post("/device/login")
+    public void loginWithDevice(final HttpServerRequest request) {
+        RequestUtils.bodyToJson(request, body -> {
+            final String assertion = body.getString("assertion");
+            final String credentialId = DeviceAssertion.unverifiedKeyId(assertion);
+            if (isEmpty(assertion) || isEmpty(credentialId)) {
+                rejectLogin(request, null);
+                return;
+            }
+            credentialService.activeById(credentialId)
+                    .compose(credential -> {
+                        if (credential == null || DeviceCredentialService.isLocked(credential)) {
+                            // Clé inconnue, révoquée ou verrouillée : une seule et même réponse.
+                            // L'application propose de toute façon le mot de passe en repli, donc
+                            // personne ne reste dehors faute d'explication.
+                            return Future.<JsonObject>failedFuture(DeviceAssertion.REJECTED);
+                        }
+                        return DeviceAssertion
+                                .verify(assertion, credential, PURPOSE_LOGIN, audienceOf(request), challengeStore)
+                                .map(claims -> credential);
+                    })
+                    .onSuccess(credential -> openSession(request, credential,
+                            Boolean.TRUE.equals(body.getBoolean("rememberMe")),
+                            Boolean.TRUE.equals(body.getBoolean("secureLocation"))))
+                    .onFailure(e -> rejectLogin(request, credentialId));
+        });
+    }
+
+    /**
+     * Crée la session et pose les cookies, exactement comme {@code AuthController.createSession},
+     * puis enregistre le passage de l'appareil — ce que les connexions mobiles ne faisaient pas
+     * jusqu'ici, faute d'identifiant d'appareil.
+     */
+    private void openSession(final HttpServerRequest request, final JsonObject credential,
+                             final boolean rememberMe, final boolean secureLocation) {
+        final String userId = credential.getString("userId");
+        final String deviceId = credential.getString("deviceId");
+        final JsonObject clientInfos = ClientDevice.infosForDevice(request, deviceId);
+        UserUtils.createSession(eb, userId, secureLocation, clientInfos, sessionId -> {
+            if (sessionId == null || sessionId.trim().isEmpty()) {
+                log.error("Unable to create session for device login of user " + userId);
+                renderError(request);
+                return;
+            }
+            SessionCookies.open(request, sessionId, rememberMe, config);
+            if (newDeviceNotifier != null) {
+                newDeviceNotifier.onSessionCreated(userId, request, clientInfos);
+            }
+            if (eventStore != null) {
+                eventStore.createAndStoreEventByUserId(LOGIN_EVENT, userId, null, request);
+            }
+            // Trace d'usage : sans incidence sur la connexion qui vient de réussir.
+            credentialService.markUsed(credential.getString("_id"));
+            renderJson(request, new JsonObject()
+                    .put("userId", userId)
+                    .put("deviceId", deviceId));
+        });
+    }
+
+    /** Refus de connexion : même réponse pour toutes les causes, et l'échec est compté. */
+    private void rejectLogin(final HttpServerRequest request, final String credentialId) {
+        if (credentialId != null) {
+            credentialService.recordFailure(credentialId);
+        }
+        renderJson(request, new JsonObject().put("error", DeviceAssertion.REJECTED), 401);
     }
 
     /** Clés actives du compte, telles que les affiche la page « mes appareils ». */
@@ -342,6 +465,14 @@ public class DeviceAuthController extends BaseController {
 
     public void setChallengeStore(final DeviceChallengeStore challengeStore) {
         this.challengeStore = challengeStore;
+    }
+
+    public void setNewDeviceNotifier(final NewDeviceNotifier newDeviceNotifier) {
+        this.newDeviceNotifier = newDeviceNotifier;
+    }
+
+    public void setEventStore(final EventStore eventStore) {
+        this.eventStore = eventStore;
     }
 
 }
