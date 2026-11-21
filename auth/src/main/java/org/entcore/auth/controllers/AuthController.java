@@ -714,10 +714,14 @@ public class AuthController extends BaseController {
 		context.put("passwordRegexI18n", pwdResetFormatByLang);
 		context.put("passwordRegexI18nActivation", pwdActivationFormatByLang);
 
+		// Facteurs ouverts sur la plateforme, pour les écrans qui proposent un choix.
+		// ⚠ Cette liste double celle de DefaultMfaService.configuredTypes() : ajouter un
+		// facteur à l'une sans l'autre le rend actif côté serveur mais invisible à l'écran.
 		final JsonArray mfaConfig = new JsonArray();
 		if( Mfa.withSms() ) mfaConfig.add(Mfa.TYPE_SMS);
 		if( Mfa.withEmail() ) mfaConfig.add(Mfa.TYPE_EMAIL);
 		if( Mfa.withTotp() ) mfaConfig.add(Mfa.TYPE_TOTP);
+		if( Mfa.withDevice() ) mfaConfig.add(Mfa.TYPE_DEVICE);
 		context.put("mfaConfig", mfaConfig);
 
 		renderJson(request, context);
