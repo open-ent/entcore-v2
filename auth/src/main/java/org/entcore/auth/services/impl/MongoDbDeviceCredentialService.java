@@ -118,6 +118,27 @@ public class MongoDbDeviceCredentialService implements DeviceCredentialService {
     }
 
     @Override
+    public Future<Boolean> hasProvenFor(final String userId) {
+        if (isEmpty(userId)) {
+            return Future.succeededFuture(false);
+        }
+        final JsonObject matcher = activeMatcher(new JsonObject()
+                .put("userId", userId)
+                .put("assurance", ASSURANCE_PROVEN));
+        final Promise<Boolean> promise = Promise.promise();
+        mongo.count(CREDENTIALS_COLLECTION, matcher, res -> {
+            if ("ok".equals(res.body().getString("status"))) {
+                promise.complete(res.body().getInteger("count", 0) > 0);
+            } else {
+                log.error("Error counting proven device keys of user " + userId + " : "
+                        + res.body().getString("message"));
+                promise.fail("device.keys.count.error");
+            }
+        });
+        return promise.future();
+    }
+
+    @Override
     public Future<Boolean> revoke(final String userId, final String credentialId, final String revokedBy) {
         if (isEmpty(userId) || isEmpty(credentialId)) {
             return Future.succeededFuture(false);

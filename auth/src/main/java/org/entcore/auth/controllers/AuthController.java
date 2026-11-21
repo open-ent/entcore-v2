@@ -2381,8 +2381,12 @@ public class AuthController extends BaseController {
 	/**
 	 * Périmètre d'un administrateur : {@code null} pour un super-admin (aucune restriction),
 	 * sinon l'ensemble des établissements sur lesquels porte sa fonction ADMIN_LOCAL.
+	 *
+	 * <p>Publique et statique pour que les autres contrôleurs du module s'appuient sur cette
+	 * règle plutôt que d'en écrire une seconde : un périmètre d'administration qui diverge
+	 * entre deux routes finit par autoriser ce qu'il devait restreindre.</p>
 	 */
-	private Set<String> adminLocalScope(final UserInfos user) {
+	public static Set<String> adminLocalScope(final UserInfos user) {
 		if (user.isADMC()) {
 			return null;
 		}
@@ -3031,9 +3035,11 @@ public class AuthController extends BaseController {
 			return false;
 		}
 		final boolean hasTotp = Boolean.TRUE.equals(session.getBoolean("hasTotp"));
+		final boolean hasDevice = Boolean.TRUE.equals(session.getBoolean("hasDevice"));
 		final boolean hasEmail = !StringUtils.isEmpty(StringUtils.trimToNull(session.getString("email")));
 		final boolean hasMobile = !StringUtils.isEmpty(StringUtils.trimToNull(session.getString("mobile")));
-		return (Mfa.withTotp() && hasTotp) || (Mfa.withEmail() && hasEmail) || (Mfa.withSms() && hasMobile);
+		return (Mfa.withDevice() && hasDevice) || (Mfa.withTotp() && hasTotp)
+				|| (Mfa.withEmail() && hasEmail) || (Mfa.withSms() && hasMobile);
 	}
 
 	/**

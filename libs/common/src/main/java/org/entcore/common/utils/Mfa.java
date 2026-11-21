@@ -32,6 +32,12 @@ public class Mfa {
     static public final String TYPE_SMS   = "sms";
     static public final String TYPE_EMAIL = "email";
 	static public final String TYPE_TOTP = "totp";
+	/**
+	 * Appareil enrôlé : la personne prouve qu'elle détient son téléphone en signant un défi avec
+	 * une clé que l'OS garde dans son coffre matériel. Seul facteur de possession qui ne demande
+	 * ni numéro à collecter, ni code à acheminer.
+	 */
+	static public final String TYPE_DEVICE = "device";
 
 	public static class Factory {
 		private Vertx vertx;
@@ -52,6 +58,11 @@ public class Mfa {
 		public Future<Void> init(Vertx vertx, JsonObject config) {
 			final Promise<Void> initPromise = Promise.promise();
 			this.vertx = vertx;
+			// Le service est construit une fois, à partir de la configuration présente à ce
+			// moment-là. Sans cette remise à zéro, un second init() changerait `config` sans
+			// changer le service déjà construit : la nouvelle configuration serait ignorée, en
+			// silence, et c'est l'ancienne qui continuerait de décider quels facteurs existent.
+			this.service = null;
 			this.config = (config!=null) ? config.getJsonObject("mfaConfig") : null;
 			if( this.config == null ) {
 				SharedDataHelper sharedDataHelper = SharedDataHelper.getInstance();
@@ -89,6 +100,7 @@ public class Mfa {
 	private boolean withSms = false;
 	private boolean withEmail = false;
 	private boolean withTotp = false;
+	private boolean withDevice = false;
 	/** "enforceForAdmins" : un ADMC/ADML ne peut pas être dispensé de MFA par sa structure (ignoreMFA). */
 	private boolean enforceForAdmins = false;
 	private Mfa(final io.vertx.core.Vertx vertx, final JsonObject params) {
@@ -103,6 +115,7 @@ public class Mfa {
 			this.withSms = types.contains(Mfa.TYPE_SMS);
 			this.withEmail = types.contains(Mfa.TYPE_EMAIL);
 			this.withTotp = types.contains(Mfa.TYPE_TOTP);
+			this.withDevice = types.contains(Mfa.TYPE_DEVICE);
 			this.enforceForAdmins = params.getBoolean("enforceForAdmins", false);
 		}
 	}
@@ -122,6 +135,11 @@ public class Mfa {
 		return Factory.getInstance().withTotp;
 	}
 
+	/** Vrai si le second facteur peut être apporté par un appareil enrôlé. */
+	public static boolean withDevice() {
+		return Factory.getInstance().withDevice;
+	}
+
 	/** Get an array of MFA-protected URLs. */
 	public static JsonArray getMfaProtectedUrls() {
 		return Factory.getFactory().mfaProtectedUrls;
@@ -133,9 +151,12 @@ public class Mfa {
      * qui l'impose à tous ses comptes (`s.requireMFA`), calculé à la création de la session.
      *
      * Ne vaut que si le compte dispose d'un moyen de recevoir ou de produire un code : sans adresse
-     * e-mail (ni mobile, ni application enregistrée), l'exiger enfermerait la personne dehors —
-     * un élève sans adresse, typiquement. Le compte reste alors soumis aux seules règles des
-     * administrateurs.
+     * e-mail (ni mobile, ni application enregistrée, ni appareil enrôlé), l'exiger enfermerait la
+     * personne dehors — un élève sans adresse, typiquement. Le compte reste alors soumis aux
+     * seules règles des administrateurs.
+     *
+     * L'appareil enrôlé compte comme facteur : c'est précisément ce qui rend le second facteur
+     * atteignable pour les comptes sans adresse e-mail ni numéro.
      */
     public static boolean isRequiredAtLogin(final JsonObject session) {
         if (session == null || !Boolean.TRUE.equals(session.getBoolean("mfaAtLogin"))) {
@@ -143,9 +164,11 @@ public class Mfa {
         }
         final Mfa mfa = Factory.getInstance();
         final boolean hasTotp = Boolean.TRUE.equals(session.getBoolean("hasTotp"));
+        final boolean hasDevice = Boolean.TRUE.equals(session.getBoolean("hasDevice"));
         final boolean hasEmail = session.getString("email") != null && !session.getString("email").trim().isEmpty();
         final boolean hasMobile = session.getString("mobile") != null && !session.getString("mobile").trim().isEmpty();
-        return (mfa.withTotp && hasTotp) || (mfa.withEmail && hasEmail) || (mfa.withSms && hasMobile);
+        return (mfa.withDevice && hasDevice) || (mfa.withTotp && hasTotp)
+                || (mfa.withEmail && hasEmail) || (mfa.withSms && hasMobile);
     }
 
     public static boolean isNotActivatedForUser(final UserInfos userInfos) {

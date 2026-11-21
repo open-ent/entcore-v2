@@ -147,6 +147,7 @@ public class Auth extends BaseServer {
 		// de cet appareil peut produire.
 		final DeviceAuthController deviceAuthController = new DeviceAuthController();
 		deviceAuthController.setCredentialService(deviceCredentialService);
+		deviceAuthController.setTicketService(new MongoDbDeviceTicketService());
 		deviceAuthController.setChallengeStore(deviceChallengeStore);
 		deviceAuthController.setNewDeviceNotifier(newDeviceNotifier);
 		deviceAuthController.setEventStore(eventStore);

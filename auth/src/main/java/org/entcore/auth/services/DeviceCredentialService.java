@@ -67,6 +67,14 @@ public interface DeviceCredentialService {
     Future<JsonArray> listActiveFor(String userId);
 
     /**
+     * Vrai si le compte dispose d'au moins une clé active enrôlée sous preuve.
+     *
+     * <p>C'est cette réponse, et elle seule, qui autorise l'appareil à tenir lieu de second
+     * facteur : une clé {@value #ASSURANCE_SELF} n'y suffit pas.</p>
+     */
+    Future<Boolean> hasProvenFor(String userId);
+
+    /**
      * Révoque une clé du compte indiqué. Le document est conservé, marqué révoqué : l'historique
      * d'un retrait de clé a autant de valeur que celui d'un ajout.
      *

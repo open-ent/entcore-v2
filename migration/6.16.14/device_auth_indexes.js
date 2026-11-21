@@ -9,3 +9,7 @@ db.authdevicekeys.createIndex({"deviceId": 1});
 // défi éternellement valable. expireAfterSeconds vaut 0 : chaque document porte sa propre date
 // d'expiration dans expireAt.
 db.authdevicechallenges.createIndex({"expireAt": 1}, {expireAfterSeconds: 0});
+
+// Même principe pour les tickets d'enrôlement remis par un administrateur : leur échéance est
+// contrôlée à la consommation, l'index ne fait que le ménage.
+db.authdevicetickets.createIndex({"expireAt": 1}, {expireAfterSeconds: 0});

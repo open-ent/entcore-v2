@@ -87,6 +87,7 @@ public class DefaultMfaService implements MfaService {
                 "MATCH (u:`User` { id : $id}) " +
                 "RETURN u.totp as totp, u.totpPeriod as totpPeriod, u.mobile as mobile, u.email as email, " +
                 "u.mfaType as mfaType, COALESCE(u." + stateField + ", null) as " + stateField + ", " +
+                "COALESCE(u.deviceMfa, false) as deviceMfa, " +
                 "u.firstName as firstName, u.lastName as lastName, u.displayName as displayName";
             neo.execute(query, new JsonObject().put("id", userId), m -> {
                 Either<String, JsonObject> r = validUniqueResult(m);
@@ -148,7 +149,8 @@ public class DefaultMfaService implements MfaService {
                 final String channel = resolveChannel(j.getString("mfaType"),
                         !StringUtils.isEmpty(j.getString("totp")),
                         !StringUtils.isEmpty(j.getString("email")),
-                        !StringUtils.isEmpty(j.getString("mobile")));
+                        !StringUtils.isEmpty(j.getString("mobile")),
+                        Boolean.TRUE.equals(j.getBoolean("deviceMfa")));
                 j.put("channel", channel);
                 j.put("target", targetOf(j, channel));
                 return Future.succeededFuture(j);
@@ -357,18 +359,30 @@ public class DefaultMfaService implements MfaService {
      * utilisable (secret TOTP enregistré, adresse e-mail ou mobile renseigné). Sinon, ordre amont :
      * clé TOTP enregistrée, puis SMS, puis e-mail.
      */
-    public static String resolveChannel(final String preferred, final boolean hasTotp, final boolean hasEmail, final boolean hasMobile) {
+    public static String resolveChannel(final String preferred, final boolean hasTotp, final boolean hasEmail,
+                                        final boolean hasMobile, final boolean hasProvenDevice) {
+        final boolean deviceUsable = Mfa.withDevice() && hasProvenDevice;
         final boolean totpUsable = Mfa.withTotp() && hasTotp;
         final boolean smsUsable = Mfa.withSms() && hasMobile;
         final boolean emailUsable = Mfa.withEmail() && hasEmail;
+        if (Mfa.TYPE_DEVICE.equals(preferred) && deviceUsable) return Mfa.TYPE_DEVICE;
         if (Mfa.TYPE_TOTP.equals(preferred) && totpUsable) return Mfa.TYPE_TOTP;
         if (Mfa.TYPE_EMAIL.equals(preferred) && emailUsable) return Mfa.TYPE_EMAIL;
         if (Mfa.TYPE_SMS.equals(preferred) && smsUsable) return Mfa.TYPE_SMS;
+        // L'appareil passe devant le SMS : il ne coûte rien, n'exige aucun numéro, et n'est pas
+        // interceptable par un détournement de carte SIM.
+        if (deviceUsable) return Mfa.TYPE_DEVICE;
         if (totpUsable) return Mfa.TYPE_TOTP;
         if (smsUsable) return Mfa.TYPE_SMS;
         if (emailUsable) return Mfa.TYPE_EMAIL;
         // Aucun canal utilisable : on garde un canal à code, l'envoi échouera sur "empty.target".
         return Mfa.withSms() ? Mfa.TYPE_SMS : Mfa.TYPE_EMAIL;
+    }
+
+    /** Ancienne signature, conservée pour les appelants qui ignorent encore les appareils. */
+    public static String resolveChannel(final String preferred, final boolean hasTotp, final boolean hasEmail,
+                                        final boolean hasMobile) {
+        return resolveChannel(preferred, hasTotp, hasEmail, hasMobile, false);
     }
 
     private static String targetOf(final JsonObject user, final String channel) {
@@ -436,6 +450,11 @@ public class DefaultMfaService implements MfaService {
             // For users with TOTP enrolled, no code needs to be generated or sent
             if( Mfa.TYPE_TOTP.equals(sendChannel) ) {
                 return Future.succeededFuture(new JsonObject().put("state", "pending").put("type", Mfa.TYPE_TOTP));
+            }
+            // Appareil enrôlé : rien à envoyer et rien à saisir. La preuve est une signature
+            // produite par le téléphone, que /auth/device/mfa viendra présenter.
+            if( Mfa.TYPE_DEVICE.equals(sendChannel) ) {
+                return Future.succeededFuture(new JsonObject().put("state", "pending").put("type", Mfa.TYPE_DEVICE));
             }
             // For SMS/email users: generate a new code, or refresh it if pending.
             return mfaField.generateOrRefreshCode(
@@ -580,7 +599,11 @@ public class DefaultMfaService implements MfaService {
             "MATCH (u:User {id:$id}) RETURN u.email as email, u.mobile as mobile, u.mfaType as mfaType, " +
             "CASE WHEN u.totp IS NOT NULL AND u.totp <> '' THEN true ELSE false END as hasTotp, " +
             "COALESCE(u.totpSelf, false) as totpSelf, u.totpPending as totpPending, u.login as login, " +
-            "u.totpDevice as totpDevice, u.totpEnrolledAt as totpEnrolledAt",
+            "u.totpDevice as totpDevice, u.totpEnrolledAt as totpEnrolledAt, " +
+            // Projection de l'existence d'une clé d'appareil « prouvée », qui vit en réalité dans
+            // MongoDB. Écrite à l'enrôlement et à la révocation, donc rarement : la lire ici évite
+            // d'interroger deux bases à chaque résolution de canal.
+            "COALESCE(u.deviceMfa, false) as deviceMfa",
             new JsonObject().put("id", userId));
     }
 
@@ -589,6 +612,7 @@ public class DefaultMfaService implements MfaService {
         if (Mfa.withEmail()) types.add(Mfa.TYPE_EMAIL);
         if (Mfa.withSms()) types.add(Mfa.TYPE_SMS);
         if (Mfa.withTotp()) types.add(Mfa.TYPE_TOTP);
+        if (Mfa.withDevice()) types.add(Mfa.TYPE_DEVICE);
         return types;
     }
 
@@ -596,16 +620,19 @@ public class DefaultMfaService implements MfaService {
     public Future<JsonObject> getSettings(final UserInfos userInfos) {
         return readSettings(userInfos.getUserId()).map( u -> {
             final boolean hasTotp = Boolean.TRUE.equals(u.getBoolean("hasTotp"));
+            final boolean hasDevice = Boolean.TRUE.equals(u.getBoolean("deviceMfa"));
             final String email = u.getString("email");
             final String mobile = u.getString("mobile");
             final String channel = resolveChannel(u.getString("mfaType"), hasTotp,
-                    !StringUtils.isEmpty(email), !StringUtils.isEmpty(mobile));
+                    !StringUtils.isEmpty(email), !StringUtils.isEmpty(mobile), hasDevice);
             return new JsonObject()
                 .put("types", configuredTypes())
                 .put("active", !Mfa.isNotActivatedForUser(userInfos))
                 .put("preferred", u.getString("mfaType"))
                 .put("channel", configuredTypes().isEmpty() ? null : channel)
                 .put("hasTotp", hasTotp)
+                // Au moins un appareil enrôlé sous preuve : le second facteur peut passer par lui.
+                .put("hasDevice", hasDevice)
                 // Une clé matérielle remise par l'administration ne se retire pas depuis le compte.
                 .put("totpManagedByAdmin", hasTotp && !Boolean.TRUE.equals(u.getBoolean("totpSelf")))
                 .put("totpDevice", hasTotp ? u.getString("totpDevice") : null)
@@ -629,6 +656,11 @@ public class DefaultMfaService implements MfaService {
             }
             if (Mfa.TYPE_SMS.equals(type) && StringUtils.isEmpty(u.getString("mobile"))) {
                 return Future.failedFuture("mfa.mobile.missing");
+            }
+            // Une clé enrôlée avec le seul mot de passe (« self ») ne compte pas : elle ne prouve
+            // rien de plus que le mot de passe, et l'accepter ferait d'un vol unique deux facteurs.
+            if (Mfa.TYPE_DEVICE.equals(type) && !Boolean.TRUE.equals(u.getBoolean("deviceMfa"))) {
+                return Future.failedFuture("mfa.device.not.enrolled");
             }
             return queryUnique("MATCH (u:User {id:$id}) SET u.mfaType = $type RETURN u.id as id",
                     new JsonObject().put("id", userInfos.getUserId()).put("type", type));

@@ -25,8 +25,11 @@ import fr.wseduc.security.ActionType;
 import fr.wseduc.security.SecuredAction;
 import fr.wseduc.webutils.http.BaseController;
 import fr.wseduc.webutils.http.Renders;
+import fr.wseduc.webutils.logging.Tracer;
+import fr.wseduc.webutils.logging.TracerFactory;
 import fr.wseduc.webutils.request.RequestUtils;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -36,14 +39,17 @@ import org.entcore.auth.security.DeviceChallengeStore;
 import org.entcore.auth.security.DevicePublicKeys;
 import org.entcore.auth.security.SessionCookies;
 import org.entcore.auth.services.DeviceCredentialService;
+import org.entcore.auth.services.DeviceTicketService;
 import org.entcore.auth.services.NewDeviceNotifier;
 import org.entcore.common.events.EventStore;
+import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.user.UserInfos;
 import org.entcore.common.user.UserUtils;
 import org.entcore.common.utils.Mfa;
 import org.entcore.common.datavalidation.UserValidation;
 
 import java.security.PublicKey;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 
@@ -73,6 +79,9 @@ public class DeviceAuthController extends BaseController {
     /** Usage porté par les assertions qui ouvrent une session. */
     private static final String PURPOSE_LOGIN = "login";
 
+    /** Usage porté par les assertions qui apportent le second facteur. */
+    private static final String PURPOSE_MFA = "mfa";
+
     /**
      * Même type d'événement que les connexions par mot de passe : une connexion par appareil
      * reste une connexion, et doit se voir dans les mêmes statistiques.
@@ -82,7 +91,10 @@ public class DeviceAuthController extends BaseController {
     /** Longueur maximale d'un nom d'appareil affichable, saisi par l'utilisateur. */
     private static final int DEVICE_NAME_MAX = 64;
 
+    private static final Tracer trace = TracerFactory.getTracer("auth-device");
+
     private DeviceCredentialService credentialService;
+    private DeviceTicketService ticketService;
     private DeviceChallengeStore challengeStore;
     private NewDeviceNotifier newDeviceNotifier;
     private EventStore eventStore;
@@ -163,27 +175,30 @@ public class DeviceAuthController extends BaseController {
                     .put("deviceId", deviceId);
 
             final String userId = userInfos.getUserId();
-            final String assurance = isSessionProven(session, userInfos)
-                    ? DeviceCredentialService.ASSURANCE_PROVEN
-                    : DeviceCredentialService.ASSURANCE_SELF;
+            final String ticket = body.getString("ticket");
 
-            DeviceAssertion.verify(assertion, candidate, PURPOSE_ENROL, audienceOf(request), challengeStore)
-                    // Une clé enrôlée sur cet appareil n'existe plus côté téléphone : la laisser
-                    // active en ferait un facteur fantôme, compté mais inutilisable.
-                    .compose(claims -> credentialService.revokeForDevice(userId, deviceId, userId))
-                    .compose(revoked -> {
-                        final long now = System.currentTimeMillis();
-                        final JsonObject credential = candidate.copy()
-                                .put("assurance", assurance)
-                                .put("proof", DeviceCredentialService.ASSURANCE_PROVEN.equals(assurance)
-                                        ? "session" : "password")
-                                .put("deviceName", normalizeDeviceName(body.getString("deviceName")))
-                                .put("platform", normalizePlatform(body.getString("platform")))
-                                .put("createdAt", now)
-                                .put("usageCount", 0)
-                                .put("revokedAt", (Object) null);
-                        return credentialService.create(credential);
-                    })
+            // Niveau d'assurance établi au moment de la confirmation, jamais annoncé d'avance :
+            // session déjà passée par le second facteur, ou ticket remis par un administrateur.
+            // À défaut, la clé vaut ce que vaut le mot de passe qui l'a posée, et pas davantage.
+            final Future<String> assuranceFuture;
+            if (isSessionProven(session, userInfos)) {
+                assuranceFuture = Future.succeededFuture("session");
+            } else if (isNotEmpty(ticket)) {
+                assuranceFuture = ticketService.consume(userId, ticket)
+                        .map(valid -> valid ? "ticket" : null)
+                        .recover(e -> Future.succeededFuture((String) null));
+            } else {
+                assuranceFuture = Future.succeededFuture("password");
+            }
+
+            assuranceFuture.compose(proof -> {
+                if (proof == null) {
+                    // Ticket présenté mais invalide ou périmé : on refuse plutôt que de retomber
+                    // silencieusement sur « self », ce qui laisserait croire l'appareil prouvé.
+                    return Future.<JsonObject>failedFuture("device.ticket.rejected");
+                }
+                return enrol(request, body, candidate, userId, deviceId, proof);
+            })
                     .onSuccess(credential -> renderJson(request, new JsonObject()
                             .put("credentialId", credential.getString("_id"))
                             .put("deviceId", credential.getString("deviceId"))
@@ -191,6 +206,124 @@ public class DeviceAuthController extends BaseController {
                             .put("createdAt", credential.getLong("createdAt"))))
                     .onFailure(e -> failEnrolment(request, userId, e));
         }));
+    }
+
+    /** Vérifie l'assertion d'enrôlement puis enregistre la clé au niveau d'assurance établi. */
+    private Future<JsonObject> enrol(final HttpServerRequest request, final JsonObject body,
+                                     final JsonObject candidate, final String userId,
+                                     final String deviceId, final String proof) {
+        final String assurance = "password".equals(proof)
+                ? DeviceCredentialService.ASSURANCE_SELF
+                : DeviceCredentialService.ASSURANCE_PROVEN;
+        return DeviceAssertion.verify(body.getString("assertion"), candidate, PURPOSE_ENROL,
+                        audienceOf(request), challengeStore)
+                    // Une clé enrôlée sur cet appareil n'existe plus côté téléphone : la laisser
+                    // active en ferait un facteur fantôme, compté mais inutilisable.
+                    .compose(claims -> credentialService.revokeForDevice(userId, deviceId, userId))
+                    .compose(revoked -> {
+                        final long now = System.currentTimeMillis();
+                        final JsonObject credential = candidate.copy()
+                                .put("assurance", assurance)
+                                .put("proof", proof)
+                                .put("deviceName", normalizeDeviceName(body.getString("deviceName")))
+                                .put("platform", normalizePlatform(body.getString("platform")))
+                                .put("createdAt", now)
+                                .put("usageCount", 0)
+                                .put("revokedAt", (Object) null);
+                        return credentialService.create(credential);
+                    })
+                    // L'annuaire doit savoir que ce compte dispose désormais d'un facteur de
+                    // possession, sans quoi le second facteur continuerait de l'ignorer.
+                    .compose(credential -> projectDeviceMfaFlag(userId).map(unused -> credential));
+    }
+
+    /**
+     * Délivre à un administrateur un ticket d'enrôlement pour un compte de son périmètre.
+     *
+     * <p>Ouvre l'enrôlement « prouvé » aux comptes sans adresse e-mail ni numéro, pour qui les
+     * deux autres preuves sont hors de portée. Le code s'affiche une seule fois et n'est jamais
+     * relisible ; il est tracé nommément, parce qu'un contournement d'authentification doit
+     * pouvoir être attribué.</p>
+     *
+     * <p>Un administrateur n'enrôle jamais à la place de quelqu'un : il ouvre une fenêtre que la
+     * personne franchit elle-même, son téléphone en main.</p>
+     */
+    @Post("/admin/user/:userId/device/ticket")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void issueEnrolmentTicket(final HttpServerRequest request) {
+        final String targetUserId = request.params().get("userId");
+        if (isEmpty(targetUserId)) {
+            badRequest(request);
+            return;
+        }
+        withAdminOnUser(request, targetUserId, admin ->
+                ticketService.issue(targetUserId, admin.getUserId())
+                        .onSuccess(ticket -> {
+                            trace.info(Renders.getIp(request) + " - Ticket d'enregistrement d'appareil délivré pour "
+                                    + targetUserId + " par " + admin.getUserId());
+                            renderJson(request, ticket);
+                        })
+                        .onFailure(e -> {
+                            log.error("Error issuing device enrolment ticket for " + targetUserId, e);
+                            renderError(request);
+                        }));
+    }
+
+    /**
+     * Résout l'appelant et vérifie qu'il administre bien le compte visé. Le périmètre vient de
+     * {@link AuthController#adminLocalScope(UserInfos)} : une seconde règle de périmètre finirait
+     * par diverger de la première.
+     */
+    private void withAdminOnUser(final HttpServerRequest request, final String targetUserId,
+                                 final java.util.function.Consumer<UserInfos> handler) {
+        UserUtils.getUserInfos(eb, request, admin -> {
+            if (admin == null || (!admin.isADMC() && !admin.isADML())) {
+                unauthorized(request);
+                return;
+            }
+            final Set<String> scope = AuthController.adminLocalScope(admin);
+            if (scope == null) {
+                // Super-administrateur : aucune restriction d'établissement.
+                handler.accept(admin);
+                return;
+            }
+            structuresOf(targetUserId).onSuccess(structures -> {
+                for (Object structureId : structures) {
+                    if (scope.contains(structureId)) {
+                        handler.accept(admin);
+                        return;
+                    }
+                }
+                // Hors périmètre et compte inexistant donnent la même réponse : cette route n'a
+                // pas à renseigner sur les comptes des autres établissements.
+                unauthorized(request);
+            }).onFailure(e -> {
+                log.error("Error resolving structures of user " + targetUserId, e);
+                renderError(request);
+            });
+        });
+    }
+
+    /** Établissements de rattachement d'un compte, pour le contrôle de périmètre. */
+    private Future<JsonArray> structuresOf(final String userId) {
+        final Promise<JsonArray> promise = Promise.promise();
+        Neo4j.getInstance().execute(
+                "MATCH (u:User {id: {id}})-[:IN]->(:ProfileGroup)-[:DEPENDS]->(s:Structure) "
+                        + "RETURN COLLECT(DISTINCT s.id) as structures",
+                new JsonObject().put("id", userId),
+                res -> {
+                    if (!"ok".equals(res.body().getString("status"))) {
+                        promise.fail(res.body().getString("message", "structures.lookup.error"));
+                        return;
+                    }
+                    final JsonArray results = res.body().getJsonArray("result", new JsonArray());
+                    if (results.isEmpty()) {
+                        promise.complete(new JsonArray());
+                        return;
+                    }
+                    promise.complete(results.getJsonObject(0).getJsonArray("structures", new JsonArray()));
+                });
+        return promise.future();
     }
 
     /**
@@ -206,7 +339,7 @@ public class DeviceAuthController extends BaseController {
         RequestUtils.bodyToJson(request, body -> {
             final String credentialId = body.getString("credentialId");
             final String purpose = body.getString("purpose", PURPOSE_LOGIN);
-            if (!PURPOSE_LOGIN.equals(purpose)) {
+            if (!PURPOSE_LOGIN.equals(purpose) && !PURPOSE_MFA.equals(purpose)) {
                 badRequest(request, "device.purpose.unsupported");
                 return;
             }
@@ -301,6 +434,90 @@ public class DeviceAuthController extends BaseController {
         renderJson(request, new JsonObject().put("error", DeviceAssertion.REJECTED), 401);
     }
 
+    /**
+     * Apporte le second facteur en prouvant la possession de l'appareil : aucun code à recevoir,
+     * donc aucun numéro à détenir ni adresse à renseigner.
+     *
+     * <p>C'est ce qui rend le second facteur atteignable pour les comptes qui n'ont ni l'un ni
+     * l'autre — les élèves de primaire au premier chef, pour qui l'imposer revenait jusqu'ici à
+     * les enfermer dehors.</p>
+     *
+     * <p>Seule une clé enrôlée sous preuve est acceptée : une clé posée avec le seul mot de passe
+     * ne prouve rien de plus que lui, et en faire un second facteur transformerait un vol unique
+     * en deux facteurs.</p>
+     */
+    @Post("/device/mfa")
+    @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
+    public void validateMfaWithDevice(final HttpServerRequest request) {
+        withSession(request, (session, userInfos) -> RequestUtils.bodyToJson(request, body -> {
+            final String assertion = body.getString("assertion");
+            final String credentialId = DeviceAssertion.unverifiedKeyId(assertion);
+            if (isEmpty(assertion) || isEmpty(credentialId)) {
+                rejectAssertion(request, null);
+                return;
+            }
+            credentialService.activeById(credentialId)
+                    .compose(credential -> {
+                        if (credential == null || DeviceCredentialService.isLocked(credential)
+                                || !DeviceCredentialService.ASSURANCE_PROVEN.equals(credential.getString("assurance"))
+                                // La clé doit appartenir au compte de la session : sans ce contrôle,
+                                // n'importe quelle clé valide franchirait le facteur de n'importe qui.
+                                || !userInfos.getUserId().equals(credential.getString("userId"))) {
+                            return Future.<JsonObject>failedFuture(DeviceAssertion.REJECTED);
+                        }
+                        return DeviceAssertion
+                                .verify(assertion, credential, PURPOSE_MFA, audienceOf(request), challengeStore)
+                                .map(claims -> credential);
+                    })
+                    .compose(credential -> UserValidation
+                            .setIsMFA(eb, UserUtils.getSessionIdOrTokenId(request).get(), true)
+                            .map(set -> credential))
+                    .onSuccess(credential -> {
+                        credentialService.markUsed(credential.getString("_id"));
+                        renderJson(request, new JsonObject().put("state", "valid"));
+                    })
+                    .onFailure(e -> rejectAssertion(request, credentialId));
+        }));
+    }
+
+    /** Refus d'une assertion : même réponse pour toutes les causes, et l'échec est compté. */
+    private void rejectAssertion(final HttpServerRequest request, final String credentialId) {
+        if (credentialId != null) {
+            credentialService.recordFailure(credentialId);
+        }
+        renderJson(request, new JsonObject().put("error", DeviceAssertion.REJECTED), 401);
+    }
+
+    /**
+     * Reporte dans l'annuaire l'existence d'au moins une clé enrôlée sous preuve.
+     *
+     * <p>Les clés vivent dans MongoDB, mais la session et la résolution du canal de second
+     * facteur se calculent depuis Neo4j. Plutôt que d'interroger deux bases à chaque connexion,
+     * on projette un simple drapeau, écrit aux deux seuls moments où il peut changer :
+     * l'enrôlement et la révocation.</p>
+     */
+    private Future<Void> projectDeviceMfaFlag(final String userId) {
+        return credentialService.hasProvenFor(userId).compose(hasProven -> {
+            final Promise<Void> promise = Promise.promise();
+            Neo4j.getInstance().execute(
+                    "MATCH (u:User {id: {id}}) SET u.deviceMfa = {flag}",
+                    new JsonObject().put("id", userId).put("flag", hasProven),
+                    res -> {
+                        if (!"ok".equals(res.body().getString("status"))) {
+                            // Le drapeau se recalcule au prochain enrôlement ou à la prochaine
+                            // révocation : un échec ici ne doit pas faire échouer l'opération.
+                            log.error("Unable to project device MFA flag for user " + userId + " : "
+                                    + res.body().getString("message"));
+                        }
+                        promise.complete();
+                    });
+            return promise.future();
+        }).recover(e -> {
+            log.error("Unable to resolve proven device keys for user " + userId, e);
+            return Future.succeededFuture();
+        });
+    }
+
     /** Clés actives du compte, telles que les affiche la page « mes appareils ». */
     @Get("/device/credentials/mine")
     @SecuredAction(value = "", type = ActionType.AUTHENTICATED)
@@ -338,6 +555,10 @@ public class DeviceAuthController extends BaseController {
         final String credentialId = request.params().get("credentialId");
         withMfaSession(request, (session, userInfos) ->
                 credentialService.revoke(userInfos.getUserId(), credentialId, userInfos.getUserId())
+                        // Retirer la dernière clé prouvée retire aussi un facteur : l'annuaire doit
+                        // le savoir, sinon le compte resterait soumis à un second facteur devenu
+                        // inatteignable.
+                        .compose(revoked -> projectDeviceMfaFlag(userInfos.getUserId()).map(u -> revoked))
                         .onSuccess(revoked -> {
                             if (Boolean.TRUE.equals(revoked)) {
                                 ok(request);
@@ -461,6 +682,10 @@ public class DeviceAuthController extends BaseController {
 
     public void setCredentialService(final DeviceCredentialService credentialService) {
         this.credentialService = credentialService;
+    }
+
+    public void setTicketService(final DeviceTicketService ticketService) {
+        this.ticketService = ticketService;
     }
 
     public void setChallengeStore(final DeviceChallengeStore challengeStore) {

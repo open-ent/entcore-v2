@@ -1087,7 +1087,11 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 				"COLLECT(distinct [child.id, child.lastName, child.firstName]) as childrenInfo, n.password IS NOT NULL as hasPw, " +
 				"structures, COLLECT(distinct [f.externalId, rf.scope]) as functions, " +
 				"groupsIds, structureNodes, n.structures as structureExternalId, manualGroups, n.federatedIDP as federatedIDP, n.functions as aafFunctions, " +
-				"optionEnabled, CASE WHEN n.totp IS NOT NULL AND n.totp <> '' THEN true ELSE false END as hasTotp";
+				"optionEnabled, CASE WHEN n.totp IS NOT NULL AND n.totp <> '' THEN true ELSE false END as hasTotp, " +
+				// Appareil enrôlé sous preuve : facteur de possession qui n'exige ni adresse
+				// e-mail ni numéro, et rend donc le second facteur atteignable pour les comptes
+				// qui n'ont ni l'un ni l'autre.
+				"COALESCE(n.deviceMfa, false) as hasDevice";
 		final String query2 =
 				"MATCH (u:User {id : $id}) WHERE u.login IS NOT NULL " +
 				"MATCH (u)-[:IN]->()-[:AUTHORIZED]->(r:Role) " +
