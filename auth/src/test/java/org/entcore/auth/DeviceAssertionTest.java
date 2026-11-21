@@ -267,6 +267,45 @@ public class DeviceAssertionTest {
         assertTrue(DevicePublicKeys.parse(encoded, DevicePublicKeys.ALG_ES256) != null);
     }
 
+    @Test
+    public void verifiesAFullEs256AssertionEndToEnd() throws Exception {
+        // L'application signe aujourd'hui en RSA, faute de bibliothèque donnant à la fois P-256
+        // et une clé dont l'usage est imposé par l'OS. Ce test prouve que le jour où une telle
+        // bibliothèque existera, la bascule ne demandera AUCUN changement côté serveur : même
+        // protocole, même vérification, seul l'algorithme enregistré avec la clé change.
+        final KeyPair ec = ecKeyPair();
+        final byte[] spki = ec.getPublic().getEncoded();
+        final JsonObject ecCredential = new JsonObject()
+                .put("_id", DevicePublicKeys.credentialId(spki))
+                .put("alg", DevicePublicKeys.ALG_ES256)
+                .put("publicKey", Base64.getEncoder().encodeToString(spki))
+                .put("userId", USER_ID)
+                .put("deviceId", DEVICE_ID);
+
+        final String challenge = challenges.put(PURPOSE, USER_ID, ecCredential.getString("_id"));
+        final JsonObject header = new JsonObject()
+                .put("typ", DeviceAssertion.TYPE)
+                .put("alg", DevicePublicKeys.ALG_ES256)
+                .put("kid", ecCredential.getString("_id"));
+
+        final String assertion = ecdsaAssertion(header, claims(challenge), ec.getPrivate());
+        final Future<JsonObject> result = DeviceAssertion.verify(
+                assertion, ecCredential, PURPOSE, AUDIENCE, challenges);
+
+        assertTrue("une assertion ES256 honnête doit être acceptée", result.succeeded());
+        assertEquals(USER_ID, result.result().getString("sub"));
+    }
+
+    @Test
+    public void rejectsAnEs256AssertionPresentedAsRsa() throws Exception {
+        // L'algorithme est épinglé sur celui enregistré avec la clé : une assertion ECDSA
+        // présentée sur un enregistrement RSA est refusée avant toute vérification.
+        final KeyPair ec = ecKeyPair();
+        final String challenge = challenges.put(PURPOSE, USER_ID, credential.getString("_id"));
+        final JsonObject header = header().put("alg", DevicePublicKeys.ALG_ES256);
+        assertRejected(verify(ecdsaAssertion(header, claims(challenge), ec.getPrivate())));
+    }
+
     // --- Lecture de la clé annoncée (connexion sans mot de passe) ---------------------
 
     @Test
@@ -373,6 +412,51 @@ public class DeviceAssertionTest {
         signature.initSign(privateKey);
         signature.update(signingInput.getBytes(StandardCharsets.UTF_8));
         return signingInput + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(signature.sign());
+    }
+
+    /**
+     * Fabrique un JWS ES256. La signature doit être au format JOSE — R et S concaténés sur 32
+     * octets chacun — alors que Java produit du DER. C'est précisément la conversion que
+     * {@code JWT.convertJWTSignatureToDER} fait en sens inverse côté serveur : sans elle, une
+     * signature ECDSA valable serait refusée, et le test ne prouverait rien.
+     */
+    private static String ecdsaAssertion(final JsonObject header, final JsonObject claims,
+                                         final PrivateKey privateKey) throws Exception {
+        final String signingInput = b64(header.encode()) + "." + b64(claims.encode());
+        final Signature signature = Signature.getInstance("SHA256withECDSA");
+        signature.initSign(privateKey);
+        signature.update(signingInput.getBytes(StandardCharsets.UTF_8));
+        final byte[] jose = derToJose(signature.sign());
+        return signingInput + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(jose);
+    }
+
+    /** DER {@code SEQUENCE { INTEGER r, INTEGER s }} vers R||S sur 64 octets. */
+    private static byte[] derToJose(final byte[] der) {
+        int offset = 3;
+        if ((der[1] & 0xff) > 0x80) {
+            // Longueur sur plusieurs octets : l'en-tête est plus long d'un cran.
+            offset = 4;
+        }
+        final int rLength = der[offset] & 0xff;
+        final int sOffset = offset + rLength + 2;
+        final int sLength = der[sOffset] & 0xff;
+
+        final byte[] jose = new byte[64];
+        copyFixed(der, offset + 1, rLength, jose, 0);
+        copyFixed(der, sOffset + 1, sLength, jose, 32);
+        return jose;
+    }
+
+    /**
+     * Recopie un entier DER dans un champ de 32 octets, aligné à droite. DER encode les entiers
+     * en complément à deux : un octet nul de tête peut précéder une valeur dont le bit de poids
+     * fort est à 1, et il ne fait pas partie du nombre.
+     */
+    private static void copyFixed(final byte[] source, final int from, final int length,
+                                  final byte[] target, final int targetOffset) {
+        final int start = length > 32 ? from + (length - 32) : from;
+        final int size = Math.min(length, 32);
+        System.arraycopy(source, start, target, targetOffset + (32 - size), size);
     }
 
     private static String b64(final String raw) {

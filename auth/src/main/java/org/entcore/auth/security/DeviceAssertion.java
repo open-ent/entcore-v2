@@ -18,7 +18,6 @@
 
 package org.entcore.auth.security;
 
-import fr.wseduc.webutils.security.JWT;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -26,6 +25,8 @@ import io.vertx.core.logging.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
+import java.security.Signature;
+import java.util.Arrays;
 import java.util.Base64;
 
 import static fr.wseduc.webutils.Utils.isEmpty;
@@ -165,7 +166,7 @@ public final class DeviceAssertion {
         } catch (IllegalArgumentException e) {
             return reject("unusable stored key: " + e.getMessage());
         }
-        if (JWT.verifyAndGet(assertion, publicKey) == null) {
+        if (!signatureIsValid(parts, publicKey, expectedAlg)) {
             return reject("bad signature");
         }
 
@@ -210,6 +211,71 @@ public final class DeviceAssertion {
                     return Future.succeededFuture(claims);
                 })
                 .recover(t -> reject("challenge rejected: " + t.getMessage()));
+    }
+
+    /**
+     * Vérifie la signature détachée du JWS.
+     *
+     * <p>Faite ici plutôt que par {@code JWT.verifyAndGet} pour deux raisons. D'abord parce que
+     * cette méthode lit l'algorithme <b>dans le jeton présenté</b> : s'en remettre à elle
+     * reviendrait à laisser l'attaquant choisir comment sa signature est vérifiée, alors
+     * qu'ici l'algorithme est celui enregistré avec la clé, et lui seul. Ensuite parce que sa
+     * conversion de signature ES256 s'appuie sur {@code sun.security.util}, que {@code
+     * java.base} n'exporte plus depuis Java 9 : l'appel lève un {@link IllegalAccessError} —
+     * une erreur, pas une exception — et la vérification ES256 y est donc inopérante sur les
+     * JDK récents.</p>
+     */
+    private static boolean signatureIsValid(final String[] parts, final PublicKey publicKey,
+                                            final String alg) {
+        try {
+            final byte[] raw = Base64.getUrlDecoder().decode(withPadding(parts[2]));
+            final Signature verifier = Signature.getInstance(
+                    DevicePublicKeys.ALG_ES256.equals(alg) ? "SHA256withECDSA" : "SHA256withRSA");
+            verifier.initVerify(publicKey);
+            verifier.update((parts[0] + "." + parts[1]).getBytes(StandardCharsets.UTF_8));
+            return verifier.verify(DevicePublicKeys.ALG_ES256.equals(alg) ? joseToDer(raw) : raw);
+        } catch (Exception e) {
+            // Signature illisible, mal formée ou invalide : indifférenciées, comme le reste.
+            return false;
+        }
+    }
+
+    /**
+     * Signature ES256 du format JOSE (R puis S, 32 octets chacun) vers le DER qu'attend
+     * {@link Signature} : {@code SEQUENCE { INTEGER r, INTEGER s }}.
+     *
+     * <p>DER code les entiers en complément à deux : un octet nul précède toute valeur dont le
+     * bit de poids fort est à 1, sans quoi elle serait lue comme négative. Les zéros de tête
+     * superflus sont retirés, DER exigeant la représentation la plus courte.</p>
+     */
+    private static byte[] joseToDer(final byte[] jose) {
+        if (jose.length != 64) {
+            throw new IllegalArgumentException("invalid ES256 signature length");
+        }
+        final byte[] r = derInteger(Arrays.copyOfRange(jose, 0, 32));
+        final byte[] s = derInteger(Arrays.copyOfRange(jose, 32, 64));
+        final int content = r.length + s.length;
+        // Une signature P-256 tient toujours sous 128 octets : la forme courte suffit.
+        final byte[] der = new byte[2 + content];
+        der[0] = 0x30;
+        der[1] = (byte) content;
+        System.arraycopy(r, 0, der, 2, r.length);
+        System.arraycopy(s, 0, der, 2 + r.length, s.length);
+        return der;
+    }
+
+    private static byte[] derInteger(final byte[] value) {
+        int start = 0;
+        while (start < value.length - 1 && value[start] == 0) {
+            start++;
+        }
+        final byte[] magnitude = Arrays.copyOfRange(value, start, value.length);
+        final boolean pad = (magnitude[0] & 0x80) != 0;
+        final byte[] encoded = new byte[2 + magnitude.length + (pad ? 1 : 0)];
+        encoded[0] = 0x02;
+        encoded[1] = (byte) (magnitude.length + (pad ? 1 : 0));
+        System.arraycopy(magnitude, 0, encoded, pad ? 3 : 2, magnitude.length);
+        return encoded;
     }
 
     /**
