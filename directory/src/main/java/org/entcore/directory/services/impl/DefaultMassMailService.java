@@ -695,9 +695,11 @@ public class DefaultMassMailService extends Renders implements MassMailService {
         String withStr =
             " WITH u, p, collect(auths) as auths "
            +", collect(distinct c.name) as classes, min(c.name) as classname, CASE count(c) WHEN 0 THEN false ELSE true END as isInClass "
-           +", CASE count(child) WHEN 0 THEN null ELSE filter("
-              +"c IN (collect(distinct {firstName: child.firstName, lastName: child.lastName, classname: c.name})) WHERE not(c.firstName is null)"
-           +") END as children ";
+           // Compréhension de liste et non `filter(x IN l WHERE …)` : ArcadeDB refuse `filter()`
+           // (« mismatched input 'WHERE' »), ce qui faisait échouer tout publipostage.
+           +", CASE count(child) WHEN 0 THEN null ELSE ["
+              +"ch IN collect(distinct {firstName: child.firstName, lastName: child.lastName, classname: c.name}) WHERE ch.firstName IS NOT NULL"
+           +"] END as children ";
 
         if (!filterObj.containsKey("includeFederated")) {
             withStr += " WHERE NOT ((u.federatedIDP IS NOT NULL AND NOT(u.federatedIDP IS NULL) AND u.federated IS NOT NULL AND u.federated = true) OR size(auths) > 0 AND (u.source in ['AAF', 'AAF1D']) AND u.activationCode IS NOT NULL) ";
