@@ -27,6 +27,11 @@ import { timelineService } from "../services/timeline.service";
 const DELETE_OWN =
   "org.entcore.timeline.controllers.TimelineController|deleteNotification";
 
+// Illustrations du thème de la plateforme (celles du thème edifice-bootstrap ne sont pas servies ici).
+const SYSTEM_AVATAR =
+  "/assets/themes/theme-open-ent/img/illustrations/system-avatar.svg";
+const NO_AVATAR = "/assets/themes/theme-open-ent/img/illustrations/no-avatar.svg";
+
 const formatDate = (d: { $date: number | string }) =>
   new Date(d.$date).toLocaleString("fr-FR", {
     dateStyle: "short",
@@ -209,13 +214,18 @@ export const History = () => {
               src={
                 n.sender
                   ? `/userbook/avatar/${n.sender}?thumbnail=100x100`
-                  : "/assets/themes/edifice-bootstrap/img/illustrations/system-avatar.svg"
+                  : SYSTEM_AVATAR
               }
               alt=""
               width={40}
               height={40}
-              style={{ borderRadius: "50%", objectFit: "cover" }}
+              style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
               loading="lazy"
+              onError={(e) => {
+                // usager sans photo : la plateforme répond 404 (image par défaut absente du stockage)
+                const img = e.currentTarget;
+                if (!img.src.endsWith(NO_AVATAR)) img.src = NO_AVATAR;
+              }}
             />
             <div className="flex-grow-1">
               <div

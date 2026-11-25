@@ -79,6 +79,28 @@ const ALLOWED_TAGS = new Set([
   "LI",
 ]);
 
+/**
+ * Réécrit les liens hérités de l'interface AngularJS que les gabarits de notification produisent encore (et que
+ * l'historique conserve) quand ils ne mènent plus nulle part :
+ *  - messagerie : `/conversation#/read-mail/<id>` (ou `/conversation/conversation#/…`) → `/conversation/inbox/message/<id>` ;
+ *  - messagerie, autres routes à ancre : `/conversation#/…` → `/conversation/conversation#/…`, que l'application React redirige.
+ * Un lien absolu vers le même ENT devient relatif, pour rester sur l'adresse de la session.
+ */
+export const fixLegacyHref = (
+  href: string,
+  origin: string = window.location.origin,
+): string => {
+  let url = href.trim();
+  const abs = /^https?:\/\/[^/]+/i.exec(url);
+  if (abs && abs[0].toLowerCase() === origin.toLowerCase())
+    url = url.slice(abs[0].length) || "/";
+  const readMail = /^\/conversation(?:\/conversation)?\/?#\/read-mail\/([^/?#]+)/.exec(url);
+  if (readMail) return `/conversation/inbox/message/${readMail[1]}`;
+  if (/^\/conversation\/?#/.test(url))
+    return url.replace(/^\/conversation\/?#/, "/conversation/conversation#");
+  return url;
+};
+
 /** Nettoie le message HTML d'une notification : balises de mise en forme et liens http(s)/relatifs seulement. */
 export const sanitizeMessage = (html: string): string => {
   const doc = new DOMParser().parseFromString(
@@ -101,6 +123,7 @@ export const sanitizeMessage = (html: string): string => {
         const href = child.getAttribute("href") ?? "";
         if (!/^(https?:\/\/|\/|#|mailto:)/i.test(href))
           child.removeAttribute("href");
+        else child.setAttribute("href", fixLegacyHref(href));
         child.setAttribute("rel", "noopener noreferrer");
       }
       walk(child);

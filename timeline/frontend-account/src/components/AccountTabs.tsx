@@ -38,13 +38,13 @@ export const AccountTabs = ({
     {
       id: "notifications",
       label: "panel.notifications.set",
-      href: "/timeline/preferencesView?ui=react",
+      href: "/timeline/preferencesView",
       show: hasEmail && workflows.has(WF.EXTERNAL_NOTIFICATIONS),
     },
     {
       id: "history",
       label: "panel.user.history",
-      href: "/timeline/historyView?ui=react",
+      href: "/timeline/historyView",
       show: workflows.has(WF.HISTORY),
     },
     {

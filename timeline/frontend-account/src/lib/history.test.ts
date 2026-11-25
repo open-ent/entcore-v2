@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   accessibleTypes,
+  fixLegacyHref,
   mergePage,
   notificationsQuery,
   sanitizeMessage,
@@ -55,5 +56,28 @@ describe("historique des notifications", () => {
     expect(out).not.toMatch(/script|onclick|javascript/i);
     expect(out).toContain("<b>Alice</b>");
     expect(out).toContain('href="/blog/1"');
+  });
+
+  it("réécrit les liens hérités de la messagerie vers les routes React", () => {
+    const o = "https://ent.example";
+    expect(fixLegacyHref("/conversation#/read-mail/abc-1", o)).toBe(
+      "/conversation/inbox/message/abc-1",
+    );
+    expect(
+      fixLegacyHref("https://ent.example/conversation/conversation#/read-mail/abc-1", o),
+    ).toBe("/conversation/inbox/message/abc-1");
+    expect(fixLegacyHref("/conversation#/write-mail/u1/User", o)).toBe(
+      "/conversation/conversation#/write-mail/u1/User",
+    );
+    expect(fixLegacyHref("/blog#/view/b1/p1", o)).toBe("/blog#/view/b1/p1");
+    expect(fixLegacyHref("https://autre.example/conversation#/read-mail/x", o)).toBe(
+      "https://autre.example/conversation#/read-mail/x",
+    );
+  });
+
+  it("applique la réécriture dans le message nettoyé", () => {
+    expect(
+      sanitizeMessage('<a href="/conversation#/read-mail/m1">Sujet</a>'),
+    ).toContain('href="/conversation/inbox/message/m1"');
   });
 });
