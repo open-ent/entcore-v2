@@ -33,6 +33,9 @@ import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.lang3.tuple.Pair;
 import org.entcore.broker.api.utils.BrokerProxyUtils;
 import org.entcore.common.cache.CacheService;
+import org.entcore.common.geo.GeoAccessPolicies;
+import org.entcore.common.geo.GeoAccessPolicy;
+import org.entcore.common.geo.GeoIpLocator;
 import org.entcore.common.neo4j.Neo4j;
 import org.entcore.common.redis.Redis;
 import org.entcore.common.session.SessionRecreationRequest;
@@ -785,7 +788,7 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 												  final JsonObject clientInfos) {
 		final Promise<Pair<String, JsonObject>> sessionPromise = Promise.promise();
 		final String sessionId = (sId != null) ? sId : UUID.randomUUID().toString();
-		generateSessionInfos(userId, new Handler<JsonObject>() {
+		generateSessionInfos(userId, rawInfos -> applyGeoAccess(userId, rawInfos, clientInfos).onComplete(geo -> new Handler<JsonObject>() {
 			@Override
 			public void handle(JsonObject infos) {
 				if (infos != null) {
@@ -823,8 +826,80 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 					sessionPromise.complete(Pair.of(sessionId, null));
 				}
 			}
-		});
+		}.handle(rawInfos)));
 		return sessionPromise.future();
+	}
+
+	/**
+	 * Zones géographiques autorisées : situe l'adresse IP de la connexion et, si une politique
+	 * applicable au compte la place hors zone, le note dans la session ({@code geoAccess}).
+	 * En mode {@code mfa}, le second facteur devient exigé dès la connexion — comme
+	 * {@code requireMFA}, cela lève la dispense d'établissement mais pas celle du compte.
+	 * Sans moyen de second facteur, {@code Mfa.isRequiredAtLogin} reste faux : l'alerte part,
+	 * la personne n'est jamais enfermée dehors.
+	 *
+	 * <p>Le journal et l'alerte ne partent qu'à la connexion, pas à chaque recréation de la
+	 * session (celle-ci reporte {@code createdAt}). Ne fait jamais échouer la connexion.</p>
+	 */
+	private Future<Void> applyGeoAccess(final String userId, final JsonObject infos, final JsonObject clientInfos) {
+		final String ip = clientInfos != null ? clientInfos.getString("ip") : null;
+		if (infos == null || ip == null || ip.isEmpty()) {
+			return Future.succeededFuture();
+		}
+		return GeoAccessPolicies.active().compose(policies -> {
+			if (policies.isEmpty()) {
+				return Future.<Void>succeededFuture();
+			}
+			try {
+				final JsonObject geo = GeoIpLocator.getInstance().locate(ip);
+				final JsonObject decision = GeoAccessPolicy.evaluate(policies, infos, ip, geo);
+				if (!Boolean.TRUE.equals(decision.getBoolean("outOfZone"))) {
+					return Future.<Void>succeededFuture();
+				}
+				final boolean enforce = Boolean.TRUE.equals(decision.getBoolean("mfa"))
+						&& !Boolean.TRUE.equals(infos.getBoolean("accountIgnoreMFA"));
+				decision.put("enforced", enforce);
+				if (enforce) {
+					infos.put("ignoreMFA", false);
+					infos.put("mfaAtLogin", true);
+				}
+				infos.put("geoAccess", decision);
+				final boolean freshLogin = clientInfos.getValue("createdAt") == null;
+				if (freshLogin) {
+					final JsonObject event = decision.copy()
+							.put("userId", userId)
+							.put("login", infos.getString("login"))
+							.put("displayName", infos.getString("username"))
+							.put("profile", infos.getString("type"))
+							.put("structures", infos.getJsonArray("structures"))
+							.put("ua", clientInfos.getString("ua"))
+							.put("mfaReachable", enforce && mfaReachable(infos))
+							.put("date", MongoDb.now());
+					mongo.save(GeoAccessPolicies.EVENTS_COLLECTION, event);
+					// send et non publish : un seul nœud auth envoie l'alerte
+					vertx.eventBus().send(GeoAccessPolicies.OUT_OF_ZONE_ADDRESS, event.copy().put("date", System.currentTimeMillis()));
+					logger.info("Out of zone login for user " + userId + " from " + decision.getString("ip")
+							+ " (" + (geo != null ? geo.getString("country") : "?") + "), mfa enforced : " + enforce);
+				}
+			} catch (Exception e) {
+				logger.error("Geo access evaluation failed for user " + userId, e);
+			}
+			return Future.<Void>succeededFuture();
+		}).otherwise(e -> null);
+	}
+
+	/**
+	 * Le compte dispose-t-il d'un moyen d'apporter le second facteur ? Lu sur la session et non
+	 * via {@code Mfa} : la fabrique n'est pas initialisée dans ce module. Les canaux réellement
+	 * ouverts par la plateforme ({@code mfaConfig.types}) restent tranchés par le filtre.
+	 */
+	private static boolean mfaReachable(final JsonObject infos) {
+		final String email = infos.getString("email");
+		final String mobile = infos.getString("mobile");
+		return Boolean.TRUE.equals(infos.getBoolean("hasTotp"))
+				|| Boolean.TRUE.equals(infos.getBoolean("hasDevice"))
+				|| (email != null && !email.trim().isEmpty())
+				|| (mobile != null && !mobile.trim().isEmpty());
 	}
 
 	/**
@@ -1286,6 +1361,9 @@ public class AuthManager extends BusModBase implements Handler<Message<JsonObjec
 					// Second facteur exigé dès la connexion (et non sur les seules routes d'administration) :
 					// compte marqué obligatoire, ou rattaché à un établissement qui l'impose à tous ses comptes.
 					final boolean mfaAtLogin = !ignoreMFA && (userRequireMFA || oneAttachedStructureRequiresMFA);
+					// Dispense portée par le compte lui-même : seule à résister à une connexion hors
+					// zone géographique (cf. applyGeoAccess), la dispense d'établissement non.
+					j.put("accountIgnoreMFA", !userRequireMFA && Boolean.TRUE.equals(j.getBoolean("userIgnoreMFA")));
 					j.remove("userIgnoreMFA");
 					j.remove("userRequireMFA");
 					j.remove("structures");

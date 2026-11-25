@@ -115,6 +115,13 @@
             <version>8.13.27</version>
             <scope>compile</scope>
         </dependency>
+        <!-- Lecture des bases de géolocalisation d'IP au format .mmdb (DB-IP Lite) -->
+        <dependency>
+            <groupId>com.maxmind.db</groupId>
+            <artifactId>maxmind-db</artifactId>
+            <version>3.1.0</version>
+            <scope>compile</scope>
+        </dependency>
         <!-- JAXB and SAAJ removed from JDK since Java 11 (JEP 320) -->
         <dependency>
             <groupId>javax.xml.bind</groupId>

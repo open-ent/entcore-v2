@@ -1,0 +1,40 @@
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fc;margin:0;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(20,35,65,.08);">
+        <tr><td style="height:4px;line-height:4px;font-size:0;background:#c53030;">&nbsp;</td></tr>
+        <tr>
+          <td style="padding:32px;color:#15223d;font-size:15px;line-height:1.6;">
+            <h1 style="margin:0 0 16px;font-size:22px;color:#15223d;">Connexion hors zone autorisée</h1>
+            <p style="margin:0 0 20px;">Un compte vient de se connecter depuis une adresse IP située hors des zones géographiques autorisées par la politique de connexion.</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fc;border-radius:10px;margin:0 0 24px;">
+              <tr><td style="padding:16px 20px;">
+                <div style="margin-bottom:8px;"><span style="color:#7e879c;">Compte&nbsp;:</span> <b style="color:#15223d;">{{displayName}}</b> ({{login}}, {{profile}})</div>
+                <div style="margin-bottom:8px;"><span style="color:#7e879c;">Adresse IP&nbsp;:</span> <b style="color:#15223d;">{{ip}}</b></div>
+                <div style="margin-bottom:8px;"><span style="color:#7e879c;">Localisation&nbsp;:</span> <b style="color:#15223d;">{{location}}</b></div>
+                <div style="margin-bottom:8px;"><span style="color:#7e879c;">Navigateur&nbsp;:</span> <span style="color:#15223d;font-size:13px;">{{ua}}</span></div>
+                <div style="margin-bottom:8px;"><span style="color:#7e879c;">Date&nbsp;:</span> <b style="color:#15223d;">{{date}}</b></div>
+                <div><span style="color:#7e879c;">Mesure&nbsp;:</span> <b style="color:#15223d;">{{measure}}</b></div>
+              </td></tr>
+            </table>
+            <p style="margin:0 0 12px;">Si cette connexion n'est pas légitime, fermez la session depuis l'audit des sessions et réinitialisez le mot de passe du compte.</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
+              <tr>
+                <td style="border-radius:8px;background:#2160d8;">
+                  <a href="{{userUrl}}" style="display:inline-block;padding:12px 24px;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;">Voir le compte</a>
+                </td>
+                <td style="width:12px;"></td>
+                <td style="border-radius:8px;border:1px solid #2160d8;">
+                  <a href="{{mapUrl}}" style="display:inline-block;padding:11px 24px;color:#2160d8;text-decoration:none;font-weight:bold;font-size:15px;">Carte des connexions</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 32px;border-top:1px solid #e5ebf4;color:#aab2c4;font-size:12px;line-height:1.5;">Message automatique envoyé aux destinataires d'alerte de la politique de zones de connexion. Géolocalisation : IP Geolocation by DB-IP.</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

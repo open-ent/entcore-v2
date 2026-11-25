@@ -157,7 +157,9 @@ public final class ClientDevice {
      */
     private static String ip(final HttpServerRequest request) {
         try {
-            return Renders.getIp(request);
+            // Renders.getIp renvoie l'en-tête X-Forwarded-For brut (« client, proxy… ») :
+            // seule la première adresse est celle de l'appareil.
+            return org.entcore.common.geo.GeoIpLocator.normalizeIp(Renders.getIp(request));
         } catch (Exception e) {
             log.debug("Unable to resolve client ip", e);
             return null;

@@ -324,6 +324,9 @@ public class Auth extends BaseServer {
 
 		addController(new RedirectController());
 
+		// Zones géographiques autorisées pour se connecter + carte des IP de connexion
+		addController(new GeoAccessController());
+
 		if (config.containsKey("carbonio-base-url")
 				&& config.containsKey("carbonio-redirect-url")
 				&& config.containsKey("carbonio-domain-key")) {

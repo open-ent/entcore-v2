@@ -216,6 +216,7 @@ public class NewDeviceNotifier {
                 .put("displayName", user.getString("displayName", ""))
                 .put("deviceLabel", deviceLabel)
                 .put("ip", ip)
+                .put("location", location(ip))
                 .put("date", DATE_FORMAT.format(Instant.now().atZone(ZONE)))
                 .put("devicesUrl", devicesUrl.startsWith("http") ? devicesUrl : baseUrl + devicesUrl);
         sender.sendEmail(request, to, null, null, tpl.getString("subject"), EMAIL_VIEW, params, false, ar -> {
@@ -261,6 +262,29 @@ public class NewDeviceNotifier {
             }
         });
         return promise.future();
+    }
+
+    /**
+     * « Ville, région, pays » de l'adresse, d'après la base GeoIP locale ; vide si elle est
+     * absente ou ne connaît pas l'adresse — la ligne disparaît alors du courriel.
+     */
+    static String location(final String ip) {
+        try {
+            final JsonObject geo = org.entcore.common.geo.GeoIpLocator.getInstance().locate(ip);
+            if (geo == null || Boolean.TRUE.equals(geo.getBoolean("private"))) {
+                return "";
+            }
+            final java.util.List<String> parts = new java.util.ArrayList<>();
+            for (String key : new String[] { "city", "region", "countryName" }) {
+                final String v = geo.getString(key);
+                if (isNotEmpty(v) && !parts.contains(v)) {
+                    parts.add(v);
+                }
+            }
+            return String.join(", ", parts);
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private String deviceLabel(final HttpServerRequest request, final String userAgent) {
