@@ -23,7 +23,7 @@ import java.util.Set;
  * {@value #MODE_MFA} : exiger en plus le second facteur dès la connexion),
  * {@code allowedCountries} (codes ISO-2), {@code allowedCidrs} (adresses ou réseaux toujours
  * admis), {@code profiles} (profils visés parmi {@code Personnel, Teacher, Student, Relative,
- * Guest} et les fonctions {@code ADMC}, {@code ADML} ; vide = tous).</p>
+ * Guest} et les fonctions {@code ADMC}, {@code ADML}, {@code ADMCOL} ; vide = tous).</p>
  *
  * <p>Règles d'évaluation, choisies pour ne jamais enfermer quelqu'un dehors : une adresse
  * interne est dans la zone ; une adresse que la base ne sait pas localiser n'est ni dans ni
@@ -38,6 +38,8 @@ public final class GeoAccessPolicy {
     public static final String MODE_MFA = "mfa";
     public static final String TARGET_ADMC = "ADMC";
     public static final String TARGET_ADML = "ADML";
+    /** Fonction ADMIN_COLLECTIVITE (référent de collectivité), avec ou sans ADMIN_LOCAL. */
+    public static final String TARGET_ADMCOL = "ADMCOL";
 
     private GeoAccessPolicy() {
     }
@@ -62,6 +64,9 @@ public final class GeoAccessPolicy {
             }
             if (functions.containsKey("ADMIN_LOCAL")) {
                 targets.add(TARGET_ADML);
+            }
+            if (functions.containsKey("ADMIN_COLLECTIVITE")) {
+                targets.add(TARGET_ADMCOL);
             }
         }
         return targets;

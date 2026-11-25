@@ -38,6 +38,22 @@ public class GeoAccessPolicyTest {
         final JsonObject adml = new JsonObject().put("type", "Teacher")
                 .put("functions", new JsonObject().put("ADMIN_LOCAL", new JsonObject()));
         assertTrue(GeoAccessPolicy.targetsOf(adml).contains("ADML"));
+        final JsonObject collectivite = new JsonObject().put("type", "Personnel")
+                .put("functions", new JsonObject().put("ADMIN_COLLECTIVITE", new JsonObject()));
+        assertTrue(GeoAccessPolicy.targetsOf(collectivite).contains("ADMCOL"));
+        assertFalse(GeoAccessPolicy.targetsOf(collectivite).contains("ADML"));
+    }
+
+    @Test
+    public void collectivityTargetAloneIsCovered() {
+        final JsonObject policy = platform("observe", "FR").put("profiles", new JsonArray().add("ADMCOL"));
+        final JsonObject referent = new JsonObject().put("type", "Personnel")
+                .put("functions", new JsonObject().put("ADMIN_COLLECTIVITE", new JsonObject()))
+                .put("structures", new JsonArray().add("s1"));
+        assertTrue(GeoAccessPolicy.evaluate(Collections.singletonList(policy), referent, "8.8.8.8", geo("US"))
+                .getBoolean("outOfZone"));
+        assertFalse(GeoAccessPolicy.evaluate(Collections.singletonList(policy), admc(), "8.8.8.8", geo("US"))
+                .getBoolean("outOfZone"));
     }
 
     @Test

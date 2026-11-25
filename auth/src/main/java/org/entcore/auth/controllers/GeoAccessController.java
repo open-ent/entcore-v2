@@ -56,7 +56,7 @@ public class GeoAccessController extends BaseController {
     private static final int MAX_IPS = 2000;
     private static final Set<String> TARGETS = new HashSet<>(Arrays.asList(
             "Personnel", "Teacher", "Student", "Relative", "Guest",
-            GeoAccessPolicy.TARGET_ADMC, GeoAccessPolicy.TARGET_ADML));
+            GeoAccessPolicy.TARGET_ADMC, GeoAccessPolicy.TARGET_ADML, GeoAccessPolicy.TARGET_ADMCOL));
     private static final ZoneId ZONE = ZoneId.of("Europe/Paris");
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy 'à' HH:mm");
 
@@ -339,6 +339,8 @@ public class GeoAccessController extends BaseController {
                 fakeSession.put("type", "Personnel").getJsonObject("functions").put("SUPER_ADMIN", new JsonObject());
             } else if (GeoAccessPolicy.TARGET_ADML.equals(profile)) {
                 fakeSession.put("type", "Personnel").getJsonObject("functions").put("ADMIN_LOCAL", new JsonObject());
+            } else if (GeoAccessPolicy.TARGET_ADMCOL.equals(profile)) {
+                fakeSession.put("type", "Personnel").getJsonObject("functions").put("ADMIN_COLLECTIVITE", new JsonObject());
             }
             final String finalIp = ip;
             GeoAccessPolicies.active().onComplete(ar -> {
