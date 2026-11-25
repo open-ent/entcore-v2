@@ -1,7 +1,6 @@
 import { odeServices } from "@open-ent/client";
 import { WorkspacePreference } from "../lib/preferences";
 import { ParentInfo } from "../lib/properties";
-import { ShareJson, shareForm, sharePairs } from "../lib/share";
 import { mergeFolders } from "../lib/lazyFolders";
 import { Quota, Revision, TreeName, WorkspaceElement } from "../lib/types";
 
@@ -125,17 +124,6 @@ const postForm = async <R>(url: string, form: URLSearchParams): Promise<R> => {
   return body as R;
 };
 
-/** PUT d'un formulaire (partage) : même précaution sur le type de contenu que `postForm`. */
-const putForm = async (url: string, form: URLSearchParams): Promise<void> => {
-  const res = await fetch(url, {
-    method: "PUT",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-XSRF-TOKEN": xsrfToken() },
-    body: form.toString(),
-  });
-  if (!res.ok) throw new Error(String(res.status));
-};
-
 /**
  * Envoi JSON (POST ou PUT) qui rejette avec la clé d'erreur du serveur (ex. « workspace.contrib.cant »), sinon avec le statut :
  * la copie et le déplacement expliquent à l'usager pourquoi ils échouent (pas de droit de contribution dans le dossier…).
@@ -214,16 +202,6 @@ export const elementActions = {
   moveForShared: async (els: Array<{ _id: string }>, destId?: string) => {
     await elementActions.copy(els, destId);
     await odeServices.http().deleteJson("/workspace/documents", ids(els));
-  },
-  /**
-   * Recopie sur d'autres éléments les droits de partage d'un élément (partage de plusieurs éléments à la fois : la fenêtre de partage
-   * règle le premier, ses droits sont appliqués aux autres). Les droits s'ajoutent à ceux déjà présents.
-   */
-  shareLike: async (sourceId: string, targetIds: string[]) => {
-    const json = await odeServices.http().get<ShareJson>(`/workspace/share/json/${sourceId}`);
-    const pairs = sharePairs(json);
-    for (const target of targetIds)
-      for (const pair of pairs) await putForm(`/workspace/share/json/${target}`, shareForm(pair));
   },
   publish: (id: string) => odeServices.http().put<{ url?: string }>(`/workspace/document/${id}/portal-publish`),
   unpublish: (id: string) => odeServices.http().delete(`/workspace/document/${id}/portal-publish`),

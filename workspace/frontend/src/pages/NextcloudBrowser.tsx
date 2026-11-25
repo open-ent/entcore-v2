@@ -33,7 +33,7 @@ import {
   SyncDocument,
 } from "../lib/nextcloud";
 import { nextcloudService } from "../services/nextcloud.service";
-import { elementActions, workspaceService } from "../services/workspace.service";
+import { workspaceService } from "../services/workspace.service";
 import { useFolders, useFolderStore, useNextcloudList, useNextcloudQuota, useNextcloudUrl, useQuota, useWorkspacePreference } from "../services/queries";
 
 /** Type d'un élément NextCloud, dans le même vocabulaire que l'espace documentaire. */
@@ -582,15 +582,11 @@ export const NextcloudBrowser = ({ trash = false }: { trash?: boolean }) => {
       {sharing.length > 0 && (
         <ShareModal
           isOpen
-          shareOptions={{ resourceId: sharing[0]._id, resourceRights: [], resourceCreatorId: user?.userId ?? "", resourceCreatorDisplayName: (user as { username?: string } | undefined)?.username ?? "" }}
+          shareOptions={{ resourceId: sharing[0]._id, resourceRights: [], resourceCreatorId: user?.userId ?? "", resourceCreatorDisplayName: (user as { username?: string } | undefined)?.username ?? "", resources: sharing.length > 1 ? sharing.map((c) => ({ resourceId: c._id, resourceRights: [] })) : undefined }}
           onCancel={() => void cancelShare()}
           onSuccess={() => {
-            const first = sharing[0];
-            const others = sharing.slice(1).map((c) => c._id);
             setSharing([]);
             setSelected(new Set());
-            // plusieurs documents : les droits réglés sur le premier sont recopiés sur les autres
-            if (others.length) void elementActions.shareLike(first._id, others).catch(() => setNotice(t("workspace.react.action.failed")));
           }}
         />
       )}

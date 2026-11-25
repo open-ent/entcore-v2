@@ -1,19 +1,32 @@
-import { sharePairs, shareForm } from "./share";
+import { shareResources } from "./share";
+import { WorkspaceElement } from "./types";
 
-describe("partage groupé", () => {
-  it("liste les personnes et groupes ayant des droits", () => {
-    const pairs = sharePairs({ users: { checked: { u1: ["a", "b"], u2: [] } }, groups: { checked: { g1: ["c"] } } });
-    expect(pairs).toEqual([
-      { kind: "user", id: "u1", actions: ["a", "b"] },
-      { kind: "group", id: "g1", actions: ["c"] },
-    ]);
+const el = (_id: string, owner: string, shared?: WorkspaceElement["shared"]): WorkspaceElement => ({
+  _id,
+  name: _id,
+  eType: "file",
+  eParent: null,
+  owner,
+  shared,
+});
+
+describe("partage multi-ressources", () => {
+  it("une entrée par élément, dans l'ordre de la sélection", () => {
+    expect(shareResources([el("a", "u1"), el("b", "u1")], "u1").map((r) => r.resourceId)).toEqual(["a", "b"]);
   });
-  it("ignore un partage vide ou absent", () => {
-    expect(sharePairs(undefined)).toEqual([]);
-    expect(sharePairs({})).toEqual([]);
+  it("le propriétaire n'a pas de droits à réinjecter", () => {
+    expect(shareResources([el("a", "u1")], "u1")).toEqual([{ resourceId: "a", resourceRights: [] }]);
   });
-  it("construit le formulaire attendu par le serveur", () => {
-    expect(shareForm({ kind: "user", id: "u1", actions: ["a", "b"] }).toString()).toBe("userId=u1&actions=a&actions=b");
-    expect(shareForm({ kind: "group", id: "g1", actions: ["c"] }).toString()).toBe("groupId=g1&actions=c");
+  it("reprend les droits directs de l'usager, pas ceux des autres ni des groupes", () => {
+    const shared = [
+      { userId: "u2", "X|shareJson": true },
+      { groupId: "g1", "X|getDocument": true },
+      { userId: "u2", "X|getDocument": true, "X|updateDocument": false },
+    ];
+    const [r] = shareResources([el("a", "u1", shared)], "u2");
+    expect(r.resourceRights).toEqual(["user:u2:X|shareJson", "user:u2:X|getDocument"]);
+  });
+  it("sans usager connu, aucune liste de droits", () => {
+    expect(shareResources([el("a", "u1", [{ userId: "u2", "X|getDocument": true }])], undefined)[0].resourceRights).toEqual([]);
   });
 });

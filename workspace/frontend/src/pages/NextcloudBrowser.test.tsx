@@ -22,7 +22,7 @@ vi.mock("@open-ent/react", async () => (await import("../test/socle")).socleMock
 vi.mock("../components/ConfirmModal", () => ({
   ConfirmModal: ({ isOpen, onConfirm }: { isOpen: boolean; onConfirm: () => void }) => (isOpen ? <button type="button" data-confirm-submit onClick={onConfirm} /> : null),
 }));
-vi.mock("../services/workspace.service", () => ({ elementActions: { shareLike: vi.fn() }, workspaceService: { savePreference: (p: unknown) => prefs.save(p) } }));
+vi.mock("../services/workspace.service", () => ({ workspaceService: { savePreference: (p: unknown) => prefs.save(p) } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock("../components/FolderPicker", () => ({ FolderPicker: () => null }));
 const svc = vi.hoisted(() => ({ toWorkspace: vi.fn(), fromWorkspace: vi.fn(), move: vi.fn() }));

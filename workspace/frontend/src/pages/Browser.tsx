@@ -73,6 +73,7 @@ import {
   scratchUrl, ADD_DOCUMENT, ADD_FOLDER } from "../lib/integrations";
 import { NEXTCLOUD_VIEW } from "../lib/nextcloud";
 import { rightsOn } from "../lib/rights";
+import { shareResources } from "../lib/share";
 import {
   cloudDriveAvailable,
   downloadFromDrive,
@@ -1048,26 +1049,19 @@ export const Browser = () => {
             resourceRights: [],
             resourceCreatorId: sharing.owner,
             resourceCreatorDisplayName: sharing.ownerName,
+            // plusieurs éléments : la fenêtre du socle applique la liste à chacun (droits variables signalés)
+            resources:
+              shareSet.length > 1
+                ? shareResources(shareSet, user?.userId)
+                : undefined,
           }}
           onCancel={() => setSharing(null)}
           onSuccess={() => {
-            const first = sharing;
-            const others = shareSet
-              .filter((e) => e._id !== first._id)
-              .map((e) => e._id);
-            // plusieurs éléments : les droits réglés sur le premier sont recopiés sur les autres, puis on rafraîchit
-            const copied = others.length
-              ? elementActions
-                  .shareLike(first._id, others)
-                  .catch(() => setNotice(t("workspace.react.action.failed")))
-              : Promise.resolve();
             setSharing(null);
             setSelected(new Set());
-            void copied.then(() =>
-              Promise.all(
-                ["content", "folders"].map((k) =>
-                  qc.invalidateQueries({ queryKey: ["workspace", k] }),
-                ),
+            void Promise.all(
+              ["content", "folders"].map((k) =>
+                qc.invalidateQueries({ queryKey: ["workspace", k] }),
               ),
             );
           }}
