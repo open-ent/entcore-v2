@@ -166,15 +166,10 @@ public class UserBookController extends BaseController {
 	@Get("/mon-compte")
 	@SecuredAction(value = "userbook.authent", type = ActionType.AUTHENTICATED)
 	public void monCompte(HttpServerRequest request) {
+		// Interface React seule : l'ancienne interface n'est plus proposée (ni `?ui=angular`, ni préférence de l'usager).
 		JsonObject configuration = new JsonObject().put("hidePersonalData", serverMap.get("hidePersonalData"));
-		withUi(request, ui -> {
-			if ("react".equals(ui)) {
-				renderView(request, configuration, "mon-compte-react.html", null);
-			} else {
-				renderView(request, configuration, "mon-compte.html", null);
-			}
-			eventStore.createAndStoreEvent(DirectoryEvent.ACCESS.name(), request, new JsonObject().put("override-module", "MyAccount"));
-		});
+		renderView(request, configuration, "mon-compte-react.html", null);
+		eventStore.createAndStoreEvent(DirectoryEvent.ACCESS.name(), request, new JsonObject().put("override-module", "MyAccount"));
 	}
 
 	@Get("/birthday")
