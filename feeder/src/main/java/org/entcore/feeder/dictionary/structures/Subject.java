@@ -33,7 +33,7 @@ public class Subject {
                 .put("code", subject.getString("code"))
                 .put("code", subject.getString("code"));
 
-        String query = "MATCH (sub: Subject {id : $id })-[r: SUBJECT] ->(s : Structure)" +
+        String query = "MATCH (sub: Subject {id : $id })-[r: SUBJECT] ->(s : Structure) " +
                 "SET sub.label = $label, sub.code = $code, sub.externalId = s.externalId + '$M' + $code " +
                 "RETURN sub.id as id, sub.label as label, sub.code as code, sub.source as source;";
         transactionHelper.add(query, params);

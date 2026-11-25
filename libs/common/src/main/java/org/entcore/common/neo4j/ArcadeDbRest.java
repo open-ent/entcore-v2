@@ -98,7 +98,7 @@ public class ArcadeDbRest implements GraphDatabase {
 	private final ConcurrentMap<Integer, String> sessions = new ConcurrentHashMap<>();
 
 	private final Pattern writingClausesPattern = Pattern.compile(
-			"(\\s+set\\s+|create\\s+|merge\\s+|delete\\s+|remove\\s+|foreach)", Pattern.CASE_INSENSITIVE);
+			"((?:\\s|\\))set\\s+|create\\s+|merge\\s+|delete\\s+|remove\\s+|foreach)", Pattern.CASE_INSENSITIVE);
 
 	public ArcadeDbRest(URI[] uris, boolean ro, Vertx vertx, int poolSize, boolean keepAlive, JsonObject config) {
 		final URI uri = uris[0];
