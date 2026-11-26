@@ -6,7 +6,7 @@ import {
   useEdificeClient,
 } from "@open-ent/react";
 import { useQuery } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DiscoverPanel } from "../components/DiscoverPanel";
 import { discoverAllowed } from "../lib/discover";
@@ -23,8 +23,10 @@ import {
   toggleValue,
   Visible,
   VisibleGroup,
+  userFromHash,
 } from "../lib/directory";
 import { WF, workflowsOf } from "../lib/workflows";
+import { onAvatarError } from "../lib/avatar";
 import { directoryService } from "../services/account.service";
 
 /** Annuaire : recherche des personnes visibles par nom, profil, établissement et classe, puis fiche d'une personne. */
@@ -36,7 +38,22 @@ export const Annuaire = () => {
     text: string;
     filters: Filters;
   } | null>(null);
-  const [selected, setSelected] = useState<Visible | null>(null);
+  // un lien `/userbook/annuaire#<id>#<Profil>` (notifications, ancienne interface) ouvre directement la fiche
+  const [selected, setSelected] = useState<Visible | null>(() => userFromHash(window.location.hash));
+  useEffect(() => {
+    const onHash = () => {
+      const u = userFromHash(window.location.hash);
+      if (u) setSelected(u);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  const closeCard = () => {
+    setSelected(null);
+    // l'ancre rouvrirait la fiche au prochain rechargement
+    if (userFromHash(window.location.hash))
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  };
   const [mode, setMode] = useState<
     "users" | "groups" | "favorites" | "discover"
   >("users");
@@ -100,7 +117,7 @@ export const Annuaire = () => {
         </h1>
       </AppHeader>
       {selected ? (
-        <UserCard user={selected} onBack={() => setSelected(null)} />
+        <UserCard user={selected} onBack={closeCard} />
       ) : group ? (
         <GroupCard
           group={group}
@@ -323,6 +340,7 @@ export const Annuaire = () => {
                         >
                           <img
                             src={`/userbook/avatar/${u.id}?thumbnail=100x100`}
+                            onError={onAvatarError}
                             alt=""
                             width={40}
                             height={40}

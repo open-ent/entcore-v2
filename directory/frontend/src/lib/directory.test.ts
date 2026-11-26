@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupSearchBody, searchBody, sortGroups, sortVisibles, toggleValue } from "./directory";
+import { groupSearchBody, searchBody, sortGroups, sortVisibles, toggleValue, userFromHash } from "./directory";
 
 describe("annuaire — recherche", () => {
   it("n'envoie que les filtres renseignés, texte en minuscules", () => {
@@ -36,5 +36,16 @@ describe("annuaire — recherche", () => {
       { id: "3", name: "C", sortName: "A-Student" },
     ]);
     expect(sorted.map((g) => g.id)).toEqual(["2", "3", "1"]);
+  });
+  it("ouvre la fiche désignée par l'ancre des liens de notification", () => {
+    expect(userFromHash("#ec847027-d5c6-455f-a599-43753924dff2#Personnel")).toEqual({
+      id: "ec847027-d5c6-455f-a599-43753924dff2",
+      displayName: "",
+      profile: "Personnel",
+    });
+    expect(userFromHash("#ec847027-d5c6-455f-a599-43753924dff2#")?.profile).toBeUndefined();
+    expect(userFromHash("#ec847027-d5c6-455f-a599-43753924dff2")?.id).toBe("ec847027-d5c6-455f-a599-43753924dff2");
+    expect(userFromHash("#/themes")).toBeNull();
+    expect(userFromHash("")).toBeNull();
   });
 });

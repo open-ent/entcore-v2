@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { profileRows } from "../lib/profile";
 import { directoryService } from "../services/account.service";
 import { Visible } from "../lib/directory";
+import { onAvatarError } from "../lib/avatar";
 
 /** Fiche d'un utilisateur de l'annuaire : identité, rattachements, devise, centres d'intérêt et coordonnées rendues publiques. */
 export const UserCard = ({ user, onBack }: { user: Visible; onBack: () => void }) => {
@@ -17,7 +18,14 @@ export const UserCard = ({ user, onBack }: { user: Visible; onBack: () => void }
         ← {t("userBook.directory.backToResults")}
       </button>
       <div className="d-flex gap-16 align-items-center mb-16">
-        <img src={`/userbook/avatar/${user.id}?thumbnail=100x100`} alt="" width={80} height={80} style={{ borderRadius: "50%", objectFit: "cover" }} />
+        <img
+          src={`/userbook/avatar/${user.id}?thumbnail=100x100`}
+          alt=""
+          width={80}
+          height={80}
+          style={{ borderRadius: "50%", objectFit: "cover" }}
+          onError={onAvatarError}
+        />
         <div>
           <h2 className="h3 mb-0">{p?.displayName ?? user.displayName}</h2>
           {user.profile && <span className="text-muted">{t(user.profile)}</span>}

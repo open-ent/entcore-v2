@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { sortVisibles, Visible, VisibleGroup } from "../lib/directory";
 import { directoryService } from "../services/account.service";
+import { onAvatarError } from "../lib/avatar";
 
 /** Fiche d'un groupe : son nom et ses membres visibles ; un clic sur un membre ouvre sa fiche. */
 export const GroupCard = ({ group, onBack, onOpenUser }: { group: VisibleGroup; onBack: () => void; onOpenUser: (u: Visible) => void }) => {
@@ -25,7 +26,7 @@ export const GroupCard = ({ group, onBack, onOpenUser }: { group: VisibleGroup; 
         {list.map((u) => (
           <li key={u.id} style={{ width: 240 }}>
             <button type="button" className="btn btn-outline-secondary w-100 d-flex gap-8 align-items-center text-start" onClick={() => onOpenUser(u)} data-group-member={u.id}>
-              <img src={`/userbook/avatar/${u.id}?thumbnail=100x100`} alt="" width={40} height={40} style={{ borderRadius: "50%", objectFit: "cover" }} loading="lazy" />
+              <img src={`/userbook/avatar/${u.id}?thumbnail=100x100`} onError={onAvatarError} alt="" width={40} height={40} style={{ borderRadius: "50%", objectFit: "cover" }} loading="lazy" />
               <span>
                 <strong className="d-block">{u.displayName}</strong>
                 {u.profile && <small className="text-muted">{t(u.profile)}</small>}

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { hobbyIsPublic, isVisible, MOTTO_MAX, mottoChanged, nextVisibility, showsChildren, showsRelatives, toggledHobbyVisibility } from "../lib/userbook";
 import { accountService, Person } from "../services/account.service";
+import { onAvatarError } from "../lib/avatar";
 
 /** Œil ouvert / fermé : visibilité d'une information pour les autres utilisateurs, libellé court à côté de l'icône. */
 export const VisibilityToggle = ({ visible, onToggle, id }: { visible: boolean; onToggle: () => void; id: string }) => {
@@ -129,7 +130,7 @@ export const UserbookPanel = ({ userId, person, type, mottoAllowed }: { userId: 
                   .sort((a, b) => a.displayName.localeCompare(b.displayName, "fr"))
                   .map((c) => (
                     <li key={c.id} className="d-flex align-items-center gap-8 mb-8">
-                      <img src={`/userbook/avatar/${c.id}?thumbnail=100x100`} alt="" width={32} height={32} style={{ borderRadius: "50%" }} />
+                      <img src={`/userbook/avatar/${c.id}?thumbnail=100x100`} onError={onAvatarError} alt="" width={32} height={32} style={{ borderRadius: "50%" }} />
                       <span>{c.displayName}</span>
                       {c.classesNames?.[0] && <small className="text-muted">{c.classesNames[0]}</small>}
                     </li>
@@ -144,7 +145,7 @@ export const UserbookPanel = ({ userId, person, type, mottoAllowed }: { userId: 
         <section data-account-relatives>
           <h2 className="h4 mb-12">{t("userBook.profile.relatives")}</h2>
           <div className="d-flex align-items-center gap-8">
-            {person.relatedId && <img src={`/userbook/avatar/${person.relatedId}?thumbnail=100x100`} alt="" width={32} height={32} style={{ borderRadius: "50%" }} />}
+            {person.relatedId && <img src={`/userbook/avatar/${person.relatedId}?thumbnail=100x100`} onError={onAvatarError} alt="" width={32} height={32} style={{ borderRadius: "50%" }} />}
             <span>{person.relatedName}</span>
           </div>
         </section>

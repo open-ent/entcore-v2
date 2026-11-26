@@ -26,6 +26,16 @@ export interface Visible {
   mood?: string;
 }
 
+/**
+ * Fiche ouverte par l'ancre de l'adresse, format des liens de notification et de l'ancienne interface :
+ * `/userbook/annuaire#<id>#<Profil>` (le profil peut manquer). Toute autre ancre (`#/…`) est ignorée.
+ */
+export const userFromHash = (hash: string): Visible | null => {
+  const m = /^#([0-9a-zA-Z][0-9a-zA-Z-]{7,})(?:#([A-Za-z]*))?$/.exec(decodeURIComponent(hash ?? ""));
+  if (!m) return null;
+  return { id: m[1], displayName: "", profile: m[2] || undefined };
+};
+
 /** Tri de la liste des résultats : par nom affiché, sans tenir compte de la casse ni des accents. */
 export const sortVisibles = (list: Visible[]): Visible[] => list.slice().sort((a, b) => a.displayName.localeCompare(b.displayName, "fr", { sensitivity: "base" }));
 
