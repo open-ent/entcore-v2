@@ -170,6 +170,18 @@ export let loginController = ng.controller('LoginController', ['$scope', ($scope
 		$scope.connecting = true;
 	};
 
+	// Brave (contrairement à Chrome) restaure la page de connexion depuis le cache « précédent/suivant »
+	// quand on y revient après s'être connecté : l'état AngularJS est figé tel qu'au clic, bouton grisé.
+	// On le réactive à chaque restauration.
+	window.addEventListener('pageshow', function (event: PageTransitionEvent) {
+		if (event.persisted && $scope.connecting) {
+			$scope.connecting = false;
+			if (!$scope.$$phase) {
+				$scope.$apply();
+			}
+		}
+	});
+
 	// Le piège à « retour » (10 entrées d'historique) empêche, sur un poste partagé, de revenir sur une
 	// page de l'ENT restée en cache. Il ne sert que pour la page de connexion ouverte telle quelle : un
 	// visiteur envoyé ici par un lien « Se connecter » (callback=…, site public, session expirée) doit
