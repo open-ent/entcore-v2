@@ -161,30 +161,70 @@ public class DefaultShareBookmarkService implements ShareBookmarkService {
 		JsonObject params = new JsonObject();
 		params.put("userId", userId);
 		neo4j.execute(query, params, fullNodeMergeHandler("sb", node -> {
-			if (node.isRight()) {
-				final JsonObject j = node.right().getValue();
-				final JsonArray result = new JsonArray();
-				for (String id: j.fieldNames()) {
-					final JsonArray value = j.getJsonArray(id);
-					if (value == null || value.size() < 2) {
+			if (node.isLeft()) {
+				handler.handle(new Either.Left<>(node.left().getValue()));
+				return;
+			}
+			try {
+				handler.handle(new Either.Right<>(bookmarksOf(node.right().getValue(), id ->
 						delete(userId, id, dres -> {
 							if (dres.isLeft()) {
 								log.error("Error deleting sharebookmark " + id + " : " + dres.left().getValue());
 							}
-						});
-						continue;
-					}
-					final JsonObject r = new JsonObject();
-					r.put("id", id);
-					r.put("name", value.remove(0));
-					//r.put("membersIds", value);
-					result.add(r);
-				}
-				handler.handle(new Either.Right<>(result));
-			} else {
-				handler.handle(new Either.Left<>(node.left().getValue()));
+						}))));
+			} catch (RuntimeException e) {
+				// une exception ici laisserait la requête HTTP sans réponse : on la rend en erreur
+				log.error("Error listing sharebookmarks of user " + userId, e);
+				handler.handle(new Either.Left<>("sharebookmark.list.error"));
 			}
 		}));
+	}
+
+	/**
+	 * Favoris portés par le nœud ShareBookmark d'un usager : chaque propriété est un favori,
+	 * de valeur {@code [nom, idMembre…]}.
+	 *
+	 * <p>Seules ces valeurs-là sont des favoris. Une propriété d'une autre nature (texte, nombre,
+	 * objet) n'en est pas un : elle est ignorée et surtout pas supprimée. Sous ArcadeDB, la lecture
+	 * supposait le contraire et levait une {@code ClassCastException} sur la première propriété
+	 * texte : la liste des favoris ne répondait plus. Une liste rendue en texte JSON est relue.</p>
+	 *
+	 * @param onEmpty reçoit l'identifiant d'un favori sans membre, à supprimer
+	 */
+	static JsonArray bookmarksOf(JsonObject node, java.util.function.Consumer<String> onEmpty) {
+		final JsonArray result = new JsonArray();
+		if (node == null) {
+			return result;
+		}
+		for (String id : node.fieldNames()) {
+			final JsonArray value = asList(node.getValue(id));
+			if (value == null) {
+				continue;
+			}
+			if (value.size() < 2) {
+				onEmpty.accept(id);
+				continue;
+			}
+			result.add(new JsonObject().put("id", id).put("name", value.getValue(0)));
+		}
+		return result;
+	}
+
+	private static JsonArray asList(Object value) {
+		if (value instanceof JsonArray) {
+			return (JsonArray) value;
+		}
+		if (value instanceof List) {
+			return new JsonArray((List<?>) value);
+		}
+		if (value instanceof String && ((String) value).trim().startsWith("[")) {
+			try {
+				return new JsonArray((String) value);
+			} catch (RuntimeException e) {
+				return null;
+			}
+		}
+		return null;
 	}
 
 	private String generateId() {
