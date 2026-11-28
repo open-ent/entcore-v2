@@ -68,3 +68,20 @@ export const groupSearchBody = (search: string, filters: Filters) => {
 /** Tri des groupes : sur le nom de tri s'il existe (il regroupe par établissement puis par type), sinon sur le nom. */
 export const sortGroups = (list: VisibleGroup[]): VisibleGroup[] =>
   list.slice().sort((a, b) => (a.sortName ?? a.name).localeCompare(b.sortName ?? b.name, "fr", { sensitivity: "base" }));
+
+/**
+ * Regroupe une liste déjà triée par initiale du nom (sans accent, en majuscule), pour l'affichage en carnet d'adresses.
+ * Un nom qui ne commence pas par une lettre est rangé sous « # », placé en tête.
+ */
+export const groupByInitial = <T>(list: T[], nameOf: (item: T) => string): Array<{ letter: string; items: T[] }> => {
+  const sections = new Map<string, T[]>();
+  for (const item of list) {
+    const first = (nameOf(item) ?? "").trim().normalize("NFD").replace(/[̀-ͯ]/g, "").charAt(0).toUpperCase();
+    const letter = /[A-Z]/.test(first) ? first : "#";
+    if (!sections.has(letter)) sections.set(letter, []);
+    sections.get(letter)?.push(item);
+  }
+  return [...sections.entries()]
+    .sort(([a], [b]) => (a === "#" ? -1 : b === "#" ? 1 : a.localeCompare(b)))
+    .map(([letter, items]) => ({ letter, items }));
+};

@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { sortVisibles, Visible, VisibleGroup } from "../lib/directory";
 import { directoryService } from "../services/account.service";
-import { onAvatarError } from "../lib/avatar";
+import { LoadingScreen } from "@open-ent/react";
+import { AddressBook, GroupMark, PersonEntry } from "./AddressBook";
 
 /** Fiche d'un groupe : son nom et ses membres visibles ; un clic sur un membre ouvre sa fiche. */
 export const GroupCard = ({ group, onBack, onOpenUser }: { group: VisibleGroup; onBack: () => void; onOpenUser: (u: Visible) => void }) => {
@@ -11,30 +12,32 @@ export const GroupCard = ({ group, onBack, onOpenUser }: { group: VisibleGroup; 
   const list = sortVisibles(members.data ?? []);
   return (
     <article data-directory-group-card={group.id}>
-      <button type="button" className="btn btn-link p-0 mb-16" onClick={onBack} data-directory-back>
+      <button type="button" className="ann-back" onClick={onBack} data-directory-back>
         ← {t("userBook.directory.backToResults")}
       </button>
-      <h2 className="h3">{group.name}</h2>
-      {members.isSuccess && (
-        <p className="text-muted" data-group-count>
-          {list.length} {t("directory.one.user")}
-          {list.length > 1 ? "s" : ""}
-        </p>
+      <header className="ann-card-head">
+        <GroupMark />
+        <div>
+          <h2>{group.name}</h2>
+          {members.isSuccess && (
+            <span className="ann-subjects" data-group-count>
+              {t("directory.count.people", { count: list.length })}
+            </span>
+          )}
+        </div>
+      </header>
+      {members.isLoading && <LoadingScreen position={false} />}
+      {members.isSuccess && list.length === 0 && <p className="ann-empty">{t("noresult")}</p>}
+      {list.length > 0 && (
+        <AddressBook
+          items={list}
+          nameOf={(u) => u.displayName}
+          idPrefix="ann-members"
+          letterTag="h3"
+          data-group-members=""
+          renderItem={(u) => <PersonEntry user={u} onOpen={onOpenUser} data-group-member={u.id} />}
+        />
       )}
-      {members.isSuccess && list.length === 0 && <p>{t("noresult")}</p>}
-      <ul className="list-unstyled d-flex flex-wrap gap-16" data-group-members>
-        {list.map((u) => (
-          <li key={u.id} style={{ width: 240 }}>
-            <button type="button" className="btn btn-outline-secondary w-100 d-flex gap-8 align-items-center text-start" onClick={() => onOpenUser(u)} data-group-member={u.id}>
-              <img src={`/userbook/avatar/${u.id}?thumbnail=100x100`} onError={onAvatarError} alt="" width={40} height={40} style={{ borderRadius: "50%", objectFit: "cover" }} loading="lazy" />
-              <span>
-                <strong className="d-block">{u.displayName}</strong>
-                {u.profile && <small className="text-muted">{t(u.profile)}</small>}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
     </article>
   );
 };

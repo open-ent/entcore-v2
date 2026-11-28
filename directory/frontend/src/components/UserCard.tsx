@@ -12,61 +12,73 @@ export const UserCard = ({ user, onBack }: { user: Visible; onBack: () => void }
   const p = person.data;
   // seules les coordonnées présentes (donc publiques) s'affichent ; pas de ligne d'identifiant dans l'annuaire
   const rows = profileRows(undefined, p).filter((r) => ["email", "mobile", "tel", "address", "birthDate"].includes(r.key));
+  const hobbies = (p?.hobbies ?? []).filter((h) => h.values);
+  const schools = p?.schools ?? [];
   return (
     <article data-directory-card={user.id}>
-      <button type="button" className="btn btn-link p-0 mb-16" onClick={onBack} data-directory-back>
+      <button type="button" className="ann-back" onClick={onBack} data-directory-back>
         ← {t("userBook.directory.backToResults")}
       </button>
-      <div className="d-flex gap-16 align-items-center mb-16">
+      <header className="ann-card-head" data-profile={user.profile}>
         <img
-          src={`/userbook/avatar/${user.id}?thumbnail=100x100`}
+          className="ann-avatar"
+          src={`/userbook/avatar/${user.id}?thumbnail=200x200`}
           alt=""
-          width={80}
-          height={80}
-          style={{ borderRadius: "50%", objectFit: "cover" }}
+          width={96}
+          height={96}
           onError={onAvatarError}
         />
         <div>
-          <h2 className="h3 mb-0">{p?.displayName ?? user.displayName}</h2>
-          {user.profile && <span className="text-muted">{t(user.profile)}</span>}
-          {(user.subjects?.length ?? 0) > 0 && <div className="text-muted">{user.subjects?.join(", ")}</div>}
+          <h2>{p?.displayName ?? user.displayName}</h2>
+          {user.profile && <span className="ann-badge">{t(user.profile)}</span>}
+          {(user.subjects?.length ?? 0) > 0 && <div className="ann-subjects">{user.subjects?.join(", ")}</div>}
+          {p?.motto && <p className="ann-motto">« {p.motto} »</p>}
         </div>
-      </div>
-      {p?.motto && <p className="fst-italic">« {p.motto} »</p>}
-      {(p?.schools?.length ?? 0) > 0 && (
-        <ul>
-          {p?.schools?.map((s) => (
-            <li key={s.id}>
-              {s.name}
-              {(s.classes ?? []).length > 0 && <> — {s.classes?.map((c) => (typeof c === "string" ? c : c.name)).filter(Boolean).join(", ")}</>}
-            </li>
-          ))}
-        </ul>
-      )}
-      {rows.length > 0 && (
-        <dl>
-          {rows.map((r) => (
-            <div key={r.key} className="d-flex gap-16 mb-4">
-              <dt style={{ width: 200, fontWeight: 600 }}>{t(r.label)}</dt>
-              <dd className="mb-0">{r.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {(p?.hobbies ?? []).filter((h) => h.values).length > 0 && (
-        <section>
-          <h3 className="h5">{t("userBook.interests")}</h3>
-          <ul>
-            {p?.hobbies
-              ?.filter((h) => h.values)
-              .map((h) => (
-                <li key={h.category}>
-                  {t(`userBook.hobby.${h.category}`)} : {h.values}
-                </li>
+      </header>
+      <div className="ann-card-body">
+        {schools.length > 0 && (
+          <section>
+            <h3>{t("directory.attachments")}</h3>
+            <ul>
+              {schools.map((s) => {
+                const classes = (s.classes ?? []).map((c) => (typeof c === "string" ? c : c.name)).filter(Boolean);
+                return (
+                  <li key={s.id}>
+                    {s.name}
+                    {classes.length > 0 && <span>{classes.join(", ")}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+        {rows.length > 0 && (
+          <section>
+            <h3>{t("directory.contact")}</h3>
+            <dl>
+              {rows.map((r) => (
+                <div key={r.key}>
+                  <dt>{t(r.label)}</dt>
+                  <dd>{r.value}</dd>
+                </div>
               ))}
-          </ul>
-        </section>
-      )}
+            </dl>
+          </section>
+        )}
+        {hobbies.length > 0 && (
+          <section>
+            <h3>{t("userBook.interests")}</h3>
+            <dl>
+              {hobbies.map((h) => (
+                <div key={h.category}>
+                  <dt>{t(`userBook.hobby.${h.category}`)}</dt>
+                  <dd>{h.values}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
+      </div>
     </article>
   );
 };

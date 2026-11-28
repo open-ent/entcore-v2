@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupSearchBody, searchBody, sortGroups, sortVisibles, toggleValue, userFromHash } from "./directory";
+import { groupByInitial, groupSearchBody, searchBody, sortGroups, sortVisibles, toggleValue, userFromHash } from "./directory";
 
 describe("annuaire — recherche", () => {
   it("n'envoie que les filtres renseignés, texte en minuscules", () => {
@@ -47,5 +47,13 @@ describe("annuaire — recherche", () => {
     expect(userFromHash("#ec847027-d5c6-455f-a599-43753924dff2")?.id).toBe("ec847027-d5c6-455f-a599-43753924dff2");
     expect(userFromHash("#/themes")).toBeNull();
     expect(userFromHash("")).toBeNull();
+  });
+
+  it("regroupe par initiale sans accent, les noms sans lettre en tête sous #", () => {
+    const sections = groupByInitial(
+      [{ n: ";;; njj" }, { n: "Abate" }, { n: "Émile" }, { n: "ehm" }, { n: "Zoé" }],
+      (v) => v.n,
+    );
+    expect(sections.map((s) => [s.letter, s.items.length])).toEqual([["#", 1], ["A", 1], ["E", 2], ["Z", 1]]);
   });
 });

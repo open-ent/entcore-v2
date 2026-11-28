@@ -1023,5 +1023,12 @@
   "email.regards": "Regards,",
   "slotProfile.delete": "Delete",
   "userBook.profile.family": "Family",
-  "wizard.files.infos": "Pour plus d'informations sur les formats de fichiers acceptés, cliquez ici."
+  "wizard.files.infos": "Pour plus d'informations sur les formats de fichiers acceptés, cliquez ici.",
+  "directory.count.people_one": "[[count]] person",
+  "directory.count.people_other": "[[count]] people",
+  "directory.count.groups_one": "[[count]] group",
+  "directory.count.groups_other": "[[count]] groups",
+  "directory.alphabet": "Jump to letter",
+  "directory.contact": "Contact details",
+  "directory.attachments": "Schools and classes"
 }

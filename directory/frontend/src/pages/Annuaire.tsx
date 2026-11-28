@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import { DiscoverPanel } from "../components/DiscoverPanel";
 import { discoverAllowed } from "../lib/discover";
 import { FavoritesPanel } from "../components/FavoritesPanel";
+import { AddressBook, GroupMark, PersonEntry } from "../components/AddressBook";
+import { ANNUAIRE_CSS } from "../components/annuaireStyles";
 import { GroupCard } from "../components/GroupCard";
 import { UserCard } from "../components/UserCard";
 import {
@@ -26,8 +28,10 @@ import {
   userFromHash,
 } from "../lib/directory";
 import { WF, workflowsOf } from "../lib/workflows";
-import { onAvatarError } from "../lib/avatar";
 import { directoryService } from "../services/account.service";
+
+const MODES = ["users", "groups", "favorites", "discover"] as const;
+type Mode = (typeof MODES)[number];
 
 /** Annuaire : recherche des personnes visibles par nom, profil, établissement et classe, puis fiche d'une personne. */
 export const Annuaire = () => {
@@ -54,9 +58,7 @@ export const Annuaire = () => {
     if (userFromHash(window.location.hash))
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
   };
-  const [mode, setMode] = useState<
-    "users" | "groups" | "favorites" | "discover"
-  >("users");
+  const [mode, setMode] = useState<Mode>("users");
   const { user: me } = useEdificeClient();
   const accepted = useQuery({
     queryKey: ["discover-profiles"],
@@ -109,153 +111,135 @@ export const Annuaire = () => {
     setSubmitted({ text, filters });
   };
 
+  const tabLabel = (m: Mode) =>
+    t(
+      m === "users"
+        ? "share.users"
+        : m === "groups"
+          ? "share.groups"
+          : m === "favorites"
+            ? "directory.favorites"
+            : "userbook.discover.visible",
+    );
+
   return (
     <Layout>
+      <style>{ANNUAIRE_CSS}</style>
       <AppHeader>
         <h1 className="h2" data-annuaire-title>
           {t("userBook.directory.title")}
         </h1>
       </AppHeader>
-      {selected ? (
-        <UserCard user={selected} onBack={closeCard} />
-      ) : group ? (
-        <GroupCard
-          group={group}
-          onBack={() => setGroup(null)}
-          onOpenUser={setSelected}
-        />
-      ) : (
-        <>
-          <div
-            role="tablist"
-            className="d-flex gap-16 mb-16"
-            style={{ borderBottom: "1px solid #dee2e6" }}
-            data-directory-modes
-          >
-            {(["users", "groups", "favorites", "discover"] as const)
-              .filter(
-                (m) =>
-                  (m !== "favorites" || favoritesAllowed) &&
-                  (m !== "discover" || discoverOk),
-              )
-              .map((m) => (
+      <div className="annuaire">
+        {selected ? (
+          <UserCard user={selected} onBack={closeCard} />
+        ) : group ? (
+          <GroupCard group={group} onBack={() => setGroup(null)} onOpenUser={setSelected} />
+        ) : (
+          <>
+            <div role="tablist" className="ann-tabs" data-directory-modes>
+              {MODES.filter(
+                (m) => (m !== "favorites" || favoritesAllowed) && (m !== "discover" || discoverOk),
+              ).map((m) => (
                 <button
                   key={m}
                   type="button"
                   role="tab"
                   aria-selected={mode === m}
-                  className="btn btn-link"
-                  style={{
-                    borderBottom:
-                      mode === m
-                        ? "3px solid #ffb400"
-                        : "3px solid transparent",
-                    fontWeight: mode === m ? 700 : 400,
-                    borderRadius: 0,
-                    color: "inherit",
-                  }}
+                  className="ann-tab"
                   onClick={() => {
                     setMode(m);
                     setSubmitted(null);
                   }}
                   data-directory-mode={m}
                 >
-                  {t(
-                    m === "users"
-                      ? "share.users"
-                      : m === "groups"
-                        ? "share.groups"
-                        : m === "favorites"
-                          ? "directory.favorites"
-                          : "userbook.discover.visible",
-                  )}
+                  {tabLabel(m)}
                 </button>
               ))}
-          </div>
-          {mode === "discover" ? (
-            <DiscoverPanel
-              myId={(me as { userId?: string } | undefined)?.userId ?? ""}
-            />
-          ) : mode === "favorites" ? (
-            <FavoritesPanel />
-          ) : (
-            <>
-              <form onSubmit={submit} className="mb-24" data-directory-form>
-                <div className="d-flex gap-8 mb-16">
-                  <input
-                    className="form-control"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder={t("userBook.search")}
-                    aria-label={t("userBook.search")}
-                    data-directory-search
-                  />
-                  <Button type="submit" color="primary" data-directory-submit>
-                    {t("directory.search")}
-                  </Button>
-                </div>
-                {mode === "users" && (
-                  <fieldset className="mb-16">
-                    <legend className="h6">{t("directory.profiles")}</legend>
-                    <div className="d-flex gap-16 flex-wrap">
-                      {PROFILES.map((p) => (
-                        <label key={p}>
-                          <input
-                            type="checkbox"
-                            checked={filters.profiles?.includes(p) ?? false}
-                            onChange={() =>
-                              setFilters({
-                                ...filters,
-                                profiles: toggleValue(filters.profiles, p),
-                              })
-                            }
-                            data-filter-profile={p}
-                          />{" "}
-                          {t(`directory.${p}`)}
-                        </label>
-                      ))}
+            </div>
+            {mode === "discover" ? (
+              <DiscoverPanel myId={(me as { userId?: string } | undefined)?.userId ?? ""} />
+            ) : mode === "favorites" ? (
+              <FavoritesPanel />
+            ) : (
+              <>
+                <form onSubmit={submit} className="ann-search" role="search" data-directory-form>
+                  <div className="ann-query">
+                    <div className="ann-query-field">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-3.5-3.5" />
+                      </svg>
+                      <input
+                        type="search"
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        placeholder={t(mode === "groups" ? "userBook.search.name" : "userBook.search")}
+                        aria-label={t("userBook.search")}
+                        data-directory-search
+                      />
                     </div>
-                  </fieldset>
-                )}
-                {(criteria.data?.structures?.length ?? 0) > 0 && (
-                  <div className="d-flex gap-16 flex-wrap">
-                    <label>
-                      {t("directory.search.structure")}
-                      <select
-                        className="form-select"
-                        value={filters.structures?.[0] ?? ""}
-                        onChange={(e) =>
-                          setFilters({
-                            ...filters,
-                            structures: e.target.value ? [e.target.value] : [],
-                            classes: [],
-                          })
-                        }
-                        data-filter-structure
-                      >
-                        <option value="">—</option>
-                        {criteria.data?.structures.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <Button type="submit" color="primary" data-directory-submit>
+                      {t("directory.search")}
+                    </Button>
+                  </div>
+                  <div className="ann-filters">
+                    {mode === "users" && (
+                      <fieldset>
+                        <legend className="ann-filter-label">{t("directory.profiles")}</legend>
+                        <div className="ann-chips">
+                          {PROFILES.map((p) => (
+                            <label key={p} className="ann-chip" data-profile={p}>
+                              <input
+                                type="checkbox"
+                                checked={filters.profiles?.includes(p) ?? false}
+                                onChange={() =>
+                                  setFilters({ ...filters, profiles: toggleValue(filters.profiles, p) })
+                                }
+                                data-filter-profile={p}
+                              />
+                              {t(`directory.${p}`)}
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                    )}
+                    {(criteria.data?.structures?.length ?? 0) > 0 && (
+                      <label className="ann-select">
+                        <span className="ann-filter-label">{t("directory.search.structure")}</span>
+                        <select
+                          className="form-select"
+                          value={filters.structures?.[0] ?? ""}
+                          onChange={(e) =>
+                            setFilters({
+                              ...filters,
+                              structures: e.target.value ? [e.target.value] : [],
+                              classes: [],
+                            })
+                          }
+                          data-filter-structure
+                        >
+                          <option value="">{t("directory.allStructures")}</option>
+                          {criteria.data?.structures.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                     {filters.structures?.[0] && (
-                      <label>
-                        {t("directory.classe")}
+                      <label className="ann-select">
+                        <span className="ann-filter-label">{t("directory.classe")}</span>
                         <select
                           className="form-select"
                           value={filters.classes?.[0] ?? ""}
                           onChange={(e) =>
-                            setFilters({
-                              ...filters,
-                              classes: e.target.value ? [e.target.value] : [],
-                            })
+                            setFilters({ ...filters, classes: e.target.value ? [e.target.value] : [] })
                           }
                           data-filter-class
                         >
-                          <option value="">—</option>
+                          <option value="">{t("directory.allClasses")}</option>
                           {(classes.data ?? []).map((c) => (
                             <option key={c.id} value={c.id}>
                               {c.label}
@@ -265,105 +249,63 @@ export const Annuaire = () => {
                       </label>
                     )}
                   </div>
+                </form>
+                {(results.isLoading || groupResults.isLoading) && <LoadingScreen position={false} />}
+                {(results.isError || groupResults.isError) && (
+                  <div className="alert alert-danger" role="alert" data-directory-error>
+                    {t("account.error", { defaultValue: "La recherche a échoué." })}
+                  </div>
                 )}
-              </form>
-              {(results.isLoading || groupResults.isLoading) && (
-                <LoadingScreen position={false} />
-              )}
-              {results.isError && (
-                <div
-                  className="alert alert-danger"
-                  role="alert"
-                  data-directory-error
-                >
-                  {t("account.error", {
-                    defaultValue: "La recherche a échoué.",
-                  })}
-                </div>
-              )}
-              {!submitted && (
-                <div
-                  className="text-center text-muted"
-                  data-directory-empty-start
-                >
-                  <h2 className="h4">
-                    {t("userBook.directory.emptyScreen.users.header")}
-                  </h2>
-                  <p>{t("userBook.directory.emptyScreen.users.footer")}</p>
-                </div>
-              )}
-              {mode === "groups" &&
-                groupResults.isSuccess &&
-                groupResults.data.length === 0 && (
-                  <p data-directory-noresult>{t("noresult")}</p>
+                {!submitted && (
+                  <div className="ann-empty" data-directory-empty-start>
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5z" />
+                      <path d="M5 3v18M3 7h4M3 12h4M3 17h4" />
+                      <circle cx="12.5" cy="10" r="2.5" />
+                      <path d="M8.5 16.5c.6-1.9 2.1-3 4-3s3.4 1.1 4 3" />
+                    </svg>
+                    <h2>{t("userBook.directory.emptyScreen.users.header")}</h2>
+                    <p>{t("userBook.directory.emptyScreen.users.footer")}</p>
+                  </div>
                 )}
-              {mode === "groups" &&
-                groupResults.isSuccess &&
-                groupResults.data.length > 0 && (
-                  <ul
-                    className="list-unstyled d-flex flex-column gap-8"
-                    data-directory-group-results
-                  >
-                    {groupResults.data.map((g) => (
-                      <li key={g.id}>
-                        <button
-                          type="button"
-                          className="btn btn-outline-secondary w-100 text-start"
-                          onClick={() => setGroup(g)}
-                          data-directory-group={g.id}
-                        >
-                          {g.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                {mode === "groups" && groupResults.isSuccess && groupResults.data.length === 0 && (
+                  <p className="ann-empty" data-directory-noresult>{t("noresult")}</p>
                 )}
-              {mode === "users" &&
-                results.isSuccess &&
-                results.data.length === 0 && (
-                  <p data-directory-noresult>{t("noresult")}</p>
+                {mode === "groups" && groupResults.isSuccess && groupResults.data.length > 0 && (
+                  <AddressBook
+                    items={groupResults.data}
+                    nameOf={(g) => g.name}
+                    idPrefix="ann-groups"
+                    count={t("directory.count.groups", { count: groupResults.data.length })}
+                    data-directory-group-results=""
+                    renderItem={(g) => (
+                      <button type="button" className="ann-entry" onClick={() => setGroup(g)} data-directory-group={g.id}>
+                        <GroupMark />
+                        <span className="ann-entry-text">
+                          <strong title={g.name}>{g.name}</strong>
+                        </span>
+                      </button>
+                    )}
+                  />
                 )}
-              {mode === "users" &&
-                results.isSuccess &&
-                results.data.length > 0 && (
-                  <ul
-                    className="list-unstyled d-flex flex-wrap gap-16"
-                    data-directory-results
-                  >
-                    {results.data.map((u) => (
-                      <li key={u.id} style={{ width: 240 }}>
-                        <button
-                          type="button"
-                          className="btn btn-outline-secondary w-100 d-flex gap-8 align-items-center text-start"
-                          onClick={() => setSelected(u)}
-                          data-directory-user={u.id}
-                        >
-                          <img
-                            src={`/userbook/avatar/${u.id}?thumbnail=100x100`}
-                            onError={onAvatarError}
-                            alt=""
-                            width={40}
-                            height={40}
-                            style={{ borderRadius: "50%", objectFit: "cover" }}
-                            loading="lazy"
-                          />
-                          <span>
-                            <strong className="d-block">{u.displayName}</strong>
-                            {u.profile && (
-                              <small className="text-muted">
-                                {t(u.profile)}
-                              </small>
-                            )}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                {mode === "users" && results.isSuccess && results.data.length === 0 && (
+                  <p className="ann-empty" data-directory-noresult>{t("noresult")}</p>
                 )}
-            </>
-          )}
-        </>
-      )}
+                {mode === "users" && results.isSuccess && results.data.length > 0 && (
+                  <AddressBook
+                    items={results.data}
+                    nameOf={(u) => u.displayName}
+                    idPrefix="ann-people"
+                    count={t("directory.count.people", { count: results.data.length })}
+                    data-directory-results=""
+                    renderItem={(u) => <PersonEntry user={u} onOpen={setSelected} data-directory-user={u.id} />}
+                  />
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
     </Layout>
   );
 };

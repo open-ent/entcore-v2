@@ -1025,5 +1025,12 @@
   "wizard.type": "Indiquez la source des fichiers que vous allez importer",
   "wizard.type.BE1D": "Base élèves 1er degré (ONDE)",
   "wizard.type.CSV": "CSV",
-  "wizard.type.subtitle": "Source des fichiers"
+  "wizard.type.subtitle": "Source des fichiers",
+  "directory.count.people_one": "[[count]] personne",
+  "directory.count.people_other": "[[count]] personnes",
+  "directory.count.groups_one": "[[count]] groupe",
+  "directory.count.groups_other": "[[count]] groupes",
+  "directory.alphabet": "Aller à la lettre",
+  "directory.contact": "Coordonnées",
+  "directory.attachments": "Rattachements"
 }
