@@ -81,7 +81,7 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
-            <version>1.16.1</version>
+            <version>1.23.0</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -112,14 +112,14 @@
         <dependency>
             <groupId>com.googlecode.libphonenumber</groupId>
             <artifactId>libphonenumber</artifactId>
-            <version>8.13.27</version>
+            <version>8.13.55</version>
             <scope>compile</scope>
         </dependency>
         <!-- Lecture des bases de géolocalisation d'IP au format .mmdb (DB-IP Lite) -->
         <dependency>
             <groupId>com.maxmind.db</groupId>
             <artifactId>maxmind-db</artifactId>
-            <version>3.1.0</version>
+            <version>3.2.0</version>
             <scope>compile</scope>
         </dependency>
         <!-- JAXB and SAAJ removed from JDK since Java 11 (JEP 320) -->
